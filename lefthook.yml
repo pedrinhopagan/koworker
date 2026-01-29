@@ -1,0 +1,9 @@
+pre-commit:
+  commands:
+    fix-and-stage:
+      glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}"
+      run: |
+        bun oxfmt {staged_files}
+        bun oxlint --fix --fix-suggestions --fix-dangerously {staged_files} || true
+        git add {staged_files}
+        bun oxlint {staged_files}
