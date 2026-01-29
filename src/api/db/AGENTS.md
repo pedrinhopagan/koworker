@@ -8,9 +8,10 @@ Padronizar schema SQLite e queries Kysely.
 
 - Usar `@lobomfz/db` para definir schema e expor Kysely
 - IDs são `uuid` (TEXT) gerados na aplicação
-- `snake_case` no DB, `camelCase` no TS
+- `snake_case` no DB, `camelCase` no TS (na camada `db` usar nomes das colunas)
 - `projects` e `tasks` usam soft delete (`deleted_at`)
 - JSON em coluna `TEXT`, sempre serialize/parse no boundary
+- Inputs de `create/update` usam `Insertable<T>` e `Updateable<T>` do Kysely quando fizer sentido
 
 ## TABLES
 
@@ -18,6 +19,7 @@ Padronizar schema SQLite e queries Kysely.
 
 ## QUERIES
 
-- Funções em módulos `Db*` dentro de `src/api/db/`
+- Um arquivo por tabela dentro de `src/api/db/`
+- Exportar um objeto com métodos (ex: `dbProjects.getAll`)
 - `executeTakeFirst` para single, `execute` para listas
 - Sempre filtrar `deleted_at IS NULL` quando aplicável
