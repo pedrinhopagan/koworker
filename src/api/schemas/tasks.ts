@@ -55,7 +55,7 @@ export const TaskDbCreateSchema = z.object({
 	category_id: z.string().min(1),
 	status: TaskStatusSchema.optional(),
 	acceptance_criteria: z.string().optional(),
-	completed_at: z.number().int().optional(),
+	completed_at: z.number().int().nullable().optional(),
 	created_at: z.number().int().optional(),
 	updated_at: z.number().int().optional(),
 	deleted_at: z.number().int().optional(),

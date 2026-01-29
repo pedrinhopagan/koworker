@@ -34,7 +34,7 @@ export const SubtaskDbCreateSchema = z.object({
 	title: z.string().min(1),
 	description: z.string().optional(),
 	status: TaskStatusSchema.optional(),
-	completed_at: z.number().int().optional(),
+	completed_at: z.number().int().nullable().optional(),
 	created_at: z.number().int().optional(),
 	updated_at: z.number().int().optional(),
 });
