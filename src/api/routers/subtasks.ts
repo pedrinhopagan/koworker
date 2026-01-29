@@ -1,12 +1,12 @@
 import { protectedProcedure } from "../auth/context";
+import type { subtasks } from "../db/connection";
+import { dbSubtasks } from "../db/subtasks";
 import {
 	SubtaskCreateSchema,
 	SubtaskIdSchema,
 	SubtaskListByTaskSchema,
 	SubtaskUpdateSchema,
 } from "../schemas";
-import { dbSubtasks } from "../db/subtasks";
-import type { subtasks } from "../db/connection";
 
 const mapSubtask = (row: subtasks) => ({
 	id: row.id,
@@ -20,57 +20,47 @@ const mapSubtask = (row: subtasks) => ({
 });
 
 export const subtasksRouter = {
-	listByTask: protectedProcedure
-		.input(SubtaskListByTaskSchema)
-		.handler(async ({ input }) => {
-			const rows = await dbSubtasks.listByTask(input.taskId);
-			return rows.map(mapSubtask);
-		}),
+	listByTask: protectedProcedure.input(SubtaskListByTaskSchema).handler(async ({ input }) => {
+		const rows = await dbSubtasks.listByTask(input.taskId);
+		return rows.map(mapSubtask);
+	}),
 
-	getById: protectedProcedure
-		.input(SubtaskIdSchema)
-		.handler(async ({ input }) => {
-			const row = await dbSubtasks.getById(input.id);
-			return row ? mapSubtask(row) : null;
-		}),
+	getById: protectedProcedure.input(SubtaskIdSchema).handler(async ({ input }) => {
+		const row = await dbSubtasks.getById(input.id);
+		return row ? mapSubtask(row) : null;
+	}),
 
-	create: protectedProcedure
-		.input(SubtaskCreateSchema)
-		.handler(async ({ input }) => {
-			const id = crypto.randomUUID();
+	create: protectedProcedure.input(SubtaskCreateSchema).handler(async ({ input }) => {
+		const id = crypto.randomUUID();
 
-			await dbSubtasks.create({
-				id,
-				task_id: input.taskId,
-				title: input.title,
-				description: input.description,
-				status: input.status,
-				completed_at: input.completedAt,
-			});
+		await dbSubtasks.create({
+			id,
+			task_id: input.taskId,
+			title: input.title,
+			description: input.description,
+			status: input.status,
+			completed_at: input.completedAt,
+		});
 
-			const row = await dbSubtasks.getById(id);
-			return row ? mapSubtask(row) : null;
-		}),
+		const row = await dbSubtasks.getById(id);
+		return row ? mapSubtask(row) : null;
+	}),
 
-	update: protectedProcedure
-		.input(SubtaskUpdateSchema)
-		.handler(async ({ input }) => {
-			await dbSubtasks.update({
-				id: input.id,
-				title: input.title,
-				description: input.description,
-				status: input.status,
-				completed_at: input.completedAt,
-			});
+	update: protectedProcedure.input(SubtaskUpdateSchema).handler(async ({ input }) => {
+		await dbSubtasks.update({
+			id: input.id,
+			title: input.title,
+			description: input.description,
+			status: input.status,
+			completed_at: input.completedAt,
+		});
 
-			const row = await dbSubtasks.getById(input.id);
-			return row ? mapSubtask(row) : null;
-		}),
+		const row = await dbSubtasks.getById(input.id);
+		return row ? mapSubtask(row) : null;
+	}),
 
-	remove: protectedProcedure
-		.input(SubtaskIdSchema)
-		.handler(async ({ input }) => {
-			await dbSubtasks.delete(input.id);
-			return { id: input.id };
-		}),
+	remove: protectedProcedure.input(SubtaskIdSchema).handler(async ({ input }) => {
+		await dbSubtasks.delete(input.id);
+		return { id: input.id };
+	}),
 };

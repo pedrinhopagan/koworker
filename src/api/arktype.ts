@@ -1,7 +1,7 @@
 import { configure } from "arktype/config";
 
 configure({
-  onUndeclaredKey: "delete",
-  clone: false,
-  exactOptionalPropertyTypes: false,
+	onUndeclaredKey: "delete",
+	clone: false,
+	exactOptionalPropertyTypes: false,
 });

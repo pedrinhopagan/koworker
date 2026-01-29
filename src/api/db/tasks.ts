@@ -1,6 +1,6 @@
-import { db } from "./connection";
-import { cleanUpdate } from "./helpers";
 import type { TaskDbCreateInput, TaskDbUpdateInput } from "../schemas/tasks";
+import { db, type tasks } from "./connection";
+import { cleanUpdate } from "./helpers";
 
 export const dbTasks = {
 	getById: (id: string) =>
@@ -22,7 +22,7 @@ export const dbTasks = {
 	create: (input: TaskDbCreateInput) =>
 		db
 			.insertInto("tasks")
-			.values(input)
+			.values(input as tasks)
 			.onConflict((oc) => oc.column("id").doNothing())
 			.executeTakeFirst(),
 

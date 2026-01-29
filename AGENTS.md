@@ -150,6 +150,7 @@ src/
 |---|---|
 | `src/api/AGENTS.md` | Router ORPC, auth, schemas |
 | `src/api/db/AGENTS.md` | Modelagem e queries |
-| `src/routes/AGENTS.md` | Rotas e UI |
+| `src/routes/AGENTS.md` | Rotas, UI e organização de páginas |
 | `src/components/AGENTS.md` | Componentes base |
-| `src/cli/AGENTS.md` | CLI e tarefas |
+| `src/cli/AGENTS.md` | CLI para AI Agents |
+| `src-tauri/AGENTS.md` | Wrapper desktop Tauri |

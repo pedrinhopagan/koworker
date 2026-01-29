@@ -1,6 +1,6 @@
-import { db } from "./connection";
-import { cleanUpdate } from "./helpers";
 import type { SubtaskDbCreateInput, SubtaskDbUpdateInput } from "../schemas/subtasks";
+import { db, type subtasks } from "./connection";
+import { cleanUpdate } from "./helpers";
 
 export const dbSubtasks = {
 	getById: (id: string) =>
@@ -10,7 +10,10 @@ export const dbSubtasks = {
 		db.selectFrom("subtasks").selectAll().where("task_id", "=", taskId).execute(),
 
 	create: (input: SubtaskDbCreateInput) =>
-		db.insertInto("subtasks").values(input).executeTakeFirst(),
+		db
+			.insertInto("subtasks")
+			.values(input as subtasks)
+			.executeTakeFirst(),
 
 	update: (input: { id: string } & SubtaskDbUpdateInput) => {
 		const { id, ...values } = input;

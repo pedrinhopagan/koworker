@@ -1,10 +1,10 @@
-import { FormProvider, type SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { loginSchema } from "@/lib/schemas";
 import { useMutation } from "@tanstack/react-query";
-import { orpc } from "@/client";
-import type { LoginInput } from "@/types/auth";
+import { FormProvider, type SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { orpc } from "@/client";
+import { loginSchema } from "@/lib/schemas";
+import type { LoginInput } from "@/types/auth";
 
 export function useLogin() {
 	const { mutateAsync } = useMutation(orpc.auth.login.mutationOptions());

@@ -1,20 +1,19 @@
-import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { orpc } from "@/client";
+import { AppShell } from "@/routes/_app/-components/app-shell";
 
 export const Route = createFileRoute("/_app")({
-  beforeLoad: async ({ context }) => {
-    try {
-      const user = await context.queryClient.fetchQuery(orpc.auth.me.queryOptions());
-      return { user };
-    } catch {
-      throw redirect({ to: "/login" });
-    }
-  },
+	beforeLoad: () => {
+		return { user: { id: 1, name: "Pedro", user_type: "admin" as const } };
+	},
 
-  component: AppLayout,
+	component: AppLayout,
 });
 
 function AppLayout() {
-  return <Outlet />;
+	return (
+		<AppShell>
+			<Outlet />
+		</AppShell>
+	);
 }

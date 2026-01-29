@@ -1,88 +1,75 @@
-import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { LogOut, Bell, Send } from "lucide-react";
+import { z } from "zod";
 
-import { orpc, orpcWs } from "@/client";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useLogout } from "@/hooks/use-logout";
+import { Text, Title } from "@/components/typography";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { PageShell } from "@/routes/_app/-components/page-shell";
+
+const searchSchema = z.object({
+	foco: z.enum(["semana", "mes"]).optional(),
+	q: z.string().optional(),
+});
 
 export const Route = createFileRoute("/_app/")({
+	validateSearch: (search) => searchSchema.parse(search),
 	component: HomePage,
 });
 
 function HomePage() {
-	const { data: user } = useSuspenseQuery(orpc.auth.me.queryOptions());
-	const { logout } = useLogout();
-
-	const [enabled, setEnabled] = useState(false);
-
-	const { data: events, isFetching } = useQuery(
-		orpcWs.notifications.experimental_streamedOptions({
-			enabled,
-			retry: false,
-		}),
-	);
-
-	const isListening = isFetching && enabled;
-
-	async function sendTestNotification() {
-		await orpc.testNotification.call({});
-	}
+	const { foco } = Route.useSearch();
+	const periodoLabel = foco === "mes" ? "Mês atual" : "Semana atual";
 
 	return (
-		<div className="flex min-h-screen items-center justify-center bg-background">
-			<Card className="w-full max-w-md">
-				<CardHeader>
-					<CardTitle className="text-2xl font-bold">Hello, {user?.name}</CardTitle>
-				</CardHeader>
-
-				<CardContent className="space-y-4">
-					<p className="text-muted-foreground">You are logged in.</p>
-
-					<div className="rounded-lg border p-4">
-						<div className="mb-3 flex items-center justify-between">
-							<span className="text-sm font-medium">Notifications (WebSocket)</span>
-							{isListening && (
-								<span className="text-xs text-green-500 animate-pulse">Connected...</span>
-							)}
+		<PageShell title="Home" description="Visão geral das suas atividades">
+			<div className="grid gap-4 md:grid-cols-2">
+				<Card>
+					<CardHeader className="space-y-1">
+						<Title size="sm">Resumo</Title>
+						<Text size="sm" tone="muted">
+							{periodoLabel}
+						</Text>
+					</CardHeader>
+					<CardContent className="space-y-3">
+						<Text>Conteúdo inicial em construção.</Text>
+						<div className="flex flex-wrap gap-2">
+							<Text as="span" size="xs" tone="muted" className="rounded-md bg-muted px-2 py-1">
+								Pendentes
+							</Text>
+							<Text as="span" size="xs" tone="muted" className="rounded-md bg-muted px-2 py-1">
+								Em execução
+							</Text>
+							<Text as="span" size="xs" tone="muted" className="rounded-md bg-muted px-2 py-1">
+								Revisão
+							</Text>
 						</div>
+					</CardContent>
+				</Card>
 
-						<div className="flex gap-2 mb-3">
-							<Button
-								variant="secondary"
-								onClick={() => setEnabled(true)}
-								disabled={isListening}
-								className="flex-1"
-							>
-								<Bell className="mr-2 size-4" />
-								{isListening ? "Listening..." : "Connect"}
-							</Button>
-
-							<Button variant="outline" onClick={sendTestNotification} disabled={!isListening}>
-								<Send className="size-4" />
-							</Button>
+				<Card>
+					<CardHeader className="space-y-1">
+						<Title size="sm">Atalhos</Title>
+						<Text size="sm" tone="muted">
+							Acesso rápido às ações
+						</Text>
+					</CardHeader>
+					<CardContent className="space-y-3">
+						<Text size="sm" tone="muted">
+							Conecte aqui as ações principais da sua rotina.
+						</Text>
+						<div className="flex flex-wrap gap-2">
+							<Text as="span" size="xs" tone="muted" className="rounded-md bg-muted px-2 py-1">
+								Criar tarefa
+							</Text>
+							<Text as="span" size="xs" tone="muted" className="rounded-md bg-muted px-2 py-1">
+								Revisões
+							</Text>
+							<Text as="span" size="xs" tone="muted" className="rounded-md bg-muted px-2 py-1">
+								Agenda
+							</Text>
 						</div>
-
-						{events && events.length > 0 && (
-							<div className="space-y-2 text-sm">
-								{events.map((e, i) => (
-									<div key={i} className="rounded bg-muted p-2">
-										<div className="font-medium">{e.title}</div>
-										<div className="text-muted-foreground">{e.message}</div>
-									</div>
-								))}
-							</div>
-						)}
-					</div>
-
-					<Button variant="outline" onClick={logout} className="w-full">
-						<LogOut className="mr-2 size-4" />
-						Sign out
-					</Button>
-				</CardContent>
-			</Card>
-		</div>
+					</CardContent>
+				</Card>
+			</div>
+		</PageShell>
 	);
 }

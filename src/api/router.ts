@@ -1,12 +1,12 @@
 import { protectedProcedure, publicProcedure } from "./auth/context";
 import { Auth } from "./auth/login";
 import { PubSub } from "./pubsub";
-import { EndpointSchemas, TaskListByProjectSchema } from "./schemas";
-import { projectsRouter } from "./routers/projects";
-import { tasksRouter } from "./routers/tasks";
-import { subtasksRouter } from "./routers/subtasks";
 import { categoriesRouter } from "./routers/categories";
 import { prioritiesRouter } from "./routers/priorities";
+import { projectsRouter } from "./routers/projects";
+import { subtasksRouter } from "./routers/subtasks";
+import { tasksRouter } from "./routers/tasks";
+import { EndpointSchemas, TaskListByProjectSchema } from "./schemas";
 
 export const router = {
 	auth: {

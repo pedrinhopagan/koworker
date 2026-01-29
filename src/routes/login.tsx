@@ -2,10 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { LogIn } from "lucide-react";
 import { useFormContext } from "react-hook-form";
 
+import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLogin } from "@/hooks/use-login";
 import type { LoginInput } from "@/types/auth";
 
@@ -32,8 +33,10 @@ function LoginPage() {
 function LoginCardHeader() {
 	return (
 		<CardHeader>
-			<CardTitle className="text-2xl font-bold">Koworker</CardTitle>
-			<CardDescription>Enter your credentials to access</CardDescription>
+			<Title size="md">Koworker</Title>
+			<Text size="sm" tone="muted">
+				Entre com suas credenciais para acessar
+			</Text>
 		</CardHeader>
 	);
 }
@@ -62,19 +65,23 @@ function LoginCardName() {
 
 	return (
 		<div className="space-y-2">
-			<Label htmlFor="name">Name</Label>
+			<Label htmlFor="name">Nome</Label>
 
 			<Input
 				id="name"
 				type="text"
-				placeholder="Your name"
+				placeholder="Seu nome"
 				className="bg-background border border-border"
 				aria-invalid={!!nameError}
 				{...register("name")}
 				required
 			/>
 
-			{nameError && <p className="text-sm text-red-500">{nameError}</p>}
+			{nameError && (
+				<Text size="sm" tone="destructive">
+					{nameError}
+				</Text>
+			)}
 		</div>
 	);
 }
@@ -88,19 +95,23 @@ function LoginCardPassword() {
 
 	return (
 		<div className="space-y-2">
-			<Label htmlFor="password">Password</Label>
+			<Label htmlFor="password">Senha</Label>
 
 			<Input
 				id="password"
 				type="password"
-				placeholder="Your password"
+				placeholder="Sua senha"
 				className="bg-background border border-border"
 				aria-invalid={!!passwordError}
 				{...register("password")}
 				required
 			/>
 
-			{passwordError && <p className="text-sm text-red-500">{passwordError}</p>}
+			{passwordError && (
+				<Text size="sm" tone="destructive">
+					{passwordError}
+				</Text>
+			)}
 		</div>
 	);
 }
@@ -113,7 +124,7 @@ function LoginCardFooter() {
 	return (
 		<Button type="submit" className="w-full" disabled={isSubmitting}>
 			<LogIn className="mr-2 size-4" />
-			{isSubmitting ? "Signing in..." : "Sign in"}
+			{isSubmitting ? "Entrando..." : "Entrar"}
 		</Button>
 	);
 }

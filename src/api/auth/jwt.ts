@@ -1,5 +1,5 @@
-import * as jose from "jose";
 import { type } from "arktype";
+import * as jose from "jose";
 import { envVariables } from "@/api/config/env";
 
 const SECRET = new TextEncoder().encode(envVariables.JWT_SECRET);

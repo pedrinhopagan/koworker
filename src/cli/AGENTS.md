@@ -2,22 +2,56 @@
 
 ## OBJETIVO
 
-Atualizar tasks/subtasks diretamente no SQLite sem passar pela API.
+Atualizar tasks/subtasks diretamente no SQLite sem passar pela API. Usado por AI Coding Agents.
+
+## ESTRUTURA
+
+```
+cli/
+├── index.ts             # Entry point, parse de comandos
+├── db.ts                # Conexão Kysely direta
+└── commands/
+    └── update-task.ts   # Comando principal
+```
 
 ## REGRAS
 
-- CLI em `src/cli/` acessa o DB direto via Kysely
-- Comando principal: `kowork update-task` recebendo JSON completo
-- `completed_at` nunca é setado pela CLI
-- Sempre atualizar `updated_at`
+- Acesso direto ao DB via Kysely
 - Validar input com Zod
-- Erros devem ser em pt-BR e retornar exit code != 0
+- Erros em pt-BR e exit code != 0
+- Sempre atualizar `updated_at`
+- Nunca setar `completed_at` (só o usuário aprova)
 
-## INPUT JSON (BASE)
+## COMANDOS
 
-- `taskId`
-- `status` (`pending | in_execution | executed`)
-- `notes?`
-- `ai_metadata?`
-- `acceptance_criteria?` (array de `{ id, text, done }`)
-- `subtasks?` (lista com `id?`, `title`, `description?`, `status`)
+### update-task
+
+Recebe JSON com campos opcionais:
+
+```typescript
+{
+  taskId: string          // obrigatório
+  status?: "pending" | "in_execution" | "executed"
+  notes?: string
+  ai_metadata?: object
+  acceptance_criteria?: Array<{ id: string, text: string, done: boolean }>
+  subtasks?: Array<{
+    id?: string           // se presente, atualiza; se ausente, cria
+    title: string
+    description?: string
+    status?: "pending" | "in_execution" | "executed"
+  }>
+}
+```
+
+## USO
+
+```bash
+kowork update-task '{"taskId": "uuid", "status": "executed"}'
+```
+
+## ADICIONAR COMANDO
+
+1. Criar `commands/meu-comando.ts` exportando função async
+2. Registrar em `index.ts` no objeto `commands`
+3. Documentar aqui

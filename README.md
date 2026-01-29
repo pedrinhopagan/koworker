@@ -57,3 +57,7 @@ bun run oxlint
 bun check
 bun test
 ```
+
+## Desktop
+
+Documentacao inicial em `docs/desktop/README.md`.

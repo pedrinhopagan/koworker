@@ -1,5 +1,5 @@
+import { autoIncrement, Database } from "@lobomfz/db";
 import { type } from "arktype";
-import { Database, autoIncrement } from "@lobomfz/db";
 import { envVariables } from "@/api/config/env";
 
 const user_type = type.enumerated("admin", "user");

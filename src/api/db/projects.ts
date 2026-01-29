@@ -1,14 +1,9 @@
-import { db } from "./connection";
-import { cleanUpdate } from "./helpers";
 import type { ProjectDbCreateInput, ProjectDbUpdateInput } from "../schemas/projects";
+import { db, type projects } from "./connection";
+import { cleanUpdate } from "./helpers";
 
 export const dbProjects = {
-	getAll: () =>
-		db
-			.selectFrom("projects")
-			.selectAll()
-			.where("deleted_at", "is", null)
-			.execute(),
+	getAll: () => db.selectFrom("projects").selectAll().where("deleted_at", "is", null).execute(),
 
 	getById: (id: string) =>
 		db
@@ -19,7 +14,10 @@ export const dbProjects = {
 			.executeTakeFirst(),
 
 	create: (input: ProjectDbCreateInput) =>
-		db.insertInto("projects").values(input).executeTakeFirst(),
+		db
+			.insertInto("projects")
+			.values(input as projects)
+			.executeTakeFirst(),
 
 	update: (input: { id: string } & ProjectDbUpdateInput) => {
 		const { id, ...values } = input;

@@ -1,11 +1,15 @@
 import { AuthLoginSchema } from "./auth";
 
 export { AuthLoginSchema } from "./auth";
+export { CategoryCreateSchema, CategoryIdSchema, CategoryUpdateSchema } from "./categories";
+export { PriorityCreateSchema, PriorityIdSchema, PriorityUpdateSchema } from "./priorities";
+export { ProjectCreateSchema, ProjectIdSchema, ProjectUpdateSchema } from "./projects";
 export {
-	ProjectCreateSchema,
-	ProjectIdSchema,
-	ProjectUpdateSchema,
-} from "./projects";
+	SubtaskCreateSchema,
+	SubtaskIdSchema,
+	SubtaskListByTaskSchema,
+	SubtaskUpdateSchema,
+} from "./subtasks";
 export {
 	AcceptanceCriteriaItemSchema,
 	TaskCreateSchema,
@@ -14,14 +18,6 @@ export {
 	TaskStatusSchema,
 	TaskUpdateSchema,
 } from "./tasks";
-export {
-	SubtaskCreateSchema,
-	SubtaskIdSchema,
-	SubtaskListByTaskSchema,
-	SubtaskUpdateSchema,
-} from "./subtasks";
-export { CategoryCreateSchema, CategoryIdSchema, CategoryUpdateSchema } from "./categories";
-export { PriorityCreateSchema, PriorityIdSchema, PriorityUpdateSchema } from "./priorities";
 
 export const EndpointSchemas = {
 	authLogin: AuthLoginSchema,

@@ -1,5 +1,5 @@
-import { RPCHandler as FetchRPCHandler } from "@orpc/server/fetch";
 import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
+import { RPCHandler as FetchRPCHandler } from "@orpc/server/fetch";
 import { RequestHeadersPlugin, ResponseHeadersPlugin } from "@orpc/server/plugins";
 
 import { router, wsRouter } from "./router";

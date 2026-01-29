@@ -7,7 +7,10 @@ export const ProjectIdSchema = z.object({
 export const ProjectCreateSchema = z.object({
 	name: z.string().min(1),
 	description: z.string().optional(),
-	color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+	color: z
+		.string()
+		.regex(/^#[0-9a-fA-F]{6}$/)
+		.optional(),
 	mainRoute: z.string().min(1),
 });
 
@@ -15,7 +18,10 @@ export const ProjectUpdateSchema = z.object({
 	id: z.string().min(1),
 	name: z.string().min(1).optional(),
 	description: z.string().optional(),
-	color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+	color: z
+		.string()
+		.regex(/^#[0-9a-fA-F]{6}$/)
+		.optional(),
 	mainRoute: z.string().min(1).optional(),
 });
 

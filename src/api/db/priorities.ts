@@ -1,6 +1,6 @@
-import { db } from "./connection";
-import { cleanUpdate } from "./helpers";
 import type { PriorityDbCreateInput, PriorityDbUpdateInput } from "../schemas/priorities";
+import { db, type priorities } from "./connection";
+import { cleanUpdate } from "./helpers";
 
 export const dbPriorities = {
 	getAll: () => db.selectFrom("priorities").selectAll().execute(),
@@ -9,7 +9,10 @@ export const dbPriorities = {
 		db.selectFrom("priorities").selectAll().where("id", "=", id).executeTakeFirst(),
 
 	create: (input: PriorityDbCreateInput) =>
-		db.insertInto("priorities").values(input).executeTakeFirst(),
+		db
+			.insertInto("priorities")
+			.values(input as priorities)
+			.executeTakeFirst(),
 
 	update: (input: { id: string } & PriorityDbUpdateInput) => {
 		const { id, ...values } = input;
