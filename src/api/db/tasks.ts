@@ -1,10 +1,6 @@
-import type { Insertable, Updateable } from "kysely";
 import { db } from "./connection";
-import type { tasks } from "./connection";
 import { cleanUpdate } from "./helpers";
-
-type TasksCreateInput = Insertable<tasks>;
-type TasksUpdateInput = Updateable<tasks>;
+import type { TaskDbCreateInput, TaskDbUpdateInput } from "../schemas/tasks";
 
 export const dbTasks = {
 	getById: (id: string) =>
@@ -23,14 +19,14 @@ export const dbTasks = {
 			.where("deleted_at", "is", null)
 			.execute(),
 
-    create: (input: TasksCreateInput) =>
-        db
-            .insertInto("tasks")
-            .values(input)
-            .onConflict((oc) => oc.column("id").doNothing())
-            .executeTakeFirst(),
+	create: (input: TaskDbCreateInput) =>
+		db
+			.insertInto("tasks")
+			.values(input)
+			.onConflict((oc) => oc.column("id").doNothing())
+			.executeTakeFirst(),
 
-	update: (input: { id: string } & TasksUpdateInput) => {
+	update: (input: { id: string } & TaskDbUpdateInput) => {
 		const { id, ...values } = input;
 		const cleanValues = cleanUpdate(values);
 

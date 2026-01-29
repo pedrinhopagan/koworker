@@ -1,10 +1,6 @@
-import type { Insertable, Updateable } from "kysely";
 import { db } from "./connection";
-import type { projects } from "./connection";
 import { cleanUpdate } from "./helpers";
-
-type ProjectsCreateInput = Insertable<projects>;
-type ProjectsUpdateInput = Updateable<projects>;
+import type { ProjectDbCreateInput, ProjectDbUpdateInput } from "../schemas/projects";
 
 export const dbProjects = {
 	getAll: () =>
@@ -22,9 +18,10 @@ export const dbProjects = {
 			.where("deleted_at", "is", null)
 			.executeTakeFirst(),
 
-	create: (input: ProjectsCreateInput) => db.insertInto("projects").values(input).executeTakeFirst(),
+	create: (input: ProjectDbCreateInput) =>
+		db.insertInto("projects").values(input).executeTakeFirst(),
 
-	update: (input: { id: string } & ProjectsUpdateInput) => {
+	update: (input: { id: string } & ProjectDbUpdateInput) => {
 		const { id, ...values } = input;
 		const cleanValues = cleanUpdate(values);
 

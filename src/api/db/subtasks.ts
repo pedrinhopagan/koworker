@@ -1,10 +1,6 @@
-import type { Insertable, Updateable } from "kysely";
 import { db } from "./connection";
-import type { subtasks } from "./connection";
 import { cleanUpdate } from "./helpers";
-
-type SubtasksCreateInput = Insertable<subtasks>;
-type SubtasksUpdateInput = Updateable<subtasks>;
+import type { SubtaskDbCreateInput, SubtaskDbUpdateInput } from "../schemas/subtasks";
 
 export const dbSubtasks = {
 	getById: (id: string) =>
@@ -13,9 +9,10 @@ export const dbSubtasks = {
 	listByTask: (taskId: string) =>
 		db.selectFrom("subtasks").selectAll().where("task_id", "=", taskId).execute(),
 
-	create: (input: SubtasksCreateInput) => db.insertInto("subtasks").values(input).executeTakeFirst(),
+	create: (input: SubtaskDbCreateInput) =>
+		db.insertInto("subtasks").values(input).executeTakeFirst(),
 
-	update: (input: { id: string } & SubtasksUpdateInput) => {
+	update: (input: { id: string } & SubtaskDbUpdateInput) => {
 		const { id, ...values } = input;
 		const cleanValues = cleanUpdate(values);
 

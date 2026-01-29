@@ -11,7 +11,7 @@ Padronizar schema SQLite e queries Kysely.
 - `snake_case` no DB, `camelCase` no TS (na camada `db` usar nomes das colunas)
 - `projects` e `tasks` usam soft delete (`deleted_at`)
 - JSON em coluna `TEXT`, sempre serialize/parse no boundary
-- Inputs de `create/update` usam `Insertable<T>` e `Updateable<T>` do Kysely quando fizer sentido
+- Inputs de `create/update` usam tipos inferidos dos schemas Zod da pasta `src/api/schemas/`
 
 ## TABLES
 

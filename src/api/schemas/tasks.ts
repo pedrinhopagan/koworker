@@ -9,33 +9,33 @@ export const AcceptanceCriteriaItemSchema = z.object({
 });
 
 export const TaskIdSchema = z.object({
-	id: z.string().uuid(),
+	id: z.string().min(1),
 });
 
 export const TaskListByProjectSchema = z.object({
-	projectId: z.string().uuid(),
+	projectId: z.string().min(1),
 });
 
 export const TaskCreateSchema = z.object({
-	projectId: z.string().uuid(),
+	projectId: z.string().min(1),
 	title: z.string().min(1),
 	description: z.string().optional(),
 	notes: z.string().optional(),
 	aiMetadata: z.unknown().optional(),
-	priorityId: z.string().uuid(),
-	categoryId: z.string().uuid(),
+	priorityId: z.string().min(1),
+	categoryId: z.string().min(1),
 	status: TaskStatusSchema.optional(),
 	acceptanceCriteria: z.array(AcceptanceCriteriaItemSchema).optional(),
 });
 
 export const TaskUpdateSchema = z.object({
-	id: z.string().uuid(),
+	id: z.string().min(1),
 	title: z.string().min(1).optional(),
 	description: z.string().optional(),
 	notes: z.string().optional(),
 	aiMetadata: z.unknown().optional(),
-	priorityId: z.string().uuid().optional(),
-	categoryId: z.string().uuid().optional(),
+	priorityId: z.string().min(1).optional(),
+	categoryId: z.string().min(1).optional(),
 	status: TaskStatusSchema.optional(),
 	acceptanceCriteria: z.array(AcceptanceCriteriaItemSchema).optional(),
 	completedAt: z.number().int().nullable().optional(),
@@ -43,3 +43,28 @@ export const TaskUpdateSchema = z.object({
 
 export type TaskCreateInput = z.infer<typeof TaskCreateSchema>;
 export type TaskUpdateInput = z.infer<typeof TaskUpdateSchema>;
+
+export const TaskDbCreateSchema = z.object({
+	id: z.string().min(1),
+	project_id: z.string().min(1),
+	title: z.string().min(1),
+	description: z.string().optional(),
+	notes: z.string().optional(),
+	ai_metadata: z.string().optional(),
+	priority_id: z.string().min(1),
+	category_id: z.string().min(1),
+	status: TaskStatusSchema.optional(),
+	acceptance_criteria: z.string().optional(),
+	completed_at: z.number().int().optional(),
+	created_at: z.number().int().optional(),
+	updated_at: z.number().int().optional(),
+	deleted_at: z.number().int().optional(),
+});
+
+export const TaskDbUpdateSchema = TaskDbCreateSchema.omit({
+	id: true,
+	created_at: true,
+}).partial();
+
+export type TaskDbCreateInput = z.infer<typeof TaskDbCreateSchema>;
+export type TaskDbUpdateInput = z.infer<typeof TaskDbUpdateSchema>;

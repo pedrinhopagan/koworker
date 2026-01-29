@@ -1,10 +1,6 @@
-import type { Insertable, Updateable } from "kysely";
 import { db } from "./connection";
-import type { categories } from "./connection";
 import { cleanUpdate } from "./helpers";
-
-type CategoriesCreateInput = Insertable<categories>;
-type CategoriesUpdateInput = Updateable<categories>;
+import type { CategoryDbCreateInput, CategoryDbUpdateInput } from "../schemas/categories";
 
 export const dbCategories = {
 	getAll: () => db.selectFrom("categories").selectAll().execute(),
@@ -12,10 +8,10 @@ export const dbCategories = {
 	getById: (id: string) =>
 		db.selectFrom("categories").selectAll().where("id", "=", id).executeTakeFirst(),
 
-	create: (input: CategoriesCreateInput) =>
+	create: (input: CategoryDbCreateInput) =>
 		db.insertInto("categories").values(input).executeTakeFirst(),
 
-	update: (input: { id: string } & CategoriesUpdateInput) => {
+	update: (input: { id: string } & CategoryDbUpdateInput) => {
 		const { id, ...values } = input;
 		const cleanValues = cleanUpdate(values);
 
