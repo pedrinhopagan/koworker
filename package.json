@@ -4,6 +4,12 @@
 	"private": true,
 	"description": "Koworker - ERP full-stack brasileiro com projetos e tarefas para AI Coding Agents",
 	"license": "UNLICENSED",
+	"author": "pedrinhopagan",
+	"homepage": "https://github.com/pedrinhopagan/koworker",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/pedrinhopagan/koworker.git"
+	},
 	"type": "module",
 	"scripts": {
 		"dev": "concurrently 'tsr watch' 'bun --watch src/server.ts'",
