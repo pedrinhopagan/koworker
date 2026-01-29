@@ -7,6 +7,11 @@ type PubSubChannels = {
 		title: string;
 		message: string;
 	};
+	tasks: {
+		taskId: string;
+		projectId: string;
+		action: "created" | "updated" | "deleted";
+	};
 };
 
 export const PubSub = {

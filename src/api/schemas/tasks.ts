@@ -12,6 +12,10 @@ export const TaskIdSchema = z.object({
 	id: z.string().uuid(),
 });
 
+export const TaskListByProjectSchema = z.object({
+	projectId: z.string().uuid(),
+});
+
 export const TaskCreateSchema = z.object({
 	projectId: z.string().uuid(),
 	title: z.string().min(1),

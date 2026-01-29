@@ -1,7 +1,12 @@
 import { protectedProcedure, publicProcedure } from "./auth/context";
 import { Auth } from "./auth/login";
 import { PubSub } from "./pubsub";
-import { EndpointSchemas } from "./schemas";
+import { EndpointSchemas, TaskListByProjectSchema } from "./schemas";
+import { projectsRouter } from "./routers/projects";
+import { tasksRouter } from "./routers/tasks";
+import { subtasksRouter } from "./routers/subtasks";
+import { categoriesRouter } from "./routers/categories";
+import { prioritiesRouter } from "./routers/priorities";
 
 export const router = {
 	auth: {
@@ -13,6 +18,11 @@ export const router = {
 
 		me: protectedProcedure.handler(({ context }) => context.user),
 	},
+	projects: projectsRouter,
+	tasks: tasksRouter,
+	subtasks: subtasksRouter,
+	categories: categoriesRouter,
+	priorities: prioritiesRouter,
 
 	testNotification: protectedProcedure.handler(async ({ context }) => {
 		await PubSub.publish("notification", String(context.user.id), {
@@ -32,4 +42,10 @@ export const wsRouter = {
 	notifications: protectedProcedure.handler(({ context, signal }) =>
 		PubSub.subscribe("notification", String(context.user.id), signal),
 	),
+
+	tasks: {
+		events: protectedProcedure
+			.input(TaskListByProjectSchema)
+			.handler(({ input, signal }) => PubSub.subscribe("tasks", input.projectId, signal)),
+	},
 };

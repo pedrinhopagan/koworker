@@ -5,6 +5,10 @@ export const SubtaskIdSchema = z.object({
 	id: z.string().uuid(),
 });
 
+export const SubtaskListByTaskSchema = z.object({
+	taskId: z.string().uuid(),
+});
+
 export const SubtaskCreateSchema = z.object({
 	taskId: z.string().uuid(),
 	title: z.string().min(1),

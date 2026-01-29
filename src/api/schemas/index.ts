@@ -10,10 +10,16 @@ export {
 	AcceptanceCriteriaItemSchema,
 	TaskCreateSchema,
 	TaskIdSchema,
+	TaskListByProjectSchema,
 	TaskStatusSchema,
 	TaskUpdateSchema,
 } from "./tasks";
-export { SubtaskCreateSchema, SubtaskIdSchema, SubtaskUpdateSchema } from "./subtasks";
+export {
+	SubtaskCreateSchema,
+	SubtaskIdSchema,
+	SubtaskListByTaskSchema,
+	SubtaskUpdateSchema,
+} from "./subtasks";
 export { CategoryCreateSchema, CategoryIdSchema, CategoryUpdateSchema } from "./categories";
 export { PriorityCreateSchema, PriorityIdSchema, PriorityUpdateSchema } from "./priorities";
 
