@@ -1,6 +1,9 @@
 {
-	"name": "boilerplate",
+	"name": "koworker",
+	"version": "0.1.0",
 	"private": true,
+	"description": "Koworker - ERP full-stack brasileiro com projetos e tarefas para AI Coding Agents",
+	"license": "UNLICENSED",
 	"type": "module",
 	"scripts": {
 		"dev": "concurrently 'tsr watch' 'bun --watch src/server.ts'",

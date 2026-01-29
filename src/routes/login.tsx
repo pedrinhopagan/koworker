@@ -32,7 +32,7 @@ function LoginPage() {
 function LoginCardHeader() {
 	return (
 		<CardHeader>
-			<CardTitle className="text-2xl font-bold">Boilerplate</CardTitle>
+			<CardTitle className="text-2xl font-bold">Koworker</CardTitle>
 			<CardDescription>Enter your credentials to access</CardDescription>
 		</CardHeader>
 	);
