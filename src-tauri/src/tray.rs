@@ -5,7 +5,7 @@ use tauri::{
     App, RunEvent, WindowEvent,
 };
 
-use crate::window;
+use crate::{backend, window};
 
 pub fn setup(app: &App) -> Result<TrayIcon, Box<dyn std::error::Error>> {
     let icon = app.default_window_icon().cloned().unwrap_or_else(|| {
@@ -40,12 +40,18 @@ pub fn setup(app: &App) -> Result<TrayIcon, Box<dyn std::error::Error>> {
 }
 
 pub fn handle_run_event(app_handle: &tauri::AppHandle, event: RunEvent) {
-    if let RunEvent::WindowEvent { label, event, .. } = event {
-        if label == "main" {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                window::hide(app_handle);
+    match event {
+        RunEvent::WindowEvent { label, event, .. } => {
+            if label == "main" {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    window::hide(app_handle);
+                }
             }
         }
+        RunEvent::ExitRequested { .. } | RunEvent::Exit => {
+            backend::stop();
+        }
+        _ => {}
     }
 }

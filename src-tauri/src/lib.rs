@@ -1,4 +1,5 @@
 mod commands;
+mod backend;
 mod shortcut;
 mod tray;
 mod window;
@@ -19,6 +20,7 @@ pub fn run() {
             commands::toggle_window
         ])
         .setup(|app| {
+            backend::start();
             shortcut::register(app.handle())?;
             tray::setup(app)?;
             eprintln!("[KOWORK] Setup completo. Atalho: Alt+O");
@@ -27,5 +29,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("erro ao construir aplicacao tauri");
 
-    app.run(tray::handle_run_event);
+    app.run(|app_handle, event| {
+        tray::handle_run_event(app_handle, event);
+    });
 }

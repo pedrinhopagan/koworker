@@ -10,6 +10,12 @@ Criar uma base simples e robusta para rodar no desktop com o minimo de Rust, man
 - Core: Bun sidecar (toda a logica de agentes, terminal e SDKs)
 - UI: React + TanStack (somente consumo de eventos)
 
+## Backend local
+
+O app desktop depende do backend ORPC rodando em `http://localhost:3000` (HTTP + WS). Sem isso, o front não carrega dados. Para builds estáticos, também é possível definir `window.__KOWORK_API_URL__` antes do bundle carregar.
+
+No desktop, o app tenta subir o backend via `bun` automaticamente quando abre. Se já existir um backend rodando na porta 3000, ele não inicia outro.
+
 ## Estrutura proposta
 
 ```
