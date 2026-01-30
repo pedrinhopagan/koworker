@@ -11,6 +11,10 @@ export function useLogin() {
 
 	const methods = useForm({
 		resolver: zodResolver(loginSchema),
+		defaultValues: {
+			name: "admin",
+			password: "password",
+		},
 	});
 
 	const onSubmit: SubmitHandler<LoginInput> = async (data) => {

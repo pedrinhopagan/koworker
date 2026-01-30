@@ -50,6 +50,16 @@ bun install
 bun dev
 ```
 
+## Conexão Front ↔ API
+
+- O front usa ORPC em `/rpc` (HTTP) e `/ws` (WebSocket) na mesma origem.
+- Rotas do app (`/_app`) exigem sessão válida via `auth.me`.
+- Em desktop/produção sem servidor embarcado, rode o backend em `http://localhost:3000` ou defina `window.__KOWORK_API_URL__` antes do bundle carregar.
+
+## Login padrão
+
+- Se não existir nenhum usuário, o backend cria automaticamente `admin` com senha `password`.
+
 ## Qualidade
 
 ```bash

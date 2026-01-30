@@ -3,18 +3,41 @@ import { RPCLink as FetchLink } from "@orpc/client/fetch";
 import { RPCLink as WsLink } from "@orpc/client/websocket";
 import type { InferRouterInputs, InferRouterOutputs, RouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
+import { isTauri } from "@/lib/tauri";
 import type { API, WsAPI } from "./server";
 
+declare global {
+	interface Window {
+		__KOWORK_API_URL__?: string;
+	}
+}
+
+const apiOrigin = (() => {
+	if (typeof window === "undefined") {
+		return "http://localhost:3000";
+	}
+
+	if (window.__KOWORK_API_URL__) {
+		return window.__KOWORK_API_URL__;
+	}
+
+	if (isTauri()) {
+		return "http://localhost:3000";
+	}
+
+	return window.location.origin;
+})();
+
 const httpLink = new FetchLink({
-	url: new URL("/rpc", window.location.origin).href,
+	url: new URL("/rpc", apiOrigin).href,
 	fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
 });
 
-const wsUrl = new URL("/ws", window.location.origin);
-wsUrl.protocol = wsUrl.protocol.replace("http", "ws");
+const wsBase = new URL(apiOrigin);
+wsBase.protocol = wsBase.protocol.replace("http", "ws");
 
 const wsLink = new WsLink({
-	websocket: new WebSocket(wsUrl),
+	websocket: new WebSocket(new URL("/ws", wsBase).href),
 });
 
 const httpClient: RouterClient<API> = createORPCClient(httpLink);

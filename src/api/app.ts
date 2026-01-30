@@ -1,11 +1,18 @@
 import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
 import { RPCHandler as FetchRPCHandler } from "@orpc/server/fetch";
-import { RequestHeadersPlugin, ResponseHeadersPlugin } from "@orpc/server/plugins";
+import { CORSPlugin, RequestHeadersPlugin, ResponseHeadersPlugin } from "@orpc/server/plugins";
 
 import { router, wsRouter } from "./router";
 
 export const rpcHandler = new FetchRPCHandler(router, {
-	plugins: [new RequestHeadersPlugin(), new ResponseHeadersPlugin()],
+	plugins: [
+		new CORSPlugin({
+			credentials: true,
+			origin: (origin) => (origin ? origin : "http://localhost:3000"),
+		}),
+		new RequestHeadersPlugin(),
+		new ResponseHeadersPlugin(),
+	],
 });
 
 export const wsRpcHandler = new WsRPCHandler(wsRouter);

@@ -3,6 +3,7 @@ import type { Server } from "bun";
 import "./api/arktype";
 import { rpcHandler, wsRpcHandler } from "./api/app";
 import { getUser, type User } from "./api/auth/context";
+import { DbUsers } from "./api/db/users";
 import homepage from "./index.html";
 
 const port = 3000;
@@ -16,6 +17,8 @@ function getCookieValue(cookieHeader: string | null, name: string) {
 
 	return cookieHeader.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`))?.[1];
 }
+
+await DbUsers.ensureDefaultUser();
 
 Bun.serve<WsData>({
 	port,
