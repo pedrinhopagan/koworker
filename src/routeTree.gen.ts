@@ -17,6 +17,7 @@ import { Route as AppTarefasIndexRouteImport } from './routes/_app/tarefas/index
 import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/index'
 import { Route as AppAgendaIndexRouteImport } from './routes/_app/agenda/index'
 import { Route as AppProjetosNovoIndexRouteImport } from './routes/_app/projetos/novo/index'
+import { Route as AppProjetosProjetoIdIndexRouteImport } from './routes/_app/projetos/$projetoId/index'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -57,6 +58,12 @@ const AppProjetosNovoIndexRoute = AppProjetosNovoIndexRouteImport.update({
   path: '/projetos/novo/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppProjetosProjetoIdIndexRoute =
+  AppProjetosProjetoIdIndexRouteImport.update({
+    id: '/projetos/$projetoId/',
+    path: '/projetos/$projetoId/',
+    getParentRoute: () => AppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/agenda/': typeof AppAgendaIndexRoute
   '/projetos/': typeof AppProjetosIndexRoute
   '/tarefas/': typeof AppTarefasIndexRoute
+  '/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo/': typeof AppProjetosNovoIndexRoute
 }
 export interface FileRoutesByTo {
@@ -74,6 +82,7 @@ export interface FileRoutesByTo {
   '/agenda': typeof AppAgendaIndexRoute
   '/projetos': typeof AppProjetosIndexRoute
   '/tarefas': typeof AppTarefasIndexRoute
+  '/projetos/$projetoId': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo': typeof AppProjetosNovoIndexRoute
 }
 export interface FileRoutesById {
@@ -85,6 +94,7 @@ export interface FileRoutesById {
   '/_app/agenda/': typeof AppAgendaIndexRoute
   '/_app/projetos/': typeof AppProjetosIndexRoute
   '/_app/tarefas/': typeof AppTarefasIndexRoute
+  '/_app/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/_app/projetos/novo/': typeof AppProjetosNovoIndexRoute
 }
 export interface FileRouteTypes {
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/agenda/'
     | '/projetos/'
     | '/tarefas/'
+    | '/projetos/$projetoId/'
     | '/projetos/novo/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/projetos'
     | '/tarefas'
+    | '/projetos/$projetoId'
     | '/projetos/novo'
   id:
     | '__root__'
@@ -115,6 +127,7 @@ export interface FileRouteTypes {
     | '/_app/agenda/'
     | '/_app/projetos/'
     | '/_app/tarefas/'
+    | '/_app/projetos/$projetoId/'
     | '/_app/projetos/novo/'
   fileRoutesById: FileRoutesById
 }
@@ -181,6 +194,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjetosNovoIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/projetos/$projetoId/': {
+      id: '/_app/projetos/$projetoId/'
+      path: '/projetos/$projetoId'
+      fullPath: '/projetos/$projetoId/'
+      preLoaderRoute: typeof AppProjetosProjetoIdIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -190,6 +210,7 @@ interface AppRouteChildren {
   AppAgendaIndexRoute: typeof AppAgendaIndexRoute
   AppProjetosIndexRoute: typeof AppProjetosIndexRoute
   AppTarefasIndexRoute: typeof AppTarefasIndexRoute
+  AppProjetosProjetoIdIndexRoute: typeof AppProjetosProjetoIdIndexRoute
   AppProjetosNovoIndexRoute: typeof AppProjetosNovoIndexRoute
 }
 
@@ -199,6 +220,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAgendaIndexRoute: AppAgendaIndexRoute,
   AppProjetosIndexRoute: AppProjetosIndexRoute,
   AppTarefasIndexRoute: AppTarefasIndexRoute,
+  AppProjetosProjetoIdIndexRoute: AppProjetosProjetoIdIndexRoute,
   AppProjetosNovoIndexRoute: AppProjetosNovoIndexRoute,
 }
 

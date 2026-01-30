@@ -1,4 +1,7 @@
+import { Link } from "@tanstack/react-router";
+
 import { Text, Title } from "@/components/typography";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { Project } from "../-utils/use-projects-data";
 
@@ -28,7 +31,14 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 	return (
 		<Card>
 			<CardHeader className="space-y-1">
-				<Title size="sm">Resumo do projeto</Title>
+				<div className="flex items-center justify-between gap-3">
+					<Title size="sm">Resumo do projeto</Title>
+					{project && (
+						<Button variant="outline" size="sm" asChild>
+							<Link to={`/projetos/${project.id}`}>Editar</Link>
+						</Button>
+					)}
+				</div>
 				<Text size="sm" tone="muted">
 					{project ? project.name : "Selecione um projeto"}
 				</Text>

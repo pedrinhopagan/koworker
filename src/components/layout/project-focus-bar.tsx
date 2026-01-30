@@ -1,16 +1,9 @@
-/**
- * ProjectFocusBar - Project focus selector
- * Provides a dropdown to select the active project with accent color highlight
- */
-
-import { useQuery } from "@tanstack/react-query";
 import { CheckCheckIcon, ChevronDownIcon, FolderKanbanIcon } from "lucide-react";
 import { useMemo } from "react";
 
-import { orpc } from "@/client";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { useProjectFocus } from "@/hooks";
 import { cn } from "@/lib/utils";
-import { useSelectedProjectStore } from "@/stores/selected-project";
 
 type ProjectItem = {
 	id: string;
@@ -18,34 +11,26 @@ type ProjectItem = {
 	color: string | null;
 };
 
-const ALL_PROJECTS_ID = "__all__";
-
 export function ProjectFocusBar() {
-	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
-	const projects = projectsQuery.data ?? [];
+	const { projects, selectedProjectId, selectedProject, accent, loading, setSelectedProjectId } =
+		useProjectFocus();
 
-	const selectedProjectId = useSelectedProjectStore((s) => s.selectedProjectId);
-	const setSelectedProjectId = useSelectedProjectStore((s) => s.setSelectedProjectId);
-
-	// Build items list with "All projects" option
 	const projectItems = useMemo<ProjectItem[]>(() => {
-		const items: ProjectItem[] = projects.map((project) => ({
+		return projects.map((project) => ({
 			id: project.id,
 			name: project.name,
 			color: project.color ?? null,
 		}));
-		return [{ id: ALL_PROJECTS_ID, name: "Todos os projetos", color: null }, ...items];
 	}, [projects]);
 
-	// Get selected project info
-	const selectedProject = useMemo(() => {
-		return projects.find((project) => project.id === selectedProjectId);
-	}, [projects, selectedProjectId]);
+	const accentColor = accent?.color ?? null;
+	const isEmpty = projectItems.length === 0;
+	const label =
+		selectedProject?.name ??
+		(loading ? "Carregando projetos..." : isEmpty ? "Nenhum projeto" : "Selecione um projeto");
 
-	const accentColor = selectedProject?.color ?? null;
-
-	function handleValueChange(id: string) {
-		setSelectedProjectId(id === ALL_PROJECTS_ID ? null : id);
+	function handleValueChange(id: string, _item: ProjectItem) {
+		setSelectedProjectId(id);
 	}
 
 	return (
@@ -56,18 +41,20 @@ export function ProjectFocusBar() {
 
 			<CustomSelect
 				items={projectItems}
-				value={selectedProjectId ?? ALL_PROJECTS_ID}
+				value={selectedProjectId ?? undefined}
 				onValueChange={handleValueChange}
 				variant="minimal"
+				disabled={isEmpty}
 				triggerClassName={cn(
-					"flex items-center gap-3 px-4 py-2 rounded-lg min-w-[200px] transition-all duration-200 border-2",
-					accentColor ? "shadow-sm hover:shadow-md" : "bg-card border-border",
+					"flex items-center gap-3 px-4 py-2 rounded-lg min-w-[220px] transition-all duration-200 border-2 bg-card/80 backdrop-blur",
+					accentColor ? "shadow-sm hover:shadow-md" : "border-border",
 				)}
 				triggerStyle={
-					accentColor
+					accent
 						? {
-								background: `linear-gradient(135deg, ${accentColor}15 0%, ${accentColor}08 100%)`,
-								borderColor: `${accentColor}50`,
+								background: `linear-gradient(135deg, ${accent.soft} 0%, ${accent.muted} 100%)`,
+								borderColor: accent.border,
+								boxShadow: `0 0 0 1px ${accent.border}, 0 10px 24px ${accent.glow}`,
 							}
 						: undefined
 				}
@@ -79,7 +66,7 @@ export function ProjectFocusBar() {
 								className="size-3 rounded-full shrink-0"
 								style={{
 									backgroundColor: accentColor,
-									boxShadow: `0 0 0 2px ${accentColor}40, 0 0 0 4px ${accentColor}15`,
+									boxShadow: `0 0 0 2px ${accent?.ring ?? accentColor}, 0 0 10px ${accent?.glow ?? accentColor}`,
 								}}
 							/>
 						) : (
@@ -91,7 +78,7 @@ export function ProjectFocusBar() {
 								accentColor ? "text-foreground" : "text-foreground",
 							)}
 						>
-							{selectedProject?.name ?? "Todos os projetos"}
+							{label}
 						</span>
 						<ChevronDownIcon
 							className={cn(
@@ -137,30 +124,19 @@ export function ProjectFocusBar() {
 	);
 }
 
-/**
- * AccentStripe - Vertical accent stripe that reflects the selected project color
- * Shows a gradient stripe on the left edge based on selected project
- */
 export function AccentStripe() {
-	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
-	const projects = projectsQuery.data ?? [];
+	const { accent } = useProjectFocus();
 
-	const selectedProjectId = useSelectedProjectStore((s) => s.selectedProjectId);
-
-	const accentColor = useMemo(() => {
-		const selectedProject = projects.find((project) => project.id === selectedProjectId);
-		return selectedProject?.color ?? null;
-	}, [projects, selectedProjectId]);
-
-	if (!accentColor) {
+	if (!accent) {
 		return null;
 	}
 
 	return (
 		<div
-			className="w-0.5 shrink-0 self-stretch"
+			className="w-1 shrink-0 self-stretch"
 			style={{
-				background: `linear-gradient(to bottom, ${accentColor} 0%, ${accentColor}60 50%, ${accentColor}30 100%)`,
+				background: `linear-gradient(to bottom, ${accent.color} 0%, ${accent.border} 55%, ${accent.soft} 100%)`,
+				boxShadow: `0 0 10px ${accent.glow}`,
 			}}
 		/>
 	);

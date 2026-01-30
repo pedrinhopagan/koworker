@@ -1,19 +1,20 @@
-import { useQuery } from "@tanstack/react-query";
-
-import { orpc, type RouterOutputs } from "@/client";
+import type { RouterOutputs } from "@/client";
+import { useProjectFocus } from "@/hooks";
 
 export type Project = RouterOutputs["projects"]["list"][number];
 
-export function useProjectsData() {
-	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
-
-	const projects = projectsQuery.data ?? [];
+export function useProjectsData(preferredProjectId?: string | null) {
+	const { projects, selectedProjectId, selectedProject, loading } = useProjectFocus({
+		preferredProjectId: preferredProjectId ?? null,
+	});
 
 	return {
 		data: {
 			projects,
 			total: projects.length,
+			selectedProjectId,
+			selectedProject,
 		},
-		loading: projectsQuery.isLoading,
+		loading,
 	};
 }

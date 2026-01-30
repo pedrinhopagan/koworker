@@ -71,12 +71,16 @@ export const tasksRouter = {
 	}),
 
 	listByDate: protectedProcedure.input(TaskListByDateSchema).handler(async ({ input }) => {
-		const rows = await dbTasks.listByDate(input.date);
+		const rows = await dbTasks.listByDate(input.date, input.projectId ?? null);
 		return rows.map((row) => mapTask(row));
 	}),
 
 	listByWeek: protectedProcedure.input(TaskListByWeekSchema).handler(async ({ input }) => {
-		const rows = await dbTasks.listByDateRange(input.startDate, input.endDate);
+		const rows = await dbTasks.listByDateRange(
+			input.startDate,
+			input.endDate,
+			input.projectId ?? null,
+		);
 		return rows.map((row) => mapTask(row));
 	}),
 

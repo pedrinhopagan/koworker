@@ -11,6 +11,8 @@ import {
 	type LucideIcon,
 } from "lucide-react";
 
+import { Text, Title } from "@/components/typography";
+import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import type { TaskWithMeta } from "@/types/tasks";
 
@@ -102,7 +104,7 @@ type QuickLinkItemProps = {
 };
 
 const QuickLinkItem = memo(function QuickLinkItem({ link }: QuickLinkItemProps) {
-	const Icon = link.icon;
+	const LinkIcon = link.icon;
 
 	return (
 		<Link
@@ -118,7 +120,7 @@ const QuickLinkItem = memo(function QuickLinkItem({ link }: QuickLinkItemProps) 
 		>
 			{/* Left accent bar */}
 			<div
-				className="absolute left-0 top-0 bottom-0 w-[2px] opacity-60 group-hover:opacity-100 transition-opacity duration-200"
+				className="absolute left-0 top-0 bottom-0 w-0.5 opacity-60 group-hover:opacity-100 transition-opacity duration-200"
 				style={{
 					background: `linear-gradient(180deg, ${link.color} 0%, ${link.color}60 100%)`,
 				}}
@@ -141,22 +143,33 @@ const QuickLinkItem = memo(function QuickLinkItem({ link }: QuickLinkItemProps) 
 					boxShadow: `inset 0 0 0 1px ${link.color}25`,
 				}}
 			>
-				<Icon size={14} style={{ color: link.color }} className="transition-colors duration-200" />
+				<LinkIcon
+					size={14}
+					style={{ color: link.color }}
+					className="transition-colors duration-200"
+				/>
 			</div>
 
 			<div className="relative flex-1 min-w-0">
-				<span
+				<Text
+					as="span"
+					size="sm"
 					className={cn(
-						"text-sm text-foreground transition-colors duration-200",
+						"text-foreground transition-colors duration-200",
 						"group-hover:text-primary",
 					)}
 				>
 					{link.title}
-				</span>
+				</Text>
 				{link.description && (
-					<p className="text-xs text-muted-foreground truncate mt-0.5 transition-colors duration-200">
+					<Text
+						as="p"
+						size="xs"
+						tone="muted"
+						className="truncate mt-0.5 transition-colors duration-200"
+					>
 						{link.description}
-					</p>
+					</Text>
 				)}
 			</div>
 
@@ -181,15 +194,10 @@ export const QuickLinks = memo(function QuickLinks({ tasks, className }: QuickLi
 	return (
 		<div className={cn("space-y-3", className)}>
 			<div className="flex items-center gap-2 mb-3">
-				<div
-					className="relative p-1.5 bg-primary/10"
-					style={{
-						boxShadow: "inset 0 0 0 1px hsl(var(--primary) / 0.2)",
-					}}
-				>
-					<Zap size={14} className="text-primary" />
-				</div>
-				<h3 className="text-sm font-medium text-foreground uppercase tracking-wide">Atalhos</h3>
+				<Icon icon={Zap} color="var(--project-accent, var(--primary))" size="xs" />
+				<Title as="h3" size="sm" className="text-sm font-medium uppercase tracking-wide">
+					Atalhos
+				</Title>
 			</div>
 
 			{dynamicLinks.length > 0 && (

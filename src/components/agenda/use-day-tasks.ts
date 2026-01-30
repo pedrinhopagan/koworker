@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { orpc } from "@/client";
+import { useProjectFocus } from "@/hooks";
 import type { TaskWithMeta } from "@/types/tasks";
 
 const statusLabels: Record<string, string> = {
@@ -11,12 +12,15 @@ const statusLabels: Record<string, string> = {
 
 export function useDayTasks(date: string | null) {
 	const queryClient = useQueryClient();
+	const { selectedProjectId } = useProjectFocus();
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 
 	const tasksQuery = useQuery({
-		...orpc.tasks.listByDate.queryOptions({ input: { date: date ?? "" } }),
-		enabled: !!date,
+		...orpc.tasks.listByDate.queryOptions({
+			input: { date: date ?? "", projectId: selectedProjectId ?? null },
+		}),
+		enabled: !!date && !!selectedProjectId,
 	});
 
 	const categories = categoriesQuery.data ?? [];

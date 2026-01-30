@@ -68,7 +68,7 @@ function HomePage() {
 
 			<main className="flex-1 flex overflow-hidden">
 				{/* Left sidebar - 1/3 width */}
-				<div className="w-1/3 min-w-[280px] max-w-[380px] border-r border-border overflow-y-auto">
+				<div className="w-1/3 min-w-70 max-w-95 border-r border-border overflow-y-auto">
 					<HomeSidebar
 						selectedTask={selectedTask}
 						tasks={tasks}

@@ -17,7 +17,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::hide_window,
             commands::show_window,
-            commands::toggle_window
+            commands::toggle_window,
+            commands::pick_project_folder
         ])
         .setup(|app| {
             backend::start();

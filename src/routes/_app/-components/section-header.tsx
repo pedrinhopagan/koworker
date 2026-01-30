@@ -2,6 +2,7 @@ import { memo } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, type LucideIcon } from "lucide-react";
 
+import { Title } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
 
 type SectionHeaderProps = {
@@ -19,20 +20,27 @@ export const SectionHeader = memo(function SectionHeader({
 	linkTo,
 	linkLabel,
 	badge,
-	accentColor = "hsl(var(--primary))",
+	accentColor,
 }: SectionHeaderProps) {
+	const resolvedAccent = accentColor
+		? `var(--project-accent, ${accentColor})`
+		: "var(--project-accent, var(--primary))";
+	const softAccent = `color-mix(in oklab, ${resolvedAccent} 15%, transparent)`;
+
 	return (
 		<div className="flex items-center justify-between mb-3">
 			<div className="flex items-center gap-2">
 				<div
 					className="p-1.5 transition-all duration-200"
 					style={{
-						background: `${accentColor}15`,
+						background: softAccent,
 					}}
 				>
-					<Icon size={14} style={{ color: accentColor }} />
+					<Icon size={14} style={{ color: resolvedAccent }} />
 				</div>
-				<h2 className="text-sm font-medium text-foreground uppercase tracking-wide">{title}</h2>
+				<Title as="h2" size="sm" className="text-sm font-medium uppercase tracking-wide">
+					{title}
+				</Title>
 				{badge !== undefined && (
 					<Badge variant="secondary" className="text-xs">
 						{badge}

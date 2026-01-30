@@ -21,22 +21,34 @@ export const dbTasks = {
 			.where("deleted_at", "is", null)
 			.execute(),
 
-	listByDate: (date: string) =>
-		db
+	listByDate: (date: string, projectId?: string | null) => {
+		let query = db
 			.selectFrom("tasks")
 			.selectAll()
 			.where("scheduled_date", "=", date)
-			.where("deleted_at", "is", null)
-			.execute(),
+			.where("deleted_at", "is", null);
 
-	listByDateRange: (startDate: string, endDate: string) =>
-		db
+		if (projectId) {
+			query = query.where("project_id", "=", projectId);
+		}
+
+		return query.execute();
+	},
+
+	listByDateRange: (startDate: string, endDate: string, projectId?: string | null) => {
+		let query = db
 			.selectFrom("tasks")
 			.selectAll()
 			.where("scheduled_date", ">=", startDate)
 			.where("scheduled_date", "<=", endDate)
-			.where("deleted_at", "is", null)
-			.execute(),
+			.where("deleted_at", "is", null);
+
+		if (projectId) {
+			query = query.where("project_id", "=", projectId);
+		}
+
+		return query.execute();
+	},
 
 	create: (input: TaskDbCreateInput) =>
 		db

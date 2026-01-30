@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { orpc } from "@/client";
+import { useProjectFocus } from "@/hooks";
 import type { TaskWithMeta } from "@/types/tasks";
 
 const statusLabels: Record<string, string> = {
@@ -14,19 +15,21 @@ export type TasksByDate = Map<string, TaskWithMeta[]>;
 
 export function useWeekTasks(startDate: string, endDate: string) {
 	const queryClient = useQueryClient();
+	const { selectedProjectId } = useProjectFocus();
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 
 	const tasksQuery = useQuery({
-		...orpc.tasks.listByWeek.queryOptions({ input: { startDate, endDate } }),
-		enabled: !!startDate && !!endDate,
+		...orpc.tasks.listByWeek.queryOptions({
+			input: { startDate, endDate, projectId: selectedProjectId ?? null },
+		}),
+		enabled: !!startDate && !!endDate && !!selectedProjectId,
 	});
 
 	const categories = categoriesQuery.data ?? [];
 	const priorities = prioritiesQuery.data ?? [];
 	const rawTasks = tasksQuery.data ?? [];
 
-	// Map tasks with metadata
 	const tasks: TaskWithMeta[] = useMemo(() => {
 		const categoryMap = new Map(categories.map((c) => [c.id, c]));
 		const priorityMap = new Map(priorities.map((p) => [p.id, p]));
@@ -51,7 +54,6 @@ export function useWeekTasks(startDate: string, endDate: string) {
 		});
 	}, [rawTasks, categories, priorities]);
 
-	// Group tasks by date
 	const tasksByDate: TasksByDate = useMemo(() => {
 		const map = new Map<string, TaskWithMeta[]>();
 		for (const task of tasks) {

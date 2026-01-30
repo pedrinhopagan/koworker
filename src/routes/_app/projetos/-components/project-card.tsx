@@ -37,7 +37,7 @@ export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 			className={cardVariants({ active: isSelected })}
 		>
 			<div className="flex items-start gap-3">
-				<div className="mt-1 size-9 rounded-md" style={{ backgroundColor: `${project.color}30` }} />
+				<div className="mt-1 size-9 rounded-md" style={{ backgroundColor: project.color }} />
 				<div className="flex-1">
 					<Title size="sm" as="div">
 						{project.name}

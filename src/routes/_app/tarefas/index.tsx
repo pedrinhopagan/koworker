@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { CheckCircle2 } from "lucide-react";
 import { z } from "zod";
 
 import { PageShell } from "@/routes/_app/-components/page-shell";
@@ -30,15 +31,18 @@ function TarefasPage() {
 		<PageShell
 			title="Tarefas"
 			description={`${data.pendingCount} pendentes, ${data.executedCount} concluídas`}
+			icon={CheckCircle2}
 		>
-			<div className="space-y-6">
+			<div className="flex h-full min-h-0 flex-col gap-4">
 				<TaskForm
 					projectId={data.selectedProjectId}
 					onSubmit={createTask}
 					loading={createLoading}
 				/>
 
-				<TaskList tasks={data.tasks} loading={loading} />
+				<div className="min-h-0 flex-1 overflow-y-auto pr-2 pb-6">
+					<TaskList tasks={data.tasks} loading={loading} />
+				</div>
 			</div>
 		</PageShell>
 	);

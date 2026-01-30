@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { orpc } from "@/client";
+import { useProjectFocus } from "./use-project-focus";
 import type { TaskWithMeta } from "@/types/tasks";
 
 const statusLabels: Record<string, string> = {
@@ -10,19 +11,20 @@ const statusLabels: Record<string, string> = {
 	executed: "Executado",
 };
 
-/**
- * Hook para buscar e gerenciar tarefas agendadas para hoje
- */
 export function useTodayTasks() {
 	const queryClient = useQueryClient();
+	const { selectedProjectId } = useProjectFocus();
 
-	// Data de hoje no formato YYYY-MM-DD
 	const today = useMemo(() => new Date().toISOString().split("T")[0], []);
 
-	// Queries
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
-	const tasksQuery = useQuery(orpc.tasks.listByDate.queryOptions({ input: { date: today } }));
+	const tasksQuery = useQuery({
+		...orpc.tasks.listByDate.queryOptions({
+			input: { date: today, projectId: selectedProjectId ?? null },
+		}),
+		enabled: !!selectedProjectId,
+	});
 
 	const categories = categoriesQuery.data ?? [];
 	const priorities = prioritiesQuery.data ?? [];
@@ -40,7 +42,6 @@ export function useTodayTasks() {
 		[priorities],
 	);
 
-	// Mapear tarefas para TaskWithMeta
 	const tasks: TaskWithMeta[] = useMemo(
 		() =>
 			rawTasks.map((task) => {
@@ -64,7 +65,6 @@ export function useTodayTasks() {
 		[rawTasks, categoryMap, priorityMap],
 	);
 
-	// Contadores
 	const count = useMemo(
 		() => ({
 			total: tasks.length,
@@ -73,7 +73,6 @@ export function useTodayTasks() {
 		[tasks],
 	);
 
-	// Mutation para alternar status
 	const updateStatusMutation = useMutation({
 		...orpc.tasks.update.mutationOptions(),
 		onSuccess: () => {

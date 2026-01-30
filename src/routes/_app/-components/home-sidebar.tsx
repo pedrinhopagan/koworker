@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { CalendarCheck, ChevronRight, ExternalLink, Inbox } from "lucide-react";
 
 import { Text, Title } from "@/components/typography";
+import { Icon } from "@/components/ui/icon";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { TaskWithMeta } from "@/types/tasks";
@@ -112,9 +113,7 @@ const DayTasksList = memo(function DayTasksList({
 		<div className="space-y-3">
 			<Link to="/agenda" className="flex items-center justify-between gap-2 group">
 				<div className="flex items-center gap-2">
-					<div className="p-1.5 bg-primary/10">
-						<CalendarCheck size={14} className="text-primary" />
-					</div>
+					<Icon icon={CalendarCheck} color="var(--project-accent, var(--primary))" size="xs" />
 					<Text
 						size="sm"
 						className="font-medium uppercase tracking-wide group-hover:text-primary transition-colors"

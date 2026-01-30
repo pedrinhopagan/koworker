@@ -18,11 +18,13 @@ export const TaskListByProjectSchema = z.object({
 
 export const TaskListByDateSchema = z.object({
 	date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
+	projectId: z.string().min(1).nullable().optional(),
 });
 
 export const TaskListByWeekSchema = z.object({
 	startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
 	endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
+	projectId: z.string().min(1).nullable().optional(),
 });
 
 export const TaskCreateSchema = z.object({

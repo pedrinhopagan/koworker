@@ -76,3 +76,13 @@ export async function startWindowDrag(e: React.MouseEvent): Promise<void> {
 		win?.startDragging();
 	}
 }
+
+export async function pickProjectFolder(startIn?: string): Promise<string | null> {
+	if (!isTauri()) {
+		return null;
+	}
+
+	const args = startIn ? { start_in: startIn } : undefined;
+	const result = await safeInvoke<string | null>("pick_project_folder", args);
+	return result ?? null;
+}
