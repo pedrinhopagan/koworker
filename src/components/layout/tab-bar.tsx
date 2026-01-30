@@ -11,6 +11,7 @@ import { tv } from "tailwind-variants";
 
 import { cn } from "@/lib/utils";
 import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 // Navigation tabs configuration
 type TabPath = "/" | "/projetos" | "/tarefas" | "/agenda";
@@ -126,6 +127,7 @@ export function TabBar() {
 			</div>
 
 			{/* Settings button */}
+			<ThemeToggle className={iconButton({ active: false })} />
 			<Link
 				to={"/configuracoes" as const}
 				className={iconButton({ active: currentPath === "/configuracoes" })}
