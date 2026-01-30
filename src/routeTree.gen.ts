@@ -8,154 +8,206 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from "./routes/__root";
-import { Route as AppRouteImport } from "./routes/_app";
-import { Route as AppAgendaIndexRouteImport } from "./routes/_app/agenda/index";
-import { Route as AppIndexRouteImport } from "./routes/_app/index";
-import { Route as AppProjetosIndexRouteImport } from "./routes/_app/projetos/index";
-import { Route as AppTarefasIndexRouteImport } from "./routes/_app/tarefas/index";
-import { Route as LoginRouteImport } from "./routes/login";
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppConfiguracoesRouteImport } from './routes/_app/configuracoes'
+import { Route as AppTarefasIndexRouteImport } from './routes/_app/tarefas/index'
+import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/index'
+import { Route as AppAgendaIndexRouteImport } from './routes/_app/agenda/index'
+import { Route as AppProjetosNovoIndexRouteImport } from './routes/_app/projetos/novo/index'
 
 const LoginRoute = LoginRouteImport.update({
-	id: "/login",
-	path: "/login",
-	getParentRoute: () => rootRouteImport,
-} as any);
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppRoute = AppRouteImport.update({
-	id: "/_app",
-	getParentRoute: () => rootRouteImport,
-} as any);
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppIndexRoute = AppIndexRouteImport.update({
-	id: "/",
-	path: "/",
-	getParentRoute: () => AppRoute,
-} as any);
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppConfiguracoesRoute = AppConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTarefasIndexRoute = AppTarefasIndexRouteImport.update({
-	id: "/tarefas/",
-	path: "/tarefas/",
-	getParentRoute: () => AppRoute,
-} as any);
+  id: '/tarefas/',
+  path: '/tarefas/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppProjetosIndexRoute = AppProjetosIndexRouteImport.update({
-	id: "/projetos/",
-	path: "/projetos/",
-	getParentRoute: () => AppRoute,
-} as any);
+  id: '/projetos/',
+  path: '/projetos/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAgendaIndexRoute = AppAgendaIndexRouteImport.update({
-	id: "/agenda/",
-	path: "/agenda/",
-	getParentRoute: () => AppRoute,
-} as any);
+  id: '/agenda/',
+  path: '/agenda/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProjetosNovoIndexRoute = AppProjetosNovoIndexRouteImport.update({
+  id: '/projetos/novo/',
+  path: '/projetos/novo/',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
-	"/": typeof AppIndexRoute;
-	"/login": typeof LoginRoute;
-	"/agenda/": typeof AppAgendaIndexRoute;
-	"/projetos/": typeof AppProjetosIndexRoute;
-	"/tarefas/": typeof AppTarefasIndexRoute;
+  '/': typeof AppIndexRoute
+  '/login': typeof LoginRoute
+  '/configuracoes': typeof AppConfiguracoesRoute
+  '/agenda/': typeof AppAgendaIndexRoute
+  '/projetos/': typeof AppProjetosIndexRoute
+  '/tarefas/': typeof AppTarefasIndexRoute
+  '/projetos/novo/': typeof AppProjetosNovoIndexRoute
 }
 export interface FileRoutesByTo {
-	"/login": typeof LoginRoute;
-	"/": typeof AppIndexRoute;
-	"/agenda": typeof AppAgendaIndexRoute;
-	"/projetos": typeof AppProjetosIndexRoute;
-	"/tarefas": typeof AppTarefasIndexRoute;
+  '/login': typeof LoginRoute
+  '/configuracoes': typeof AppConfiguracoesRoute
+  '/': typeof AppIndexRoute
+  '/agenda': typeof AppAgendaIndexRoute
+  '/projetos': typeof AppProjetosIndexRoute
+  '/tarefas': typeof AppTarefasIndexRoute
+  '/projetos/novo': typeof AppProjetosNovoIndexRoute
 }
 export interface FileRoutesById {
-	__root__: typeof rootRouteImport;
-	"/_app": typeof AppRouteWithChildren;
-	"/login": typeof LoginRoute;
-	"/_app/": typeof AppIndexRoute;
-	"/_app/agenda/": typeof AppAgendaIndexRoute;
-	"/_app/projetos/": typeof AppProjetosIndexRoute;
-	"/_app/tarefas/": typeof AppTarefasIndexRoute;
+  __root__: typeof rootRouteImport
+  '/_app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_app/configuracoes': typeof AppConfiguracoesRoute
+  '/_app/': typeof AppIndexRoute
+  '/_app/agenda/': typeof AppAgendaIndexRoute
+  '/_app/projetos/': typeof AppProjetosIndexRoute
+  '/_app/tarefas/': typeof AppTarefasIndexRoute
+  '/_app/projetos/novo/': typeof AppProjetosNovoIndexRoute
 }
 export interface FileRouteTypes {
-	fileRoutesByFullPath: FileRoutesByFullPath;
-	fullPaths: "/" | "/login" | "/agenda/" | "/projetos/" | "/tarefas/";
-	fileRoutesByTo: FileRoutesByTo;
-	to: "/login" | "/" | "/agenda" | "/projetos" | "/tarefas";
-	id:
-		| "__root__"
-		| "/_app"
-		| "/login"
-		| "/_app/"
-		| "/_app/agenda/"
-		| "/_app/projetos/"
-		| "/_app/tarefas/";
-	fileRoutesById: FileRoutesById;
+  fileRoutesByFullPath: FileRoutesByFullPath
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/configuracoes'
+    | '/agenda/'
+    | '/projetos/'
+    | '/tarefas/'
+    | '/projetos/novo/'
+  fileRoutesByTo: FileRoutesByTo
+  to:
+    | '/login'
+    | '/configuracoes'
+    | '/'
+    | '/agenda'
+    | '/projetos'
+    | '/tarefas'
+    | '/projetos/novo'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/login'
+    | '/_app/configuracoes'
+    | '/_app/'
+    | '/_app/agenda/'
+    | '/_app/projetos/'
+    | '/_app/tarefas/'
+    | '/_app/projetos/novo/'
+  fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-	AppRoute: typeof AppRouteWithChildren;
-	LoginRoute: typeof LoginRoute;
+  AppRoute: typeof AppRouteWithChildren
+  LoginRoute: typeof LoginRoute
 }
 
-declare module "@tanstack/react-router" {
-	interface FileRoutesByPath {
-		"/login": {
-			id: "/login";
-			path: "/login";
-			fullPath: "/login";
-			preLoaderRoute: typeof LoginRouteImport;
-			parentRoute: typeof rootRouteImport;
-		};
-		"/_app": {
-			id: "/_app";
-			path: "";
-			fullPath: "/";
-			preLoaderRoute: typeof AppRouteImport;
-			parentRoute: typeof rootRouteImport;
-		};
-		"/_app/": {
-			id: "/_app/";
-			path: "/";
-			fullPath: "/";
-			preLoaderRoute: typeof AppIndexRouteImport;
-			parentRoute: typeof AppRoute;
-		};
-		"/_app/tarefas/": {
-			id: "/_app/tarefas/";
-			path: "/tarefas";
-			fullPath: "/tarefas/";
-			preLoaderRoute: typeof AppTarefasIndexRouteImport;
-			parentRoute: typeof AppRoute;
-		};
-		"/_app/projetos/": {
-			id: "/_app/projetos/";
-			path: "/projetos";
-			fullPath: "/projetos/";
-			preLoaderRoute: typeof AppProjetosIndexRouteImport;
-			parentRoute: typeof AppRoute;
-		};
-		"/_app/agenda/": {
-			id: "/_app/agenda/";
-			path: "/agenda";
-			fullPath: "/agenda/";
-			preLoaderRoute: typeof AppAgendaIndexRouteImport;
-			parentRoute: typeof AppRoute;
-		};
-	}
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/': {
+      id: '/_app/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/configuracoes': {
+      id: '/_app/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof AppConfiguracoesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tarefas/': {
+      id: '/_app/tarefas/'
+      path: '/tarefas'
+      fullPath: '/tarefas/'
+      preLoaderRoute: typeof AppTarefasIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/projetos/': {
+      id: '/_app/projetos/'
+      path: '/projetos'
+      fullPath: '/projetos/'
+      preLoaderRoute: typeof AppProjetosIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/agenda/': {
+      id: '/_app/agenda/'
+      path: '/agenda'
+      fullPath: '/agenda/'
+      preLoaderRoute: typeof AppAgendaIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/projetos/novo/': {
+      id: '/_app/projetos/novo/'
+      path: '/projetos/novo'
+      fullPath: '/projetos/novo/'
+      preLoaderRoute: typeof AppProjetosNovoIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+  }
 }
 
 interface AppRouteChildren {
-	AppIndexRoute: typeof AppIndexRoute;
-	AppAgendaIndexRoute: typeof AppAgendaIndexRoute;
-	AppProjetosIndexRoute: typeof AppProjetosIndexRoute;
-	AppTarefasIndexRoute: typeof AppTarefasIndexRoute;
+  AppConfiguracoesRoute: typeof AppConfiguracoesRoute
+  AppIndexRoute: typeof AppIndexRoute
+  AppAgendaIndexRoute: typeof AppAgendaIndexRoute
+  AppProjetosIndexRoute: typeof AppProjetosIndexRoute
+  AppTarefasIndexRoute: typeof AppTarefasIndexRoute
+  AppProjetosNovoIndexRoute: typeof AppProjetosNovoIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
-	AppIndexRoute: AppIndexRoute,
-	AppAgendaIndexRoute: AppAgendaIndexRoute,
-	AppProjetosIndexRoute: AppProjetosIndexRoute,
-	AppTarefasIndexRoute: AppTarefasIndexRoute,
-};
+  AppConfiguracoesRoute: AppConfiguracoesRoute,
+  AppIndexRoute: AppIndexRoute,
+  AppAgendaIndexRoute: AppAgendaIndexRoute,
+  AppProjetosIndexRoute: AppProjetosIndexRoute,
+  AppTarefasIndexRoute: AppTarefasIndexRoute,
+  AppProjetosNovoIndexRoute: AppProjetosNovoIndexRoute,
+}
 
-const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren);
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-	AppRoute: AppRouteWithChildren,
-	LoginRoute: LoginRoute,
-};
+  AppRoute: AppRouteWithChildren,
+  LoginRoute: LoginRoute,
+}
 export const routeTree = rootRouteImport
-	._addFileChildren(rootRouteChildren)
-	._addFileTypes<FileRouteTypes>();
+  ._addFileChildren(rootRouteChildren)
+  ._addFileTypes<FileRouteTypes>()

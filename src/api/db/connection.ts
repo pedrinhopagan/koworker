@@ -43,6 +43,8 @@ const tasksSchema = type({
 	category_id: type("string").configure({ references: "categories.id", onDelete: "restrict" }),
 	status: task_status.configure({ default: "pending" }),
 	"acceptance_criteria?": "string",
+	// YYYY-MM-DD format
+	"scheduled_date?": "string",
 	"completed_at?": "number.integer",
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
@@ -71,7 +73,9 @@ const categoriesSchema = type({
 const prioritiesSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	name: "string",
+	level: type("number.integer").configure({ default: 1 }),
 	color: type("string").configure({ default: "#000000" }),
+	display_order: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 });

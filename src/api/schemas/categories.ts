@@ -21,8 +21,14 @@ export const CategoryUpdateSchema = z.object({
 		.optional(),
 });
 
+export const CategoryMigrateAndDeleteSchema = z.object({
+	sourceId: z.string().min(1),
+	targetId: z.string().min(1),
+});
+
 export type CategoryCreateInput = z.infer<typeof CategoryCreateSchema>;
 export type CategoryUpdateInput = z.infer<typeof CategoryUpdateSchema>;
+export type CategoryMigrateAndDeleteInput = z.infer<typeof CategoryMigrateAndDeleteSchema>;
 
 export const CategoryDbCreateSchema = z.object({
 	id: z.string().min(1),

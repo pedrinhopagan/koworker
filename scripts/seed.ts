@@ -24,8 +24,22 @@ await db
 await db
 	.insertInto("priorities")
 	.values([
-		{ id: createId(), name: "Alta", color: "#ef4444", created_at: now },
-		{ id: createId(), name: "Media", color: "#f59e0b", created_at: now },
-		{ id: createId(), name: "Baixa", color: "#22c55e", created_at: now },
+		{ id: createId(), name: "Alta", level: 1, color: "#ef4444", display_order: 0, created_at: now },
+		{
+			id: createId(),
+			name: "Media",
+			level: 2,
+			color: "#f59e0b",
+			display_order: 1,
+			created_at: now,
+		},
+		{
+			id: createId(),
+			name: "Baixa",
+			level: 3,
+			color: "#22c55e",
+			display_order: 2,
+			created_at: now,
+		},
 	])
 	.execute();

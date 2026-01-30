@@ -1,5 +1,6 @@
 {
-	"include": ["**/*.ts", "**/*.tsx"],
+	"include": ["src/**/*.ts", "src/**/*.tsx"],
+	"exclude": ["workopilot-front-end", "scripts", "node_modules", "dist"],
 	"compilerOptions": {
 		"target": "ESNext",
 		"jsx": "react-jsx",

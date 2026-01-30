@@ -1,16 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { Text, Title } from "@/components/typography";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageShell } from "@/routes/_app/-components/page-shell";
+import { TaskForm } from "./-components/task-form";
+import { TaskList } from "./-components/task-list";
+import { useCreateTask } from "./-utils/use-create-task";
+import { useTasksData } from "./-utils/use-tasks-data";
 
 const searchSchema = z.object({
 	q: z.string().optional(),
 	projetoId: z.string().optional(),
 	categoriaId: z.string().optional(),
 	prioridadeId: z.string().optional(),
-	status: z.enum(["pendente", "execucao", "executado"]).optional(),
+	status: z.enum(["pending", "in_execution", "executed"]).optional(),
 	pagina: z.coerce.number().int().min(1).optional(),
 });
 
@@ -20,36 +22,23 @@ export const Route = createFileRoute("/_app/tarefas/")({
 });
 
 function TarefasPage() {
-	return (
-		<PageShell title="Tarefas" description="Visão completa das tarefas">
-			<div className="grid gap-4">
-				<Card>
-					<CardHeader className="space-y-1">
-						<Title size="sm">Filtros</Title>
-						<Text size="sm" tone="muted">
-							Pesquisa, status e prioridade
-						</Text>
-					</CardHeader>
-					<CardContent>
-						<Text size="sm" tone="muted">
-							Tudo salvo na URL para compartilhar.
-						</Text>
-					</CardContent>
-				</Card>
+	const { projetoId } = Route.useSearch();
+	const { data, loading } = useTasksData(projetoId);
+	const { createTask, loading: createLoading } = useCreateTask();
 
-				<Card>
-					<CardHeader className="space-y-1">
-						<Title size="sm">Lista de tarefas</Title>
-						<Text size="sm" tone="muted">
-							Conteúdo em construção
-						</Text>
-					</CardHeader>
-					<CardContent>
-						<Text size="sm" tone="muted">
-							Aqui entra a lista com estados e critérios.
-						</Text>
-					</CardContent>
-				</Card>
+	return (
+		<PageShell
+			title="Tarefas"
+			description={`${data.pendingCount} pendentes, ${data.executedCount} concluídas`}
+		>
+			<div className="space-y-6">
+				<TaskForm
+					projectId={data.selectedProjectId}
+					onSubmit={createTask}
+					loading={createLoading}
+				/>
+
+				<TaskList tasks={data.tasks} loading={loading} />
 			</div>
 		</PageShell>
 	);

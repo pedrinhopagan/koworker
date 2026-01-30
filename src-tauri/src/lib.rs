@@ -1,3 +1,4 @@
+mod commands;
 mod shortcut;
 mod tray;
 mod window;
@@ -12,6 +13,11 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![
+            commands::hide_window,
+            commands::show_window,
+            commands::toggle_window
+        ])
         .setup(|app| {
             shortcut::register(app.handle())?;
             tray::setup(app)?;

@@ -1,6 +1,7 @@
 import { protectedProcedure } from "../auth/context";
 import type { projects } from "../db/connection";
 import { dbProjects } from "../db/projects";
+import { dbTasks } from "../db/tasks";
 import { ProjectCreateSchema, ProjectIdSchema, ProjectUpdateSchema } from "../schemas";
 
 const mapProject = (row: projects) => ({
@@ -56,5 +57,17 @@ export const projectsRouter = {
 	remove: protectedProcedure.input(ProjectIdSchema).handler(async ({ input }) => {
 		await dbProjects.softDelete(input.id);
 		return { id: input.id };
+	}),
+
+	stats: protectedProcedure.handler(async () => {
+		const statsRows = await dbTasks.getStatsByProject();
+		return statsRows.map((row) => ({
+			projectId: row.project_id,
+			total: Number(row.total) || 0,
+			pending: Number(row.pending) || 0,
+			inProgress: Number(row.in_progress) || 0,
+			done: Number(row.done) || 0,
+			lastUpdated: row.last_updated ?? undefined,
+		}));
 	}),
 };

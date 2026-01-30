@@ -1,9 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { z } from "zod";
+import { Calendar } from "lucide-react";
 
-import { Text, Title } from "@/components/typography";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { PageShell } from "@/routes/_app/-components/page-shell";
+import { DashboardHeader } from "./-components/dashboard-header";
+import { HomeSidebar } from "./-components/home-sidebar";
+import { ProjectsSection } from "./-components/projects-section";
+import { QuickLinks } from "./-components/quick-links";
+import { SectionHeader } from "./-components/section-header";
+import { TaskListSection } from "./-components/task-list-section";
+import { WeekCalendar } from "./-components/week-calendar";
+import { useHomeData, MAX_VISIBLE_TASKS } from "./-utils/use-home-data";
 
 const searchSchema = z.object({
 	foco: z.enum(["semana", "mes"]).optional(),
@@ -16,60 +23,92 @@ export const Route = createFileRoute("/_app/")({
 });
 
 function HomePage() {
-	const { foco } = Route.useSearch();
-	const periodoLabel = foco === "mes" ? "Mês atual" : "Semana atual";
+	const { tasks, projects, loading } = useHomeData();
+
+	const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+	const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
+
+	// Get display tasks (pending first, then in execution)
+	const displayTasks = useMemo(() => {
+		const pending = tasks.filter((t) => t.status === "pending");
+		const inExecution = tasks.filter((t) => t.status === "in_execution");
+		return [...inExecution, ...pending].slice(0, MAX_VISIBLE_TASKS);
+	}, [tasks]);
+
+	// Auto-select first task
+	useEffect(() => {
+		if (displayTasks.length > 0 && selectedTaskId === null) {
+			setSelectedTaskId(displayTasks[0].id);
+		}
+	}, [displayTasks, selectedTaskId]);
+
+	const selectedTask = useMemo(() => {
+		if (!selectedTaskId) return null;
+		return tasks.find((t) => t.id === selectedTaskId) ?? null;
+	}, [tasks, selectedTaskId]);
+
+	const handleTaskClick = useCallback(
+		(taskId: string) => {
+			if (selectedTaskId === taskId) {
+				window.location.href = "/tarefas";
+			} else {
+				setSelectedTaskId(taskId);
+			}
+		},
+		[selectedTaskId],
+	);
+
+	const handleProjectClick = useCallback((projectId: string) => {
+		window.location.href = `/tarefas?projetoId=${projectId}`;
+	}, []);
 
 	return (
-		<PageShell title="Home" description="Visão geral das suas atividades">
-			<div className="grid gap-4 md:grid-cols-2">
-				<Card>
-					<CardHeader className="space-y-1">
-						<Title size="sm">Resumo</Title>
-						<Text size="sm" tone="muted">
-							{periodoLabel}
-						</Text>
-					</CardHeader>
-					<CardContent className="space-y-3">
-						<Text>Conteúdo inicial em construção.</Text>
-						<div className="flex flex-wrap gap-2">
-							<Text as="span" size="xs" tone="muted" className="rounded-md bg-muted px-2 py-1">
-								Pendentes
-							</Text>
-							<Text as="span" size="xs" tone="muted" className="rounded-md bg-muted px-2 py-1">
-								Em execução
-							</Text>
-							<Text as="span" size="xs" tone="muted" className="rounded-md bg-muted px-2 py-1">
-								Revisão
-							</Text>
-						</div>
-					</CardContent>
-				</Card>
+		<div className="flex flex-col h-full overflow-hidden">
+			<DashboardHeader />
 
-				<Card>
-					<CardHeader className="space-y-1">
-						<Title size="sm">Atalhos</Title>
-						<Text size="sm" tone="muted">
-							Acesso rápido às ações
-						</Text>
-					</CardHeader>
-					<CardContent className="space-y-3">
-						<Text size="sm" tone="muted">
-							Conecte aqui as ações principais da sua rotina.
-						</Text>
-						<div className="flex flex-wrap gap-2">
-							<Text as="span" size="xs" tone="muted" className="rounded-md bg-muted px-2 py-1">
-								Criar tarefa
-							</Text>
-							<Text as="span" size="xs" tone="muted" className="rounded-md bg-muted px-2 py-1">
-								Revisões
-							</Text>
-							<Text as="span" size="xs" tone="muted" className="rounded-md bg-muted px-2 py-1">
-								Agenda
-							</Text>
-						</div>
-					</CardContent>
-				</Card>
-			</div>
-		</PageShell>
+			<main className="flex-1 flex overflow-hidden">
+				{/* Left sidebar - 1/3 width */}
+				<div className="w-1/3 min-w-[280px] max-w-[380px] border-r border-border overflow-y-auto">
+					<HomeSidebar
+						selectedTask={selectedTask}
+						tasks={tasks}
+						selectedDate={selectedDate}
+						selectedTaskId={selectedTaskId}
+						onTaskSelect={setSelectedTaskId}
+					/>
+				</div>
+
+				{/* Right content - 2/3 width */}
+				<div className="flex-1 overflow-y-auto p-6 space-y-6">
+					<TaskListSection
+						tasks={displayTasks}
+						loading={loading}
+						selectedTaskId={selectedTaskId}
+						onTaskClick={handleTaskClick}
+					/>
+
+					<ProjectsSection projects={projects} onProjectClick={handleProjectClick} />
+
+					<section>
+						<SectionHeader
+							title="Minha Semana"
+							icon={Calendar}
+							linkTo="/agenda"
+							linkLabel="ver agenda"
+							accentColor="hsl(var(--primary))"
+						/>
+						<WeekCalendar
+							tasks={tasks}
+							selectedDate={selectedDate}
+							onDateSelect={setSelectedDate}
+						/>
+					</section>
+
+					<section>
+						<QuickLinks tasks={tasks} />
+					</section>
+				</div>
+			</main>
+		</div>
 	);
 }

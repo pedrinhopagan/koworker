@@ -1,8 +1,19 @@
 import { AuthLoginSchema } from "./auth";
 
 export { AuthLoginSchema } from "./auth";
-export { CategoryCreateSchema, CategoryIdSchema, CategoryUpdateSchema } from "./categories";
-export { PriorityCreateSchema, PriorityIdSchema, PriorityUpdateSchema } from "./priorities";
+export {
+	CategoryCreateSchema,
+	CategoryIdSchema,
+	CategoryMigrateAndDeleteSchema,
+	CategoryUpdateSchema,
+} from "./categories";
+export {
+	PriorityCreateSchema,
+	PriorityIdSchema,
+	PriorityMigrateAndDeleteSchema,
+	PriorityReorderSchema,
+	PriorityUpdateSchema,
+} from "./priorities";
 export { ProjectCreateSchema, ProjectIdSchema, ProjectUpdateSchema } from "./projects";
 export {
 	SubtaskCreateSchema,
@@ -13,8 +24,12 @@ export {
 export {
 	AcceptanceCriteriaItemSchema,
 	TaskCreateSchema,
+	TaskFocusSchema,
 	TaskIdSchema,
+	TaskListByDateSchema,
 	TaskListByProjectSchema,
+	TaskListByWeekSchema,
+	TaskMetricsSchema,
 	TaskStatusSchema,
 	TaskUpdateSchema,
 } from "./tasks";

@@ -6,8 +6,12 @@ import { jsonParse, jsonStringify } from "../helpers/json";
 import { PubSub } from "../pubsub";
 import {
 	TaskCreateSchema,
+	TaskFocusSchema,
 	TaskIdSchema,
+	TaskListByDateSchema,
 	TaskListByProjectSchema,
+	TaskListByWeekSchema,
+	TaskMetricsSchema,
 	TaskUpdateSchema,
 } from "../schemas";
 
@@ -34,6 +38,7 @@ const mapTask = (row: tasks, input?: { subtasks?: subtasks[] }) => ({
 	status: row.status,
 	acceptanceCriteria:
 		jsonParse<{ id: string; text: string; done: boolean }[]>(row.acceptance_criteria) ?? [],
+	scheduledDate: row.scheduled_date ?? undefined,
 	completedAt: row.completed_at ?? undefined,
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,
@@ -42,8 +47,36 @@ const mapTask = (row: tasks, input?: { subtasks?: subtasks[] }) => ({
 });
 
 export const tasksRouter = {
+	metrics: protectedProcedure.input(TaskMetricsSchema).handler(async ({ input }) => {
+		const result = await dbTasks.getMetrics(input.projectId);
+		return {
+			total: result?.total ?? 0,
+			pending: result?.pending ?? 0,
+			inProgress: result?.in_progress ?? 0,
+			done: result?.done ?? 0,
+		};
+	}),
+
+	focus: protectedProcedure.input(TaskFocusSchema).handler(async ({ input }) => {
+		const row = await dbTasks.getFocusTask(input.projectId ?? null);
+		if (!row) return null;
+
+		const subtaskRows = await dbSubtasks.listByTask(row.id);
+		return mapTask(row, { subtasks: subtaskRows });
+	}),
+
 	listByProject: protectedProcedure.input(TaskListByProjectSchema).handler(async ({ input }) => {
 		const rows = await dbTasks.listByProject(input.projectId);
+		return rows.map((row) => mapTask(row));
+	}),
+
+	listByDate: protectedProcedure.input(TaskListByDateSchema).handler(async ({ input }) => {
+		const rows = await dbTasks.listByDate(input.date);
+		return rows.map((row) => mapTask(row));
+	}),
+
+	listByWeek: protectedProcedure.input(TaskListByWeekSchema).handler(async ({ input }) => {
+		const rows = await dbTasks.listByDateRange(input.startDate, input.endDate);
 		return rows.map((row) => mapTask(row));
 	}),
 
@@ -69,6 +102,7 @@ export const tasksRouter = {
 			category_id: input.categoryId,
 			status: input.status,
 			acceptance_criteria: jsonStringify(input.acceptanceCriteria),
+			scheduled_date: input.scheduledDate,
 		});
 
 		await PubSub.publish("tasks", input.projectId, {
@@ -92,6 +126,7 @@ export const tasksRouter = {
 			category_id: input.categoryId,
 			status: input.status,
 			acceptance_criteria: jsonStringify(input.acceptanceCriteria),
+			scheduled_date: input.scheduledDate,
 			completed_at: input.completedAt,
 		});
 

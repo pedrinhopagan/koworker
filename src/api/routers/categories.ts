@@ -1,7 +1,12 @@
 import { protectedProcedure } from "../auth/context";
 import { dbCategories } from "../db/categories";
 import type { categories } from "../db/connection";
-import { CategoryCreateSchema, CategoryIdSchema, CategoryUpdateSchema } from "../schemas";
+import {
+	CategoryCreateSchema,
+	CategoryIdSchema,
+	CategoryMigrateAndDeleteSchema,
+	CategoryUpdateSchema,
+} from "../schemas";
 
 const mapCategory = (row: categories) => ({
 	id: row.id,
@@ -45,4 +50,21 @@ export const categoriesRouter = {
 		const row = await dbCategories.getById(input.id);
 		return row ? mapCategory(row) : null;
 	}),
+
+	delete: protectedProcedure.input(CategoryIdSchema).handler(async ({ input }) => {
+		await dbCategories.delete(input.id);
+		return { success: true };
+	}),
+
+	hasAssociatedTasks: protectedProcedure.input(CategoryIdSchema).handler(({ input }) => {
+		return dbCategories.hasAssociatedTasks(input.id);
+	}),
+
+	migrateAndDelete: protectedProcedure
+		.input(CategoryMigrateAndDeleteSchema)
+		.handler(async ({ input }) => {
+			await dbCategories.migrateTasksToCategory(input.sourceId, input.targetId);
+			await dbCategories.delete(input.sourceId);
+			return { success: true };
+		}),
 };

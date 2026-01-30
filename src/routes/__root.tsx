@@ -18,12 +18,20 @@ function RootComponent() {
 
 	return (
 		<div className={theme}>
-			<div className="fixed top-4 right-4 z-50">
-				<ThemeToggle />
+			{/* Outer container with characteristic border */}
+			<div className="h-screen flex flex-col bg-background border-4 border-[#141414]">
+				{/* Theme toggle */}
+				<div className="fixed top-4 right-4 z-50">
+					<ThemeToggle />
+				</div>
+
+				{/* Main content area */}
+				<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+					<ErrorBoundary>
+						<Outlet />
+					</ErrorBoundary>
+				</div>
 			</div>
-			<ErrorBoundary>
-				<Outlet />
-			</ErrorBoundary>
 		</div>
 	);
 }
