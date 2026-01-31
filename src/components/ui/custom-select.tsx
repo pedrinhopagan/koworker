@@ -1,5 +1,5 @@
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
 import * as React from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
@@ -10,11 +10,11 @@ import { cn } from "@/lib/utils";
 // ============================================================================
 
 const customSelectTriggerVariants = tv({
-	base: "flex items-center justify-between gap-2 whitespace-nowrap transition-all outline-none disabled:cursor-not-allowed disabled:opacity-50",
+	base: "flex items-center justify-between gap-2 min-w-0 whitespace-nowrap transition-all outline-none disabled:cursor-not-allowed disabled:opacity-50",
 	variants: {
 		variant: {
 			default:
-				"px-3 py-2 rounded-md border border-input bg-card hover:bg-popover hover:border-muted-foreground",
+				"px-3 py-2 rounded-md border border-input bg-card hover:bg-muted hover:border-muted-foreground",
 			ghost: "hover:bg-accent hover:text-accent-foreground",
 			minimal: "",
 		},
@@ -32,7 +32,8 @@ const customSelectTriggerVariants = tv({
 
 const customSelectContentVariants = tv({
 	base: [
-		"bg-card border border-border shadow-xl z-50 overflow-hidden rounded-md",
+		// Keep content width stable and never exceed the available popper width.
+		"bg-card text-card-foreground border border-border shadow-xl z-50 overflow-hidden rounded-md min-w-[var(--radix-select-trigger-width)] max-w-[var(--radix-popper-available-width)] flex flex-col",
 		"data-[state=open]:animate-in data-[state=closed]:animate-out",
 		"data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
 		"data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -42,22 +43,24 @@ const customSelectContentVariants = tv({
 });
 
 const customSelectItemVariants = tv({
-	base: "outline-none cursor-pointer data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-});
-
-const customSelectScrollButtonVariants = tv({
-	base: "flex cursor-default items-center justify-center py-1 bg-card",
-	variants: {
-		direction: {
-			up: "border-b border-border",
-			down: "border-t border-border",
-		},
-	},
+	base: cn(
+		"outline-none cursor-pointer min-w-0",
+		"px-3 py-2 text-sm",
+		"bg-background text-muted-foreground",
+		"data-[highlighted]:bg-muted data-[highlighted]:text-foreground",
+		"data-[state=checked]:bg-muted data-[state=checked]:text-foreground",
+		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+	),
 });
 
 // ============================================================================
 // Types
 // ============================================================================
+
+type CustomSelectTriggerRenderContext = {
+	loading: boolean;
+	error: string | null;
+};
 
 interface CustomSelectProps<T extends { id: string }> extends VariantProps<
 	typeof customSelectTriggerVariants
@@ -66,10 +69,15 @@ interface CustomSelectProps<T extends { id: string }> extends VariantProps<
 	value?: string;
 	onValueChange: (value: string, item: T) => void;
 	renderItem: (item: T, isSelected: boolean) => React.ReactNode;
-	renderTrigger?: () => React.ReactNode;
+	itemClassName?: (item: T) => string;
+	renderTrigger?: (ctx?: CustomSelectTriggerRenderContext) => React.ReactNode;
 	label?: string;
 	placeholder?: string;
 	disabled?: boolean;
+	loading?: boolean;
+	error?: string | null;
+	emptyMessage?: string;
+	onEscapeKeyDown?: (event: KeyboardEvent) => void;
 	className?: string;
 	triggerClassName?: string;
 	triggerStyle?: React.CSSProperties;
@@ -87,10 +95,15 @@ function CustomSelect<T extends { id: string }>({
 	value,
 	onValueChange,
 	renderItem,
+	itemClassName,
 	renderTrigger,
 	label,
 	placeholder = "Selecione...",
 	disabled = false,
+	loading = false,
+	error = null,
+	emptyMessage = "Nenhum item disponível",
+	onEscapeKeyDown,
 	variant,
 	size,
 	className,
@@ -107,89 +120,197 @@ function CustomSelect<T extends { id: string }>({
 		}
 	}
 
+	const isDisabled = disabled || loading;
+	const isEmpty = items.length === 0;
+	const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
+	const contentStyle: React.CSSProperties = {
+		backgroundColor: "var(--card)",
+		color: "var(--card-foreground)",
+	};
+
+	React.useEffect(() => {
+		if (portalContainer) return;
+		const themeRoot = document.querySelector<HTMLElement>("[data-theme-root]");
+		setPortalContainer(themeRoot);
+	}, [portalContainer]);
+
 	return (
-		<SelectPrimitive.Root value={value} onValueChange={handleValueChange} disabled={disabled}>
+		<SelectPrimitive.Root value={value} onValueChange={handleValueChange} disabled={isDisabled}>
 			<SelectPrimitive.Trigger
+				type="button"
 				data-slot="custom-select-trigger"
-				className={cn(customSelectTriggerVariants({ variant, size }), triggerClassName)}
+				aria-busy={loading ? true : undefined}
+				aria-invalid={error ? true : undefined}
+				className={cn(customSelectTriggerVariants({ variant, size }), className, triggerClassName)}
 				style={triggerStyle}
 			>
 				{renderTrigger ? (
-					renderTrigger()
+					renderTrigger({ loading, error })
 				) : (
 					<>
-						<SelectPrimitive.Value placeholder={placeholder} />
+						<SelectPrimitive.Value
+							placeholder={placeholder}
+							className="min-w-0 flex-1 truncate text-left"
+						/>
 						<SelectPrimitive.Icon asChild>
 							<ChevronDown className="size-4 opacity-50" />
 						</SelectPrimitive.Icon>
 					</>
 				)}
+
+				{loading && (
+					<span className="ml-2 inline-flex items-center" aria-hidden="true">
+						<Loader2 className="size-4 animate-spin text-muted-foreground" />
+					</span>
+				)}
+
+				{!loading && error && (
+					<span className="ml-2 inline-flex items-center" aria-hidden="true">
+						<AlertCircle className="size-4 text-destructive" />
+					</span>
+				)}
 			</SelectPrimitive.Trigger>
 
-			<SelectPrimitive.Portal>
+			<SelectPrimitive.Portal container={portalContainer ?? undefined}>
 				<SelectPrimitive.Content
 					data-slot="custom-select-content"
 					position="popper"
 					align={align}
 					side={side}
 					sideOffset={8}
-					className={cn(customSelectContentVariants(), className, contentClassName)}
+					onEscapeKeyDown={onEscapeKeyDown}
+					className={cn(customSelectContentVariants(), contentClassName)}
+					style={contentStyle}
 				>
-					{label && (
-						<div className="px-3 py-2 border-b border-border text-xs text-muted-foreground uppercase tracking-wider">
-							{label}
+					{(label || error) && (
+						<div className="px-3 py-2 border-b border-border">
+							{label && (
+								<div className="text-xs text-muted-foreground uppercase tracking-wider">
+									{label}
+								</div>
+							)}
+							{error && <div className="mt-1 text-xs text-destructive">{error}</div>}
 						</div>
 					)}
 
-					<CustomSelectScrollUpButton />
-
-					<SelectPrimitive.Viewport className="max-h-48 overflow-y-auto">
-						{items.map((item) => (
-							<SelectPrimitive.Item
-								key={item.id}
-								value={item.id}
-								data-slot="custom-select-item"
-								className={customSelectItemVariants()}
-							>
-								<SelectPrimitive.ItemText asChild>
-									<div>{renderItem(item, value === item.id)}</div>
-								</SelectPrimitive.ItemText>
-							</SelectPrimitive.Item>
-						))}
+					<SelectPrimitive.Viewport
+						className="max-h-48 w-full min-w-0 overflow-y-auto bg-card text-card-foreground"
+						style={contentStyle}
+					>
+						{loading ? (
+							<div className="px-3 py-2 text-sm text-muted-foreground">Carregando...</div>
+						) : isEmpty ? (
+							<div className="px-3 py-2 text-sm text-muted-foreground">{emptyMessage}</div>
+						) : (
+							items.map((item) => (
+								<SelectPrimitive.Item
+									key={item.id}
+									value={item.id}
+									data-slot="custom-select-item"
+									className={cn(customSelectItemVariants(), itemClassName?.(item))}
+								>
+									<SelectPrimitive.ItemText asChild>
+										<div className="w-full min-w-0 overflow-hidden">
+											{renderItem(item, value === item.id)}
+										</div>
+									</SelectPrimitive.ItemText>
+								</SelectPrimitive.Item>
+							))
+						)}
 					</SelectPrimitive.Viewport>
-
-					<CustomSelectScrollDownButton />
 				</SelectPrimitive.Content>
 			</SelectPrimitive.Portal>
 		</SelectPrimitive.Root>
 	);
 }
 
-function CustomSelectScrollUpButton({
-	className,
-	...props
-}: React.ComponentProps<typeof SelectPrimitive.ScrollUpButton>) {
-	return (
-		<SelectPrimitive.ScrollUpButton
-			className={cn(customSelectScrollButtonVariants({ direction: "up" }), className)}
-			{...props}
-		>
-			<ChevronUp className="size-4 text-muted-foreground" />
-		</SelectPrimitive.ScrollUpButton>
-	);
-}
+// ============================================================================
+// Inline edit helper
+// ============================================================================
 
-function CustomSelectScrollDownButton({
+type CustomSelectInlineEditInputProps = Omit<
+	React.ComponentProps<"input">,
+	"value" | "defaultValue" | "onChange"
+> & {
+	value: string;
+	onCommit: (nextValue: string) => void;
+	onCancel?: () => void;
+};
+
+/**
+ * Input helper meant to be rendered inside a CustomSelect item.
+ *
+ * It:
+ * - stays within the item width (w-full/min-w-0)
+ * - prevents pointer/keyboard events from bubbling to Radix Select
+ * - supports Enter (commit), Escape (cancel), Blur (commit)
+ */
+function CustomSelectInlineEditInput({
+	value,
+	onCommit,
+	onCancel,
 	className,
+	onKeyDown,
+	onBlur,
 	...props
-}: React.ComponentProps<typeof SelectPrimitive.ScrollDownButton>) {
+}: CustomSelectInlineEditInputProps) {
+	const [draft, setDraft] = React.useState(value);
+
+	React.useEffect(() => {
+		setDraft(value);
+	}, [value]);
+
+	function commit() {
+		const next = draft.trim();
+		if (next !== value) {
+			onCommit(next);
+		}
+	}
+
+	function cancel() {
+		setDraft(value);
+		onCancel?.();
+	}
+
 	return (
-		<SelectPrimitive.ScrollDownButton
-			className={cn(customSelectScrollButtonVariants({ direction: "down" }), className)}
+		<input
 			{...props}
-		>
-			<ChevronDown className="size-4 text-muted-foreground" />
-		</SelectPrimitive.ScrollDownButton>
+			value={draft}
+			onChange={(e) => setDraft(e.target.value)}
+			className={cn(
+				"w-full min-w-0 bg-transparent outline-none truncate",
+				// keep the input from expanding the row
+				"text-ellipsis",
+				className,
+			)}
+			onPointerDown={(e) => {
+				// Prevent selecting the item / closing the select when trying to edit.
+				e.stopPropagation();
+			}}
+			onClick={(e) => e.stopPropagation()}
+			onKeyDown={(e) => {
+				// Prevent Radix Select keyboard handling while typing.
+				e.stopPropagation();
+
+				if (e.key === "Enter") {
+					e.preventDefault();
+					commit();
+					return;
+				}
+
+				if (e.key === "Escape") {
+					e.preventDefault();
+					cancel();
+					return;
+				}
+
+				onKeyDown?.(e);
+			}}
+			onBlur={(e) => {
+				commit();
+				onBlur?.(e);
+			}}
+		/>
 	);
 }
 
@@ -199,8 +320,9 @@ function CustomSelectScrollDownButton({
 
 export {
 	CustomSelect,
+	CustomSelectInlineEditInput,
 	customSelectContentVariants,
 	customSelectItemVariants,
 	customSelectTriggerVariants,
 };
-export type { CustomSelectProps };
+export type { CustomSelectInlineEditInputProps, CustomSelectProps };
