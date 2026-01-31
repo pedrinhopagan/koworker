@@ -1,5 +1,5 @@
-use tauri::{AppHandle};
 use rfd::FileDialog;
+use tauri::AppHandle;
 
 use crate::window;
 
@@ -24,5 +24,7 @@ pub fn pick_project_folder(start_in: Option<String>) -> Option<String> {
     if let Some(path) = start_in {
         dialog = dialog.set_directory(path);
     }
-    dialog.pick_folder().map(|path| path.to_string_lossy().to_string())
+    dialog
+        .pick_folder()
+        .map(|path| path.to_string_lossy().to_string())
 }

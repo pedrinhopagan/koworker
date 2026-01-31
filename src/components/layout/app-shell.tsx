@@ -1,7 +1,8 @@
 import type { CSSProperties, ReactNode } from "react";
 import { AccentStripe, ProjectFocusBar } from "@/components/layout/project-focus-bar";
 import { TabBar } from "@/components/layout/tab-bar";
-import { useProjectFocus, useUser } from "@/hooks";
+import { usePrimaryColor, useProjectFocus, useUser } from "@/hooks";
+import { TerminalManager } from "@/terminal/terminal-manager";
 
 type AppShellProps = {
 	children: ReactNode;
@@ -9,6 +10,7 @@ type AppShellProps = {
 
 export function AppShell({ children }: AppShellProps) {
 	useUser();
+	usePrimaryColor();
 	const { accent } = useProjectFocus();
 
 	const baseAccentStyle = {
@@ -32,15 +34,15 @@ export function AppShell({ children }: AppShellProps) {
 	const focusBarStyle = accent
 		? {
 				backgroundImage: `linear-gradient(90deg, ${accent.soft} 0%, transparent 70%)`,
-				borderBottomColor: accent.border,
-				boxShadow: `inset 0 -1px 0 ${accent.border}`,
+				// borderBottomColor: accent.border,
+                  boxShadow: `inset 0 -1px 0 ${accent.border}`,
 			}
 		: undefined;
 
 	const mainStyle = accent
 		? {
-				boxShadow: `inset 4px 0 16px ${accent.glow}`,
-				backgroundImage: `linear-gradient(120deg, ${accent.soft} 0%, transparent 35%)`,
+				boxShadow: `inset 0 0 0px ${accent.glow}`,
+				backgroundImage: `linear-gradient(120deg, ${accent.soft} 0%, transparent 100%)`,
 			}
 		: undefined;
 
@@ -49,7 +51,7 @@ export function AppShell({ children }: AppShellProps) {
 			className="flex-1 flex bg-background text-foreground overflow-hidden h-screen"
 			style={shellStyle}
 		>
-			<AccentStripe />
+			{/*<AccentStripe />*/}
 
 			<div className="flex flex-col flex-1 min-h-0">
 				<TabBar />
@@ -67,6 +69,7 @@ export function AppShell({ children }: AppShellProps) {
 				>
 					{children}
 				</main>
+				<TerminalManager />
 			</div>
 		</div>
 	);

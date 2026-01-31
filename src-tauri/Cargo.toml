@@ -16,3 +16,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-global-shortcut = "2"
 rfd = "0.16"
+
+# PTY backend (terminal real)
+portable-pty = "0.9"
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["v4"] }

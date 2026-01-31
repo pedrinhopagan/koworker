@@ -1,8 +1,8 @@
 use std::{
+    net::TcpStream,
     path::PathBuf,
     process::{Child, Command, Stdio},
     sync::{Mutex, OnceLock},
-    net::TcpStream,
 };
 
 static BACKEND: OnceLock<Mutex<Option<Child>>> = OnceLock::new();
@@ -12,7 +12,9 @@ fn state() -> &'static Mutex<Option<Child>> {
 }
 
 fn repo_root() -> Option<PathBuf> {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().map(|path| path.to_path_buf())
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(|path| path.to_path_buf())
 }
 
 fn server_script() -> Option<PathBuf> {
@@ -39,7 +41,12 @@ pub fn start() {
         return;
     };
 
-    let root = repo_root().unwrap_or_else(|| script.parent().unwrap_or_else(|| script.as_path()).to_path_buf());
+    let root = repo_root().unwrap_or_else(|| {
+        script
+            .parent()
+            .unwrap_or_else(|| script.as_path())
+            .to_path_buf()
+    });
     let mut cmd = Command::new("bun");
     if cfg!(debug_assertions) {
         cmd.arg("--watch");

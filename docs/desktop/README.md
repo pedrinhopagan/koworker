@@ -6,9 +6,12 @@ Criar uma base simples e robusta para rodar no desktop com o minimo de Rust, man
 
 ## Arquitetura
 
-- Host desktop: Tauri 2 (janela e IPC)
-- Core: Bun sidecar (toda a logica de agentes, terminal e SDKs)
-- UI: React + TanStack (somente consumo de eventos)
+- Host desktop: Tauri 2 (janela, IPC e backend Rust)
+- UI: React + TanStack
+- Backend local (TS/Bun): ORPC/API e integrações
+- **Terminal integrado (MVP): xterm.js no front + PTY real no Rust/Tauri** (para suportar TUIs como `opencode`)
+
+> Nota: a abordagem antiga de “terminal externo + tmux” permanece como fallback opcional, mas o padrão do produto é terminal embutido.
 
 ## Backend local
 
@@ -34,9 +37,11 @@ Um unico input define o provedor ativo. O core carrega o adapter correto e mante
 
 Veja `docs/desktop/provedores.md`.
 
-### Terminal e tmux
+### Terminal
 
-No modo simples, o app abre um terminal externo e anexa em uma sessao tmux.
+O padrão é **terminal embutido** (xterm.js + PTY no Rust/Tauri). Isso permite rodar CLIs interativas (ex.: `opencode`) dentro do app.
+
+Fallback opcional: abrir **terminal externo + tmux** (mantido para ambientes onde o PTY embutido falhar ou por preferência do usuário).
 
 Veja `docs/desktop/terminal.md`.
 
