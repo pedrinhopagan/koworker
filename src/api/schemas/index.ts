@@ -41,6 +41,12 @@ export {
 	TaskUpdateSchema,
 } from "./tasks";
 
+export {
+	ExecutionCreateMessageSchema,
+	ExecutionGetByTaskIdSchema,
+	ExecutionMessageRoleSchema,
+} from "./execution";
+
 export const EndpointSchemas = {
 	authLogin: AuthLoginSchema,
 };

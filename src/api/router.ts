@@ -6,6 +6,7 @@ import { prioritiesRouter } from "./routers/priorities";
 import { projectsRouter } from "./routers/projects";
 import { subtasksRouter } from "./routers/subtasks";
 import { tasksRouter } from "./routers/tasks";
+import { executionRouter } from "./routers/execution";
 import { EndpointSchemas, TaskListByProjectSchema } from "./schemas";
 
 export const router = {
@@ -21,6 +22,7 @@ export const router = {
 	projects: projectsRouter,
 	tasks: tasksRouter,
 	subtasks: subtasksRouter,
+	execution: executionRouter,
 	categories: categoriesRouter,
 	priorities: prioritiesRouter,
 
