@@ -1,6 +1,6 @@
-import { memo } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, type LucideIcon } from "lucide-react";
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 
 export type EmptyFeedbackProps = {

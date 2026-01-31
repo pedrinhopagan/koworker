@@ -1,27 +1,27 @@
-import * as React from "react";
 import {
-	DndContext,
 	closestCenter,
+	DndContext,
+	type DragEndEvent,
+	DragOverlay,
+	type DragStartEvent,
 	KeyboardSensor,
 	PointerSensor,
+	type UniqueIdentifier,
 	useSensor,
 	useSensors,
-	type DragEndEvent,
-	type DragStartEvent,
-	DragOverlay,
-	type UniqueIdentifier,
 } from "@dnd-kit/core";
 import {
 	arrayMove,
+	horizontalListSortingStrategy,
 	SortableContext,
+	type SortingStrategy,
 	sortableKeyboardCoordinates,
 	useSortable,
 	verticalListSortingStrategy,
-	horizontalListSortingStrategy,
-	type SortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
+import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -58,7 +58,7 @@ interface SortableItemRenderProps {
 	/** Props to spread on the drag handle element */
 	dragHandleProps: {
 		attributes: React.HTMLAttributes<HTMLElement>;
-		listeners: Record<string, (...args: unknown[]) => void> | undefined;
+		listeners: unknown;
 	};
 	/** Whether this item is currently being dragged */
 	isDragging: boolean;
@@ -223,7 +223,7 @@ function SortableList<T extends SortableItem>({
 
 interface DragHandleProps {
 	attributes: React.HTMLAttributes<HTMLElement>;
-	listeners: Record<string, (...args: unknown[]) => void> | undefined;
+	listeners: unknown;
 	className?: string;
 	disabled?: boolean;
 }
