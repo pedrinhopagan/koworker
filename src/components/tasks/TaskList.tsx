@@ -67,7 +67,8 @@ export const TaskList = memo(function TaskList({
 	}
 
 	const renderTask = (task: TaskWithMeta, index: number) => (
-		<div
+		<button
+			type="button"
 			key={task.id}
 			onClick={() => onTaskClick?.(task.id)}
 			onKeyDown={(e) => {
@@ -76,16 +77,15 @@ export const TaskList = memo(function TaskList({
 					onTaskClick?.(task.id);
 				}
 			}}
-			role={onTaskClick ? "button" : undefined}
-			tabIndex={onTaskClick ? 0 : undefined}
+			disabled={!onTaskClick}
 			className={cn(
-				onTaskClick ? "cursor-pointer" : undefined,
+				onTaskClick ? "cursor-pointer" : "cursor-default",
 				"animate-stagger-fade-in opacity-0",
 			)}
 			style={{ animationDelay: `${index * 0.05}s` }}
 		>
 			<TaskItem task={task} variant={itemVariant} />
-		</div>
+		</button>
 	);
 
 	if (separateDone) {

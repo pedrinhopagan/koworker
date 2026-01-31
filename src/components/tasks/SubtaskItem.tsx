@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
-import { tv, type VariantProps } from "tailwind-variants";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-
-import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import { tv, type VariantProps } from "tailwind-variants";
 import { orpc } from "@/client";
 import type { Subtask } from "@/hooks/use-subtasks";
+import { cn } from "@/lib/utils";
 
 const subtaskItemVariants = tv({
 	slots: {
@@ -135,6 +134,7 @@ export function SubtaskItem({ subtask, taskId, disabled = false, className }: Su
 					title={expanded ? "Recolher detalhes" : "Expandir detalhes"}
 				>
 					<svg
+						aria-hidden="true"
 						xmlns="http://www.w3.org/2000/svg"
 						width="14"
 						height="14"
@@ -165,6 +165,7 @@ export function SubtaskItem({ subtask, taskId, disabled = false, className }: Su
 					title="Remover subtask"
 				>
 					<svg
+						aria-hidden="true"
 						xmlns="http://www.w3.org/2000/svg"
 						width="14"
 						height="14"
@@ -185,7 +186,7 @@ export function SubtaskItem({ subtask, taskId, disabled = false, className }: Su
 			{expanded && (
 				<div className={styles.expandedContent()}>
 					<div className="space-y-1">
-						<label className={styles.label()}>Descrição</label>
+						<div className={styles.label()}>Descrição</div>
 						<textarea
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}

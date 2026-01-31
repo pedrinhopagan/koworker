@@ -1,15 +1,14 @@
-import { useState, useMemo } from "react";
-import { tv, type VariantProps } from "tailwind-variants";
 import { Plus } from "lucide-react";
-
-import { cn } from "@/lib/utils";
-import { useSubtasks, type Subtask } from "@/hooks/use-subtasks";
-import { SubtaskItem } from "./SubtaskItem";
+import { useMemo, useState } from "react";
+import { tv, type VariantProps } from "tailwind-variants";
 import {
-	SortableList,
 	DragHandle,
 	type SortableItemRenderProps,
+	SortableList,
 } from "@/components/ui/sortable-list";
+import { type Subtask, useSubtasks } from "@/hooks/use-subtasks";
+import { cn } from "@/lib/utils";
+import { SubtaskItem } from "./SubtaskItem";
 
 // ============================================================================
 // Styles

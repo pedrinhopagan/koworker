@@ -1,9 +1,9 @@
-import { useCallback, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
 
 import { orpc } from "@/client";
-import { useProjectFocus } from "./use-project-focus";
 import type { TaskWithMeta } from "@/types/tasks";
+import { useProjectFocus } from "./use-project-focus";
 
 const statusLabels: Record<string, string> = {
 	pending: "Pendente",
@@ -20,10 +20,9 @@ export function useTodayTasks() {
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 	const tasksQuery = useQuery({
-		...orpc.tasks.listByDate.queryOptions({
+		...orpc.tasks.getAll.queryOptions({
 			input: { date: today, projectId: selectedProjectId ?? null },
 		}),
-		enabled: !!selectedProjectId,
 	});
 
 	const categories = categoriesQuery.data ?? [];

@@ -1,11 +1,16 @@
-import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
 
 import { orpc } from "@/client";
 import { useSelectedProjectStore } from "@/stores/selected-project";
 
 type UseProjectFocusOptions = {
 	preferredProjectId?: string | null;
+	/**
+	 * If true, keeps the selected-project store in sync with the resolved project.
+	 * Set to false when the project is being driven by URL state.
+	 */
+	syncToStore?: boolean;
 };
 
 const withAlpha = (color: string, alpha: string) => {
@@ -19,6 +24,7 @@ export function useProjectFocus(options: UseProjectFocusOptions = {}) {
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
 	const projects = projectsQuery.data ?? [];
 	const preferredProjectId = options.preferredProjectId ?? null;
+	const syncToStore = options.syncToStore ?? true;
 
 	const selectedProjectId = useSelectedProjectStore((s) => s.selectedProjectId);
 	const setSelectedProjectId = useSelectedProjectStore((s) => s.setSelectedProjectId);
@@ -27,17 +33,24 @@ export function useProjectFocus(options: UseProjectFocusOptions = {}) {
 		if (preferredProjectId && projects.some((project) => project.id === preferredProjectId)) {
 			return preferredProjectId;
 		}
+
+		if (selectedProjectId === undefined) {
+			return;
+		}
+
 		if (selectedProjectId && projects.some((project) => project.id === selectedProjectId)) {
 			return selectedProjectId;
 		}
+
 		return projects[0]?.id ?? null;
 	}, [preferredProjectId, projects, selectedProjectId]);
 
 	useEffect(() => {
+		if (!syncToStore) return;
 		if (resolvedProjectId !== selectedProjectId) {
 			setSelectedProjectId(resolvedProjectId);
 		}
-	}, [resolvedProjectId, selectedProjectId, setSelectedProjectId]);
+	}, [resolvedProjectId, selectedProjectId, setSelectedProjectId, syncToStore]);
 
 	const selectedProject = useMemo(() => {
 		if (!resolvedProjectId) return null;
