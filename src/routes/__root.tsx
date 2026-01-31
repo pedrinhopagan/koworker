@@ -16,7 +16,7 @@ function RootComponent() {
 	const { theme } = useThemeStore();
 
 	return (
-		<div className={theme}>
+		<div className={theme} data-theme-root>
 			<div className="h-screen flex flex-col bg-background border-4 border-[#141414]">
 				<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 					<ErrorBoundary>

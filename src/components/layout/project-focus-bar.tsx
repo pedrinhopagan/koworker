@@ -5,6 +5,8 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { useProjectFocus } from "@/hooks";
 import { cn } from "@/lib/utils";
 
+const ALL_PROJECTS_ID = "__all_projects__";
+
 type ProjectItem = {
 	id: string;
 	name: string;
@@ -16,20 +18,29 @@ export function ProjectFocusBar() {
 		useProjectFocus();
 
 	const projectItems = useMemo<ProjectItem[]>(() => {
-		return projects.map((project) => ({
-			id: project.id,
-			name: project.name,
-			color: project.color ?? null,
-		}));
+		return [
+			{ id: ALL_PROJECTS_ID, name: "Todos os projetos", color: null },
+			...projects.map((project) => ({
+				id: project.id,
+				name: project.name,
+				color: project.color ?? null,
+			})),
+		];
 	}, [projects]);
 
 	const accentColor = accent?.color ?? null;
 	const isEmpty = projectItems.length === 0;
 	const label =
-		selectedProject?.name ??
-		(loading ? "Carregando projetos..." : isEmpty ? "Nenhum projeto" : "Selecione um projeto");
+		selectedProjectId === undefined
+			? "Todos os projetos"
+			: (selectedProject?.name ??
+				(loading ? "Carregando projetos..." : isEmpty ? "Nenhum projeto" : "Selecione um projeto"));
 
 	function handleValueChange(id: string, _item: ProjectItem) {
+		if (id === ALL_PROJECTS_ID) {
+			setSelectedProjectId(undefined);
+			return;
+		}
 		setSelectedProjectId(id);
 	}
 
@@ -41,10 +52,11 @@ export function ProjectFocusBar() {
 
 			<CustomSelect
 				items={projectItems}
-				value={selectedProjectId ?? undefined}
+				value={selectedProjectId === undefined ? ALL_PROJECTS_ID : (selectedProjectId ?? undefined)}
 				onValueChange={handleValueChange}
 				variant="minimal"
 				disabled={isEmpty}
+				loading={loading}
 				triggerClassName={cn(
 					"flex items-center gap-3 px-4 py-2 rounded-lg min-w-[220px] transition-all duration-200 border-2 bg-card/80 backdrop-blur",
 					accentColor ? "shadow-sm hover:shadow-md" : "border-border",
@@ -92,8 +104,9 @@ export function ProjectFocusBar() {
 					<div
 						className={cn(
 							"flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors",
-							isSelected ? "bg-muted" : "hover:bg-muted/50",
+							isSelected && "font-medium",
 						)}
+						style={isSelected ? { color: project.color ?? undefined } : undefined}
 					>
 						{project.color ? (
 							<span
@@ -101,16 +114,9 @@ export function ProjectFocusBar() {
 								style={{ backgroundColor: project.color }}
 							/>
 						) : (
-							<FolderKanbanIcon className="size-3.5 text-muted-foreground shrink-0" />
+							<FolderKanbanIcon className="size-3.5 text-current shrink-0" />
 						)}
-						<span
-							className={cn(
-								"flex-1 text-sm truncate",
-								isSelected ? "font-medium text-foreground" : "text-foreground",
-							)}
-						>
-							{project.name}
-						</span>
+						<span className={cn("flex-1 text-sm truncate")}>{project.name}</span>
 						{isSelected && (
 							<CheckCheckIcon
 								className="size-4 shrink-0"

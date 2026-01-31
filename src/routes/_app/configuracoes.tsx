@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { Title, Text } from "@/components/typography";
+import { Text, Title } from "@/components/typography";
 
 export const Route = createFileRoute("/_app/configuracoes")({
 	component: ConfiguracoesPage,

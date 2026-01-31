@@ -1,16 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Calendar, LayoutDashboardIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { z } from "zod";
-import { Calendar } from "lucide-react";
 
-import { DashboardHeader } from "./-components/dashboard-header";
 import { HomeSidebar } from "./-components/home-sidebar";
 import { ProjectsSection } from "./-components/projects-section";
 import { QuickLinks } from "./-components/quick-links";
 import { SectionHeader } from "./-components/section-header";
 import { TaskListSection } from "./-components/task-list-section";
 import { WeekCalendar } from "./-components/week-calendar";
-import { useHomeData, MAX_VISIBLE_TASKS } from "./-utils/use-home-data";
+import { MAX_VISIBLE_TASKS, useHomeData } from "./-utils/use-home-data";
+import { PageShell } from "./-components/page-shell";
 
 const searchSchema = z.object({
 	foco: z.enum(["semana", "mes"]).optional(),
@@ -63,12 +63,10 @@ function HomePage() {
 	}, []);
 
 	return (
-		<div className="flex flex-col h-full overflow-hidden">
-			<DashboardHeader />
-
+		<PageShell title="Dashboard" description="Seu painel de controle" icon={LayoutDashboardIcon}>
 			<main className="flex-1 flex overflow-hidden">
 				{/* Left sidebar - 1/3 width */}
-				<div className="w-1/3 min-w-70 max-w-95 border-r border-border overflow-y-auto">
+				<div className="w-1/3 min-w-70 max-w-95 overflow-y-auto">
 					<HomeSidebar
 						selectedTask={selectedTask}
 						tasks={tasks}
@@ -79,7 +77,7 @@ function HomePage() {
 				</div>
 
 				{/* Right content - 2/3 width */}
-				<div className="flex-1 overflow-y-auto p-6 space-y-6">
+				<div className="flex-1 overflow-y-auto p-4 space-y-6">
 					<TaskListSection
 						tasks={displayTasks}
 						loading={loading}
@@ -109,6 +107,6 @@ function HomePage() {
 					</section>
 				</div>
 			</main>
-		</div>
+		</PageShell>
 	);
 }

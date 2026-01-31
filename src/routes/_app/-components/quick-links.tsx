@@ -1,15 +1,15 @@
-import { memo, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import {
 	ChevronRight,
 	FileText,
 	FolderPlus,
 	Loader2,
+	type LucideIcon,
 	PlusCircle,
 	Settings,
 	Zap,
-	type LucideIcon,
 } from "lucide-react";
+import { memo, useMemo } from "react";
 
 import { Text, Title } from "@/components/typography";
 import { Icon } from "@/components/ui/icon";

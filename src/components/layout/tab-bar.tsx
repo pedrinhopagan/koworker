@@ -8,10 +8,9 @@ import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-
 import { Settings, X } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { tv } from "tailwind-variants";
-
-import { cn } from "@/lib/utils";
-import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
+import { cn } from "@/lib/utils";
 
 // Navigation tabs configuration
 type TabPath = "/" | "/projetos" | "/tarefas" | "/agenda";

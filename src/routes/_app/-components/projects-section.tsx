@@ -1,13 +1,12 @@
-import { memo } from "react";
 import { Link } from "@tanstack/react-router";
 import { FolderOpen } from "lucide-react";
+import { memo } from "react";
 
 import { Text, Title } from "@/components/typography";
 import { useTaskMetrics } from "@/hooks";
 import { cn } from "@/lib/utils";
-
-import { SectionHeader } from "./section-header";
 import type { Project } from "../-utils/use-home-data";
+import { SectionHeader } from "./section-header";
 
 // Empty section placeholder
 type EmptySectionProps = {

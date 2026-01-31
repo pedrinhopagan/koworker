@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { FolderPlus } from "lucide-react";
 
 import { PageShell } from "@/routes/_app/-components/page-shell";
-import { ProjectForm, getDefaultProjectColor } from "../-components/project-form";
+import { getDefaultProjectColor, ProjectForm } from "../-components/project-form";
 import { ProjectHeaderActions } from "../-components/project-header-actions";
 import { useCreateProject } from "./-utils/use-create-project";
 

@@ -1,7 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-
-import { AppShell } from "@/routes/_app/-components/app-shell";
 import { orpc } from "@/client";
+import { AppShell } from "@/components/layout/app-shell";
 
 export const Route = createFileRoute("/_app")({
 	beforeLoad: async ({ context }) => {

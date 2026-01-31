@@ -1,10 +1,10 @@
-import { memo, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { CalendarCheck, ChevronRight, ExternalLink, Inbox } from "lucide-react";
+import { memo, useMemo } from "react";
 
 import { Text, Title } from "@/components/typography";
-import { Icon } from "@/components/ui/icon";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import type { TaskWithMeta } from "@/types/tasks";
 

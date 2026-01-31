@@ -4,8 +4,8 @@ import { useFormContext, useWatch } from "react-hook-form";
 
 import { Text, Title } from "@/components/typography";
 import { cn } from "@/lib/utils";
-import { defaultProjectColor } from "./project-form.constants";
 import type { ProjectFormValues } from "./project-form";
+import { defaultProjectColor } from "./project-form.constants";
 
 type ProjectFormPreviewProps = {
 	mode: "create" | "edit";
@@ -19,7 +19,8 @@ export function ProjectFormPreview({ mode }: ProjectFormPreviewProps) {
 	const accentColor = color || defaultProjectColor;
 	const displayName = name?.trim() || "Projeto sem nome";
 	const displayRoute = mainRoute?.trim() || "/home/usuario/projeto";
-	const displayDescription = description?.trim() || "Descreva o objetivo e o escopo principal do projeto";
+	const displayDescription =
+		description?.trim() || "Descreva o objetivo e o escopo principal do projeto";
 
 	const highlightStyle = useMemo(
 		() => ({
@@ -72,7 +73,7 @@ export function ProjectFormPreview({ mode }: ProjectFormPreviewProps) {
 					</div>
 
 					<div className="rounded-md border border-border/70 bg-background/40 p-3">
-						<Text size="xs" tone="muted" className="uppercase tracking-wide">
+						<Text size="sm" tone="muted" className="uppercase tracking-wide">
 							Card compacto
 						</Text>
 						<div className="mt-3 flex items-center gap-3 rounded-md border border-border/60 bg-muted/40 px-3 py-2">
@@ -83,7 +84,7 @@ export function ProjectFormPreview({ mode }: ProjectFormPreviewProps) {
 								<FolderKanban className="size-4" style={{ color: accentColor }} />
 							</div>
 							<div>
-								<Title size="xs" as="div">
+								<Title size="sm" as="div">
 									{displayName}
 								</Title>
 								<Text size="xs" tone="muted">
@@ -94,13 +95,13 @@ export function ProjectFormPreview({ mode }: ProjectFormPreviewProps) {
 					</div>
 
 					<div className="rounded-md border border-border/70 bg-background/40 p-3">
-						<Text size="xs" tone="muted" className="uppercase tracking-wide">
+						<Text size="sm" tone="muted" className="uppercase tracking-wide">
 							Resumo do projeto
 						</Text>
 						<div className="mt-3 space-y-3">
 							<div className="flex items-center gap-2">
 								<span className="size-2 rounded-full" style={{ backgroundColor: accentColor }} />
-								<Title size="xs" as="div">
+								<Title size="sm" as="div">
 									{displayName}
 								</Title>
 							</div>

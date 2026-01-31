@@ -35,7 +35,9 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 					<Title size="sm">Resumo do projeto</Title>
 					{project && (
 						<Button variant="outline" size="sm" asChild>
-							<Link to={`/projetos/${project.id}`}>Editar</Link>
+							<Link to="/projetos/$projetoId" params={{ projetoId: project.id }}>
+								Editar
+							</Link>
 						</Button>
 					)}
 				</div>

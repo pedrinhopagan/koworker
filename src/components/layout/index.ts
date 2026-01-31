@@ -1,3 +1,3 @@
 export { PageGridLayout } from "./page-grid-layout";
+export { AccentStripe, ProjectFocusBar } from "./project-focus-bar";
 export { TabBar } from "./tab-bar";
-export { ProjectFocusBar, AccentStripe } from "./project-focus-bar";

@@ -3,8 +3,8 @@ import { useFormContext, useWatch } from "react-hook-form";
 
 import { Text, Title } from "@/components/typography";
 import { cn } from "@/lib/utils";
-import { defaultProjectColor, projectColorOptions } from "./project-form.constants";
 import type { ProjectFormValues } from "./project-form";
+import { defaultProjectColor, projectColorOptions } from "./project-form.constants";
 
 export function ProjectFormColors() {
 	const { register, setValue, control } = useFormContext<ProjectFormValues>();
@@ -39,9 +39,7 @@ export function ProjectFormColors() {
 							onClick={() => setValue("color", color.value, { shouldDirty: true })}
 							className={cn(
 								"relative h-8 w-full rounded-md border-2 transition",
-								selectedColor === color.value
-									? "border-foreground"
-									: "border-transparent",
+								selectedColor === color.value ? "border-foreground" : "border-transparent",
 							)}
 							style={{ backgroundColor: color.value }}
 						/>
