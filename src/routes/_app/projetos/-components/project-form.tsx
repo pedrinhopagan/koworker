@@ -8,6 +8,9 @@ import { defaultProjectColor } from "./project-form.constants";
 import { ProjectFormBasics } from "./project-form-basics";
 import { ProjectFormColors } from "./project-form-colors";
 import { ProjectFormPreview } from "./project-form-preview";
+import { writeDoubleRightBoundMessage } from "arktype/internal/parser/ast/bounds.ts";
+import { ProjectDeleteSection } from "./project-delete-section";
+import { Route } from "../$projetoId";
 
 export type ProjectFormValues = {
 	name: string;
@@ -24,6 +27,8 @@ type ProjectFormProps = {
 };
 
 export function ProjectForm({ mode, formId, defaultValues, onSubmit }: ProjectFormProps) {
+      const { projetoId } = Route.useParams();
+
 	const methods = useForm<ProjectFormValues>({
 		resolver: zodResolver(ProjectCreateSchema),
 		defaultValues,
@@ -44,7 +49,8 @@ export function ProjectForm({ mode, formId, defaultValues, onSubmit }: ProjectFo
 		onSubmit(payload);
 	};
 
-	const resolvedFormId = formId ?? "project-form";
+      const resolvedFormId = formId ?? "project-form";
+	const projectName = methods.getValues("name");
 
 	return (
 		<FormProvider {...methods}>
@@ -58,8 +64,13 @@ export function ProjectForm({ mode, formId, defaultValues, onSubmit }: ProjectFo
 				</div>
 				<div className="space-y-4 min-h-0 h-full overflow-y-auto pr-2 pb-6">
 					<ProjectFormBasics />
-					<ProjectFormColors />
-				</div>
+                              <ProjectFormColors />
+
+                        {mode === "edit" && projetoId && projectName && (
+                            <ProjectDeleteSection projectId={projetoId} projectName={projectName} />
+                        )}
+                        </div>
+
 			</form>
 		</FormProvider>
 	);
