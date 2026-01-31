@@ -97,14 +97,19 @@ export function TabBar() {
 		<nav
 			className={cn(
 				"flex items-center border-b gap-4 border-border select-none",
-				isTauri() && "cursor-grab active:cursor-grabbing",
+				isTauri() && "cursor-grab active:cursor-grabbing"
 			)}
 			onMouseDown={handleMouseDown}
 		>
 			{/* Logo */}
-			<div className="px-3 py-2 flex items-center">
-				<div className="w-5 h-5 rounded bg-primary/60" title="Kowork" />
-			</div>
+			{/*<div className="px-3 py-2 flex items-center">
+				<img
+					src="/static/logo.svg"
+					alt="Kowork"
+					title="Kowork"
+					className="w-5 h-5 "
+				/>
+			</div>*/}
 
 			{/* Main tabs */}
 			<div className="flex">
