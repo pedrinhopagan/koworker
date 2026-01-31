@@ -14,8 +14,13 @@ export function useCreateTask(onSuccess?: () => void) {
 
 	const mutation = useMutation({
 		...orpc.tasks.create.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["tasks"] });
+		onSuccess: async () => {
+			// ORPC TanStack Query keys are shaped like:
+			// [ ["tasks", "listByProject"], { type: "query", input: {...} } ]
+			// So invalidating with queryKey: ["tasks"] won't match.
+			await queryClient.invalidateQueries({
+				predicate: (query) => Array.isArray(query.queryKey[0]) && query.queryKey[0][0] === "tasks",
+			});
 			onSuccess?.();
 		},
 	});
