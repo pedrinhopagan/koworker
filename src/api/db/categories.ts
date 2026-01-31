@@ -3,16 +3,24 @@ import { type categories, db } from "./connection";
 import { cleanUpdate } from "./helpers";
 
 export const dbCategories = {
-	getAll: () => db.selectFrom("categories").selectAll().execute(),
+	getAll: () => db.selectFrom("categories").selectAll().orderBy("display_order", "asc").execute(),
 
 	getById: (id: string) =>
 		db.selectFrom("categories").selectAll().where("id", "=", id).executeTakeFirst(),
 
-	create: (input: CategoryDbCreateInput) =>
-		db
+	create: async (input: CategoryDbCreateInput) => {
+		const maxOrder = await db
+			.selectFrom("categories")
+			.select(({ fn }) => [fn.max("display_order").as("maxOrder")])
+			.executeTakeFirst();
+
+		const displayOrder = ((maxOrder?.maxOrder as number | null) ?? -1) + 1;
+
+		return db
 			.insertInto("categories")
-			.values(input as categories)
-			.executeTakeFirst(),
+			.values({ ...(input as categories), display_order: displayOrder })
+			.executeTakeFirst();
+	},
 
 	update: (input: { id: string } & CategoryDbUpdateInput) => {
 		const { id, ...values } = input;
@@ -45,4 +53,16 @@ export const dbCategories = {
 			.where("category_id", "=", sourceId)
 			.where("deleted_at", "is", null)
 			.executeTakeFirst(),
+
+	reorder: async (orderedIds: string[]) => {
+		await db.transaction().execute(async (trx) => {
+			for (const [index, id] of orderedIds.entries()) {
+				await trx
+					.updateTable("categories")
+					.set({ display_order: index, updated_at: Date.now() })
+					.where("id", "=", id)
+					.executeTakeFirst();
+			}
+		});
+	},
 };

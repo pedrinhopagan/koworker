@@ -7,6 +7,7 @@ import { PubSub } from "../pubsub";
 import {
 	TaskCreateSchema,
 	TaskFocusSchema,
+	TaskGetAllSchema,
 	TaskIdSchema,
 	TaskListByDateSchema,
 	TaskListByProjectSchema,
@@ -65,22 +66,42 @@ export const tasksRouter = {
 		return mapTask(row, { subtasks: subtaskRows });
 	}),
 
+	getAll: protectedProcedure.input(TaskGetAllSchema).handler(async ({ input }) => {
+		const rows = await dbTasks.getAll({
+			projectId: input.projectId ?? null,
+			date: input.date,
+			startDate: input.startDate,
+			endDate: input.endDate,
+			includeCompleted: input.includeCompleted,
+		});
+
+		// Include subtasks to allow the UI to derive status/attention and identify
+		// the first non-completed subtask (using the ordering from dbSubtasks).
+		const taskIds = rows.map((r) => r.id);
+		const subtaskRows = await dbSubtasks.listByTaskIds(taskIds);
+		const subtasksByTaskId = new Map<string, subtasks[]>();
+		for (const st of subtaskRows) {
+			const list = subtasksByTaskId.get(st.task_id);
+			if (list) list.push(st);
+			else subtasksByTaskId.set(st.task_id, [st]);
+		}
+
+		return rows.map((row) => mapTask(row, { subtasks: subtasksByTaskId.get(row.id) ?? [] }));
+	}),
+
+	// Legacy endpoints (kept for compatibility; prefer tasks.getAll)
 	listByProject: protectedProcedure.input(TaskListByProjectSchema).handler(async ({ input }) => {
-		const rows = await dbTasks.listByProject(input.projectId);
+		const rows = await dbTasks.listByProject(input);
 		return rows.map((row) => mapTask(row));
 	}),
 
 	listByDate: protectedProcedure.input(TaskListByDateSchema).handler(async ({ input }) => {
-		const rows = await dbTasks.listByDate(input.date, input.projectId ?? null);
+		const rows = await dbTasks.listByDate(input.date, input);
 		return rows.map((row) => mapTask(row));
 	}),
 
 	listByWeek: protectedProcedure.input(TaskListByWeekSchema).handler(async ({ input }) => {
-		const rows = await dbTasks.listByDateRange(
-			input.startDate,
-			input.endDate,
-			input.projectId ?? null,
-		);
+		const rows = await dbTasks.listByDateRange(input.startDate, input.endDate, input);
 		return rows.map((row) => mapTask(row));
 	}),
 

@@ -2,7 +2,12 @@ import { protectedProcedure } from "../auth/context";
 import type { projects } from "../db/connection";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
-import { ProjectCreateSchema, ProjectIdSchema, ProjectUpdateSchema } from "../schemas";
+import {
+	ProjectCreateSchema,
+	ProjectIdSchema,
+	ProjectReorderSchema,
+	ProjectUpdateSchema,
+} from "../schemas";
 
 const mapProject = (row: projects) => ({
 	id: row.id,
@@ -10,6 +15,7 @@ const mapProject = (row: projects) => ({
 	description: row.description ?? undefined,
 	color: row.color,
 	mainRoute: row.main_route,
+	displayOrder: row.display_order,
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,
 	deletedAt: row.deleted_at ?? undefined,
@@ -57,6 +63,11 @@ export const projectsRouter = {
 	remove: protectedProcedure.input(ProjectIdSchema).handler(async ({ input }) => {
 		await dbProjects.softDelete(input.id);
 		return { id: input.id };
+	}),
+
+	reorder: protectedProcedure.input(ProjectReorderSchema).handler(async ({ input }) => {
+		await dbProjects.reorder(input.orderedIds);
+		return { success: true };
 	}),
 
 	stats: protectedProcedure.handler(async () => {

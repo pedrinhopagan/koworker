@@ -10,7 +10,10 @@ export const DbUsers = {
 	},
 
 	async ensureDefaultUser() {
-		const result = await db.selectFrom("users").select(db.fn.countAll<number>().as("total")).executeTakeFirst();
+		const result = await db
+			.selectFrom("users")
+			.select(db.fn.countAll<number>().as("total"))
+			.executeTakeFirst();
 		const total = Number(result?.total ?? 0);
 		if (total > 0) {
 			return;

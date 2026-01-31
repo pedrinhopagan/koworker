@@ -26,6 +26,10 @@ export const CategoryMigrateAndDeleteSchema = z.object({
 	targetId: z.string().min(1),
 });
 
+export const CategoryReorderSchema = z.object({
+	orderedIds: z.array(z.string().min(1)).min(1),
+});
+
 export type CategoryCreateInput = z.infer<typeof CategoryCreateSchema>;
 export type CategoryUpdateInput = z.infer<typeof CategoryUpdateSchema>;
 export type CategoryMigrateAndDeleteInput = z.infer<typeof CategoryMigrateAndDeleteSchema>;
@@ -34,6 +38,7 @@ export const CategoryDbCreateSchema = z.object({
 	id: z.string().min(1),
 	name: z.string().min(1),
 	color: z.string().optional(),
+	display_order: z.number().int().optional(),
 	created_at: z.number().int().optional(),
 	updated_at: z.number().int().optional(),
 });

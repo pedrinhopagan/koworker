@@ -20,6 +20,7 @@ const projectsSchema = type({
 	name: "string",
 	"description?": "string",
 	color: type("string").configure({ default: "#000000" }),
+	display_order: type("number.integer").configure({ default: 0 }),
 	main_route: "string",
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
@@ -67,6 +68,7 @@ const categoriesSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	name: "string",
 	color: type("string").configure({ default: "#000000" }),
+	display_order: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 });
@@ -74,7 +76,9 @@ const categoriesSchema = type({
 const prioritiesSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	name: "string",
+	level: type("number.integer").configure({ default: 1 }),
 	color: type("string").configure({ default: "#000000" }),
+	display_order: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 });

@@ -7,7 +7,25 @@ export const dbSubtasks = {
 		db.selectFrom("subtasks").selectAll().where("id", "=", id).executeTakeFirst(),
 
 	listByTask: (taskId: string) =>
-		db.selectFrom("subtasks").selectAll().where("task_id", "=", taskId).execute(),
+		db
+			.selectFrom("subtasks")
+			.selectAll()
+			.where("task_id", "=", taskId)
+			.orderBy("created_at", "asc")
+			.orderBy("id", "asc")
+			.execute(),
+
+	listByTaskIds: (taskIds: string[]) => {
+		if (!taskIds.length) return Promise.resolve([] as subtasks[]);
+		return db
+			.selectFrom("subtasks")
+			.selectAll()
+			.where("task_id", "in", taskIds)
+			.orderBy("task_id", "asc")
+			.orderBy("created_at", "asc")
+			.orderBy("id", "asc")
+			.execute();
+	},
 
 	create: (input: SubtaskDbCreateInput) =>
 		db

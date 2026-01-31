@@ -5,6 +5,7 @@ export {
 	CategoryCreateSchema,
 	CategoryIdSchema,
 	CategoryMigrateAndDeleteSchema,
+	CategoryReorderSchema,
 	CategoryUpdateSchema,
 } from "./categories";
 export {
@@ -14,7 +15,12 @@ export {
 	PriorityReorderSchema,
 	PriorityUpdateSchema,
 } from "./priorities";
-export { ProjectCreateSchema, ProjectIdSchema, ProjectUpdateSchema } from "./projects";
+export {
+	ProjectCreateSchema,
+	ProjectIdSchema,
+	ProjectReorderSchema,
+	ProjectUpdateSchema,
+} from "./projects";
 export {
 	SubtaskCreateSchema,
 	SubtaskIdSchema,
@@ -25,6 +31,7 @@ export {
 	AcceptanceCriteriaItemSchema,
 	TaskCreateSchema,
 	TaskFocusSchema,
+	TaskGetAllSchema,
 	TaskIdSchema,
 	TaskListByDateSchema,
 	TaskListByProjectSchema,

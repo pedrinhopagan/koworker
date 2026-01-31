@@ -1,8 +1,40 @@
 import { sql } from "kysely";
 
-import type { TaskDbCreateInput, TaskDbUpdateInput } from "../schemas/tasks";
+import {
+	type TaskDbCreateInput,
+	TaskDbCreateSchema,
+	type TaskDbUpdateInput,
+	TaskDbUpdateSchema,
+	type TaskListFiltersInput,
+} from "../schemas/tasks";
 import { db, type tasks } from "./connection";
 import { cleanUpdate } from "./helpers";
+
+const applyTaskListFilters = (
+	// biome-ignore lint/suspicious/noExplicitAny: Kysely's builder type is too generic here and propagates poorly; keep helper flexible.
+	query: any,
+	filters?: (TaskListFiltersInput & { projectId?: string | null }) | null,
+) => {
+	if (!filters) return query;
+
+	if (filters.projectId) {
+		query = query.where("project_id", "=", filters.projectId);
+	}
+
+	if (filters.taskTypeId) {
+		query = query.where("category_id", "=", filters.taskTypeId);
+	}
+
+	if (filters.priority) {
+		query = query.where("priority_id", "=", filters.priority);
+	}
+
+	if (filters.status) {
+		query = query.where("status", "=", filters.status);
+	}
+
+	return query;
+};
 
 export const dbTasks = {
 	getById: (id: string) =>
@@ -13,29 +45,32 @@ export const dbTasks = {
 			.where("deleted_at", "is", null)
 			.executeTakeFirst(),
 
-	listByProject: (projectId: string) =>
-		db
-			.selectFrom("tasks")
-			.selectAll()
-			.where("project_id", "=", projectId)
-			.where("deleted_at", "is", null)
-			.execute(),
+	listByProject: (input: { projectId: string } & TaskListFiltersInput) => {
+		let query = db.selectFrom("tasks").selectAll().where("deleted_at", "is", null);
 
-	listByDate: (date: string, projectId?: string | null) => {
+		query = applyTaskListFilters(query, input);
+		return query.execute();
+	},
+
+	listByDate: (
+		date: string,
+		filters?: (TaskListFiltersInput & { projectId?: string | null }) | null,
+	) => {
 		let query = db
 			.selectFrom("tasks")
 			.selectAll()
 			.where("scheduled_date", "=", date)
 			.where("deleted_at", "is", null);
 
-		if (projectId) {
-			query = query.where("project_id", "=", projectId);
-		}
-
+		query = applyTaskListFilters(query, filters);
 		return query.execute();
 	},
 
-	listByDateRange: (startDate: string, endDate: string, projectId?: string | null) => {
+	listByDateRange: (
+		startDate: string,
+		endDate: string,
+		filters?: (TaskListFiltersInput & { projectId?: string | null }) | null,
+	) => {
 		let query = db
 			.selectFrom("tasks")
 			.selectAll()
@@ -43,23 +78,52 @@ export const dbTasks = {
 			.where("scheduled_date", "<=", endDate)
 			.where("deleted_at", "is", null);
 
-		if (projectId) {
-			query = query.where("project_id", "=", projectId);
-		}
-
+		query = applyTaskListFilters(query, filters);
 		return query.execute();
 	},
 
-	create: (input: TaskDbCreateInput) =>
-		db
+	getAll: (
+		input: {
+			projectId?: string | null;
+			date?: string;
+			startDate?: string;
+			endDate?: string;
+			includeCompleted?: boolean;
+		} & TaskListFiltersInput,
+	) => {
+		let query = db.selectFrom("tasks").selectAll().where("deleted_at", "is", null);
+
+		// Date filters
+		if (input.date) {
+			query = query.where("scheduled_date", "=", input.date);
+		} else if (input.startDate && input.endDate) {
+			query = query.where("scheduled_date", ">=", input.startDate);
+			query = query.where("scheduled_date", "<=", input.endDate);
+		}
+
+		// Keep the existing app behavior: exclude completed by default,
+		// unless an explicit status filter is provided.
+		if (!input.includeCompleted && !input.status) {
+			query = query.where("status", "!=", "executed");
+		}
+
+		query = applyTaskListFilters(query, input);
+		return query.execute();
+	},
+
+	create: (input: TaskDbCreateInput) => {
+		const parsed = TaskDbCreateSchema.parse(input);
+		return db
 			.insertInto("tasks")
-			.values(input as tasks)
+			.values(parsed as tasks)
 			.onConflict((oc) => oc.column("id").doNothing())
-			.executeTakeFirst(),
+			.executeTakeFirst();
+	},
 
 	update: (input: { id: string } & TaskDbUpdateInput) => {
 		const { id, ...values } = input;
-		const cleanValues = cleanUpdate(values);
+		const parsedValues = TaskDbUpdateSchema.parse(values);
+		const cleanValues = cleanUpdate(parsedValues);
 
 		return db
 			.updateTable("tasks")

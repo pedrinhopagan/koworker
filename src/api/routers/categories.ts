@@ -5,6 +5,7 @@ import {
 	CategoryCreateSchema,
 	CategoryIdSchema,
 	CategoryMigrateAndDeleteSchema,
+	CategoryReorderSchema,
 	CategoryUpdateSchema,
 } from "../schemas";
 
@@ -12,6 +13,7 @@ const mapCategory = (row: categories) => ({
 	id: row.id,
 	name: row.name,
 	color: row.color,
+	displayOrder: row.display_order,
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,
 });
@@ -53,6 +55,11 @@ export const categoriesRouter = {
 
 	delete: protectedProcedure.input(CategoryIdSchema).handler(async ({ input }) => {
 		await dbCategories.delete(input.id);
+		return { success: true };
+	}),
+
+	reorder: protectedProcedure.input(CategoryReorderSchema).handler(async ({ input }) => {
+		await dbCategories.reorder(input.orderedIds);
 		return { success: true };
 	}),
 

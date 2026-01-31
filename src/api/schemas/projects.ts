@@ -25,6 +25,10 @@ export const ProjectUpdateSchema = z.object({
 	mainRoute: z.string().min(1).optional(),
 });
 
+export const ProjectReorderSchema = z.object({
+	orderedIds: z.array(z.string().min(1)).min(1),
+});
+
 export type ProjectCreateInput = z.infer<typeof ProjectCreateSchema>;
 export type ProjectUpdateInput = z.infer<typeof ProjectUpdateSchema>;
 
@@ -33,6 +37,7 @@ export const ProjectDbCreateSchema = z.object({
 	name: z.string().min(1),
 	description: z.string().optional(),
 	color: z.string().optional(),
+	display_order: z.number().int().optional(),
 	main_route: z.string().min(1),
 	created_at: z.number().int().optional(),
 	updated_at: z.number().int().optional(),

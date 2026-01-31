@@ -3,7 +3,13 @@ import { db, type projects } from "./connection";
 import { cleanUpdate } from "./helpers";
 
 export const dbProjects = {
-	getAll: () => db.selectFrom("projects").selectAll().where("deleted_at", "is", null).execute(),
+	getAll: () =>
+		db
+			.selectFrom("projects")
+			.selectAll()
+			.where("deleted_at", "is", null)
+			.orderBy("display_order", "asc")
+			.execute(),
 
 	getById: (id: string) =>
 		db
@@ -13,11 +19,20 @@ export const dbProjects = {
 			.where("deleted_at", "is", null)
 			.executeTakeFirst(),
 
-	create: (input: ProjectDbCreateInput) =>
-		db
+	create: async (input: ProjectDbCreateInput) => {
+		const maxOrder = await db
+			.selectFrom("projects")
+			.select(({ fn }) => [fn.max("display_order").as("maxOrder")])
+			.where("deleted_at", "is", null)
+			.executeTakeFirst();
+
+		const displayOrder = ((maxOrder?.maxOrder as number | null) ?? -1) + 1;
+
+		return db
 			.insertInto("projects")
-			.values(input as projects)
-			.executeTakeFirst(),
+			.values({ ...(input as projects), display_order: displayOrder })
+			.executeTakeFirst();
+	},
 
 	update: (input: { id: string } & ProjectDbUpdateInput) => {
 		const { id, ...values } = input;
@@ -41,4 +56,17 @@ export const dbProjects = {
 			.where("id", "=", id)
 			.where("deleted_at", "is", null)
 			.executeTakeFirst(),
+
+	reorder: async (orderedIds: string[]) => {
+		await db.transaction().execute(async (trx) => {
+			for (const [index, id] of orderedIds.entries()) {
+				await trx
+					.updateTable("projects")
+					.set({ display_order: index, updated_at: Date.now() })
+					.where("id", "=", id)
+					.where("deleted_at", "is", null)
+					.executeTakeFirst();
+			}
+		});
+	},
 };
