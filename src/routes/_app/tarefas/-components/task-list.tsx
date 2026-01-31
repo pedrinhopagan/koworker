@@ -1,5 +1,9 @@
+import { useMemo } from "react";
+
 import { TaskItem } from "@/components/tasks";
 import { Text } from "@/components/typography";
+import { useTerminalOpenTaskIds } from "@/terminal/hooks";
+import { sortTasksByTerminal } from "@/terminal/task-sort";
 import type { TaskWithMeta } from "@/types/tasks";
 
 type TaskListProps = {
@@ -8,6 +12,12 @@ type TaskListProps = {
 };
 
 export function TaskList({ tasks, loading }: TaskListProps) {
+	const openTaskIds = useTerminalOpenTaskIds();
+	const orderedTasks = useMemo(
+		() => sortTasksByTerminal(tasks, openTaskIds),
+		[tasks, openTaskIds],
+	);
+
 	if (loading) {
 		return (
 			<Text size="sm" tone="muted">
@@ -26,7 +36,7 @@ export function TaskList({ tasks, loading }: TaskListProps) {
 
 	return (
 		<div className="space-y-2">
-			{tasks.map((task) => (
+			{orderedTasks.map((task) => (
 				<TaskItem key={task.id} task={task} variant="default" />
 			))}
 		</div>

@@ -1,8 +1,10 @@
 import { Loader2 } from "lucide-react";
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 import { cn } from "@/lib/utils";
+import { useTerminalOpenTaskIds } from "@/terminal/hooks";
+import { sortTasksByTerminal } from "@/terminal/task-sort";
 import type { TaskWithMeta } from "@/types/tasks";
 import { TaskItem, type TaskItemVariant } from "./TaskItem";
 
@@ -52,6 +54,11 @@ export const TaskList = memo(function TaskList({
 }: TaskListProps) {
 	const styles = taskListVariants({ variant });
 	const itemVariant: TaskItemVariant = variant;
+	const openTaskIds = useTerminalOpenTaskIds();
+	const orderedTasks = useMemo(
+		() => sortTasksByTerminal(tasks, openTaskIds),
+		[tasks, openTaskIds],
+	);
 
 	if (isLoading) {
 		return (
@@ -62,7 +69,7 @@ export const TaskList = memo(function TaskList({
 		);
 	}
 
-	if (tasks.length === 0) {
+	if (orderedTasks.length === 0) {
 		return <div className={styles.emptyState()}>{emptyMessage}</div>;
 	}
 
@@ -89,8 +96,12 @@ export const TaskList = memo(function TaskList({
 	);
 
 	if (separateDone) {
-		const pendingTasks = tasks.filter((t) => t.status !== "executed");
-		const doneTasks = tasks.filter((t) => t.status === "executed");
+		const pendingTasks = orderedTasks.filter(
+			(t) => t.status !== "executed" || openTaskIds.includes(t.id),
+		);
+		const doneTasks = orderedTasks.filter(
+			(t) => t.status === "executed" && !openTaskIds.includes(t.id),
+		);
 
 		return (
 			<div className={styles.root()}>
@@ -110,5 +121,5 @@ export const TaskList = memo(function TaskList({
 		);
 	}
 
-	return <div className={styles.list()}>{tasks.map((task, i) => renderTask(task, i))}</div>;
+	return <div className={styles.list()}>{orderedTasks.map((task, i) => renderTask(task, i))}</div>;
 });

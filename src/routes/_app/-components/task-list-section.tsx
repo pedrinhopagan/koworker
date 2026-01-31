@@ -1,9 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { Activity, CheckCircle2, Loader2 } from "lucide-react";
+import { Activity, CheckCircle2, Loader2, Terminal } from "lucide-react";
 import { memo } from "react";
 
 import { Text } from "@/components/typography";
 import { cn } from "@/lib/utils";
+import { useTerminalOpenTaskIds } from "@/terminal/hooks";
+import { useTerminalStore } from "@/terminal/store";
+import { sortTasksByTerminal } from "@/terminal/task-sort";
 import type { TaskWithMeta } from "@/types/tasks";
 
 import { SectionHeader } from "./section-header";
@@ -61,6 +64,9 @@ const TaskItemCompact = memo(function TaskItemCompact({
 	isSelected,
 	onClick,
 }: TaskItemCompactProps) {
+	const isTerminalOpen = useTerminalStore((state) => !!state.sessionsByTask[task.id]);
+	const isDone = task.status === "executed" && !isTerminalOpen;
+
 	return (
 		<button
 			type="button"
@@ -70,12 +76,13 @@ const TaskItemCompact = memo(function TaskItemCompact({
 				"border border-border bg-card transition-colors",
 				"hover:border-primary/40 hover:bg-muted/30",
 				isSelected && "border-primary/60 bg-primary/5",
+				isTerminalOpen && "border-sky-400/60 bg-sky-500/10",
 			)}
 		>
 			<div className="flex items-center gap-3 min-w-0">
 				<input
 					type="checkbox"
-					checked={task.status === "executed"}
+					checked={isDone}
 					readOnly
 					className="size-4 rounded border-border"
 				/>
@@ -84,6 +91,7 @@ const TaskItemCompact = memo(function TaskItemCompact({
 				</Text>
 			</div>
 			<div className="flex items-center gap-2 shrink-0">
+				{isTerminalOpen && <Terminal size={14} className="text-sky-400" />}
 				<span
 					className="px-2 py-0.5 text-xs rounded"
 					style={{
@@ -112,9 +120,11 @@ export function TaskListSection({
 	selectedTaskId,
 	onTaskClick,
 }: TaskListSectionProps) {
+	const openTaskIds = useTerminalOpenTaskIds();
 	const inProgressCount = tasks.filter(
-		(t) => t.status === "pending" || t.status === "in_execution",
+		(t) => openTaskIds.includes(t.id) || t.status === "pending" || t.status === "in_execution",
 	).length;
+	const orderedTasks = sortTasksByTerminal(tasks, openTaskIds);
 
 	return (
 		<section>
@@ -138,7 +148,7 @@ export function TaskListSection({
 						linkLabel="Criar nova tarefa"
 					/>
 				) : (
-					tasks.map((task) => (
+					orderedTasks.map((task) => (
 						<TaskItemCompact
 							key={task.id}
 							task={task}

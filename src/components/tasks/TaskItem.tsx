@@ -1,9 +1,12 @@
-import { Loader2 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Loader2, Terminal } from "lucide-react";
 import { tv, type VariantProps } from "tailwind-variants";
+
 import { Title } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
 import { deriveTaskAttentionState } from "@/domain/tasks/attention";
 import { cn } from "@/lib/utils";
+import { useTerminalStore } from "@/terminal/store";
 import type { TaskWithMeta } from "@/types/tasks";
 
 const taskItemVariants = tv({
@@ -49,8 +52,10 @@ function normalizeStatus(status: unknown): "pending" | "in_execution" | "execute
 }
 
 export function TaskItem({ task, variant = "default" }: TaskItemProps) {
-	const isDone = task.status === "executed";
-	const statusVariant = statusVariants[task.status] ?? "muted";
+	const isTerminalOpen = useTerminalStore((state) => !!state.sessionsByTask[task.id]);
+	const effectiveStatus = isTerminalOpen ? "in_execution" : task.status;
+	const isDone = effectiveStatus === "executed";
+	const statusVariant = statusVariants[effectiveStatus] ?? "muted";
 
 	const subtasks = task.subtasks ?? [];
 	const firstNotCompleted = subtasks.find((st) => {
@@ -62,7 +67,7 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 		: null;
 
 	const attention = deriveTaskAttentionState({
-		status: task.status,
+		status: effectiveStatus,
 		description: task.description,
 		aiMetadata: task.aiMetadata as { lastCompletedAction?: string | null } | null,
 		subtasks,
@@ -70,21 +75,28 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 
 	// Estado “máximo” (vermelho + roxo + spinner): pai em execução E primeira subtask também em execução
 	const isMaxAttention =
+		isTerminalOpen ||
 		(task.status === "in_execution" && firstNotCompletedStatus === "in_execution") ||
 		attention.shouldSpin;
 
 	const containerStyle: React.CSSProperties | undefined = isMaxAttention
 		? {
-				backgroundImage:
-					"linear-gradient(90deg, rgba(239, 68, 68, 0.16), rgba(168, 85, 247, 0.14))",
-				borderColor: "rgba(239, 68, 68, 0.35)",
+				backgroundImage: isTerminalOpen
+					? "linear-gradient(90deg, rgba(14, 116, 144, 0.22), rgba(59, 130, 246, 0.16))"
+					: "linear-gradient(90deg, rgba(239, 68, 68, 0.16), rgba(168, 85, 247, 0.14))",
+				borderColor: isTerminalOpen
+					? "rgba(56, 189, 248, 0.4)"
+					: "rgba(239, 68, 68, 0.35)",
+				boxShadow: isTerminalOpen ? "0 0 0 1px rgba(56, 189, 248, 0.15) inset" : undefined,
 			}
 		: {
 				borderColor: `${task.priority.color}30`,
 			};
 
 	return (
-		<div
+		<Link
+			to="/tarefas/$taskId"
+			params={{ taskId: task.id }}
 			className={cn(
 				taskItemVariants({ variant }),
 				"border",
@@ -112,10 +124,20 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 
 			<div className="flex flex-1 self-end justify-end shrink-0 items-center gap-2">
 				{isMaxAttention ? (
-					<Loader2 size={14} className="animate-spin text-purple-300" />
+					<Loader2
+						size={14}
+						className={cn("animate-spin", isTerminalOpen ? "text-sky-300" : "text-purple-300")}
+					/>
 				) : attention.shouldSpin ? (
 					<Loader2 size={14} className="animate-spin text-muted-foreground" />
 				) : null}
+
+				{isTerminalOpen && (
+					<Badge variant="warning" className="shrink-0 flex items-center gap-1">
+						<Terminal size={12} />
+						Terminal ativo
+					</Badge>
+				)}
 
 				{/* Badge principal: estado derivado/atenção */}
 				<Badge
@@ -155,6 +177,6 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 					{task.priority.name}
 				</Badge>
 			</div>
-		</div>
+		</Link>
 	);
 }

@@ -16,6 +16,7 @@ import { Route as AppConfiguracoesRouteImport } from './routes/_app/configuracoe
 import { Route as AppTarefasIndexRouteImport } from './routes/_app/tarefas/index'
 import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/index'
 import { Route as AppAgendaIndexRouteImport } from './routes/_app/agenda/index'
+import { Route as AppTarefasTaskIdIndexRouteImport } from './routes/_app/tarefas/$taskId/index'
 import { Route as AppProjetosNovoIndexRouteImport } from './routes/_app/projetos/novo/index'
 import { Route as AppProjetosProjetoIdIndexRouteImport } from './routes/_app/projetos/$projetoId/index'
 
@@ -53,6 +54,11 @@ const AppAgendaIndexRoute = AppAgendaIndexRouteImport.update({
   path: '/agenda/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTarefasTaskIdIndexRoute = AppTarefasTaskIdIndexRouteImport.update({
+  id: '/tarefas/$taskId/',
+  path: '/tarefas/$taskId/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppProjetosNovoIndexRoute = AppProjetosNovoIndexRouteImport.update({
   id: '/projetos/novo/',
   path: '/projetos/novo/',
@@ -74,6 +80,7 @@ export interface FileRoutesByFullPath {
   '/tarefas/': typeof AppTarefasIndexRoute
   '/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo/': typeof AppProjetosNovoIndexRoute
+  '/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -84,6 +91,7 @@ export interface FileRoutesByTo {
   '/tarefas': typeof AppTarefasIndexRoute
   '/projetos/$projetoId': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo': typeof AppProjetosNovoIndexRoute
+  '/tarefas/$taskId': typeof AppTarefasTaskIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -96,6 +104,7 @@ export interface FileRoutesById {
   '/_app/tarefas/': typeof AppTarefasIndexRoute
   '/_app/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/_app/projetos/novo/': typeof AppProjetosNovoIndexRoute
+  '/_app/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/tarefas/'
     | '/projetos/$projetoId/'
     | '/projetos/novo/'
+    | '/tarefas/$taskId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/tarefas'
     | '/projetos/$projetoId'
     | '/projetos/novo'
+    | '/tarefas/$taskId'
   id:
     | '__root__'
     | '/_app'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/_app/tarefas/'
     | '/_app/projetos/$projetoId/'
     | '/_app/projetos/novo/'
+    | '/_app/tarefas/$taskId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -187,6 +199,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAgendaIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/tarefas/$taskId/': {
+      id: '/_app/tarefas/$taskId/'
+      path: '/tarefas/$taskId'
+      fullPath: '/tarefas/$taskId/'
+      preLoaderRoute: typeof AppTarefasTaskIdIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/projetos/novo/': {
       id: '/_app/projetos/novo/'
       path: '/projetos/novo'
@@ -212,6 +231,7 @@ interface AppRouteChildren {
   AppTarefasIndexRoute: typeof AppTarefasIndexRoute
   AppProjetosProjetoIdIndexRoute: typeof AppProjetosProjetoIdIndexRoute
   AppProjetosNovoIndexRoute: typeof AppProjetosNovoIndexRoute
+  AppTarefasTaskIdIndexRoute: typeof AppTarefasTaskIdIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -222,6 +242,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppTarefasIndexRoute: AppTarefasIndexRoute,
   AppProjetosProjetoIdIndexRoute: AppProjetosProjetoIdIndexRoute,
   AppProjetosNovoIndexRoute: AppProjetosNovoIndexRoute,
+  AppTarefasTaskIdIndexRoute: AppTarefasTaskIdIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

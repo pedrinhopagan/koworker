@@ -4,13 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
 import { HomeSidebar } from "./-components/home-sidebar";
+import { PageShell } from "./-components/page-shell";
 import { ProjectsSection } from "./-components/projects-section";
 import { QuickLinks } from "./-components/quick-links";
 import { SectionHeader } from "./-components/section-header";
 import { TaskListSection } from "./-components/task-list-section";
 import { WeekCalendar } from "./-components/week-calendar";
 import { MAX_VISIBLE_TASKS, useHomeData } from "./-utils/use-home-data";
-import { PageShell } from "./-components/page-shell";
 
 const searchSchema = z.object({
 	foco: z.enum(["semana", "mes"]).optional(),
@@ -55,7 +55,7 @@ function HomePage() {
 				setSelectedTaskId(taskId);
 			}
 		},
-		[selectedTaskId],
+		[selectedTaskId]
 	);
 
 	const handleProjectClick = useCallback((projectId: string) => {
@@ -64,8 +64,7 @@ function HomePage() {
 
 	return (
 		<PageShell title="Dashboard" description="Seu painel de controle" icon={LayoutDashboardIcon}>
-			<main className="flex-1 flex overflow-hidden">
-				{/* Left sidebar - 1/3 width */}
+			<div className="flex h-full min-h-0 overflow-hidden">
 				<div className="w-1/3 min-w-70 max-w-95 overflow-y-auto">
 					<HomeSidebar
 						selectedTask={selectedTask}
@@ -76,7 +75,6 @@ function HomePage() {
 					/>
 				</div>
 
-				{/* Right content - 2/3 width */}
 				<div className="flex-1 overflow-y-auto p-4 space-y-6">
 					<TaskListSection
 						tasks={displayTasks}
@@ -106,7 +104,7 @@ function HomePage() {
 						<QuickLinks tasks={tasks} />
 					</section>
 				</div>
-			</main>
+			</div>
 		</PageShell>
 	);
 }
