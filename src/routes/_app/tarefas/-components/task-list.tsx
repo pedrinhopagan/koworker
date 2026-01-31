@@ -1,4 +1,4 @@
-import { TaskItem } from "@/components/tasks/TaskItem";
+import { TaskItem } from "@/components/tasks";
 import { Text } from "@/components/typography";
 import type { TaskWithMeta } from "@/types/tasks";
 

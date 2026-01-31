@@ -10,16 +10,40 @@ const statusLabels: Record<string, string> = {
 	executed: "Executado",
 };
 
-export function useTasksData(projectId: string | undefined) {
-	const { projects, selectedProjectId, loading: projectsLoading } = useProjectFocus({
-		preferredProjectId: projectId ?? null,
+export type TasksSearchFilters = {
+	projectId?: string;
+	taskTypeId?: string;
+	priorityId?: string;
+	status?: "pending" | "in_execution" | "executed";
+	includeCompleted?: boolean;
+	q?: string;
+	page?: number;
+};
+
+export function useTasksData(filters: TasksSearchFilters) {
+	const preferredProjectId = filters.projectId ?? null;
+
+	const {
+		projects,
+		selectedProjectId,
+		loading: projectsLoading,
+	} = useProjectFocus({
+		preferredProjectId,
+		// When the project is coming from the URL, avoid syncing it into the global store.
+		syncToStore: !preferredProjectId,
 	});
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 
+	const includeCompleted = filters.includeCompleted ?? true;
+
 	const tasksQuery = useQuery({
-		...orpc.tasks.listByProject.queryOptions({ input: { projectId: selectedProjectId ?? "" } }),
-		enabled: !!selectedProjectId,
+		...orpc.tasks.getAll.queryOptions({
+			input: {
+				projectId: selectedProjectId ?? null,
+				includeCompleted,
+			},
+		}),
 	});
 
 	const categories = categoriesQuery.data ?? [];
@@ -29,7 +53,7 @@ export function useTasksData(projectId: string | undefined) {
 	const categoryMap = new Map(categories.map((c) => [c.id, c]));
 	const priorityMap = new Map(priorities.map((p) => [p.id, p]));
 
-	const tasks: TaskWithMeta[] = rawTasks.map((task) => {
+	const tasksWithMeta: TaskWithMeta[] = rawTasks.map((task) => {
 		const cat = categoryMap.get(task.categoryId);
 		const pri = priorityMap.get(task.priorityId);
 		return Object.assign(task, {
@@ -47,8 +71,25 @@ export function useTasksData(projectId: string | undefined) {
 		});
 	});
 
-	const pendingCount = tasks.filter((t) => t.status === "pending").length;
-	const executedCount = tasks.filter((t) => t.status === "executed").length;
+	const q = filters.q?.trim().toLowerCase() ?? "";
+	const page = filters.page ?? 1;
+	const pageSize = 50;
+
+	const filteredTasks = tasksWithMeta
+		.filter((t) => {
+			if (filters.taskTypeId && t.categoryId !== filters.taskTypeId) return false;
+			if (filters.priorityId && t.priorityId !== filters.priorityId) return false;
+			if (filters.status && t.status !== filters.status) return false;
+			if (q) {
+				const haystack = [t.title, t.description, t.notes].filter(Boolean).join(" ").toLowerCase();
+				if (!haystack.includes(q)) return false;
+			}
+			return true;
+		})
+		.slice((page - 1) * pageSize, page * pageSize);
+
+	const pendingCount = filteredTasks.filter((t) => t.status === "pending").length;
+	const executedCount = filteredTasks.filter((t) => t.status === "executed").length;
 
 	const loading =
 		projectsLoading ||
@@ -58,7 +99,7 @@ export function useTasksData(projectId: string | undefined) {
 
 	return {
 		data: {
-			tasks,
+			tasks: filteredTasks,
 			projects,
 			categories,
 			priorities,
@@ -66,6 +107,7 @@ export function useTasksData(projectId: string | undefined) {
 			pendingCount,
 			executedCount,
 		},
+
 		loading,
 	};
 }
