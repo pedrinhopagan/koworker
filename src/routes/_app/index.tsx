@@ -2,9 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Calendar, LayoutDashboardIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { z } from "zod";
-
+import { PageShell } from "../../components/layout/page-shell";
 import { HomeSidebar } from "./-components/home-sidebar";
-import { PageShell } from "./-components/page-shell";
 import { ProjectsSection } from "./-components/projects-section";
 import { QuickLinks } from "./-components/quick-links";
 import { SectionHeader } from "./-components/section-header";
@@ -55,7 +54,7 @@ function HomePage() {
 				setSelectedTaskId(taskId);
 			}
 		},
-		[selectedTaskId]
+		[selectedTaskId],
 	);
 
 	const handleProjectClick = useCallback((projectId: string) => {
@@ -64,8 +63,8 @@ function HomePage() {
 
 	return (
 		<PageShell title="Dashboard" description="Seu painel de controle" icon={LayoutDashboardIcon}>
-			<div className="flex h-full min-h-0 overflow-hidden">
-				<div className="w-1/3 min-w-70 max-w-95 overflow-y-auto">
+			<div className="flex flex-col-reverse gap-6 h-full min-h-0 lg:grid lg:grid-cols-[2fr_3fr]">
+				<div className="min-w-70 overflow-y-auto">
 					<HomeSidebar
 						selectedTask={selectedTask}
 						tasks={tasks}

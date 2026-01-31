@@ -48,7 +48,7 @@ export function Terminal({ sessionId, className, sessionLabel, onExit, isVisible
 		}
 
 		let disposed = false;
-		let disposeTimer: number | null = null;
+		let _disposeTimer: number | null = null;
 		const el = containerRef.current;
 		if (!el) {
 			return;
@@ -56,7 +56,6 @@ export function Terminal({ sessionId, className, sessionLabel, onExit, isVisible
 
 		const fit = new FitAddon();
 		const term = new XTerm({
-			rendererType: "dom",
 			cursorBlink: true,
 			convertEol: true,
 			fontFamily: "var(--font-mono)",
@@ -67,7 +66,6 @@ export function Terminal({ sessionId, className, sessionLabel, onExit, isVisible
 				background: "#0f1115",
 				foreground: "#e2e8f0",
 				cursor: "#94a3b8",
-				selection: "#334155",
 			},
 		});
 
@@ -147,7 +145,7 @@ export function Terminal({ sessionId, className, sessionLabel, onExit, isVisible
 			dataDisposable.dispose();
 			unlistenData?.();
 			unlistenExit?.();
-			disposeTimer = window.setTimeout(() => {
+			_disposeTimer = window.setTimeout(() => {
 				term.dispose();
 				termRef.current = null;
 				fitRef.current = null;
@@ -158,10 +156,7 @@ export function Terminal({ sessionId, className, sessionLabel, onExit, isVisible
 	if (!tauri) {
 		return (
 			<div
-				className={cn(
-					"rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground",
-					className,
-				)}
+				className={cn("rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground", className)}
 			>
 				Terminal embutido disponível apenas no app Desktop (Tauri).
 			</div>
@@ -198,10 +193,7 @@ export function Terminal({ sessionId, className, sessionLabel, onExit, isVisible
 					</span>
 				</div>
 			</div>
-			<div
-				ref={containerRef}
-				className="min-h-[260px] flex-1 overflow-hidden bg-[#0f1115]"
-			/>
+			<div ref={containerRef} className="min-h-65 flex-1 overflow-hidden bg-[#0f1115]" />
 		</div>
 	);
 }

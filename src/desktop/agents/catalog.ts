@@ -1,9 +1,4 @@
-import type {
-	Agent,
-	AgentId,
-	BuildAgentCommandInput,
-	BuiltAgentCommand,
-} from "./types";
+import type { Agent, AgentId, BuildAgentCommandInput, BuiltAgentCommand } from "./types";
 
 /**
  * Catálogo hardcoded (MVP).
@@ -74,9 +69,7 @@ export function getAgent(id: AgentId): Agent {
  * - args: array de args
  * - stdin: conteúdo a ser escrito no stdin (quando aplicável)
  */
-export function buildAgentCommand(
-	input: BuildAgentCommandInput,
-): BuiltAgentCommand {
+export function buildAgentCommand(input: BuildAgentCommandInput): BuiltAgentCommand {
 	const agent = getAgent(input.agentId);
 
 	const args: string[] = [...agent.argsBase];
@@ -89,12 +82,10 @@ export function buildAgentCommand(
 
 	if (agent.prompt.kind === "stdin") {
 		stdin = input.prompt;
+	} else if (agent.prompt.flag) {
+		args.push(agent.prompt.flag, input.prompt);
 	} else {
-		if (agent.prompt.flag) {
-			args.push(agent.prompt.flag, input.prompt);
-		} else {
-			args.push(input.prompt);
-		}
+		args.push(input.prompt);
 	}
 
 	if (input.extraArgs?.length) {

@@ -1,6 +1,6 @@
+import { type LinkProps, type RegisteredRouter, useRouterState } from "@tanstack/react-router";
 import { CheckCheckIcon, ChevronDownIcon, FolderKanbanIcon } from "lucide-react";
 import { useMemo } from "react";
-
 import { CustomSelect } from "@/components/ui/custom-select";
 import { useProjectFocus } from "@/hooks";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,15 @@ type ProjectItem = {
 	color: string | null;
 };
 
+const DISABLED_PATHS = new Set<LinkProps<RegisteredRouter>["to"]>([
+	"/projetos/$projetoId",
+	"/projetos/novo",
+	"/tarefas/$taskId",
+]);
+
 export function ProjectFocusBar() {
+	const routerState = useRouterState();
+
 	const { projects, selectedProjectId, selectedProject, accent, loading, setSelectedProjectId } =
 		useProjectFocus();
 
@@ -44,6 +52,10 @@ export function ProjectFocusBar() {
 		setSelectedProjectId(id);
 	}
 
+	const currentRoutePath = (routerState.matches.at(-1)?.fullPath ?? "/").replace(/\/$/, "");
+
+	const disableChangeFocus = DISABLED_PATHS.has(currentRoutePath as any);
+
 	return (
 		<div className="flex items-center gap-3">
 			<span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
@@ -55,7 +67,7 @@ export function ProjectFocusBar() {
 				value={selectedProjectId === undefined ? ALL_PROJECTS_ID : (selectedProjectId ?? undefined)}
 				onValueChange={handleValueChange}
 				variant="minimal"
-				disabled={isEmpty}
+				disabled={isEmpty || disableChangeFocus}
 				loading={loading}
 				triggerClassName={cn(
 					"flex items-center gap-3 px-4 py-2 rounded-lg min-w-[220px] transition-all duration-200 border-2 bg-card/80 backdrop-blur",

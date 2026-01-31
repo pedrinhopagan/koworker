@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { AccentStripe, ProjectFocusBar } from "@/components/layout/project-focus-bar";
+import { ProjectFocusBar } from "@/components/layout/project-focus-bar";
 import { TabBar } from "@/components/layout/tab-bar";
 import { usePrimaryColor, useProjectFocus, useUser } from "@/hooks";
 import { TerminalManager } from "@/terminal/terminal-manager";
@@ -35,7 +35,7 @@ export function AppShell({ children }: AppShellProps) {
 		? {
 				backgroundImage: `linear-gradient(90deg, ${accent.soft} 0%, transparent 70%)`,
 				// borderBottomColor: accent.border,
-                  boxShadow: `inset 0 -1px 0 ${accent.border}`,
+				boxShadow: `inset 0 -1px 0 ${accent.border}`,
 			}
 		: undefined;
 

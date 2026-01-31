@@ -1,15 +1,14 @@
 import { Link } from "@tanstack/react-router";
-import { Activity, CheckCircle2, Loader2, Terminal } from "lucide-react";
+import { Activity, CheckCircle2, Loader2 } from "lucide-react";
 import { memo } from "react";
 
 import { Text } from "@/components/typography";
-import { cn } from "@/lib/utils";
 import { useTerminalOpenTaskIds } from "@/terminal/hooks";
-import { useTerminalStore } from "@/terminal/store";
 import { sortTasksByTerminal } from "@/terminal/task-sort";
 import type { TaskWithMeta } from "@/types/tasks";
 
 import { SectionHeader } from "./section-header";
+import { TaskItem } from "@/components/tasks";
 
 // Empty section placeholder
 type EmptySectionProps = {
@@ -52,60 +51,6 @@ const LoadingState = memo(function LoadingState() {
 	);
 });
 
-// Compact task item for the list
-type TaskItemCompactProps = {
-	task: TaskWithMeta;
-	isSelected: boolean;
-	onClick: () => void;
-};
-
-const TaskItemCompact = memo(function TaskItemCompact({
-	task,
-	isSelected,
-	onClick,
-}: TaskItemCompactProps) {
-	const isTerminalOpen = useTerminalStore((state) => !!state.sessionsByTask[task.id]);
-	const isDone = task.status === "executed" && !isTerminalOpen;
-
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={cn(
-				"w-full flex items-center justify-between gap-3 px-3 py-2.5",
-				"border border-border bg-card transition-colors",
-				"hover:border-primary/40 hover:bg-muted/30",
-				isSelected && "border-primary/60 bg-primary/5",
-				isTerminalOpen && "border-sky-400/60 bg-sky-500/10",
-			)}
-		>
-			<div className="flex items-center gap-3 min-w-0">
-				<input
-					type="checkbox"
-					checked={isDone}
-					readOnly
-					className="size-4 rounded border-border"
-				/>
-				<Text size="sm" className="truncate">
-					{task.title}
-				</Text>
-			</div>
-			<div className="flex items-center gap-2 shrink-0">
-				{isTerminalOpen && <Terminal size={14} className="text-sky-400" />}
-				<span
-					className="px-2 py-0.5 text-xs rounded"
-					style={{
-						backgroundColor: `${task.category.color}20`,
-						color: task.category.color,
-					}}
-				>
-					{task.category.name}
-				</span>
-			</div>
-		</button>
-	);
-});
-
 // Task list section component
 type TaskListSectionProps = {
 	tasks: TaskWithMeta[];
@@ -114,12 +59,7 @@ type TaskListSectionProps = {
 	onTaskClick: (taskId: string) => void;
 };
 
-export function TaskListSection({
-	tasks,
-	loading,
-	selectedTaskId,
-	onTaskClick,
-}: TaskListSectionProps) {
+export function TaskListSection({ tasks, loading }: TaskListSectionProps) {
 	const openTaskIds = useTerminalOpenTaskIds();
 	const inProgressCount = tasks.filter(
 		(t) => openTaskIds.includes(t.id) || t.status === "pending" || t.status === "in_execution",
@@ -148,14 +88,7 @@ export function TaskListSection({
 						linkLabel="Criar nova tarefa"
 					/>
 				) : (
-					orderedTasks.map((task) => (
-						<TaskItemCompact
-							key={task.id}
-							task={task}
-							isSelected={selectedTaskId === task.id}
-							onClick={() => onTaskClick(task.id)}
-						/>
-					))
+					orderedTasks.map((task) => <TaskItem key={task.id} task={task} />)
 				)}
 			</div>
 		</section>

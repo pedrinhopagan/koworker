@@ -28,9 +28,9 @@ export function hashPromptBase(promptBase: string) {
 	// Usamos um hash simples e determinístico (FNV-1a 32-bit) só para fingerprint.
 	let hash = 0x811c9dc5;
 	for (let i = 0; i < promptBase.length; i++) {
-		hash ^= promptBase.charCodeAt(i);
-		// 32-bit FNV prime multiply
-		hash = (hash * 0x01000193) >>> 0;
+		hash ^= promptBase.codePointAt(i)!;
+		const next = Math.imul(hash, 0x01000193);
+		hash = next < 0 ? next + 0x100000000 : next;
 	}
 	return hash.toString(16).padStart(8, "0");
 }
@@ -108,7 +108,8 @@ export const DEFAULT_SKILLS: Record<DefaultSkillId, DefaultSkill> = {
 	runner: {
 		id: "runner",
 		name: "Runner",
-		description: "Executa a task: implementa mudanças incrementalmente, valida e reporta progresso.",
+		description:
+			"Executa a task: implementa mudanças incrementalmente, valida e reporta progresso.",
 		version: "1.0.0",
 		promptBase: runnerPromptBase,
 		promptBaseHash: hashPromptBase(runnerPromptBase),

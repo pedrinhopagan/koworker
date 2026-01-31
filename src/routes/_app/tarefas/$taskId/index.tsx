@@ -4,20 +4,20 @@ import { CheckCircle2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { orpc } from "@/client";
+import { PageShell } from "@/components/layout/page-shell";
 import { CategorySelect, PrioritySelect } from "@/components/tasks";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { AGENTS, buildAgentCommand, type AgentId } from "@/desktop/agents";
+import { AGENTS, type AgentId, buildAgentCommand } from "@/desktop/agents";
 import { tmuxNewWindow } from "@/desktop/tmux/client";
 import { MODELS_BY_AGENT } from "@/lib/ai/models-catalog";
 import { DEFAULT_SKILLS, type DefaultSkillId } from "@/lib/skills/default-skills";
 import { cn } from "@/lib/utils";
-import { PageShell } from "@/routes/_app/-components/page-shell";
-import { TerminalMount } from "@/terminal/terminal-mount";
 import { useTaskTerminal } from "@/terminal/hooks";
+import { TerminalMount } from "@/terminal/terminal-mount";
 import { buildTmuxWindowScript } from "@/terminal/utils";
 
 export const Route = createFileRoute("/_app/tarefas/$taskId/")({
@@ -43,11 +43,12 @@ function TaskDetailPage() {
 		},
 	});
 
-	const executionQuery = useQuery(
-		orpc.execution.getByTaskId.queryOptions({ input: { taskId } }),
+	const executionQuery = useQuery(orpc.execution.getByTaskId.queryOptions({ input: { taskId } }));
+
+	const executionMessages = useMemo(
+		() => executionQuery.data?.messages ?? [],
+		[executionQuery.data],
 	);
-	const executionThread = executionQuery.data?.thread ?? null;
-	const executionMessages = useMemo(() => executionQuery.data?.messages ?? [], [executionQuery.data]);
 
 	const [messageText, setMessageText] = useState("");
 	const [detailsOpen, setDetailsOpen] = useState(true);
@@ -65,7 +66,6 @@ function TaskDetailPage() {
 		ensureTerminalSession,
 		handleTerminalClose,
 	} = useTaskTerminal(taskId, PROJECT_ROOT);
-
 
 	const defaultAgentId: AgentId = "codex";
 	const [agentId, setAgentId] = useState<AgentId>(defaultAgentId);
@@ -92,11 +92,7 @@ function TaskDetailPage() {
 
 	if (taskQuery.isLoading) {
 		return (
-			<PageShell
-				title="Tarefa"
-				description="Carregando detalhes da tarefa..."
-				icon={CheckCircle2}
-			>
+			<PageShell title="Tarefa" description="Carregando detalhes da tarefa..." icon={CheckCircle2}>
 				<Text size="sm" tone="muted">
 					Carregando tarefa...
 				</Text>
@@ -175,7 +171,7 @@ function TaskDetailPage() {
 						onOpenChange={setExecutionOpen}
 						contentClassName="space-y-3"
 					>
-						<div className="max-h-[320px] overflow-y-auto space-y-2">
+						<div className="max-h-80 overflow-y-auto space-y-2">
 							{executionQuery.isLoading && (
 								<Text size="sm" tone="muted">
 									Carregando mensagens...
@@ -230,7 +226,7 @@ function TaskDetailPage() {
 											<span className="text-xs text-muted-foreground">{item.id}</span>
 										</div>
 									)}
-									triggerClassName="min-w-[160px]"
+									triggerClassName="flex-1"
 								/>
 
 								<CustomSelect
@@ -246,9 +242,11 @@ function TaskDetailPage() {
 										</span>
 									)}
 									renderItem={(item, isSelected) => (
-										<div className={cn("w-full truncate", isSelected && "font-medium")}>{item.id}</div>
+										<div className={cn("w-full truncate", isSelected && "font-medium")}>
+											{item.id}
+										</div>
 									)}
-									triggerClassName="min-w-[220px]"
+									triggerClassName="flex-1"
 								/>
 
 								<CustomSelect
@@ -274,7 +272,7 @@ function TaskDetailPage() {
 							</div>
 
 							<textarea
-								className="w-full min-h-[96px] resize-y rounded-md border bg-background p-2 text-sm"
+								className="w-full min-h-24 resize-y rounded-md border bg-background p-2 text-sm"
 								placeholder="Escreva uma mensagem..."
 								value={messageText}
 								onChange={(e) => setMessageText(e.target.value)}
@@ -331,7 +329,6 @@ function TaskDetailPage() {
 							</div>
 						</div>
 					</CollapsibleSection>
-
 				</section>
 
 				<section className="min-h-0 flex flex-col overflow-hidden">

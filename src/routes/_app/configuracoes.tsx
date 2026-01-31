@@ -4,7 +4,7 @@ import { Check, Palette, Settings } from "lucide-react";
 import { Text, Title } from "@/components/typography";
 import { cn } from "@/lib/utils";
 import { primaryColorPresets, usePrimaryColorStore } from "@/stores/primary-color";
-import { PageShell } from "./-components/page-shell";
+import { PageShell } from "../../components/layout/page-shell";
 
 export const Route = createFileRoute("/_app/configuracoes")({
 	component: ConfiguracoesPage,
@@ -43,7 +43,7 @@ function ConfiguracoesPage() {
 									"flex flex-col items-center gap-2 p-3 border transition-all",
 									presetName === preset.name
 										? "border-primary bg-primary/10"
-										: "border-border hover:border-primary/50 hover:bg-muted/50"
+										: "border-border hover:border-primary/50 hover:bg-muted/50",
 								)}
 							>
 								<div

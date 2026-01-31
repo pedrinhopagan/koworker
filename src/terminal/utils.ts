@@ -1,11 +1,11 @@
 type BuiltCommand = { cmd: string; args: string[]; stdin?: string };
 
 export function toTmuxSessionName(taskId: string): string {
-	return `task-${taskId.replace(/-/g, "")}`;
+	return `task-${taskId.replaceAll("-", "")}`;
 }
 
 function bashEscapeArg(value: string): string {
-	return `'${value.replace(/'/g, `'\\''`)}'`;
+	return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
 function toBashCommandLine(cmd: string, args: string[]): string {

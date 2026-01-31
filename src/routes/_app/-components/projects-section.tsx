@@ -54,14 +54,14 @@ const ProjectCardCompact = memo(function ProjectCardCompact({
 			type="button"
 			onClick={onClick}
 			className={cn(
-				"flex-shrink-0 w-48 p-3 border border-border bg-card transition-colors",
+				"flex shrink-0 w-48 p-3 border border-border bg-card transition-colors",
 				"hover:border-primary/40 hover:bg-muted/30",
 				"focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 			)}
 		>
 			<div className="flex items-start gap-3">
 				<div
-					className="size-8 rounded-md flex-shrink-0"
+					className="size-8 rounded-md flex shrink-0"
 					style={{ backgroundColor: `${project.color}30` }}
 				/>
 				<div className="flex-1 min-w-0 text-left">

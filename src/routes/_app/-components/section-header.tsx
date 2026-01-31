@@ -1,9 +1,10 @@
-import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { ChevronRight, type LucideIcon } from "lucide-react";
 import { memo } from "react";
 
 import { Title } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 type SectionHeaderProps = {
 	title: string;
@@ -22,6 +23,8 @@ export const SectionHeader = memo(function SectionHeader({
 	badge,
 	accentColor,
 }: SectionHeaderProps) {
+	const navigate = useNavigate();
+
 	const resolvedAccent = accentColor
 		? `var(--project-accent, ${accentColor})`
 		: "var(--project-accent, var(--primary))";
@@ -47,13 +50,14 @@ export const SectionHeader = memo(function SectionHeader({
 					</Badge>
 				)}
 			</div>
-			<Link
-				to={linkTo}
+			<Button
+				variant="link"
+				onClick={() => navigate({ to: linkTo })}
 				className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
 			>
 				{linkLabel}
 				<ChevronRight className="size-3" />
-			</Link>
+			</Button>
 		</div>
 	);
 });

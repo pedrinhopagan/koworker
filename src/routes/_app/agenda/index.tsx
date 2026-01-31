@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { DayDrawer, WeekCalendar, type WeekCalendarRef } from "@/components/agenda";
 import { useProjectFocus } from "@/hooks";
-import { PageShell } from "@/routes/_app/-components/page-shell";
+import { PageShell } from "@/components/layout/page-shell";
 
 const searchSchema = z.object({
 	inicio: z.string().optional(),

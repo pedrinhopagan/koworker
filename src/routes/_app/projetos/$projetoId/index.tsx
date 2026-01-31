@@ -5,8 +5,7 @@ import { FolderOpen } from "lucide-react";
 import { orpc } from "@/client";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { PageShell } from "@/routes/_app/-components/page-shell";
-import { ProjectDeleteSection } from "../-components/project-delete-section";
+import { PageShell } from "@/components/layout/page-shell";
 import { getDefaultProjectColor, ProjectForm } from "../-components/project-form";
 import { ProjectHeaderActions } from "../-components/project-header-actions";
 import { useUpdateProject } from "../-utils/use-update-project";
@@ -75,16 +74,15 @@ function EditarProjetoPage() {
 			<div className="flex flex-col gap-8 h-full min-h-0 overflow-y-auto">
 				<ProjectForm
 					mode="edit"
-                              formId={formId}
+					formId={formId}
 					defaultValues={{
-						name: project.name,
+						name: project.name ?? "",
 						description: project.description ?? "",
 						color: project.color ?? getDefaultProjectColor(),
 						mainRoute: project.mainRoute,
 					}}
 					onSubmit={updateProject}
 				/>
-
 			</div>
 		</PageShell>
 	);

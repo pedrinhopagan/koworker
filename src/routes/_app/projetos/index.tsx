@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { FolderKanban } from "lucide-react";
 import { z } from "zod";
 
-import { PageShell } from "@/routes/_app/-components/page-shell";
+import { PageShell } from "@/components/layout/page-shell";
 import { ProjectList } from "./-components/project-list";
 import { ProjectSummary } from "./-components/project-summary";
 import { useProjectsData } from "./-utils/use-projects-data";
