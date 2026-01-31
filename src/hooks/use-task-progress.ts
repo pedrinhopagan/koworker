@@ -1,74 +1,15 @@
 import { useMemo } from "react";
-
+import { deriveProgressState } from "@/domain/tasks/attention";
 import {
 	type ActionDefinition,
 	type ActionTaskContext,
 	getSuggestedAction,
 } from "@/lib/constants/action-registry";
 import {
-	type TaskProgressState,
 	getProgressStateColor,
 	getProgressStateLabel,
+	type TaskProgressState,
 } from "@/lib/constants/task-progress-state";
-
-// ============================================================================
-// Progress State Derivation
-// ============================================================================
-
-/**
- * Derive the progress state from task data.
- *
- * States are computed based on:
- * - task.status (pending | in_execution | executed)
- * - subtask completion counts
- * - task description presence
- * - AI metadata (lastCompletedAction)
- */
-export function deriveProgressState(task: ActionTaskContext): TaskProgressState {
-	const { status, subtasks = [], context, aiMetadata } = task;
-
-	// Task is done
-	if (status === "executed") {
-		return "done";
-	}
-
-	const subtaskCount = subtasks.length;
-	const doneCount = subtasks.filter((s) => s.status === "done" || s.status === "executed").length;
-	const inProgressCount = subtasks.filter((s) => s.status === "in_progress").length;
-	const hasDescription = Boolean(context?.description);
-	const lastAction = aiMetadata?.lastCompletedAction;
-
-	// AI is currently working (task marked as in_execution)
-	if (status === "in_execution") {
-		return "ai-working";
-	}
-
-	// All subtasks done - check if ready for commit or review
-	if (subtaskCount > 0 && doneCount === subtaskCount) {
-		if (lastAction === "review") {
-			return "ready-to-commit";
-		}
-		return "ready-to-review";
-	}
-
-	// Some subtasks are in progress or partially done
-	if (subtaskCount > 0 && (inProgressCount > 0 || doneCount > 0)) {
-		return "in-execution";
-	}
-
-	// Has subtasks but none started yet - ready to execute
-	if (subtaskCount > 0 && doneCount === 0) {
-		return "ready-to-start";
-	}
-
-	// No subtasks yet - check if task has been started (has description)
-	if (hasDescription || lastAction === "structure") {
-		return "started";
-	}
-
-	// Fresh task with nothing done yet
-	return "idle";
-}
 
 // ============================================================================
 // Hook
@@ -107,7 +48,12 @@ export function useTaskProgress(task: ActionTaskContext | null): UseTaskProgress
 			};
 		}
 
-		const progressState = deriveProgressState(task);
+		const progressState = deriveProgressState({
+			status: task.status,
+			description: task.context?.description,
+			aiMetadata: task.aiMetadata,
+			subtasks: task.subtasks,
+		});
 		const label = getProgressStateLabel(progressState);
 		const color = getProgressStateColor(progressState);
 		const suggestedAction = getSuggestedAction(task, progressState);

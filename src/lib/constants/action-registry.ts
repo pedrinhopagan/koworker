@@ -9,10 +9,10 @@ import {
 	FileCheck,
 	FileText,
 	GitCommitHorizontal,
+	type LucideIcon,
 	Monitor,
 	Rocket,
 	Target,
-	type LucideIcon,
 } from "lucide-react";
 
 import type { TaskProgressState } from "./task-progress-state";
@@ -59,7 +59,7 @@ export interface ActionDefinition {
 // ============================================================================
 
 const ACTION_COLORS: Record<ActionId, string> = {
-	structure: PROGRESS_STATE_COLORS["started"],
+	structure: PROGRESS_STATE_COLORS.started,
 	execute_all: PROGRESS_STATE_COLORS["ready-to-start"],
 	execute_subtask: PROGRESS_STATE_COLORS["in-execution"],
 	review: PROGRESS_STATE_COLORS["ready-to-review"],
