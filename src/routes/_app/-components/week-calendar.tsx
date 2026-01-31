@@ -1,8 +1,7 @@
-import { memo, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
-
-import { cn } from "@/lib/utils";
+import { memo, useMemo } from "react";
 import { Chip } from "@/components/ui/chip";
+import { cn } from "@/lib/utils";
 import type { TaskWithMeta } from "@/types/tasks";
 
 const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"] as const;

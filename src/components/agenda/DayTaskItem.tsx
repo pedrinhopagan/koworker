@@ -2,17 +2,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { orpc } from "@/client";
-import { Title } from "@/components/typography";
-import { Badge } from "@/components/ui/badge";
+import { TaskItem } from "@/components/tasks";
 import { cn } from "@/lib/utils";
 import { useAgendaStore } from "@/stores/agenda";
 import type { TaskWithMeta } from "@/types/tasks";
-
-const statusVariants = {
-	pending: "muted",
-	in_execution: "warning",
-	executed: "success",
-} as const;
 
 type DayTaskItemProps = {
 	task: TaskWithMeta;
@@ -27,12 +20,14 @@ export function DayTaskItem({ task, scheduledDate = null, onStatusChange }: DayT
 	const [isDragging, setIsDragging] = useState(false);
 
 	const isDone = task.status === "executed";
-	const statusVariant = statusVariants[task.status] ?? "muted";
 
 	const updateStatusMutation = useMutation({
 		...orpc.tasks.update.mutationOptions(),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["tasks"] });
+			// ORPC query keys are nested; invalidate all tasks queries.
+			queryClient.invalidateQueries({
+				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "tasks",
+			});
 			onStatusChange?.();
 		},
 	});
@@ -76,62 +71,9 @@ export function DayTaskItem({ task, scheduledDate = null, onStatusChange }: DayT
 			draggable
 			onDragStart={handleDragStart}
 			onDragEnd={handleDragEnd}
-			className={cn(
-				"flex cursor-grab items-center justify-between gap-4 border border-transparent bg-card px-3 py-1.5 transition-colors duration-200 hover:border-border hover:bg-secondary/30",
-				isDragging && "cursor-grabbing opacity-50",
-			)}
+			className={cn(isDragging && "cursor-grabbing opacity-50")}
 		>
-			<div className="flex min-w-0 items-center gap-3">
-				<button
-					type="button"
-					onClick={(e) => {
-						e.stopPropagation();
-						toggleStatus();
-					}}
-					className={cn(
-						"shrink-0 transition-colors hover:text-primary",
-						isDone ? "text-primary" : "text-muted-foreground",
-					)}
-				>
-					{isDone ? "[x]" : "[ ]"}
-				</button>
-				<Title
-					as="span"
-					size="sm"
-					className={cn(
-						"truncate text-sm font-normal",
-						isDone && "text-muted-foreground line-through",
-					)}
-				>
-					{task.title}
-				</Title>
-			</div>
-
-			<div className="flex shrink-0 items-center gap-2">
-				<Badge variant={statusVariant} className="shrink-0">
-					{task.statusLabel}
-				</Badge>
-				<Badge
-					variant="muted"
-					className="shrink-0"
-					style={{
-						backgroundColor: `${task.category.color}20`,
-						color: task.category.color,
-					}}
-				>
-					{task.category.name}
-				</Badge>
-				<Badge
-					variant="muted"
-					className="shrink-0"
-					style={{
-						backgroundColor: `${task.priority.color}20`,
-						color: task.priority.color,
-					}}
-				>
-					{task.priority.name}
-				</Badge>
-			</div>
+			<TaskItem task={task} variant="compact" />
 		</div>
 	);
 }

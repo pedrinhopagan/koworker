@@ -1,5 +1,5 @@
-import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import { orpc } from "@/client";
 import { useProjectFocus } from "@/hooks";
@@ -20,10 +20,10 @@ export function useWeekTasks(startDate: string, endDate: string) {
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 
 	const tasksQuery = useQuery({
-		...orpc.tasks.listByWeek.queryOptions({
+		...orpc.tasks.getAll.queryOptions({
 			input: { startDate, endDate, projectId: selectedProjectId ?? null },
 		}),
-		enabled: !!startDate && !!endDate && !!selectedProjectId,
+		enabled: !!startDate && !!endDate,
 	});
 
 	const categories = categoriesQuery.data ?? [];

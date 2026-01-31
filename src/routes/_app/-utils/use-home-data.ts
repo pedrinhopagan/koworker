@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { orpc, type RouterOutputs } from "@/client";
-import type { TaskWithMeta } from "@/types/tasks";
 import { useProjectFocus } from "@/hooks";
+import type { TaskWithMeta } from "@/types/tasks";
 
 export type Project = RouterOutputs["projects"]["list"][number];
 
@@ -19,8 +19,7 @@ export function useHomeData() {
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 
 	const tasksQuery = useQuery({
-		...orpc.tasks.listByProject.queryOptions({ input: { projectId: selectedProjectId ?? "" } }),
-		enabled: !!selectedProjectId,
+		...orpc.tasks.getAll.queryOptions({ input: { projectId: selectedProjectId ?? null } }),
 	});
 
 	const categories = categoriesQuery.data ?? [];

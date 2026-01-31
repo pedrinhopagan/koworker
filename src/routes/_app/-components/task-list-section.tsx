@@ -1,6 +1,6 @@
-import { memo } from "react";
 import { Link } from "@tanstack/react-router";
 import { Activity, CheckCircle2, Loader2 } from "lucide-react";
+import { memo } from "react";
 
 import { Text } from "@/components/typography";
 import { cn } from "@/lib/utils";

@@ -17,10 +17,10 @@ export function useDayTasks(date: string | null) {
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 
 	const tasksQuery = useQuery({
-		...orpc.tasks.listByDate.queryOptions({
+		...orpc.tasks.getAll.queryOptions({
 			input: { date: date ?? "", projectId: selectedProjectId ?? null },
 		}),
-		enabled: !!date && !!selectedProjectId,
+		enabled: !!date,
 	});
 
 	const categories = categoriesQuery.data ?? [];

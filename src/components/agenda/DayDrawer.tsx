@@ -1,5 +1,5 @@
-import { useEffect, useCallback } from "react";
 import { X } from "lucide-react";
+import { useCallback, useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,7 +20,7 @@ export function DayDrawer({ onTaskChange }: DayDrawerProps) {
 
 	const formattedDate = useCallback(() => {
 		if (!selectedDate) return "";
-		const date = new Date(selectedDate + "T00:00:00");
+		const date = new Date(`${selectedDate}T00:00:00`);
 		return date.toLocaleDateString("pt-BR", {
 			weekday: "long",
 			day: "numeric",

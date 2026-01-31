@@ -1,10 +1,9 @@
 export { DayDrawer } from "./DayDrawer";
 export { DayTaskItem } from "./DayTaskItem";
 export { useDayTasks } from "./use-day-tasks";
-
+export { type UseWeekCalendarReturn, useWeekCalendar, type WeekDayData } from "./use-week-calendar";
+export { type TasksByDate, useWeekTasks } from "./use-week-tasks";
 // Week Calendar
 export { WeekCalendar, type WeekCalendarRef } from "./WeekCalendar";
 export { WeekDay } from "./WeekDay";
 export { WeekTaskChip } from "./WeekTaskChip";
-export { useWeekCalendar, type WeekDayData, type UseWeekCalendarReturn } from "./use-week-calendar";
-export { useWeekTasks, type TasksByDate } from "./use-week-tasks";
