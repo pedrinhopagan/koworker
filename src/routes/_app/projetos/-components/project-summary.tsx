@@ -54,7 +54,7 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 				<div className="grid grid-cols-3 gap-2">
 					<SummaryItem label="Total" value={showValues ? String(total) : "--"} />
 					<SummaryItem label="Progresso" value={showValues ? `${progress}%` : "--"} />
-					<SummaryItem label="Concluído" value={showValues ? String(done) : "--"} />
+					<SummaryItem label="Concluídas" value={showValues ? String(done) : "--"} />
 				</div>
 				<div>
 					<Text size="xs" tone="muted" className="mb-2">

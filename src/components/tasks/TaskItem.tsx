@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Loader2, Terminal } from "lucide-react";
+import { ListChecks, Loader2, Terminal } from "lucide-react";
 import type { MouseEvent } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
@@ -69,6 +69,22 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 	const firstNotCompletedStatus = firstNotCompleted
 		? normalizeStatus(firstNotCompleted.status)
 		: null;
+
+	// Calculate subtask progress
+	const subtaskProgress = {
+		completed: subtasks.filter((st) => normalizeStatus(st.status) === "executed").length,
+		total: subtasks.length,
+	};
+
+	// Determine progress color
+	const getProgressVariant = () => {
+		if (subtaskProgress.total === 0) return null;
+		if (subtaskProgress.completed === 0) return "destructive";
+		if (subtaskProgress.completed === subtaskProgress.total) return "success";
+		return "warning";
+	};
+
+	const progressVariant = getProgressVariant();
 
 	const attention = deriveTaskAttentionState({
 		status: effectiveStatus,
@@ -156,6 +172,14 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 				) : attention.shouldSpin ? (
 					<Loader2 size={14} className="animate-spin text-muted-foreground" />
 				) : null}
+
+				{/* Subtask counter */}
+				{subtaskProgress.total > 0 && progressVariant && (
+					<Badge variant={progressVariant} className="shrink-0 flex items-center gap-1">
+						<ListChecks size={12} />
+						{subtaskProgress.completed}/{subtaskProgress.total}
+					</Badge>
+				)}
 
 				{isTerminalOpen && (
 					<Badge variant="warning" className="shrink-0 flex items-center gap-1">
