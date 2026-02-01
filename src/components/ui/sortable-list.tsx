@@ -90,8 +90,12 @@ function SortableItemWrapper<T extends SortableItem>({
 
 	const style: React.CSSProperties = {
 		transform: CSS.Transform.toString(transform),
-		transition,
-		opacity: isDragging ? 0.5 : 1,
+		// Keep animation only for items that are not being actively dragged.
+		// This makes the drop feel more "snappy" and avoids perceived lag.
+		transition: isDragging ? undefined : transition,
+		// Hide the original element while dragging; the DragOverlay becomes the only
+		// visible representation.
+		opacity: isDragging ? 0 : 1,
 	};
 
 	const renderProps: SortableItemRenderProps = {
@@ -196,11 +200,11 @@ function SortableList<T extends SortableItem>({
 				</div>
 			</SortableContext>
 
-			<DragOverlay>
+			<DragOverlay dropAnimation={null}>
 				{activeItem && renderDragOverlay ? (
 					renderDragOverlay(activeItem)
 				) : activeItem ? (
-					<div className="opacity-80 shadow-lg">
+					<div className="shadow-lg">
 						{renderItem(activeItem, {
 							ref: () => {},
 							dragHandleProps: {

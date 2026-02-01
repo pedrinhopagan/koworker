@@ -3,6 +3,7 @@ import { tv } from "tailwind-variants";
 
 import { Text, Title } from "@/components/typography";
 import { useTaskMetrics } from "@/hooks";
+import { cn } from "@/lib/utils";
 import type { Project } from "../-utils/use-projects-data";
 
 type ProjectCardProps = {
@@ -34,7 +35,7 @@ export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 		<Link
 			to="/projetos"
 			search={{ projetoId: project.id }}
-			className={cardVariants({ active: isSelected })}
+			className={cn(cardVariants({ active: isSelected }), "block w-full")}
 		>
 			<div className="flex items-start gap-3">
 				<div className="mt-1 size-9 rounded-md" style={{ backgroundColor: project.color }} />
