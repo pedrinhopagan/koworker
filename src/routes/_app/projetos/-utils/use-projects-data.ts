@@ -3,7 +3,7 @@ import { orpc, type RouterOutputs } from "@/client";
 import { useProjectFocus } from "@/hooks";
 
 export type Project = RouterOutputs["projects"]["list"][number];
-export type ProjectDetail = RouterOutputs["projects"]["list"][number];
+export type ProjectDetail = RouterOutputs["projects"]["getById"];
 
 export function useProjectsData(preferredProjectId?: string | null) {
 	const { projects, selectedProjectId, selectedProject, loading } = useProjectFocus({
