@@ -5,7 +5,7 @@ import { tv, type VariantProps } from "tailwind-variants";
 import { cn } from "@/lib/utils";
 
 const switchVariants = tv({
-	base: "peer inline-flex shrink-0 cursor-pointer items-center rounded-none border border-input bg-transparent shadow-xs transition-all outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:border-primary data-[state=unchecked]:bg-input/30 dark:data-[state=unchecked]:bg-input/50",
+	base: "peer inline-flex shrink-0 cursor-pointer items-center rounded-none border border-input bg-transparent shadow-xs transition-all outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:border-muted data-[state=unchecked]:bg-input/30 dark:data-[state=unchecked]:bg-input/50",
 	variants: {
 		size: {
 			default: "h-5 w-9",

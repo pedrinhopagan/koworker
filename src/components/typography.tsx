@@ -7,10 +7,11 @@ const titleVariants = tv({
 	base: "text-foreground font-semibold tracking-tight",
 	variants: {
 		size: {
-			sm: "text-lg",
-			md: "text-2xl",
-			lg: "text-3xl",
-			xl: "text-4xl",
+			xs: "text-xs",
+			sm: "text-sm",
+			md: "text-base",
+			lg: "text-lg",
+			xl: "text-xl",
 		},
 	},
 	defaultVariants: {

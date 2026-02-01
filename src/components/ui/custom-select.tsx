@@ -4,6 +4,7 @@ import * as React from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 import { cn } from "@/lib/utils";
+import { Text } from "../typography";
 
 // ============================================================================
 // Variants
@@ -84,6 +85,7 @@ interface CustomSelectProps<T extends { id: string }> extends VariantProps<
 	contentClassName?: string;
 	align?: "start" | "center" | "end";
 	side?: "top" | "bottom" | "left" | "right";
+	upperLabel?: boolean;
 }
 
 // ============================================================================
@@ -112,6 +114,7 @@ function CustomSelect<T extends { id: string }>({
 	contentClassName,
 	align = "start",
 	side = "bottom",
+	upperLabel = false,
 }: CustomSelectProps<T>) {
 	function handleValueChange(newValue: string) {
 		const item = items.find((i) => i.id === newValue);
@@ -135,92 +138,104 @@ function CustomSelect<T extends { id: string }>({
 	}, [portalContainer]);
 
 	return (
-		<SelectPrimitive.Root value={value} onValueChange={handleValueChange} disabled={isDisabled}>
-			<SelectPrimitive.Trigger
-				type="button"
-				data-slot="custom-select-trigger"
-				aria-busy={loading ? true : undefined}
-				aria-invalid={error ? true : undefined}
-				className={cn(customSelectTriggerVariants({ variant, size }), className, triggerClassName)}
-				style={triggerStyle}
-			>
-				{renderTrigger ? (
-					renderTrigger({ loading, error })
-				) : (
-					<>
-						<SelectPrimitive.Value
-							placeholder={placeholder}
-							className="min-w-0 flex-1 truncate text-left"
-						/>
-						<SelectPrimitive.Icon asChild>
-							<ChevronDown className="size-4 opacity-50" />
-						</SelectPrimitive.Icon>
-					</>
-				)}
+		<div className="flex flex-col flex-1 gap-0.5">
+			{upperLabel && (
+				<div className="flex items-center justify-between">
+					<Text size="xs">{label}</Text>
+				</div>
+			)}
 
-				{loading && (
-					<span className="ml-2 inline-flex items-center" aria-hidden="true">
-						<Loader2 className="size-4 animate-spin text-muted-foreground" />
-					</span>
-				)}
-
-				{!loading && error && (
-					<span className="ml-2 inline-flex items-center" aria-hidden="true">
-						<AlertCircle className="size-4 text-destructive" />
-					</span>
-				)}
-			</SelectPrimitive.Trigger>
-
-			<SelectPrimitive.Portal container={portalContainer ?? undefined}>
-				<SelectPrimitive.Content
-					data-slot="custom-select-content"
-					position="popper"
-					align={align}
-					side={side}
-					sideOffset={8}
-					onEscapeKeyDown={onEscapeKeyDown}
-					className={cn(customSelectContentVariants(), contentClassName)}
-					style={contentStyle}
+			<SelectPrimitive.Root value={value} onValueChange={handleValueChange} disabled={isDisabled}>
+				<SelectPrimitive.Trigger
+					type="button"
+					data-slot="custom-select-trigger"
+					aria-busy={loading ? true : undefined}
+					aria-invalid={error ? true : undefined}
+					className={cn(
+						customSelectTriggerVariants({ variant, size }),
+						className,
+						triggerClassName,
+					)}
+					style={triggerStyle}
 				>
-					{(label || error) && (
-						<div className="px-3 py-2 border-b border-border">
-							{label && (
-								<div className="text-xs text-muted-foreground uppercase tracking-wider">
-									{label}
-								</div>
-							)}
-							{error && <div className="mt-1 text-xs text-destructive">{error}</div>}
-						</div>
+					{renderTrigger ? (
+						renderTrigger({ loading, error })
+					) : (
+						<>
+							<SelectPrimitive.Value
+								placeholder={placeholder}
+								className="min-w-0 flex-1 truncate text-left"
+							/>
+							<SelectPrimitive.Icon asChild>
+								<ChevronDown className="size-4 opacity-50" />
+							</SelectPrimitive.Icon>
+						</>
 					)}
 
-					<SelectPrimitive.Viewport
-						className="max-h-48 w-full min-w-0 overflow-y-auto bg-card text-card-foreground"
+					{loading && (
+						<span className="ml-2 inline-flex items-center" aria-hidden="true">
+							<Loader2 className="size-4 animate-spin text-muted-foreground" />
+						</span>
+					)}
+
+					{!loading && error && (
+						<span className="ml-2 inline-flex items-center" aria-hidden="true">
+							<AlertCircle className="size-4 text-destructive" />
+						</span>
+					)}
+				</SelectPrimitive.Trigger>
+
+				<SelectPrimitive.Portal container={portalContainer ?? undefined}>
+					<SelectPrimitive.Content
+						data-slot="custom-select-content"
+						position="popper"
+						align={align}
+						side={side}
+						sideOffset={8}
+						onEscapeKeyDown={onEscapeKeyDown}
+						className={cn(customSelectContentVariants(), contentClassName)}
 						style={contentStyle}
 					>
-						{loading ? (
-							<div className="px-3 py-2 text-sm text-muted-foreground">Carregando...</div>
-						) : isEmpty ? (
-							<div className="px-3 py-2 text-sm text-muted-foreground">{emptyMessage}</div>
-						) : (
-							items.map((item) => (
-								<SelectPrimitive.Item
-									key={item.id}
-									value={item.id}
-									data-slot="custom-select-item"
-									className={cn(customSelectItemVariants(), itemClassName?.(item))}
-								>
-									<SelectPrimitive.ItemText asChild>
-										<div className="w-full min-w-0 overflow-hidden">
-											{renderItem(item, value === item.id)}
-										</div>
-									</SelectPrimitive.ItemText>
-								</SelectPrimitive.Item>
-							))
+						{(label || error) && (
+							<div className="px-3 py-2 border-b border-border">
+								{label && (
+									<div className="text-xs text-muted-foreground uppercase tracking-wider">
+										{label}
+									</div>
+								)}
+								{error && <div className="mt-1 text-xs text-destructive">{error}</div>}
+							</div>
 						)}
-					</SelectPrimitive.Viewport>
-				</SelectPrimitive.Content>
-			</SelectPrimitive.Portal>
-		</SelectPrimitive.Root>
+
+						<SelectPrimitive.Viewport
+							className="max-h-48 w-full min-w-0 overflow-y-auto bg-card text-card-foreground"
+							style={contentStyle}
+						>
+							{loading ? (
+								<div className="px-3 py-2 text-sm text-muted-foreground">Carregando...</div>
+							) : isEmpty ? (
+								<div className="px-3 py-2 text-sm text-muted-foreground">{emptyMessage}</div>
+							) : (
+								items.map((item) => (
+									<SelectPrimitive.Item
+										key={item.id}
+										value={item.id}
+										data-slot="custom-select-item"
+										className={cn(customSelectItemVariants(), itemClassName?.(item))}
+									>
+										<SelectPrimitive.ItemText asChild>
+											<div className="w-full min-w-0 overflow-hidden">
+												{renderItem(item, value === item.id)}
+											</div>
+										</SelectPrimitive.ItemText>
+									</SelectPrimitive.Item>
+								))
+							)}
+						</SelectPrimitive.Viewport>
+					</SelectPrimitive.Content>
+				</SelectPrimitive.Portal>
+			</SelectPrimitive.Root>
+		</div>
 	);
 }
 
