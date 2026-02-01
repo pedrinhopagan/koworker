@@ -198,8 +198,6 @@ export function InlineTaskCreateForm({
 						value={transientProjectId ?? undefined}
 						onValueChange={(newValue) => {
 							setTransientProjectId(newValue);
-							// Auto-submit when a project is selected (without touching the store).
-							handleSubmit(submitWithProjectId(newValue))();
 						}}
 						disabled={fieldsDisabled}
 						loading={projectsQuery.isLoading}
@@ -249,10 +247,8 @@ export function InlineTaskCreateForm({
 						<Text size="xs" tone="destructive">
 							{projectsLoadError}
 						</Text>
-					) : transientProjectId ? null : (
-						<Text size="xs" tone="muted">
-							Selecione um projeto para adicionar tarefas
-						</Text>
+					) : (
+						transientProjectId && null
 					)}
 				</div>
 			)}

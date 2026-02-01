@@ -1,7 +1,10 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Loader2, Terminal } from "lucide-react";
+import type { MouseEvent } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
+import { orpc } from "@/client";
 import { Title } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
 import { deriveTaskAttentionState } from "@/domain/tasks/attention";
@@ -52,9 +55,10 @@ function normalizeStatus(status: unknown): "pending" | "in_execution" | "execute
 }
 
 export function TaskItem({ task, variant = "default" }: TaskItemProps) {
+	const queryClient = useQueryClient();
 	const isTerminalOpen = useTerminalStore((state) => !!state.sessionsByTask[task.id]);
 	const effectiveStatus = isTerminalOpen ? "in_execution" : task.status;
-	const isDone = effectiveStatus === "executed";
+	const isDone = Boolean(task.completedAt);
 	const statusVariant = statusVariants[effectiveStatus] ?? "muted";
 
 	const subtasks = task.subtasks ?? [];
@@ -71,7 +75,24 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 		description: task.description,
 		aiMetadata: task.aiMetadata as { lastCompletedAction?: string | null } | null,
 		subtasks,
+		completedAt: task.completedAt ?? null,
 	});
+
+	const updateTaskMutation = useMutation({
+		...orpc.tasks.update.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "tasks",
+			});
+		},
+	});
+
+	function handleToggleComplete(e: MouseEvent<HTMLButtonElement>) {
+		e.preventDefault();
+		e.stopPropagation();
+		const completedAt = isDone ? null : Date.now();
+		updateTaskMutation.mutate({ id: task.id, completedAt });
+	}
 
 	// Estado “máximo” (vermelho + roxo + spinner): pai em execução E primeira subtask também em execução
 	const isMaxAttention =
@@ -84,9 +105,7 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 				backgroundImage: isTerminalOpen
 					? "linear-gradient(90deg, rgba(14, 116, 144, 0.22), rgba(59, 130, 246, 0.16))"
 					: "linear-gradient(90deg, rgba(239, 68, 68, 0.16), rgba(168, 85, 247, 0.14))",
-				borderColor: isTerminalOpen
-					? "rgba(56, 189, 248, 0.4)"
-					: "rgba(239, 68, 68, 0.35)",
+				borderColor: isTerminalOpen ? "rgba(56, 189, 248, 0.4)" : "rgba(239, 68, 68, 0.35)",
 				boxShadow: isTerminalOpen ? "0 0 0 1px rgba(56, 189, 248, 0.15) inset" : undefined,
 			}
 		: {
@@ -107,9 +126,15 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 			data-attention={attention.progressState}
 		>
 			<div className="flex min-w-0 items-center gap-3 flex-1">
-				<span className={cn("text-muted-foreground transition-colors", isDone && "text-primary")}>
+				<button
+					type="button"
+					onClick={handleToggleComplete}
+					disabled={updateTaskMutation.isPending}
+					className={cn("text-muted-foreground transition-colors", isDone && "text-primary")}
+					aria-label={isDone ? "Marcar como não concluída" : "Marcar como concluída"}
+				>
 					{isDone ? "[x]" : "[ ]"}
-				</span>
+				</button>
 				<Title
 					as="span"
 					size="sm"

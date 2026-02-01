@@ -3,6 +3,7 @@ import { Activity, CheckCircle2, Loader2 } from "lucide-react";
 import { memo } from "react";
 
 import { Text } from "@/components/typography";
+import { sortTasksByAttention } from "@/domain/tasks/sort";
 import { useTerminalOpenTaskIds } from "@/terminal/hooks";
 import { sortTasksByTerminal } from "@/terminal/task-sort";
 import type { TaskWithMeta } from "@/types/tasks";
@@ -64,7 +65,7 @@ export function TaskListSection({ tasks, loading }: TaskListSectionProps) {
 	const inProgressCount = tasks.filter(
 		(t) => openTaskIds.includes(t.id) || t.status === "pending" || t.status === "in_execution",
 	).length;
-	const orderedTasks = sortTasksByTerminal(tasks, openTaskIds);
+	const orderedTasks = sortTasksByTerminal(sortTasksByAttention(tasks), openTaskIds);
 
 	return (
 		<section>

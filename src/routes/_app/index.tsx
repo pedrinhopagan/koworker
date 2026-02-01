@@ -57,10 +57,6 @@ function HomePage() {
 		[selectedTaskId],
 	);
 
-	const handleProjectClick = useCallback((projectId: string) => {
-		window.location.href = `/tarefas?projetoId=${projectId}`;
-	}, []);
-
 	return (
 		<PageShell title="Dashboard" description="Seu painel de controle" icon={LayoutDashboardIcon}>
 			<div className="flex flex-col-reverse gap-6 h-full min-h-0 lg:grid lg:grid-cols-[2fr_3fr]">
@@ -82,7 +78,7 @@ function HomePage() {
 						onTaskClick={handleTaskClick}
 					/>
 
-					<ProjectsSection projects={projects} onProjectClick={handleProjectClick} />
+					<ProjectsSection projects={projects} />
 
 					<section>
 						<SectionHeader

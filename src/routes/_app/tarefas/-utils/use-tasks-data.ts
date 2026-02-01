@@ -14,10 +14,8 @@ export type TasksSearchFilters = {
 	projectId?: string;
 	taskTypeId?: string;
 	priorityId?: string;
-	status?: "pending" | "in_execution" | "executed";
-	includeCompleted?: boolean;
 	q?: string;
-	page?: number;
+	includeCompleted?: boolean;
 };
 
 export function useTasksData(filters: TasksSearchFilters) {
@@ -35,13 +33,18 @@ export function useTasksData(filters: TasksSearchFilters) {
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 
-	const includeCompleted = filters.includeCompleted ?? true;
+	const searchQuery = filters.q?.trim();
+
+	const projectIdForQuery = filters.projectId ?? selectedProjectId ?? null;
 
 	const tasksQuery = useQuery({
 		...orpc.tasks.getAll.queryOptions({
 			input: {
-				projectId: selectedProjectId ?? null,
-				includeCompleted,
+				projectId: projectIdForQuery,
+				includeCompleted: filters.includeCompleted ?? false,
+				taskTypeId: filters.taskTypeId,
+				priorityId: filters.priorityId,
+				q: searchQuery && searchQuery.length > 0 ? searchQuery : undefined,
 			},
 		}),
 	});
@@ -71,25 +74,8 @@ export function useTasksData(filters: TasksSearchFilters) {
 		});
 	});
 
-	const q = filters.q?.trim().toLowerCase() ?? "";
-	const page = filters.page ?? 1;
-	const pageSize = 50;
-
-	const filteredTasks = tasksWithMeta
-		.filter((t) => {
-			if (filters.taskTypeId && t.categoryId !== filters.taskTypeId) return false;
-			if (filters.priorityId && t.priorityId !== filters.priorityId) return false;
-			if (filters.status && t.status !== filters.status) return false;
-			if (q) {
-				const haystack = [t.title, t.description, t.notes].filter(Boolean).join(" ").toLowerCase();
-				if (!haystack.includes(q)) return false;
-			}
-			return true;
-		})
-		.slice((page - 1) * pageSize, page * pageSize);
-
-	const pendingCount = filteredTasks.filter((t) => t.status === "pending").length;
-	const executedCount = filteredTasks.filter((t) => t.status === "executed").length;
+	const pendingCount = tasksWithMeta.filter((t) => !t.completedAt).length;
+	const executedCount = tasksWithMeta.filter((t) => t.completedAt).length;
 
 	const loading =
 		projectsLoading ||
@@ -99,7 +85,7 @@ export function useTasksData(filters: TasksSearchFilters) {
 
 	return {
 		data: {
-			tasks: filteredTasks,
+			tasks: tasksWithMeta,
 			projects,
 			categories,
 			priorities,

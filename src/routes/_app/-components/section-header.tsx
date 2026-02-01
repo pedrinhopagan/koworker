@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { LinkProps, RegisteredRouter, useNavigate } from "@tanstack/react-router";
 import { ChevronRight, type LucideIcon } from "lucide-react";
 import { memo } from "react";
 
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 type SectionHeaderProps = {
 	title: string;
 	icon: LucideIcon;
-	linkTo: string;
+	linkTo: LinkProps<RegisteredRouter>["to"];
 	linkLabel: string;
 	badge?: string | number;
 	accentColor?: string;

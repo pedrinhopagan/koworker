@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 import { memo, useMemo } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
+import { sortTasksByAttention } from "@/domain/tasks/sort";
 import { cn } from "@/lib/utils";
 import { useTerminalOpenTaskIds } from "@/terminal/hooks";
 import { sortTasksByTerminal } from "@/terminal/task-sort";
@@ -56,7 +57,7 @@ export const TaskList = memo(function TaskList({
 	const itemVariant: TaskItemVariant = variant;
 	const openTaskIds = useTerminalOpenTaskIds();
 	const orderedTasks = useMemo(
-		() => sortTasksByTerminal(tasks, openTaskIds),
+		() => sortTasksByTerminal(sortTasksByAttention(tasks), openTaskIds),
 		[tasks, openTaskIds],
 	);
 
@@ -96,12 +97,8 @@ export const TaskList = memo(function TaskList({
 	);
 
 	if (separateDone) {
-		const pendingTasks = orderedTasks.filter(
-			(t) => t.status !== "executed" || openTaskIds.includes(t.id),
-		);
-		const doneTasks = orderedTasks.filter(
-			(t) => t.status === "executed" && !openTaskIds.includes(t.id),
-		);
+		const pendingTasks = orderedTasks.filter((t) => !t.completedAt || openTaskIds.includes(t.id));
+		const doneTasks = orderedTasks.filter((t) => t.completedAt && !openTaskIds.includes(t.id));
 
 		return (
 			<div className={styles.root()}>

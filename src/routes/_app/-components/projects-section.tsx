@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { FolderOpen } from "lucide-react";
 import { memo } from "react";
 
@@ -40,21 +40,30 @@ const EmptySection = memo(function EmptySection({
 // Compact project card
 type ProjectCardCompactProps = {
 	project: Project;
-	onClick: () => void;
+	onClick?: () => void;
 };
 
 const ProjectCardCompact = memo(function ProjectCardCompact({
 	project,
 	onClick,
 }: ProjectCardCompactProps) {
+	const navigate = useNavigate();
+
+	function handleClick() {
+		if (onClick) {
+			return onClick();
+		}
+		navigate({ to: `/projetos/${project.id}` });
+	}
+
 	const { pendingCount } = useTaskMetrics(project.id);
 
 	return (
 		<button
 			type="button"
-			onClick={onClick}
+			onClick={handleClick}
 			className={cn(
-				"flex shrink-0 w-48 p-3 border border-border bg-card transition-colors",
+				"flex shrink-0 w-48 p-3 border border-border bg-card transition-colors cursor-pointer",
 				"hover:border-primary/40 hover:bg-muted/30",
 				"focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 			)}
@@ -80,10 +89,9 @@ const ProjectCardCompact = memo(function ProjectCardCompact({
 // Projects section component
 type ProjectsSectionProps = {
 	projects: Project[];
-	onProjectClick: (projectId: string) => void;
 };
 
-export function ProjectsSection({ projects, onProjectClick }: ProjectsSectionProps) {
+export function ProjectsSection({ projects }: ProjectsSectionProps) {
 	return (
 		<section>
 			<SectionHeader
@@ -105,11 +113,7 @@ export function ProjectsSection({ projects, onProjectClick }: ProjectsSectionPro
 			) : (
 				<div className="flex overflow-x-auto gap-2 pb-2">
 					{projects.map((project) => (
-						<ProjectCardCompact
-							key={project.id}
-							project={project}
-							onClick={() => onProjectClick(project.id)}
-						/>
+						<ProjectCardCompact key={project.id} project={project} />
 					))}
 				</div>
 			)}

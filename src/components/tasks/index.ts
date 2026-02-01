@@ -10,6 +10,8 @@ export type { Priority, PriorityChipProps, PrioritySelectProps } from "./Priorit
 export { PriorityChip, PrioritySelect } from "./PrioritySelect";
 export type { SubtaskItemVariants } from "./SubtaskItem";
 export { SubtaskItem } from "./SubtaskItem";
+export { SubtaskDetailItem } from "./SubtaskDetailItem";
+export { SubtaskDetailList } from "./SubtaskDetailList";
 export type { SubtaskListVariants } from "./SubtaskList";
 export { SubtaskList } from "./SubtaskList";
 export type { TaskItemVariant } from "./TaskItem";

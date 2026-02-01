@@ -28,6 +28,7 @@ export type TaskAttentionInput = {
 	description?: string | null;
 	aiMetadata?: { lastCompletedAction?: string | null } | null;
 	subtasks?: SubtaskLike[] | null;
+	completedAt?: number | null;
 };
 
 export type TaskAttentionState = {
@@ -64,10 +65,11 @@ export type TaskAttentionState = {
  * - AI metadata (lastCompletedAction)
  */
 export function deriveProgressState(task: TaskAttentionInput): TaskProgressState {
-	const { status, subtasks = [], description, aiMetadata } = task;
+	const { status, subtasks = [], description, aiMetadata, completedAt } = task;
+	const lastAction = aiMetadata?.lastCompletedAction ?? null;
 
 	// Task is done
-	if (status === "executed") {
+	if (completedAt) {
 		return "done";
 	}
 
@@ -78,7 +80,12 @@ export function deriveProgressState(task: TaskAttentionInput): TaskProgressState
 	).length;
 	const inProgressCount = subtaskList.filter((s) => s.status === "in_progress").length;
 	const hasDescription = Boolean(description);
-	const lastAction = aiMetadata?.lastCompletedAction ?? null;
+	if (status === "executed") {
+		if (lastAction === "review") {
+			return "ready-to-commit";
+		}
+		return "ready-to-review";
+	}
 
 	// AI is currently working (task marked as in_execution)
 	if (status === "in_execution") {

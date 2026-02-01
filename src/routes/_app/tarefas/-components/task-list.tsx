@@ -2,6 +2,7 @@ import { useMemo } from "react";
 
 import { TaskItem } from "@/components/tasks";
 import { Text } from "@/components/typography";
+import { sortTasksByAttention } from "@/domain/tasks/sort";
 import { useTerminalOpenTaskIds } from "@/terminal/hooks";
 import { sortTasksByTerminal } from "@/terminal/task-sort";
 import type { TaskWithMeta } from "@/types/tasks";
@@ -14,7 +15,7 @@ type TaskListProps = {
 export function TaskList({ tasks, loading }: TaskListProps) {
 	const openTaskIds = useTerminalOpenTaskIds();
 	const orderedTasks = useMemo(
-		() => sortTasksByTerminal(tasks, openTaskIds),
+		() => sortTasksByTerminal(sortTasksByAttention(tasks), openTaskIds),
 		[tasks, openTaskIds],
 	);
 

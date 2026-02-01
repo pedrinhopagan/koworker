@@ -5,6 +5,7 @@ import { z } from "zod";
 import { PageShell } from "@/components/layout/page-shell";
 import { TaskForm } from "./-components/task-form";
 import { TaskList } from "./-components/task-list";
+import { TaskSearch } from "./-components/task-search";
 import { useCreateTask } from "./-utils/use-create-task";
 import { useTasksData } from "./-utils/use-tasks-data";
 
@@ -15,15 +16,12 @@ const rawSearchSchema = z.object({
 	projectId: z.string().optional(),
 	taskTypeId: z.string().optional(),
 	priorityId: z.string().optional(),
-	status: z.enum(["pending", "in_execution", "executed"]).optional(),
 	includeCompleted: z.coerce.boolean().optional(),
-	page: z.coerce.number().int().min(1).optional(),
 
 	// Legacy (PT-BR) — kept for backwards compatibility
 	projetoId: z.string().optional(),
 	categoriaId: z.string().optional(),
 	prioridadeId: z.string().optional(),
-	pagina: z.coerce.number().int().min(1).optional(),
 });
 
 const searchSchema = z.object({
@@ -31,9 +29,7 @@ const searchSchema = z.object({
 	projectId: z.string().optional(),
 	taskTypeId: z.string().optional(),
 	priorityId: z.string().optional(),
-	status: z.enum(["pending", "in_execution", "executed"]).optional(),
-	includeCompleted: z.boolean().optional().default(true),
-	page: z.number().int().min(1).optional(),
+	includeCompleted: z.boolean().optional(),
 });
 
 export const Route = createFileRoute("/_app/tarefas/")({
@@ -44,9 +40,7 @@ export const Route = createFileRoute("/_app/tarefas/")({
 			projectId: raw.projectId ?? raw.projetoId,
 			taskTypeId: raw.taskTypeId ?? raw.categoriaId,
 			priorityId: raw.priorityId ?? raw.prioridadeId,
-			status: raw.status,
 			includeCompleted: raw.includeCompleted,
-			page: raw.page ?? raw.pagina,
 		});
 	},
 	component: TarefasPage,
@@ -54,8 +48,27 @@ export const Route = createFileRoute("/_app/tarefas/")({
 
 function TarefasPage() {
 	const search = Route.useSearch();
+	const navigate = Route.useNavigate();
 	const { data, loading } = useTasksData(search);
 	const { createTask, loading: createLoading } = useCreateTask();
+
+	function handleSearchChange(next: {
+		q?: string;
+		taskTypeId?: string;
+		priorityId?: string;
+		includeCompleted?: boolean;
+	}) {
+		navigate({
+			search: (prev) => ({
+				...prev,
+				q: next.q,
+				taskTypeId: next.taskTypeId,
+				priorityId: next.priorityId,
+				includeCompleted: next.includeCompleted,
+			}),
+			replace: true,
+		});
+	}
 
 	return (
 		<PageShell
@@ -65,6 +78,17 @@ function TarefasPage() {
 		>
 			<div className="flex h-full min-h-0 flex-col gap-4">
 				<TaskForm onSubmit={createTask} loading={createLoading} />
+				<TaskSearch
+					value={{
+						q: search.q,
+						taskTypeId: search.taskTypeId,
+						priorityId: search.priorityId,
+						includeCompleted: search.includeCompleted,
+					}}
+					categories={data.categories}
+					priorities={data.priorities}
+					onChange={handleSearchChange}
+				/>
 
 				<div className="min-h-0 flex-1 overflow-y-auto pr-2 pb-6">
 					<TaskList tasks={data.tasks} loading={loading} />
