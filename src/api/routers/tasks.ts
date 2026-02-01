@@ -1,5 +1,8 @@
 import { protectedProcedure } from "../auth/context";
 import type { subtasks, tasks } from "../db/connection";
+import { dbCategories } from "../db/categories";
+import { dbPriorities } from "../db/priorities";
+import { dbProjects } from "../db/projects";
 import { dbSubtasks } from "../db/subtasks";
 import { dbTasks } from "../db/tasks";
 import { jsonParse, jsonStringify } from "../helpers/json";
@@ -73,6 +76,11 @@ export const tasksRouter = {
 			startDate: input.startDate,
 			endDate: input.endDate,
 			includeCompleted: input.includeCompleted,
+			taskTypeId: input.taskTypeId,
+			priorityId: input.priorityId,
+			priority: input.priority,
+			status: input.status,
+			q: input.q,
 		});
 
 		// Include subtasks to allow the UI to derive status/attention and identify
@@ -111,6 +119,45 @@ export const tasksRouter = {
 
 		const subtaskRows = await dbSubtasks.listByTask(input.id);
 		return mapTask(row, { subtasks: subtaskRows });
+	}),
+
+	getFull: protectedProcedure.input(TaskIdSchema).handler(async ({ input }) => {
+		const row = await dbTasks.getById(input.id);
+		if (!row) return null;
+
+		const [subtaskRows, category, priority, project] = await Promise.all([
+			dbSubtasks.listByTask(input.id),
+			dbCategories.getById(row.category_id),
+			dbPriorities.getById(row.priority_id),
+			dbProjects.getById(row.project_id),
+		]);
+
+		return {
+			...mapTask(row, { subtasks: subtaskRows }),
+			category: category
+				? {
+						id: category.id,
+						name: category.name,
+						color: category.color,
+					}
+				: null,
+			priority: priority
+				? {
+						id: priority.id,
+						name: priority.name,
+						color: priority.color,
+						level: priority.level,
+					}
+				: null,
+			project: project
+				? {
+						id: project.id,
+						name: project.name,
+						color: project.color,
+						mainRoute: project.main_route,
+					}
+				: null,
+		};
 	}),
 
 	create: protectedProcedure.input(TaskCreateSchema).handler(async ({ input }) => {

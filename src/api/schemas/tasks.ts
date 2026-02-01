@@ -13,6 +13,7 @@ export const TaskIdSchema = z.object({
 });
 
 export const TaskListFiltersSchema = z.object({
+	q: z.string().trim().min(1).optional(),
 	/**
 	 * Filter by the task type/category.
 	 *
@@ -25,6 +26,7 @@ export const TaskListFiltersSchema = z.object({
 	 *
 	 * NOTE: In the DB this maps to `tasks.priority_id`.
 	 */
+	priorityId: z.string().min(1).optional(),
 	priority: z.string().min(1).optional(),
 
 	status: TaskStatusSchema.optional(),

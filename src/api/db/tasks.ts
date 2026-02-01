@@ -25,12 +25,24 @@ const applyTaskListFilters = (
 		query = query.where("category_id", "=", filters.taskTypeId);
 	}
 
-	if (filters.priority) {
-		query = query.where("priority_id", "=", filters.priority);
+	const priorityId = filters.priorityId ?? filters.priority;
+	if (priorityId) {
+		query = query.where("priority_id", "=", priorityId);
 	}
 
 	if (filters.status) {
 		query = query.where("status", "=", filters.status);
+	}
+
+	if (filters.q) {
+		const searchTerm = `%${filters.q.trim()}%`;
+		query = query.where((eb: any) =>
+			eb.or([
+				eb("title", "like", searchTerm),
+				eb("description", "like", searchTerm),
+				eb("notes", "like", searchTerm),
+			]),
+		);
 	}
 
 	return query;
@@ -101,13 +113,13 @@ export const dbTasks = {
 			query = query.where("scheduled_date", "<=", input.endDate);
 		}
 
-		// Keep the existing app behavior: exclude completed by default,
-		// unless an explicit status filter is provided.
-		if (!input.includeCompleted && !input.status) {
-			query = query.where("status", "!=", "executed");
+		// Exclude completed (approved) tasks by default.
+		if (!input.includeCompleted) {
+			query = query.where("completed_at", "is", null);
 		}
 
 		query = applyTaskListFilters(query, input);
+		query = query.orderBy("created_at", "desc");
 		return query.execute();
 	},
 
@@ -150,9 +162,13 @@ export const dbTasks = {
 			.select([
 				"project_id",
 				sql<number>`count(*)`.as("total"),
-				sql<number>`sum(case when status = 'pending' then 1 else 0 end)`.as("pending"),
-				sql<number>`sum(case when status = 'in_progress' then 1 else 0 end)`.as("in_progress"),
-				sql<number>`sum(case when status = 'done' then 1 else 0 end)`.as("done"),
+				sql<number>`sum(case when completed_at is null and status = 'pending' then 1 else 0 end)`.as(
+					"pending",
+				),
+				sql<number>`sum(case when completed_at is null and status in ('in_execution', 'in_progress') then 1 else 0 end)`.as(
+					"in_progress",
+				),
+				sql<number>`sum(case when completed_at is not null then 1 else 0 end)`.as("done"),
 				sql<number | null>`max(updated_at)`.as("last_updated"),
 			])
 			.where("deleted_at", "is", null)
@@ -164,9 +180,13 @@ export const dbTasks = {
 			.selectFrom("tasks")
 			.select([
 				sql<number>`count(*)`.as("total"),
-				sql<number>`sum(case when status = 'pending' then 1 else 0 end)`.as("pending"),
-				sql<number>`sum(case when status = 'in_execution' then 1 else 0 end)`.as("in_progress"),
-				sql<number>`sum(case when status = 'executed' then 1 else 0 end)`.as("done"),
+				sql<number>`sum(case when completed_at is null and status = 'pending' then 1 else 0 end)`.as(
+					"pending",
+				),
+				sql<number>`sum(case when completed_at is null and status in ('in_execution', 'in_progress') then 1 else 0 end)`.as(
+					"in_progress",
+				),
+				sql<number>`sum(case when completed_at is not null then 1 else 0 end)`.as("done"),
 			])
 			.where("deleted_at", "is", null);
 
@@ -183,6 +203,7 @@ export const dbTasks = {
 			.innerJoin("priorities", "priorities.id", "tasks.priority_id")
 			.selectAll("tasks")
 			.where("tasks.deleted_at", "is", null)
+			.where("tasks.completed_at", "is", null)
 			.where("tasks.status", "in", ["pending", "in_execution"])
 			.orderBy("priorities.level", "asc")
 			.orderBy("tasks.created_at", "asc")
