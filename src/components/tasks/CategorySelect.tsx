@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, Settings2 } from "lucide-react";
-import { useState } from "react";
-
 import { orpc } from "@/client";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { cn } from "@/lib/utils";
+import { useManageDrawerStore } from "@/stores/manage-drawers";
 import { CategoryManagerDrawer } from "./CategoryManagerDrawer";
 
 // ============================================================================
@@ -62,7 +61,7 @@ export function CategorySelect({
 	placeholder = "Categoria",
 	triggerClassName,
 }: CategorySelectProps) {
-	const [isManagerOpen, setIsManagerOpen] = useState(false);
+	const openManageDrawer = useManageDrawerStore((s) => s.open);
 	// Fetch categories internally
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const categories = (categoriesQuery.data ?? []) as Category[];
@@ -93,7 +92,7 @@ export function CategorySelect({
 				value={value ?? undefined}
 				onValueChange={(newValue, item) => {
 					if (newValue === MANAGE_CATEGORY_ID) {
-						setIsManagerOpen(true);
+						openManageDrawer("categories");
 						return;
 					}
 					onValueChange(newValue, item as Category);
@@ -153,7 +152,7 @@ export function CategorySelect({
 				triggerClassName={cn("gap-1 min-w-[140px]", triggerClassName)}
 				contentClassName="min-w-[180px]"
 			/>
-			<CategoryManagerDrawer open={isManagerOpen} onClose={() => setIsManagerOpen(false)} />
+			<CategoryManagerDrawer />
 		</>
 	);
 }

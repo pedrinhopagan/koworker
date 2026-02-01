@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, Settings2 } from "lucide-react";
-import { useState } from "react";
-
 import { orpc } from "@/client";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { cn } from "@/lib/utils";
+import { useManageDrawerStore } from "@/stores/manage-drawers";
 import { PriorityManagerDrawer } from "./PriorityManagerDrawer";
 
 // ============================================================================
@@ -73,7 +72,7 @@ export function PrioritySelect({
 	placeholder = "Prioridade",
 	triggerClassName,
 }: PrioritySelectProps) {
-	const [isManagerOpen, setIsManagerOpen] = useState(false);
+	const openManageDrawer = useManageDrawerStore((s) => s.open);
 	// Fetch priorities internally
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 	const priorities = (prioritiesQuery.data ?? []) as Priority[];
@@ -108,7 +107,7 @@ export function PrioritySelect({
 				value={value ?? undefined}
 				onValueChange={(newValue, item) => {
 					if (newValue === MANAGE_PRIORITY_ID) {
-						setIsManagerOpen(true);
+						openManageDrawer("priorities");
 						return;
 					}
 					onValueChange(newValue, item as Priority);
@@ -171,7 +170,7 @@ export function PrioritySelect({
 				triggerClassName={cn("gap-1 min-w-[140px]", triggerClassName)}
 				contentClassName="min-w-[var(--radix-select-trigger-width)]"
 			/>
-			<PriorityManagerDrawer open={isManagerOpen} onClose={() => setIsManagerOpen(false)} />
+			<PriorityManagerDrawer />
 		</>
 	);
 }

@@ -1,35 +1,35 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { orpc } from "@/client";
 import { Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { Drawer } from "@/components/ui/drawer";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
+import { ManageDrawer } from "@/components/ui/manage-drawer";
 import {
 	DragHandle,
-	SortableList,
 	type SortableItemRenderProps,
+	SortableList,
 } from "@/components/ui/sortable-list";
 import { cn } from "@/lib/utils";
 
 type CategoryItem = {
 	id: string;
 	name: string;
-	color: string | null;
+	color: string;
 	displayOrder: number;
+	createdAt: number;
+	updatedAt: number | undefined;
 };
 
-type Props = {
-	open: boolean;
-	onClose: () => void;
-};
-
-export function CategoryManagerDrawer({ open, onClose }: Props) {
+export function CategoryManagerDrawer() {
 	const queryClient = useQueryClient();
-	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
+	const categoriesQueryOptions = orpc.categories.list.queryOptions();
+	const categoriesQuery = useQuery(categoriesQueryOptions);
 	const categories = (categoriesQuery.data ?? []) as CategoryItem[];
+	const categoriesQueryKey = categoriesQueryOptions.queryKey;
 
 	const [newName, setNewName] = useState("");
 	const [newColor, setNewColor] = useState("#000000");
@@ -39,27 +39,21 @@ export function CategoryManagerDrawer({ open, onClose }: Props) {
 		...orpc.categories.create.mutationOptions(),
 		onSuccess: async () => {
 			setNewName("");
-			await queryClient.invalidateQueries({
-				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "categories",
-			});
+			await queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
 		},
 	});
 
 	const updateMutation = useMutation({
 		...orpc.categories.update.mutationOptions(),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "categories",
-			});
+			await queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
 		},
 	});
 
 	const deleteMutation = useMutation({
 		...orpc.categories.delete.mutationOptions(),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "categories",
-			});
+			await queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
 		},
 	});
 
@@ -68,21 +62,49 @@ export function CategoryManagerDrawer({ open, onClose }: Props) {
 		...orpc.categories.migrateAndDelete.mutationOptions(),
 		onSuccess: async () => {
 			setDeleteTargetById({});
+			await queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
 			await queryClient.invalidateQueries({
-				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "categories",
-			});
-			await queryClient.invalidateQueries({
-				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "tasks",
+				predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "tasks",
 			});
 		},
 	});
 
+	const invalidateTimeoutRef = useRef<number | null>(null);
+
+	useEffect(() => {
+		return () => {
+			if (invalidateTimeoutRef.current) window.clearTimeout(invalidateTimeoutRef.current);
+		};
+	}, []);
+
 	const reorderMutation = useMutation({
 		...orpc.categories.reorder.mutationOptions(),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "categories",
-			});
+		onMutate: async ({ orderedIds }) => {
+			await queryClient.cancelQueries({ queryKey: categoriesQueryKey });
+			const previous = queryClient.getQueryData(categoriesQueryKey) as CategoryItem[] | undefined;
+
+			if (previous && previous.length > 0) {
+				const byId = new Map(previous.map((c) => [c.id, c] as const));
+				const next = orderedIds
+					.map((id, index) => {
+						const item = byId.get(id);
+						return item ? { ...item, displayOrder: index } : null;
+					})
+					.filter(Boolean) as CategoryItem[];
+
+				queryClient.setQueryData(categoriesQueryKey, next);
+			}
+
+			return { previous };
+		},
+		onError: (_err, _vars, ctx) => {
+			if (ctx?.previous) queryClient.setQueryData(categoriesQueryKey, ctx.previous);
+		},
+		onSettled: () => {
+			if (invalidateTimeoutRef.current) window.clearTimeout(invalidateTimeoutRef.current);
+			invalidateTimeoutRef.current = window.setTimeout(() => {
+				queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
+			}, 350);
 		},
 	});
 
@@ -90,6 +112,11 @@ export function CategoryManagerDrawer({ open, onClose }: Props) {
 		() => [...categories].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)),
 		[categories],
 	);
+	const [orderedItems, setOrderedItems] = useState<CategoryItem[]>(sorted);
+
+	useEffect(() => {
+		setOrderedItems(sorted);
+	}, [sorted]);
 
 	function submitCreate() {
 		const name = newName.trim();
@@ -151,9 +178,8 @@ export function CategoryManagerDrawer({ open, onClose }: Props) {
 	}
 
 	return (
-		<Drawer
-			open={open}
-			onClose={onClose}
+		<ManageDrawer
+			drawerKey="categories"
 			title="Gerenciar categorias"
 			description="Crie, edite, reordene e remova categorias"
 		>
@@ -190,12 +216,13 @@ export function CategoryManagerDrawer({ open, onClose }: Props) {
 						Categorias
 					</Title>
 
-					{sorted.length === 0 ? (
+					{orderedItems.length === 0 ? (
 						<div className="text-sm text-muted-foreground">Nenhuma categoria cadastrada.</div>
 					) : (
 						<SortableList
-							items={sorted.map((c) => ({ ...c, id: c.id }))}
+							items={orderedItems}
 							onReorder={(items) => {
+								setOrderedItems(items as CategoryItem[]);
 								reorderMutation.mutate({ orderedIds: items.map((i) => i.id) });
 							}}
 							renderItem={renderItem}
@@ -211,25 +238,34 @@ export function CategoryManagerDrawer({ open, onClose }: Props) {
 						{sorted.map((c) => (
 							<div key={c.id} className="flex items-center justify-between gap-2">
 								<span className="text-xs text-muted-foreground truncate">{c.name}</span>
-								<select
-									value={deleteTargetById[c.id] ?? ""}
-									onChange={(e) => setDeleteTargetById((s) => ({ ...s, [c.id]: e.target.value }))}
-									className="h-8 rounded-md border border-border bg-card px-2 text-xs"
-								>
-									<option value="">Destino (se necessário)</option>
-									{sorted
+								<CustomSelect
+									items={sorted
 										.filter((x) => x.id !== c.id)
-										.map((x) => (
-											<option key={x.id} value={x.id}>
-												{x.name}
-											</option>
-										))}
-								</select>
+										.map((x) => ({ id: x.id, name: x.name, color: x.color }))}
+									value={deleteTargetById[c.id] || undefined}
+									onValueChange={(newValue) =>
+										setDeleteTargetById((s) => ({ ...s, [c.id]: newValue }))
+									}
+									label="Destino (se necessário)"
+									placeholder="Destino (se necessário)"
+									variant="default"
+									size="sm"
+									triggerClassName="min-w-[220px]"
+									renderItem={(item) => (
+										<div className="w-full px-3 py-2 flex items-center gap-2 text-sm text-foreground">
+											<span
+												className="size-2 rounded-full shrink-0"
+												style={{ backgroundColor: item.color ?? "#6b7280" }}
+											/>
+											<span className="truncate">{item.name}</span>
+										</div>
+									)}
+								/>
 							</div>
 						))}
 					</div>
 				</div>
 			</div>
-		</Drawer>
+		</ManageDrawer>
 	);
 }

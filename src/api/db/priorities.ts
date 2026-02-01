@@ -40,16 +40,16 @@ export const dbPriorities = {
 	delete: (id: string) => db.deleteFrom("priorities").where("id", "=", id).executeTakeFirst(),
 
 	reorder: async (orderedIds: string[]) => {
-		// Update display_order for each priority based on array position
-		const updates = orderedIds.map((id, index) =>
-			db
-				.updateTable("priorities")
-				.set({ display_order: index, updated_at: Date.now() })
-				.where("id", "=", id)
-				.executeTakeFirst(),
-		);
-
-		await Promise.all(updates);
+		// Keep this atomic so the UI never observes a partially-updated order.
+		await db.transaction().execute(async (trx) => {
+			for (const [index, id] of orderedIds.entries()) {
+				await trx
+					.updateTable("priorities")
+					.set({ display_order: index, updated_at: Date.now() })
+					.where("id", "=", id)
+					.executeTakeFirst();
+			}
+		});
 	},
 
 	hasAssociatedTasks: async (id: string) => {

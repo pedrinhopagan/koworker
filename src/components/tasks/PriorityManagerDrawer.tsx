@@ -1,36 +1,36 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { orpc } from "@/client";
 import { Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { Drawer } from "@/components/ui/drawer";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
+import { ManageDrawer } from "@/components/ui/manage-drawer";
 import {
 	DragHandle,
-	SortableList,
 	type SortableItemRenderProps,
+	SortableList,
 } from "@/components/ui/sortable-list";
 import { cn } from "@/lib/utils";
 
 type PriorityItem = {
 	id: string;
 	name: string;
-	color: string | null;
+	color: string;
 	level: number;
 	displayOrder: number;
+	createdAt: number;
+	updatedAt: number | undefined;
 };
 
-type Props = {
-	open: boolean;
-	onClose: () => void;
-};
-
-export function PriorityManagerDrawer({ open, onClose }: Props) {
+export function PriorityManagerDrawer() {
 	const queryClient = useQueryClient();
-	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
+	const prioritiesQueryOptions = orpc.priorities.list.queryOptions();
+	const prioritiesQuery = useQuery(prioritiesQueryOptions);
 	const priorities = (prioritiesQuery.data ?? []) as PriorityItem[];
+	const prioritiesQueryKey = prioritiesQueryOptions.queryKey;
 
 	const [newName, setNewName] = useState("");
 	const [newColor, setNewColor] = useState("#000000");
@@ -42,27 +42,21 @@ export function PriorityManagerDrawer({ open, onClose }: Props) {
 		onSuccess: async () => {
 			setNewName("");
 			setNewLevel("1");
-			await queryClient.invalidateQueries({
-				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "priorities",
-			});
+			await queryClient.invalidateQueries({ queryKey: prioritiesQueryKey });
 		},
 	});
 
 	const updateMutation = useMutation({
 		...orpc.priorities.update.mutationOptions(),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "priorities",
-			});
+			await queryClient.invalidateQueries({ queryKey: prioritiesQueryKey });
 		},
 	});
 
 	const deleteMutation = useMutation({
 		...orpc.priorities.delete.mutationOptions(),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "priorities",
-			});
+			await queryClient.invalidateQueries({ queryKey: prioritiesQueryKey });
 		},
 	});
 
@@ -71,21 +65,50 @@ export function PriorityManagerDrawer({ open, onClose }: Props) {
 		...orpc.priorities.migrateAndDelete.mutationOptions(),
 		onSuccess: async () => {
 			setDeleteTargetById({});
+			await queryClient.invalidateQueries({ queryKey: prioritiesQueryKey });
+			// tasks can be filtered in multiple places; invalidate by prefix.
 			await queryClient.invalidateQueries({
-				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "priorities",
-			});
-			await queryClient.invalidateQueries({
-				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "tasks",
+				predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "tasks",
 			});
 		},
 	});
 
+	const invalidateTimeoutRef = useRef<number | null>(null);
+
+	useEffect(() => {
+		return () => {
+			if (invalidateTimeoutRef.current) window.clearTimeout(invalidateTimeoutRef.current);
+		};
+	}, []);
+
 	const reorderMutation = useMutation({
 		...orpc.priorities.reorder.mutationOptions(),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "priorities",
-			});
+		onMutate: async ({ orderedIds }) => {
+			await queryClient.cancelQueries({ queryKey: prioritiesQueryKey });
+			const previous = queryClient.getQueryData(prioritiesQueryKey) as PriorityItem[] | undefined;
+
+			if (previous && previous.length > 0) {
+				const byId = new Map(previous.map((p) => [p.id, p] as const));
+				const next = orderedIds
+					.map((id, index) => {
+						const item = byId.get(id);
+						return item ? { ...item, displayOrder: index } : null;
+					})
+					.filter(Boolean) as PriorityItem[];
+
+				queryClient.setQueryData(prioritiesQueryKey, next);
+			}
+
+			return { previous };
+		},
+		onError: (_err, _vars, ctx) => {
+			if (ctx?.previous) queryClient.setQueryData(prioritiesQueryKey, ctx.previous);
+		},
+		onSettled: () => {
+			if (invalidateTimeoutRef.current) window.clearTimeout(invalidateTimeoutRef.current);
+			invalidateTimeoutRef.current = window.setTimeout(() => {
+				queryClient.invalidateQueries({ queryKey: prioritiesQueryKey });
+			}, 350);
 		},
 	});
 
@@ -93,6 +116,11 @@ export function PriorityManagerDrawer({ open, onClose }: Props) {
 		() => [...priorities].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)),
 		[priorities],
 	);
+	const [orderedItems, setOrderedItems] = useState<PriorityItem[]>(sorted);
+
+	useEffect(() => {
+		setOrderedItems(sorted);
+	}, [sorted]);
 
 	function submitCreate() {
 		const name = newName.trim();
@@ -164,9 +192,8 @@ export function PriorityManagerDrawer({ open, onClose }: Props) {
 	}
 
 	return (
-		<Drawer
-			open={open}
-			onClose={onClose}
+		<ManageDrawer
+			drawerKey="priorities"
 			title="Gerenciar prioridades"
 			description="Crie, edite, reordene e remova prioridades"
 		>
@@ -211,12 +238,13 @@ export function PriorityManagerDrawer({ open, onClose }: Props) {
 						Prioridades
 					</Title>
 
-					{sorted.length === 0 ? (
+					{orderedItems.length === 0 ? (
 						<div className="text-sm text-muted-foreground">Nenhuma prioridade cadastrada.</div>
 					) : (
 						<SortableList
-							items={sorted.map((p) => ({ ...p, id: p.id }))}
+							items={orderedItems}
 							onReorder={(items) => {
+								setOrderedItems(items as PriorityItem[]);
 								reorderMutation.mutate({ orderedIds: items.map((i) => i.id) });
 							}}
 							renderItem={renderItem}
@@ -232,25 +260,34 @@ export function PriorityManagerDrawer({ open, onClose }: Props) {
 						{sorted.map((p) => (
 							<div key={p.id} className="flex items-center justify-between gap-2">
 								<span className="text-xs text-muted-foreground truncate">{p.name}</span>
-								<select
-									value={deleteTargetById[p.id] ?? ""}
-									onChange={(e) => setDeleteTargetById((s) => ({ ...s, [p.id]: e.target.value }))}
-									className="h-8 rounded-md border border-border bg-card px-2 text-xs"
-								>
-									<option value="">Destino (se necessário)</option>
-									{sorted
+								<CustomSelect
+									items={sorted
 										.filter((x) => x.id !== p.id)
-										.map((x) => (
-											<option key={x.id} value={x.id}>
-												{x.name}
-											</option>
-										))}
-								</select>
+										.map((x) => ({ id: x.id, name: x.name, color: x.color }))}
+									value={deleteTargetById[p.id] || undefined}
+									onValueChange={(newValue) =>
+										setDeleteTargetById((s) => ({ ...s, [p.id]: newValue }))
+									}
+									label="Destino (se necessário)"
+									placeholder="Destino (se necessário)"
+									variant="default"
+									size="sm"
+									triggerClassName="min-w-[220px]"
+									renderItem={(item) => (
+										<div className="w-full px-3 py-2 flex items-center gap-2 text-sm text-foreground">
+											<span
+												className="size-2 rounded-full shrink-0"
+												style={{ backgroundColor: item.color ?? "#6b7280" }}
+											/>
+											<span className="truncate">{item.name}</span>
+										</div>
+									)}
+								/>
 							</div>
 						))}
 					</div>
 				</div>
 			</div>
-		</Drawer>
+		</ManageDrawer>
 	);
 }

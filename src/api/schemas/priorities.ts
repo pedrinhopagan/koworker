@@ -24,7 +24,7 @@ export const PriorityUpdateSchema = z.object({
 });
 
 export const PriorityReorderSchema = z.object({
-	orderedIds: z.array(z.string().min(1)),
+	orderedIds: z.array(z.string().min(1)).min(1),
 });
 
 export const PriorityMigrateAndDeleteSchema = z.object({
