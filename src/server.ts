@@ -20,6 +20,10 @@ function getCookieValue(cookieHeader: string | null, name: string) {
 
 await DbUsers.ensureDefaultUser();
 
+// Keep local DB schema compatible with current code (idempotent).
+const { ensureDbSchema } = await import("./api/db/migrate");
+ensureDbSchema();
+
 Bun.serve<WsData>({
 	port,
 	development: {
