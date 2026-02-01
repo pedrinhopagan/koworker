@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { useTaskTerminal } from "@/terminal/hooks";
 import { TerminalMount } from "@/terminal/terminal-mount";
 import { buildTmuxWindowScript } from "@/terminal/utils";
+import { TaskDetailsSection } from "./-components/task-details";
 
 export const Route = createFileRoute("/_app/tarefas/$taskId/")({
 	component: TaskDetailPage,
@@ -30,7 +31,7 @@ function TaskDetailPage() {
 	const { taskId } = Route.useParams();
 	const queryClient = useQueryClient();
 
-	const taskQuery = useQuery(orpc.tasks.getById.queryOptions({ input: { id: taskId } }));
+	const taskQuery = useQuery(orpc.tasks.getFull.queryOptions({ input: { id: taskId } }));
 	const task = taskQuery.data ?? null;
 
 	const updateTaskMutation = useMutation({
@@ -51,7 +52,6 @@ function TaskDetailPage() {
 	);
 
 	const [messageText, setMessageText] = useState("");
-	const [detailsOpen, setDetailsOpen] = useState(true);
 	const [executionOpen, setExecutionOpen] = useState(true);
 
 	const {
@@ -109,9 +109,7 @@ function TaskDetailPage() {
 					</Text>
 
 					<Button variant="outline" asChild>
-						<Link to="/tarefas" search={{ includeCompleted: true }}>
-							Voltar para tarefas
-						</Link>
+						<Link to="/tarefas">Voltar para tarefas</Link>
 					</Button>
 				</div>
 			</PageShell>
@@ -145,31 +143,11 @@ function TaskDetailPage() {
 			<div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
 				<section className="min-h-0 flex flex-col gap-4 overflow-y-auto pr-2 pb-6">
 					<CollapsibleSection
-						title="Detalhes da tarefa"
-						// subtitle={`ID: ${taskId}`}
-						open={detailsOpen}
-						onOpenChange={setDetailsOpen}
-						contentClassName="space-y-2"
-					>
-						<Text size="sm" tone="muted">
-							Comeca vazio. Conforme a tarefa for sendo modificada, os detalhes aparecem aqui.
-						</Text>
-						<div className="rounded-md border bg-background p-3 space-y-2">
-							<Text size="xs" tone="muted">
-								ID: {taskId}
-							</Text>
-							<Text size="sm" tone="muted">
-								(placeholder)
-							</Text>
-						</div>
-					</CollapsibleSection>
-
-					<CollapsibleSection
 						title="Execution Thread"
 						// subtitle={executionSubtitle}
 						open={executionOpen}
 						onOpenChange={setExecutionOpen}
-						contentClassName="space-y-3"
+						contentClassName=""
 					>
 						<div className="max-h-80 overflow-y-auto space-y-2">
 							{executionQuery.isLoading && (
@@ -177,11 +155,11 @@ function TaskDetailPage() {
 									Carregando mensagens...
 								</Text>
 							)}
-							{!executionQuery.isLoading && executionMessages.length === 0 && (
+							{/*{!executionQuery.isLoading && executionMessages.length === 0 && (
 								<Text size="sm" tone="muted">
 									Nenhuma mensagem ainda.
 								</Text>
-							)}
+							)}*/}
 							{!executionQuery.isLoading &&
 								executionMessages.length > 0 &&
 								executionMessages.map((m) => (
@@ -199,7 +177,7 @@ function TaskDetailPage() {
 								))}
 						</div>
 
-						<div className="border-t pt-3 space-y-2">
+						<div className="space-y-2">
 							<div className="flex flex-wrap items-center gap-2">
 								<CustomSelect
 									items={AGENTS}
@@ -227,6 +205,7 @@ function TaskDetailPage() {
 										</div>
 									)}
 									triggerClassName="flex-1"
+									upperLabel
 								/>
 
 								<CustomSelect
@@ -247,6 +226,7 @@ function TaskDetailPage() {
 										</div>
 									)}
 									triggerClassName="flex-1"
+									upperLabel
 								/>
 
 								<CustomSelect
@@ -267,7 +247,8 @@ function TaskDetailPage() {
 											</div>
 										</div>
 									)}
-									triggerClassName="min-w-[160px]"
+									triggerClassName="flex-1"
+									upperLabel
 								/>
 							</div>
 
@@ -329,6 +310,8 @@ function TaskDetailPage() {
 							</div>
 						</div>
 					</CollapsibleSection>
+
+					<TaskDetailsSection task={task} />
 				</section>
 
 				<section className="min-h-0 flex flex-col overflow-hidden">
