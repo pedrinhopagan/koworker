@@ -28,8 +28,25 @@ export const projectsRouter = {
 	}),
 
 	getById: protectedProcedure.input(ProjectIdSchema).handler(async ({ input }) => {
-		const row = await dbProjects.getById(input.id);
-		return row ? mapProject(row) : null;
+		const row = await dbProjects.getByIdWithSummary(input.id);
+		if (!row) return null;
+
+		const total = Number(row.tasks_total ?? 0);
+		const done = Number(row.tasks_done ?? 0);
+		const pending = Number(row.tasks_pending ?? 0);
+		const inProgress = Number(row.tasks_in_execution ?? 0);
+		const progress = total === 0 ? 0 : Math.round((done / total) * 100);
+
+		return {
+			...mapProject(row),
+			tasksSummary: {
+				total,
+				pending,
+				inProgress,
+				done,
+				progress,
+			},
+		};
 	}),
 
 	create: protectedProcedure.input(ProjectCreateSchema).handler(async ({ input }) => {
