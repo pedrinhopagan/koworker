@@ -18,7 +18,7 @@ const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
 const dropdownMenuSubTriggerVariants = tv({
-	base: "flex cursor-default select-none items-center gap-2 rounded-sm px-3 py-1.5 text-sm outline-none focus:bg-muted focus:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	base: "flex cursor-pointer select-none items-center gap-2 px-3 py-2 text-sm outline-none bg-card text-muted-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 	variants: {
 		inset: {
 			true: "pl-8",
@@ -44,42 +44,68 @@ const DropdownMenuSubTrigger = React.forwardRef<
 DropdownMenuSubTrigger.displayName = DropdownMenuPrimitive.SubTrigger.displayName;
 
 const dropdownMenuSubContentVariants = tv({
-	base: "z-50 min-w-[8rem] overflow-hidden rounded-md border border-border bg-card p-1 text-foreground shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+	base: "z-50 min-w-[8rem] overflow-hidden rounded-md border border-border bg-card text-foreground shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
 });
 
 const DropdownMenuSubContent = React.forwardRef<
 	React.ElementRef<typeof DropdownMenuPrimitive.SubContent>,
 	React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
->(({ className, ...props }, ref) => (
-	<DropdownMenuPrimitive.SubContent
-		ref={ref}
-		className={cn(dropdownMenuSubContentVariants(), className)}
-		{...props}
-	/>
-));
+>(({ className, style, ...props }, ref) => {
+	const contentStyle: React.CSSProperties = {
+		backgroundColor: "var(--card)",
+		color: "var(--card-foreground)",
+		...style,
+	};
+
+	return (
+		<DropdownMenuPrimitive.SubContent
+			ref={ref}
+			className={cn(dropdownMenuSubContentVariants(), className)}
+			style={contentStyle}
+			{...props}
+		/>
+	);
+});
 DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName;
 
 const dropdownMenuContentVariants = tv({
-	base: "z-[100] min-w-[160px] overflow-hidden rounded-md border border-border bg-card py-1 text-foreground shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+	base: "z-50 min-w-[160px] overflow-hidden rounded-md border border-border bg-card text-foreground shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
 });
 
 const DropdownMenuContent = React.forwardRef<
 	React.ElementRef<typeof DropdownMenuPrimitive.Content>,
 	React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
-	<DropdownMenuPrimitive.Portal>
-		<DropdownMenuPrimitive.Content
-			ref={ref}
-			sideOffset={sideOffset}
-			className={cn(dropdownMenuContentVariants(), className)}
-			{...props}
-		/>
-	</DropdownMenuPrimitive.Portal>
-));
+>(({ className, sideOffset = 8, style, ...props }, ref) => {
+	const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
+
+	React.useEffect(() => {
+		if (portalContainer) return;
+		const themeRoot = document.querySelector<HTMLElement>("[data-theme-root]");
+		setPortalContainer(themeRoot);
+	}, [portalContainer]);
+
+	const contentStyle: React.CSSProperties = {
+		backgroundColor: "var(--card)",
+		color: "var(--card-foreground)",
+		...style,
+	};
+
+	return (
+		<DropdownMenuPrimitive.Portal container={portalContainer ?? undefined}>
+			<DropdownMenuPrimitive.Content
+				ref={ref}
+				sideOffset={sideOffset}
+				className={cn(dropdownMenuContentVariants(), className)}
+				style={contentStyle}
+				{...props}
+			/>
+		</DropdownMenuPrimitive.Portal>
+	);
+});
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
 const dropdownMenuItemVariants = tv({
-	base: "relative flex cursor-default select-none items-center gap-2 rounded-sm px-3 py-1.5 text-sm outline-none transition-colors focus:bg-muted focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	base: "relative flex cursor-pointer select-none items-center gap-2 px-3 py-2 text-sm outline-none transition-colors bg-card text-muted-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 	variants: {
 		inset: {
 			true: "pl-8",
@@ -102,7 +128,7 @@ const DropdownMenuItem = React.forwardRef<
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 
 const dropdownMenuCheckboxItemVariants = tv({
-	base: "relative flex cursor-default select-none items-center gap-2 rounded-sm py-1.5 pr-3 pl-8 text-sm outline-none transition-colors focus:bg-muted focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	base: "relative flex cursor-pointer select-none items-center gap-2 py-2 pr-3 pl-8 text-sm outline-none transition-colors bg-card text-muted-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 });
 
 const DropdownMenuCheckboxItem = React.forwardRef<
@@ -126,7 +152,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
 DropdownMenuCheckboxItem.displayName = DropdownMenuPrimitive.CheckboxItem.displayName;
 
 const dropdownMenuRadioItemVariants = tv({
-	base: "relative flex cursor-default select-none items-center gap-2 rounded-sm py-1.5 pr-3 pl-8 text-sm outline-none transition-colors focus:bg-muted focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	base: "relative flex cursor-pointer select-none items-center gap-2 py-2 pr-3 pl-8 text-sm outline-none transition-colors bg-card text-muted-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 });
 
 const DropdownMenuRadioItem = React.forwardRef<
@@ -149,7 +175,7 @@ const DropdownMenuRadioItem = React.forwardRef<
 DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName;
 
 const dropdownMenuLabelVariants = tv({
-	base: "px-3 py-1.5 text-sm font-semibold text-foreground",
+	base: "px-3 py-2 text-xs text-muted-foreground uppercase tracking-wider",
 	variants: {
 		inset: {
 			true: "pl-8",

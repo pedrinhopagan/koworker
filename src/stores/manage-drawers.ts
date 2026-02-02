@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type ManageDrawerKey = "priorities" | "categories" | "agents" | "models";
+export type ManageDrawerKey = "priorities" | "categories";
 
 type ManageDrawerStore = {
 	openByKey: Partial<Record<ManageDrawerKey, boolean>>;

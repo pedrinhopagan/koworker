@@ -1,11 +1,7 @@
-import { ArrowBigRight, Plus, Terminal, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Plus, Terminal, X } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
-import type { Agent } from "@/components/agents/AgentSelect";
-import { AgentSelect } from "@/components/agents/AgentSelect";
-import type { Model } from "@/components/agents/ModelSelect";
-import { ModelSelect } from "@/components/agents/ModelSelect";
 import { Text } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,15 +11,8 @@ import { closeProjectTerminal, closeTaskTerminal } from "@/lib/terminal";
 import { useIsProjectTerminalOpen, useIsTaskWindowOpen } from "@/stores/terminal-status";
 import type { TaskFull } from "@/types/tasks";
 
-import {
-	copyToClipboard,
-	getStoredAgent,
-	getStoredModel,
-	runSkill,
-	setStoredAgent,
-	setStoredModel,
-} from "./agent-runner";
-import { buildPromptWithCustomInstructions, getCustomInstructions } from "./build-prompt";
+import { copyToClipboard } from "./agent-runner";
+import { buildPromptWithCustomInstructions } from "./build-prompt";
 import { SkillCard } from "./skill-card";
 import { SkillInstructionsEditor } from "./skill-instructions-editor";
 import { getSkillById, SKILL_IDS, SKILLS, type SkillId } from "./skill-registry";
@@ -46,54 +35,24 @@ export function TaskActionPanel({
 	disabled,
 }: TaskActionPanelProps) {
 	const [userInput, setUserInput] = useState("");
-	const [selectedAgentId, setSelectedAgentId] = useState<string | null>(() => getStoredAgent());
-	const [selectedModelId, setSelectedModelId] = useState<string | null>(() => getStoredModel());
-	const [executingSkillId, setExecutingSkillId] = useState<SkillId | null>(null);
 	const [editingSkillId, setEditingSkillId] = useState<SkillId | null>(null);
 
 	const isProjectTerminalOpen = useIsProjectTerminalOpen(task.projectId);
 	const isTaskWindowOpen = useIsTaskWindowOpen(task.id);
 
-	useEffect(() => {
-		if (selectedAgentId) {
-			setStoredAgent(selectedAgentId);
-		}
-	}, [selectedAgentId]);
-
-	useEffect(() => {
-		if (selectedModelId) {
-			setStoredModel(selectedModelId);
-		}
-	}, [selectedModelId]);
-
-	function handleAgentChange(agentId: string, _agent: Agent) {
-		setSelectedAgentId(agentId);
-	}
-
-	function handleModelChange(modelId: string, _model: Model) {
-		setSelectedModelId(modelId);
-	}
-
 	function buildCurrentPrompt(skillId: SkillId): string | null {
 		const skill = getSkillById(skillId);
 		if (!skill) return null;
 
-		const customInstructions = getCustomInstructions(skillId);
-		const skillWithInstructions = customInstructions
-			? { ...skill, instructions: customInstructions }
-			: skill;
-
 		return buildPromptWithCustomInstructions({
 			userInput,
-			skill: skillWithInstructions,
+			skill,
 			task,
 			selectedSubtaskIds,
-			agent: selectedAgentId ?? "default",
-			model: selectedModelId ?? "default",
 		});
 	}
 
-	async function handleExecuteSkill(skillId: SkillId) {
+	async function handleCopyPrompt(skillId: SkillId) {
 		const skill = getSkillById(skillId);
 		if (!skill) return;
 
@@ -104,7 +63,7 @@ export function TaskActionPanel({
 			}
 
 			if (selectedSubtaskIds.length === 0) {
-				toast.error("Selecione pelo menos uma subtask para executar");
+				toast.warning("Selecione pelo menos uma subtask para copiar o prompt");
 				return;
 			}
 		}
@@ -115,58 +74,13 @@ export function TaskActionPanel({
 			return;
 		}
 
-		setExecutingSkillId(skillId);
-
-		try {
-			const result = await runSkill({
-				skillId,
-				prompt,
-				agent: selectedAgentId ?? "default",
-				model: selectedModelId ?? "default",
-				taskId: task.id,
-				task: {
-					id: task.id,
-					title: task.title,
-					projectId: task.projectId,
-					project: task.project,
-				},
-			});
-
-			if (result.status === "success") {
-				toast.success(result.message ?? "Skill executada com sucesso");
-				setUserInput("");
-
-				if (selectingSubtasks) {
-					onCancelSubtaskSelection();
-				}
-			} else {
-				toast.error(result.message ?? "Erro ao executar skill");
-			}
-		} catch (error) {
-			console.error("[TaskActionPanel] Erro:", error);
-			toast.error("Erro inesperado ao executar skill");
-		} finally {
-			setExecutingSkillId(null);
-		}
-	}
-
-	async function handleCopyPrompt(skillId: SkillId) {
-		const skill = getSkillById(skillId);
-		if (!skill) return;
-
-		if (skill.requiresSubtaskSelection && selectedSubtaskIds.length === 0) {
-			toast.warning("Nenhuma subtask selecionada. O prompt será copiado sem subtasks específicas.");
-		}
-
-		const prompt = buildCurrentPrompt(skillId);
-		if (!prompt) {
-			toast.error("Erro ao gerar prompt");
-			return;
-		}
-
 		const success = await copyToClipboard(prompt);
 		if (success) {
-			toast.success("Prompt copiado para a área de transferência");
+			toast.success("Prompt copiado para a area de transferencia");
+
+			if (selectingSubtasks) {
+				onCancelSubtaskSelection();
+			}
 		} else {
 			toast.error("Erro ao copiar prompt");
 		}
@@ -187,7 +101,7 @@ export function TaskActionPanel({
 	}
 
 	return (
-		<section className="space-y-2 p-2">
+		<section className="space-y-4 p-2">
 			{isTauri() && isProjectTerminalOpen && (
 				<div className="flex items-center justify-between p-2 border border-green-500/30 bg-green-500/10 rounded">
 					<div className="flex items-center gap-2">
@@ -221,42 +135,16 @@ export function TaskActionPanel({
 
 			<div className="space-y-2">
 				<Text size="xs" tone="muted" className="uppercase tracking-wide">
-					Configurar Agent
+					Painel de controle
 				</Text>
-				<div className="grid grid-cols-2 gap-3">
-					<AgentSelect
-						value={selectedAgentId}
-						onValueChange={handleAgentChange}
-						placeholder="Agent"
-						triggerClassName="w-full"
-					/>
-					<ModelSelect
-						value={selectedModelId}
-						onValueChange={handleModelChange}
-						placeholder="Model"
-						triggerClassName="w-full"
-					/>
-				</div>
-			</div>
-
-			<div className="relative">
 				<Textarea
 					value={userInput}
 					onChange={(e) => setUserInput(e.target.value)}
-					placeholder="Descreva uma instrução ou quick fix para o agente..."
-					disabled={disabled || executingSkillId !== null}
-					className="min-h-[100px] resize-none bg-background"
-					rows={4}
+					placeholder="Descreva instrucoes adicionais, contexto ou ajustes que o agente deve considerar ao executar a skill..."
+					disabled={disabled}
+					className="min-h-[140px] resize-none bg-background text-sm"
+					rows={6}
 				/>
-
-				<Button
-					variant="outline"
-					size="sm"
-					// onClick={handleExecute}
-					className="absolute bottom-2 right-2"
-				>
-					<ArrowBigRight />
-				</Button>
 			</div>
 
 			{selectingSubtasks && (
@@ -276,7 +164,7 @@ export function TaskActionPanel({
 
 			<div className="space-y-2">
 				<Text size="xs" tone="muted" className="uppercase tracking-wide">
-					Skills Disponíveis
+					Skills Disponiveis
 				</Text>
 
 				<div className="grid grid-cols-1 gap-2">
@@ -284,10 +172,8 @@ export function TaskActionPanel({
 						<SkillCard
 							key={skill.id}
 							skill={skill}
-							isExecuting={executingSkillId === skill.id}
 							isConfirmMode={selectingSubtasks && skill.id === SKILL_IDS.EXECUTE_SUBTASKS}
-							disabled={disabled || (executingSkillId !== null && executingSkillId !== skill.id)}
-							onExecute={handleExecuteSkill}
+							disabled={disabled}
 							onCopyPrompt={handleCopyPrompt}
 							onEditInstructions={handleEditInstructions}
 						/>

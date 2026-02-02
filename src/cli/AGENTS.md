@@ -31,6 +31,8 @@ Recebe JSON com campos opcionais:
 ```typescript
 {
   taskId: string          // obrigatório
+  title?: string
+  description?: string
   status?: "pending" | "in_execution" | "executed"
   notes?: string
   ai_metadata?: object

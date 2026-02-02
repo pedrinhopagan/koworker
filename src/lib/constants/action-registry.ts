@@ -85,7 +85,7 @@ const commit: ActionDefinition = {
 	id: "commit",
 	label: "Commit",
 	icon: GitCommitHorizontal,
-	skill: "workopilot-commit",
+	skill: "koworker-commit",
 	color: ACTION_COLORS.commit,
 	suggestedWhen: (task, progressState) => {
 		if (progressState !== "ready-to-commit") return false;
@@ -97,25 +97,25 @@ const commit: ActionDefinition = {
 		return allDone && lastAction === "review" && task.status !== "executed";
 	},
 	generatePrompt: (task) =>
-		`Commit: ${task.title}, utilize a skill workopilot-commit para commitar as mudanças da task de id: ${task.id}`,
+		`Commit: ${task.title}, utilize a skill koworker-commit para commitar as mudanças da task de id: ${task.id}`,
 };
 
 const review: ActionDefinition = {
 	id: "review",
 	label: "Revisar",
 	icon: FileCheck,
-	skill: "workopilot-review",
+	skill: "koworker-review",
 	color: ACTION_COLORS.review,
 	suggestedWhen: (_, progressState) => progressState === "ready-to-review",
 	generatePrompt: (task) =>
-		`Revisar: ${task.title}, utilize a skill workopilot-review para revisar a task de id: ${task.id}`,
+		`Revisar: ${task.title}, utilize a skill koworker-review para revisar a task de id: ${task.id}`,
 };
 
 const executeSubtask: ActionDefinition = {
 	id: "execute_subtask",
 	label: "Executar Subtask",
 	icon: Target,
-	skill: "workopilot-execute-subtask",
+	skill: "koworker-execute-subtask",
 	color: ACTION_COLORS.execute_subtask,
 	suggestedWhen: (task, progressState) => {
 		if (progressState === "in-execution") return true;
@@ -128,7 +128,7 @@ const executeSubtask: ActionDefinition = {
 	generatePrompt: (task, subtaskId?: string) => {
 		const subtask = task.subtasks?.find((s) => s.id === subtaskId);
 		const subtaskTitle = subtask?.title ?? "subtask";
-		return `Executar subtask: ${subtaskTitle} (task: ${task.title}), utilize a skill workopilot-execute-subtask para executar a subtask ${subtaskId} da task ${task.id}`;
+		return `Executar subtask: ${subtaskTitle} (task: ${task.title}), utilize a skill koworker-execute-subtask para executar a subtask ${subtaskId} da task ${task.id}`;
 	},
 	requiresSubtaskSelect: true,
 };
@@ -137,7 +137,7 @@ const executeAll: ActionDefinition = {
 	id: "execute_all",
 	label: "Executar Tudo",
 	icon: Rocket,
-	skill: "workopilot-execute-all",
+	skill: "koworker-execute-all",
 	color: ACTION_COLORS.execute_all,
 	suggestedWhen: (task, progressState) => {
 		if (progressState !== "ready-to-start") return false;
@@ -145,18 +145,18 @@ const executeAll: ActionDefinition = {
 		return subtaskCount <= 3;
 	},
 	generatePrompt: (task) =>
-		`Executar: ${task.title}, utilize a skill workopilot-execute-all para executar a task de id: ${task.id}`,
+		`Executar: ${task.title}, utilize a skill koworker-execute-all para executar a task de id: ${task.id}`,
 };
 
 const structure: ActionDefinition = {
 	id: "structure",
 	label: "Estruturar",
 	icon: FileText,
-	skill: "workopilot-structure",
+	skill: "koworker-structure",
 	color: ACTION_COLORS.structure,
 	suggestedWhen: (_, progressState) => progressState === "idle" || progressState === "started",
 	generatePrompt: (task) =>
-		`Estruturar: ${task.title}, utilize a skill workopilot-structure para estruturar a task de id: ${task.id}`,
+		`Estruturar: ${task.title}, utilize a skill koworker-structure para estruturar a task de id: ${task.id}`,
 };
 
 // ============================================================================

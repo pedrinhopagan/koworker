@@ -1,4 +1,5 @@
-import { Check, Copy, Loader2, MoreVertical, Pencil } from "lucide-react";
+import { Check, Copy, MoreVertical, Pencil } from "lucide-react";
+import { useState } from "react";
 import { tv } from "tailwind-variants";
 
 import {
@@ -29,29 +30,30 @@ const skillCardVariants = tv({
 
 type SkillCardProps = {
 	skill: Skill;
-	isExecuting: boolean;
 	isConfirmMode: boolean;
 	disabled?: boolean;
-	onExecute: (skillId: SkillId) => void;
 	onCopyPrompt: (skillId: SkillId) => void;
 	onEditInstructions: (skillId: SkillId) => void;
 };
 
 export function SkillCard({
 	skill,
-	isExecuting,
 	isConfirmMode,
 	disabled,
-	onExecute,
 	onCopyPrompt,
 	onEditInstructions,
 }: SkillCardProps) {
 	const Icon = skill.icon;
 	const showCheckIcon = isConfirmMode && skill.requiresSubtaskSelection;
+	const [justCopied, setJustCopied] = useState(false);
 
 	function handleClick() {
-		if (disabled || isExecuting) return;
-		onExecute(skill.id);
+		if (disabled) return;
+
+		onCopyPrompt(skill.id);
+
+		setJustCopied(true);
+		setTimeout(() => setJustCopied(false), 1500);
 	}
 
 	function handleKeyDown(e: React.KeyboardEvent) {
@@ -67,7 +69,7 @@ export function SkillCard({
 				type="button"
 				onClick={handleClick}
 				onKeyDown={handleKeyDown}
-				disabled={disabled || isExecuting}
+				disabled={disabled}
 				className={skillCardVariants({
 					isActive: isConfirmMode,
 				})}
@@ -84,8 +86,8 @@ export function SkillCard({
 				aria-label={`${skill.label}: ${skill.description}`}
 			>
 				<div className="flex-shrink-0">
-					{isExecuting ? (
-						<Loader2 size={20} className="animate-spin" />
+					{justCopied ? (
+						<Check size={20} className="text-green-500" />
 					) : showCheckIcon ? (
 						<Check size={20} />
 					) : (
@@ -93,49 +95,39 @@ export function SkillCard({
 					)}
 				</div>
 				<div className="flex-1 min-w-0 text-left">
-					<div className="text-sm font-medium">
+					<div className="text-sm font-medium flex items-center gap-2">
 						{isConfirmMode && skill.requiresSubtaskSelection ? "Confirmar" : skill.label}
+						{justCopied && <span className="text-xs text-green-500 font-normal">Copiado!</span>}
 					</div>
 					{!isConfirmMode && (
 						<div className="text-xs text-muted-foreground truncate">{skill.description}</div>
 					)}
 				</div>
+				<Copy size={14} className="text-muted-foreground" />
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<button
+							type="button"
+							onClick={(e) => e.stopPropagation()}
+							className="p-2 cursor-pointer text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+							aria-label={`Menu de opcoes para ${skill.label}`}
+						>
+							<MoreVertical size={14} />
+						</button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end" className="min-w-[">
+						<DropdownMenuItem
+							onClick={(e) => {
+								e.stopPropagation();
+								onEditInstructions(skill.id);
+							}}
+						>
+							<Pencil size={14} />
+							<span>Editar instrucoes</span>
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</button>
-
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<button
-						type="button"
-						onClick={(e) => e.stopPropagation()}
-						className="absolute top-1 right-1 p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-						aria-label={`Menu de opções para ${skill.label}`}
-					>
-						<MoreVertical size={14} />
-					</button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end" sideOffset={8} className="min-w-[180px] p-0">
-					<DropdownMenuItem
-						onClick={(e) => {
-							e.stopPropagation();
-							onCopyPrompt(skill.id);
-						}}
-						className="px-3 py-2 rounded-none text-muted-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
-					>
-						<Copy size={14} />
-						<span>Copiar prompt</span>
-					</DropdownMenuItem>
-					<DropdownMenuItem
-						onClick={(e) => {
-							e.stopPropagation();
-							onEditInstructions(skill.id);
-						}}
-						className="px-3 py-2 rounded-none text-muted-foreground data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
-					>
-						<Pencil size={14} />
-						<span>Editar instruções</span>
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
 
 			{isConfirmMode && skill.requiresSubtaskSelection && (
 				<span

@@ -4,17 +4,17 @@ import {
 	FileSearch,
 	GitCommitHorizontal,
 	ListChecks,
-	Palette,
 	Rocket,
+	Wrench,
 } from "lucide-react";
 
 export const SKILL_IDS = {
-	STRUCTURE_TASK: "structure_task",
-	UI_PROMPT: "ui_prompt",
-	EXECUTE_ALL: "execute_all",
-	EXECUTE_SUBTASKS: "execute_subtasks",
-	REVIEW_PLAN: "review_plan",
-	COMMIT: "commit",
+	STRUCTURE_TASK: "koworker-structure",
+	EXECUTE_ALL: "koworker-execute-all",
+	EXECUTE_SUBTASKS: "koworker-execute-subtask",
+	REVIEW_PLAN: "koworker-review",
+	COMMIT: "koworker-commit",
+	QUICKFIX: "koworker-quickfix",
 } as const;
 
 export type SkillId = (typeof SKILL_IDS)[keyof typeof SKILL_IDS];
@@ -27,8 +27,16 @@ export type Skill = {
 	color: string;
 	instructions: string;
 	requiresSubtaskSelection?: boolean;
-	agentMode?: "plan" | "default";
 };
+
+const TASK_BASE = `## Base da Task (Koworker)
+
+- \`description\` e a fonte principal dos requisitos e detalhes
+- \`acceptance_criteria\` e uma lista JSON: \`[{ id, text, done }]\`
+- Use \`notes\` para registrar observacoes relevantes da IA
+- Subtasks devem ter \`title\` e \`description\` completos
+- Ao atualizar \`acceptance_criteria\`, envie o array completo
+- Status valido: \`pending\` | \`in_execution\` | \`executed\``;
 
 export const SKILLS: Skill[] = [
 	{
@@ -37,35 +45,38 @@ export const SKILLS: Skill[] = [
 		description: "Estrutura a tarefa em subtasks detalhadas",
 		icon: ListChecks,
 		color: "#61afef",
-		agentMode: "plan",
-		instructions: `Analise a tarefa fornecida e estruture-a em subtasks bem definidas.
+		instructions: `${TASK_BASE}
 
-Regras:
-1. Leia atentamente o título, descrição e critérios de aceitação da tarefa
-2. Quebre a tarefa em subtasks menores e acionáveis
-3. Cada subtask deve ser específica e ter um objetivo claro
-4. Ordene as subtasks de forma lógica (dependências primeiro)
-5. Use a CLI do Kowork para criar as subtasks no banco de dados
+## Objetivo
 
-Utilize o comando: kowork update-task para atualizar a tarefa com as novas subtasks.`,
-	},
-	{
-		id: SKILL_IDS.UI_PROMPT,
-		label: "Prompt de UI",
-		description: "Gera instruções detalhadas de UI",
-		icon: Palette,
-		color: "#e06c75",
-		instructions: `Com base na tarefa fornecida, gere um prompt detalhado de UI/Frontend.
+Estruturar a tarefa com detalhes completos, criterios de aceite e subtasks claras.
 
-O prompt deve incluir:
-1. Descrição visual do componente/tela
-2. Estados possíveis (loading, error, empty, success)
-3. Interações do usuário esperadas
-4. Responsividade (mobile, tablet, desktop)
-5. Acessibilidade (aria-labels, keyboard navigation)
-6. Componentes UI base a utilizar (seguindo o design system existente)
+## Processo
 
-Não implemente código ainda, apenas descreva as especificações de UI.`,
+1. **Entendimento**
+   - Confirme objetivo e escopo com o usuario
+   - Identifique pontos faltantes ou ambiguos
+
+2. **Descricao completa**
+   - Preencha \`description\` com requisitos e detalhes executaveis
+
+3. **Criterios de aceite**
+   - Crie \`acceptance_criteria\` com itens verificaveis
+   - Cada item deve ter \`id\` estavel, \`text\` claro e \`done: false\`
+
+4. **Subtasks (se necessario)**
+   - Crie subtasks com \`title\` e \`description\` completos
+   - Ordene por dependencias
+
+5. **Metadados**
+   - Atualize \`ai_metadata.lastCompletedAction\` para \`"structure"\`
+   - Use \`notes\` para registrar decisoes importantes
+
+## Regras
+
+- Nao implemente codigo nesta etapa
+- Sempre gere \`acceptance_criteria\`
+- Subtasks devem ser claras e mensuraveis`,
 	},
 	{
 		id: SKILL_IDS.EXECUTE_ALL,
@@ -73,17 +84,35 @@ Não implemente código ainda, apenas descreva as especificações de UI.`,
 		description: "Executa todas as subtasks pendentes",
 		icon: Rocket,
 		color: "#98c379",
-		instructions: `Execute todas as subtasks pendentes da tarefa em sequência.
+		instructions: `${TASK_BASE}
 
-Regras:
-1. Analise cada subtask e implemente na ordem correta
-2. Marque cada subtask como "executed" ao concluir via CLI
-3. Se encontrar bloqueios, documente no campo notes da tarefa
-4. Mantenha o código limpo e seguindo os padrões do projeto
-5. Rode testes se existirem e corrija falhas
-6. Use a CLI Kowork para atualizar o status das subtasks
+## Objetivo
 
-Comando: kowork update-task --id {taskId} para atualizar a tarefa.`,
+Executar todas as subtasks pendentes da tarefa em sequencia.
+
+## Processo
+
+1. **Inicio**
+   - Atualize a task para \`status: "in_execution"\`
+
+2. **Execucao por subtask**
+   - Marque a subtask como \`in_execution\`
+   - Implemente seguindo \`description\`
+   - Marque a subtask como \`executed\`
+   - Mantenha \`title\` e \`description\` no update da subtask
+
+3. **Criterios de aceite**
+   - Atualize \`acceptance_criteria\` conforme os itens forem atendidos
+
+4. **Finalizacao**
+   - Atualize \`notes\` com resumo do que foi feito
+   - Marque a task como \`executed\`
+
+## Regras
+
+- Uma subtask por vez, na ordem correta
+- Nao pule validacoes importantes
+- Se houver bloqueio, registre em \`notes\``,
 	},
 	{
 		id: SKILL_IDS.EXECUTE_SUBTASKS,
@@ -92,16 +121,34 @@ Comando: kowork update-task --id {taskId} para atualizar a tarefa.`,
 		icon: CirclePlay,
 		color: "#e5c07b",
 		requiresSubtaskSelection: true,
-		instructions: `Execute APENAS as subtasks selecionadas pelo usuário.
+		instructions: `${TASK_BASE}
 
-Regras:
-1. Foque exclusivamente nas subtasks listadas em "selectedSubtasks"
-2. Implemente cada uma na ordem em que aparecem
-3. Marque cada subtask como "executed" ao concluir via CLI
-4. Não toque em outras subtasks não selecionadas
-5. Documente qualquer impedimento encontrado
+## Objetivo
 
-Use a CLI Kowork para atualizar o status: kowork update-task`,
+Executar apenas as subtasks selecionadas pelo usuario.
+
+## Processo
+
+1. **Foco**
+   - Trabalhe apenas nas subtasks selecionadas
+   - Respeite a ordem exibida
+
+2. **Execucao por subtask**
+   - Marque a subtask como \`in_execution\`
+   - Implemente seguindo \`description\`
+   - Marque a subtask como \`executed\`
+   - Mantenha \`title\` e \`description\` no update da subtask
+
+3. **Criterios de aceite**
+   - Atualize \`acceptance_criteria\` conforme necessario
+
+4. **Finalizacao**
+   - Atualize \`notes\` com resumo das subtasks executadas
+
+## Regras
+
+- Nao altere subtasks nao selecionadas
+- Mantenha escopo estrito`,
 	},
 	{
 		id: SKILL_IDS.REVIEW_PLAN,
@@ -109,58 +156,92 @@ Use a CLI Kowork para atualizar o status: kowork update-task`,
 		description: "Revisa a tarefa e faz perguntas",
 		icon: FileSearch,
 		color: "#c678dd",
-		agentMode: "plan",
-		instructions: `Revise criticamente a tarefa e suas subtasks.
+		instructions: `${TASK_BASE}
 
-Seu objetivo é:
-1. Analisar se a descrição está clara e completa
-2. Verificar se os critérios de aceitação são mensuráveis
-3. Identificar gaps ou informações faltantes
-4. Fazer perguntas específicas ao usuário sobre pontos ambíguos
-5. Sugerir melhorias no plano se necessário
+## Objetivo
 
-Não implemente nada ainda. Apenas analise e faça perguntas para clarificar o escopo.
-Liste suas perguntas de forma numerada e clara.`,
+Revisar a tarefa, criterios de aceite e subtasks antes do commit.
+
+## Processo
+
+1. **Validacao**
+   - Verifique se \`description\` cobre o escopo
+   - Revise \`acceptance_criteria\` item a item
+   - Confira se subtasks estao coerentes
+
+2. **Verificacoes tecnicas**
+   - Rode checks e testes relevantes (se existirem)
+
+3. **Resumo**
+   - Atualize \`notes\` com resultado e problemas encontrados
+   - Se aprovado, setar \`ai_metadata.lastCompletedAction\` como \`"review"\`
+
+## Regras
+
+- Nao implemente codigo nesta etapa
+- Seja objetivo e acionavel nos feedbacks`,
 	},
 	{
 		id: SKILL_IDS.COMMIT,
 		label: "Commit",
-		description: "Cria um commit das alterações",
+		description: "Cria um commit das alteracoes",
 		icon: GitCommitHorizontal,
 		color: "#56b6c2",
-		instructions: `Crie um commit git com as alterações feitas nesta tarefa.
+		instructions: `${TASK_BASE}
 
-Regras:
-1. Analise os arquivos modificados com git status
-2. Crie uma mensagem de commit seguindo conventional commits
-3. O formato deve ser: tipo(escopo): descrição
-4. Tipos: feat, fix, refactor, docs, style, test, chore
-5. A descrição deve ser em português e concisa
-6. Inclua o ID da tarefa se relevante
+## Objetivo
 
-Exemplo: feat(tasks): implementa seleção múltipla de subtasks [TASK-123]
+Criar um commit git com as alteracoes feitas nesta tarefa.
 
-Use git add e git commit (sem push, a menos que solicitado).`,
+## Processo
+
+1. **Analise**
+   - Execute \`git status\` e \`git diff\`
+   - Selecione apenas arquivos relacionados
+
+2. **Mensagem**
+   - Use Conventional Commits
+   - Descricao concisa em portugues
+
+3. **Finalizacao**
+   - Atualize \`notes\` com hash e arquivos commitados
+
+## Regras
+
+- Nunca commitar arquivos sensiveis
+- Nao alterar \`ai_metadata.lastCompletedAction\``,
+	},
+	{
+		id: SKILL_IDS.QUICKFIX,
+		label: "Quick Fix",
+		description: "Aplica um ajuste rapido e pontual",
+		icon: Wrench,
+		color: "#e06c75",
+		instructions: `${TASK_BASE}
+
+## Objetivo
+
+Aplicar um ajuste rapido e pontual conforme descrito pelo usuario.
+
+## Processo
+
+1. **Entendimento**
+   - Identifique exatamente o que precisa ser ajustado
+
+2. **Execucao**
+   - Faca apenas a mudanca solicitada
+   - Evite refatoracoes
+
+3. **Atualizacao**
+   - Registre o que foi feito em \`notes\`
+   - Atualize \`acceptance_criteria\` se o ajuste afetar algum item
+
+## Regras
+
+- Escopo minimo
+- Clareza nas notas`,
 	},
 ];
-
-export const AGENTS = [
-	{ value: "opencode", label: "OpenCode" },
-	{ value: "claude_code", label: "Claude Code" },
-	{ value: "codex", label: "Codex" },
-] as const;
-
-export type AgentType = (typeof AGENTS)[number]["value"];
-
-export const MODELS = [
-	{ value: "default", label: "OpenCode Default Model" },
-	{ value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
-	{ value: "claude-opus-4-20250514", label: "Claude Opus 4" },
-	{ value: "gpt-4-turbo", label: "GPT-4 Turbo" },
-	{ value: "gpt-4o", label: "GPT-4o" },
-] as const;
-
-export type ModelType = (typeof MODELS)[number]["value"];
 
 export function getSkillById(id: SkillId): Skill | undefined {
 	return SKILLS.find((skill) => skill.id === id);

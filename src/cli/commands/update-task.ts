@@ -16,6 +16,8 @@ const criterionSchema = z.object({
 
 const updateTaskInputSchema = z.object({
 	taskId: z.string(),
+	title: z.string().min(1).optional(),
+	description: z.string().optional(),
 	status: z.enum(["pending", "in_execution", "executed"]).optional(),
 	notes: z.string().optional(),
 	ai_metadata: z.record(z.string(), z.unknown()).optional(),
@@ -60,6 +62,8 @@ export async function updateTask(args: string[]): Promise<void> {
 
 		const updates: Record<string, unknown> = { updated_at: now };
 
+		if (input.title) updates.title = input.title;
+		if (input.description !== undefined) updates.description = input.description;
 		if (input.status) updates.status = input.status;
 		if (input.notes !== undefined) updates.notes = input.notes;
 		if (input.ai_metadata !== undefined) updates.ai_metadata = JSON.stringify(input.ai_metadata);

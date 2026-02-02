@@ -6,7 +6,7 @@ import { useState } from "react";
 import { orpc } from "@/client";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-
+import { TaskAcceptanceCriteria } from "./-components/task-acceptance-criteria";
 import { TaskActionPanel } from "./-components/task-action-panel";
 import { TaskDescription } from "./-components/task-description";
 import { TaskDetails } from "./-components/task-details";
@@ -91,6 +91,7 @@ function TaskDetailPage() {
 						selectedIds={selectedSubtaskIds}
 						onToggleSelection={handleToggleSubtaskSelection}
 					/>
+					<TaskAcceptanceCriteria task={task} />
 					<TaskDescription task={task} />
 					<TaskMetadata task={task} />
 				</div>
