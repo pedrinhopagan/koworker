@@ -154,3 +154,4 @@ src/
 | `src/components/AGENTS.md` | Componentes base |
 | `src/cli/AGENTS.md` | CLI para AI Agents |
 | `src-tauri/AGENTS.md` | Wrapper desktop Tauri |
+| `docs/TERMINAL.md` | Sistema de terminais tmux integrado |
