@@ -59,7 +59,7 @@ function HomePage() {
 
 	return (
 		<PageShell title="Dashboard" description="Seu painel de controle" icon={LayoutDashboardIcon}>
-			<div className="flex flex-col-reverse gap-6 h-full min-h-0 lg:grid lg:grid-cols-[2fr_3fr]">
+			<div className="flex flex-col-reverse gap-6 h-full min-h-0 md:grid md:grid-cols-[2fr_3fr]">
 				<div className="min-w-70 overflow-y-auto">
 					<HomeSidebar
 						selectedTask={selectedTask}

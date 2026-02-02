@@ -56,7 +56,7 @@ export function ProjectForm({ mode, formId, defaultValues, onSubmit }: ProjectFo
 			<form
 				id={resolvedFormId}
 				onSubmit={methods.handleSubmit(handleSubmit)}
-				className="flex flex-col-reverse gap-6 h-full min-h-0 lg:grid lg:grid-cols-[2fr_3fr]"
+				className="flex flex-col-reverse gap-6 h-full min-h-0 md:grid md:grid-cols-[2fr_3fr]"
 			>
 				<div className="lg:sticky lg:top-4 self-start">
 					<ProjectFormPreview mode={mode} />

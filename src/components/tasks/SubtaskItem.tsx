@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ChevronRight, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
+
 import { orpc } from "@/client";
 import type { Subtask } from "@/hooks/use-subtasks";
 import { cn } from "@/lib/utils";
@@ -133,21 +135,7 @@ export function SubtaskItem({ subtask, taskId, disabled = false, className }: Su
 					className={styles.expandButton()}
 					title={expanded ? "Recolher detalhes" : "Expandir detalhes"}
 				>
-					<svg
-						aria-hidden="true"
-						xmlns="http://www.w3.org/2000/svg"
-						width="14"
-						height="14"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						strokeWidth="2"
-						strokeLinecap="round"
-						strokeLinejoin="round"
-						className={cn("transition-transform", expanded && "rotate-90")}
-					>
-						<path d="m9 18 6-6-6-6" />
-					</svg>
+					<ChevronRight size={14} className={cn("transition-transform", expanded && "rotate-90")} />
 				</button>
 
 				{/* Title */}
@@ -164,21 +152,7 @@ export function SubtaskItem({ subtask, taskId, disabled = false, className }: Su
 					className={styles.removeButton()}
 					title="Remover subtask"
 				>
-					<svg
-						aria-hidden="true"
-						xmlns="http://www.w3.org/2000/svg"
-						width="14"
-						height="14"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						strokeWidth="2"
-						strokeLinecap="round"
-						strokeLinejoin="round"
-					>
-						<path d="M18 6 6 18" />
-						<path d="m6 6 12 12" />
-					</svg>
+					<X size={14} />
 				</button>
 			</div>
 

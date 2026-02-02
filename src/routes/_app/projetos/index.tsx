@@ -32,7 +32,7 @@ function ProjetosPage() {
 			description="Organize seus projetos e contextos"
 			icon={FolderKanban}
 		>
-			<div className="flex flex-col-reverse gap-6 h-full min-h-0 lg:grid lg:grid-cols-[2fr_3fr]">
+			<div className="flex flex-col-reverse gap-6 h-full min-h-0 md:grid md:grid-cols-[2fr_3fr]">
 				<div className="min-h-0">
 					<ProjectList projects={data.projects} selectedId={selectedId} loading={loading} />
 				</div>
