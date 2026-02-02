@@ -6,7 +6,7 @@ export type Project = RouterOutputs["projects"]["list"][number];
 export type ProjectDetail = RouterOutputs["projects"]["getById"];
 
 export function useProjectsData(preferredProjectId?: string | null) {
-	const { projects, selectedProjectId, selectedProject, loading } = useProjectFocus({
+	const { projects, selectedProjectId, loading } = useProjectFocus({
 		preferredProjectId: preferredProjectId ?? null,
 	});
 
@@ -24,7 +24,7 @@ export function useProjectsData(preferredProjectId?: string | null) {
 			projects,
 			total: projects.length,
 			selectedProjectId,
-			selectedProject: projectQuery.data ?? selectedProject ?? null,
+			selectedProject: projectQuery.data ?? null,
 		},
 		loading: loading || projectQuery.isLoading,
 	};

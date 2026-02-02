@@ -24,6 +24,7 @@ export type PrioritySelectProps = {
 	disabled?: boolean;
 	placeholder?: string;
 	triggerClassName?: string;
+	upperLabel?: boolean;
 };
 
 const MANAGE_PRIORITY_ID = "__manage_priority__";
@@ -71,6 +72,7 @@ export function PrioritySelect({
 	disabled = false,
 	placeholder = "Prioridade",
 	triggerClassName,
+	upperLabel = false,
 }: PrioritySelectProps) {
 	const openManageDrawer = useManageDrawerStore((s) => s.open);
 	// Fetch priorities internally
@@ -119,6 +121,7 @@ export function PrioritySelect({
 				variant="default"
 				size="md"
 				label="Prioridade"
+				upperLabel={upperLabel}
 				renderTrigger={() => (
 					<>
 						<span className="flex-1 flex min-w-0">

@@ -1,7 +1,9 @@
 import { protectedProcedure, publicProcedure } from "./auth/context";
 import { Auth } from "./auth/login";
 import { PubSub } from "./pubsub";
+import { agentsRouter } from "./routers/agents";
 import { categoriesRouter } from "./routers/categories";
+import { modelsRouter } from "./routers/models";
 import { prioritiesRouter } from "./routers/priorities";
 import { projectsRouter } from "./routers/projects";
 import { subtasksRouter } from "./routers/subtasks";
@@ -23,6 +25,8 @@ export const router = {
 	subtasks: subtasksRouter,
 	categories: categoriesRouter,
 	priorities: prioritiesRouter,
+	agents: agentsRouter,
+	models: modelsRouter,
 
 	testNotification: protectedProcedure.handler(async ({ context }) => {
 		await PubSub.publish("notification", String(context.user.id), {

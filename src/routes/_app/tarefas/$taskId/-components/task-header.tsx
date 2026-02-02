@@ -4,7 +4,6 @@ import { ChevronLeft, FileText, Loader2 } from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "@/client";
-import { CategorySelect, PrioritySelect } from "@/components/tasks";
 import { cn } from "@/lib/utils";
 import type { TaskFull } from "@/types/tasks";
 
@@ -36,14 +35,6 @@ export function TaskHeader({ task }: TaskHeaderProps) {
 		if (localTitle.trim() && localTitle !== task.title) {
 			updateMutation.mutate({ id: task.id, title: localTitle.trim() });
 		}
-	}
-
-	function handleCategoryChange(categoryId: string) {
-		updateMutation.mutate({ id: task.id, categoryId });
-	}
-
-	function handlePriorityChange(priorityId: string) {
-		updateMutation.mutate({ id: task.id, priorityId });
 	}
 
 	return (
@@ -91,20 +82,6 @@ export function TaskHeader({ task }: TaskHeaderProps) {
 						"focus:outline-none border-b border-transparent focus:border-primary transition-colors",
 						"disabled:opacity-50",
 					)}
-				/>
-
-				<CategorySelect
-					value={task.categoryId}
-					disabled={updateMutation.isPending}
-					onValueChange={handleCategoryChange}
-					triggerClassName="min-w-[120px]"
-				/>
-
-				<PrioritySelect
-					value={task.priorityId}
-					disabled={updateMutation.isPending}
-					onValueChange={handlePriorityChange}
-					triggerClassName="min-w-[110px]"
 				/>
 
 				{updateMutation.isPending && (

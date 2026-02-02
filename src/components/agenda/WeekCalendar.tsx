@@ -113,7 +113,7 @@ export const WeekCalendar = forwardRef<WeekCalendarRef, WeekCalendarProps>(funct
 					<Button variant="ghost" size="icon" onClick={goToPreviousWeek} className="h-8 w-8">
 						<ChevronLeft className="h-4 w-4" />
 					</Button>
-					<h2 className="min-w-[180px] text-center text-lg font-medium text-foreground">
+					<h2 className="min-w-45 text-center text-lg font-medium text-foreground">
 						{weekRangeLabel}
 					</h2>
 					<Button variant="ghost" size="icon" onClick={goToNextWeek} className="h-8 w-8">

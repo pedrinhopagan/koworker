@@ -11,6 +11,8 @@ import {
 	AccordionItem,
 	AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import type { SubtaskFull, TaskFull } from "@/types/tasks";
 
@@ -40,22 +42,45 @@ const subtaskItemVariants = tv({
 				title: "line-through text-muted-foreground",
 			},
 		},
+		selectionMode: {
+			true: {
+				row: "cursor-pointer hover:bg-accent/10",
+			},
+		},
+		selected: {
+			true: {
+				row: "bg-accent/20 hover:bg-accent/30",
+			},
+		},
 	},
 });
 
 type SubtaskItemV1Props = {
 	subtask: SubtaskFull;
 	disabled?: boolean;
+	selectionMode?: boolean;
+	isSelected?: boolean;
+	onToggleSelection?: (id: string) => void;
 };
 
-function SubtaskItemV1({ subtask, disabled }: SubtaskItemV1Props) {
+function SubtaskItemV1({
+	subtask,
+	disabled,
+	selectionMode,
+	isSelected,
+	onToggleSelection,
+}: SubtaskItemV1Props) {
 	const queryClient = useQueryClient();
 	const [expanded, setExpanded] = useState(false);
 	const [localDescription, setLocalDescription] = useState(subtask.description ?? "");
 
 	const isDone = subtask.status === "executed";
 	const hasDetails = Boolean(subtask.description);
-	const styles = subtaskItemVariants({ done: isDone });
+	const styles = subtaskItemVariants({
+		done: isDone,
+		selectionMode,
+		selected: isSelected,
+	});
 
 	const updateMutation = useMutation({
 		...orpc.subtasks.update.mutationOptions(),
@@ -102,43 +127,79 @@ function SubtaskItemV1({ subtask, disabled }: SubtaskItemV1Props) {
 		}
 	}
 
+	function handleRowClick() {
+		if (selectionMode && onToggleSelection) {
+			onToggleSelection(subtask.id);
+		}
+	}
+
+	function handleSelectionChange() {
+		if (onToggleSelection) {
+			onToggleSelection(subtask.id);
+		}
+	}
+
+	const RowElement = selectionMode ? "button" : "div";
+
 	return (
 		<div className={styles.root()}>
-			<div className={styles.row()}>
-				<button
-					type="button"
-					onClick={handleToggle}
-					disabled={disabled || isMutating}
-					className={styles.checkbox()}
-				>
-					{isDone ? "[x]" : "[ ]"}
-				</button>
+			<RowElement
+				type={selectionMode ? "button" : undefined}
+				className={styles.row()}
+				onClick={handleRowClick}
+			>
+				{selectionMode ? (
+					<Checkbox
+						checked={isSelected}
+						onCheckedChange={handleSelectionChange}
+						onClick={(e) => e.stopPropagation()}
+						aria-label={`Selecionar subtask: ${subtask.title}`}
+					/>
+				) : (
+					<button
+						type="button"
+						onClick={handleToggle}
+						disabled={disabled || isMutating}
+						className={styles.checkbox()}
+					>
+						{isDone ? "[x]" : "[ ]"}
+					</button>
+				)}
 
-				<button
-					type="button"
-					onClick={() => setExpanded(!expanded)}
-					disabled={disabled}
-					className={styles.chevron()}
-				>
-					<ChevronRight size={14} className={cn("transition-transform", expanded && "rotate-90")} />
-				</button>
+				{!selectionMode && (
+					<button
+						type="button"
+						onClick={() => setExpanded(!expanded)}
+						disabled={disabled}
+						className={styles.chevron()}
+					>
+						<ChevronRight
+							size={14}
+							className={cn("transition-transform", expanded && "rotate-90")}
+						/>
+					</button>
+				)}
 
 				<span className={styles.title()}>{subtask.title}</span>
 
-				{!expanded && hasDetails && <span className={styles.hint()}>(detalhes)</span>}
+				{!expanded && hasDetails && !selectionMode && (
+					<span className={styles.hint()}>(detalhes)</span>
+				)}
 
-				<button
-					type="button"
-					onClick={handleRemove}
-					disabled={disabled || isMutating}
-					className={styles.remove()}
-					title="Remover subtask"
-				>
-					<X size={14} />
-				</button>
-			</div>
+				{!selectionMode && (
+					<button
+						type="button"
+						onClick={handleRemove}
+						disabled={disabled || isMutating}
+						className={styles.remove()}
+						title="Remover subtask"
+					>
+						<X size={14} />
+					</button>
+				)}
+			</RowElement>
 
-			{expanded && (
+			{expanded && !selectionMode && (
 				<div className={styles.content()}>
 					<div className="pt-1">
 						<div className={styles.label()}>Descrição</div>
@@ -161,9 +222,18 @@ function SubtaskItemV1({ subtask, disabled }: SubtaskItemV1Props) {
 type TaskSubtasksProps = {
 	task: NonNullable<TaskFull>;
 	disabled?: boolean;
+	selectionMode?: boolean;
+	selectedIds?: string[];
+	onToggleSelection?: (id: string) => void;
 };
 
-export function TaskSubtasks({ task, disabled }: TaskSubtasksProps) {
+export function TaskSubtasks({
+	task,
+	disabled,
+	selectionMode,
+	selectedIds = [],
+	onToggleSelection,
+}: TaskSubtasksProps) {
 	const queryClient = useQueryClient();
 	const [newTitle, setNewTitle] = useState("");
 
@@ -207,10 +277,20 @@ export function TaskSubtasks({ task, disabled }: TaskSubtasksProps) {
 								{doneCount}/{subtasks.length} concluídas
 							</Text>
 						)}
+						{selectionMode && (
+							<Badge variant="warning" className="ml-2 animate-pulse">
+								Selecionando...
+							</Badge>
+						)}
 					</div>
 				</AccordionTrigger>
 				<AccordionContent className="pt-2 pb-0">
-					<div className="space-y-1">
+					<div
+						className={cn(
+							"space-y-1 transition-all",
+							selectionMode && "border-2 border-accent border-dashed p-2 -m-2",
+						)}
+					>
 						{subtasks.length === 0 ? (
 							<div className="py-4 text-center border border-dashed border-border text-sm text-muted-foreground">
 								Nenhuma subtask ainda
@@ -221,37 +301,42 @@ export function TaskSubtasks({ task, disabled }: TaskSubtasksProps) {
 									key={subtask.id}
 									subtask={subtask}
 									disabled={disabled || addMutation.isPending}
+									selectionMode={selectionMode}
+									isSelected={selectedIds.includes(subtask.id)}
+									onToggleSelection={onToggleSelection}
 								/>
 							))
 						)}
 
-						<div className="flex items-center gap-2 pt-2">
-							<Plus className="size-4 text-muted-foreground" />
-							<input
-								type="text"
-								value={newTitle}
-								onChange={(e) => setNewTitle(e.target.value)}
-								onKeyDown={handleKeyDown}
-								placeholder="Adicionar subtask..."
-								disabled={disabled || addMutation.isPending}
-								className={cn(
-									"flex-1 bg-transparent text-foreground text-sm",
-									"focus:outline-none border-b border-transparent focus:border-primary transition-colors",
-									"placeholder:text-muted-foreground/60 disabled:opacity-50 disabled:cursor-not-allowed",
-								)}
-							/>
-							<button
-								type="button"
-								onClick={handleAdd}
-								disabled={!newTitle.trim() || disabled || addMutation.isPending}
-								className={cn(
-									"px-3 py-1 text-xs bg-primary text-primary-foreground",
-									"hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors",
-								)}
-							>
-								Adicionar
-							</button>
-						</div>
+						{!selectionMode && (
+							<div className="flex items-center gap-2 pt-2">
+								<Plus className="size-4 text-muted-foreground" />
+								<input
+									type="text"
+									value={newTitle}
+									onChange={(e) => setNewTitle(e.target.value)}
+									onKeyDown={handleKeyDown}
+									placeholder="Adicionar subtask..."
+									disabled={disabled || addMutation.isPending}
+									className={cn(
+										"flex-1 bg-transparent text-foreground text-sm",
+										"focus:outline-none border-b border-transparent focus:border-primary transition-colors",
+										"placeholder:text-muted-foreground/60 disabled:opacity-50 disabled:cursor-not-allowed",
+									)}
+								/>
+								<button
+									type="button"
+									onClick={handleAdd}
+									disabled={!newTitle.trim() || disabled || addMutation.isPending}
+									className={cn(
+										"px-3 py-1 text-xs bg-primary text-primary-foreground",
+										"hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors",
+									)}
+								>
+									Adicionar
+								</button>
+							</div>
+						)}
 					</div>
 				</AccordionContent>
 			</AccordionItem>

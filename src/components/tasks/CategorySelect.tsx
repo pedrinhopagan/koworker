@@ -22,6 +22,7 @@ export type CategorySelectProps = {
 	disabled?: boolean;
 	placeholder?: string;
 	triggerClassName?: string;
+	upperLabel?: boolean;
 };
 
 const MANAGE_CATEGORY_ID = "__manage_category__";
@@ -60,6 +61,7 @@ export function CategorySelect({
 	disabled = false,
 	placeholder = "Categoria",
 	triggerClassName,
+	upperLabel = false,
 }: CategorySelectProps) {
 	const openManageDrawer = useManageDrawerStore((s) => s.open);
 	// Fetch categories internally
@@ -104,6 +106,7 @@ export function CategorySelect({
 				variant="default"
 				size="md"
 				label="Categoria"
+				upperLabel={upperLabel}
 				renderTrigger={() => (
 					<>
 						<CategoryChip category={selectedCategory} placeholder={placeholder} />

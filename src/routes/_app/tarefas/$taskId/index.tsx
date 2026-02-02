@@ -1,17 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
+import { useState } from "react";
 
 import { orpc } from "@/client";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 
-import { TaskActions } from "./-components/task-actions";
+import { TaskActionPanel } from "./-components/task-action-panel";
 import { TaskDescription } from "./-components/task-description";
+import { TaskDetails } from "./-components/task-details";
 import { TaskHeader } from "./-components/task-header";
 import { TaskMetadata } from "./-components/task-metadata";
 import { TaskPageLayout } from "./-components/task-page-layout";
-import { TaskQuickfix } from "./-components/task-quickfix";
 import { TaskSubtasks } from "./-components/task-subtasks";
 
 export const Route = createFileRoute("/_app/tarefas/$taskId/")({
@@ -21,8 +22,27 @@ export const Route = createFileRoute("/_app/tarefas/$taskId/")({
 function TaskDetailPage() {
 	const { taskId } = Route.useParams();
 
+	const [selectingSubtasks, setSelectingSubtasks] = useState(false);
+	const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<string[]>([]);
+
 	const taskQuery = useQuery(orpc.tasks.getFull.queryOptions({ input: { id: taskId } }));
 	const task = taskQuery.data ?? null;
+
+	function handleStartSubtaskSelection() {
+		setSelectingSubtasks(true);
+		setSelectedSubtaskIds([]);
+	}
+
+	function handleCancelSubtaskSelection() {
+		setSelectingSubtasks(false);
+		setSelectedSubtaskIds([]);
+	}
+
+	function handleToggleSubtaskSelection(id: string) {
+		setSelectedSubtaskIds((prev) =>
+			prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+		);
+	}
 
 	if (taskQuery.isLoading) {
 		return (
@@ -54,14 +74,23 @@ function TaskDetailPage() {
 		<TaskPageLayout
 			header={<TaskHeader task={task} />}
 			sidebar={
-				<>
-					<TaskActions suggestedActionId="execute_subtask" />
-					<TaskQuickfix />
-				</>
+				<TaskActionPanel
+					task={task}
+					selectingSubtasks={selectingSubtasks}
+					selectedSubtaskIds={selectedSubtaskIds}
+					onStartSubtaskSelection={handleStartSubtaskSelection}
+					onCancelSubtaskSelection={handleCancelSubtaskSelection}
+				/>
 			}
 			content={
 				<div className="space-y-4">
-					<TaskSubtasks task={task} />
+					<TaskDetails task={task} />
+					<TaskSubtasks
+						task={task}
+						selectionMode={selectingSubtasks}
+						selectedIds={selectedSubtaskIds}
+						onToggleSelection={handleToggleSubtaskSelection}
+					/>
 					<TaskDescription task={task} />
 					<TaskMetadata task={task} />
 				</div>

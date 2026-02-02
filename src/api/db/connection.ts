@@ -82,6 +82,27 @@ const prioritiesSchema = type({
 	"updated_at?": "number.integer",
 });
 
+const agentsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	name: "string",
+	"description?": "string",
+	color: type("string").configure({ default: "#6b7280" }),
+	display_order: type("number.integer").configure({ default: 0 }),
+	created_at: type("number.integer").configure({ default: "now" }),
+	"updated_at?": "number.integer",
+});
+
+const modelsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	name: "string",
+	"provider?": "string",
+	"model_id?": "string",
+	color: type("string").configure({ default: "#6b7280" }),
+	display_order: type("number.integer").configure({ default: 0 }),
+	created_at: type("number.integer").configure({ default: "now" }),
+	"updated_at?": "number.integer",
+});
+
 const database = new Database({
 	path: envVariables.DATABASE_URL,
 	tables: {
@@ -89,6 +110,8 @@ const database = new Database({
 		projects: projectsSchema,
 		categories: categoriesSchema,
 		priorities: prioritiesSchema,
+		agents: agentsSchema,
+		models: modelsSchema,
 		project_routes: projectRoutesSchema,
 		tasks: tasksSchema,
 		subtasks: subtasksSchema,
@@ -106,6 +129,8 @@ export type tasks = DB["tasks"];
 export type subtasks = DB["subtasks"];
 export type categories = DB["categories"];
 export type priorities = DB["priorities"];
+export type agents = DB["agents"];
+export type models = DB["models"];
 
 export {
 	user_type,
@@ -117,4 +142,6 @@ export {
 	subtasksSchema,
 	categoriesSchema,
 	prioritiesSchema,
+	agentsSchema,
+	modelsSchema,
 };
