@@ -121,7 +121,7 @@ export function PrioritySelect({
 				label="Prioridade"
 				renderTrigger={() => (
 					<>
-						<span className="flex-1 min-w-0">
+						<span className="flex-1 flex min-w-0">
 							<PriorityChip priority={selectedPriority} placeholder={placeholder} />
 						</span>
 						<ChevronDown className="size-4 text-muted-foreground ml-1 shrink-0" />
