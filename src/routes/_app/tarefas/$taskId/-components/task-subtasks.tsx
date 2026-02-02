@@ -19,16 +19,16 @@ import type { SubtaskFull, TaskFull } from "@/types/tasks";
 const subtaskItemVariants = tv({
 	slots: {
 		root: "group",
-		row: "flex items-center gap-3 px-3 py-2 bg-card hover:bg-popover transition-colors",
+		row: "flex items-center gap-3 px-3 py-2 bg-card hover:bg-popover transition-colors border-l-2",
 		checkbox: "text-muted-foreground transition-colors shrink-0",
 		chevron: "text-muted-foreground transition-transform shrink-0",
 		title: "flex-1 text-sm text-foreground min-w-0 truncate",
 		hint: "text-xs text-muted-foreground shrink-0",
 		remove: "p-1 text-destructive opacity-0 group-hover:opacity-100 transition-all shrink-0",
-		content: "ml-9 px-3 pb-1 space-y-2 border-l-2 border-border bg-background",
+		content: "pl-9 px-3 pb-1 space-y-2 border-l-2 border-border bg-card",
 		label: "text-xs uppercase tracking-wide text-muted-foreground",
 		textarea: cn(
-			"w-full resize-none border border-border bg-card px-3 py-2",
+			"w-full resize-none border border-border bg-background px-3 py-2",
 			"text-sm text-foreground transition-colors",
 			"focus:border-primary focus:outline-none",
 			"disabled:cursor-not-allowed disabled:opacity-50",
@@ -145,7 +145,7 @@ function SubtaskItemV1({
 		<div className={styles.root()}>
 			<RowElement
 				type={selectionMode ? "button" : undefined}
-				className={styles.row()}
+				className={cn(styles.row(), expanded ? "border-border" : "border-transparent")}
 				onClick={handleRowClick}
 			>
 				{selectionMode ? (
@@ -201,7 +201,7 @@ function SubtaskItemV1({
 
 			{expanded && !selectionMode && (
 				<div className={styles.content()}>
-					<div className="pt-1">
+					<div className="pt-1 pl-6">
 						<div className={styles.label()}>Descrição</div>
 						<textarea
 							value={localDescription}
@@ -210,7 +210,7 @@ function SubtaskItemV1({
 							disabled={disabled || isMutating}
 							placeholder="Descreva a subtask..."
 							className={styles.textarea()}
-							rows={2}
+							rows={6}
 						/>
 					</div>
 				</div>

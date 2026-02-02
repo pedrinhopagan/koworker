@@ -52,7 +52,7 @@ export function TaskDescription({ task, disabled }: TaskDescriptionProps) {
 						onBlur={handleBlur}
 						placeholder="Descrição da tarefa..."
 						disabled={disabled || updateMutation.isPending}
-						rows={4}
+						rows={8}
 						className={cn(
 							"w-full px-3 py-2 bg-card border border-border",
 							"text-foreground text-sm resize-none",
