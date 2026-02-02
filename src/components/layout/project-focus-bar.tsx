@@ -1,9 +1,13 @@
 import { type LinkProps, type RegisteredRouter, useRouterState } from "@tanstack/react-router";
-import { CheckCheckIcon, ChevronDownIcon, FolderKanbanIcon } from "lucide-react";
-import { useMemo } from "react";
+import { CheckCheckIcon, ChevronDownIcon, FolderKanbanIcon, Monitor } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { useProjectFocus } from "@/hooks";
+import { isTauri } from "@/lib/tauri";
+import { openProjectTerminal } from "@/lib/terminal";
 import { cn } from "@/lib/utils";
+import { useIsProjectTerminalOpen } from "@/stores/terminal-status";
 
 const ALL_PROJECTS_ID = "__all_projects__";
 
@@ -21,9 +25,12 @@ const DISABLED_PATHS = new Set<LinkProps<RegisteredRouter>["to"]>([
 
 export function ProjectFocusBar() {
 	const routerState = useRouterState();
+	const [isOpeningTerminal, setIsOpeningTerminal] = useState(false);
 
 	const { projects, selectedProjectId, selectedProject, accent, loading, setSelectedProjectId } =
 		useProjectFocus();
+
+	const isTerminalOpen = useIsProjectTerminalOpen(selectedProjectId);
 
 	const projectItems = useMemo<ProjectItem[]>(() => {
 		return [
@@ -50,6 +57,21 @@ export function ProjectFocusBar() {
 			return;
 		}
 		setSelectedProjectId(id);
+	}
+
+	async function handleTerminalClick() {
+		if (!selectedProject || !selectedProjectId) return;
+
+		setIsOpeningTerminal(true);
+		try {
+			await openProjectTerminal({
+				id: selectedProjectId,
+				name: selectedProject.name,
+				mainRoute: selectedProject.mainRoute,
+			});
+		} finally {
+			setIsOpeningTerminal(false);
+		}
 	}
 
 	const currentRoutePath = (routerState.matches.at(-1)?.fullPath ?? "/").replace(/\/$/, "");
@@ -138,6 +160,23 @@ export function ProjectFocusBar() {
 					</div>
 				)}
 			/>
+
+			{isTauri() && selectedProjectId && selectedProject && (
+				<Button
+					variant="ghost"
+					size="sm"
+					onClick={handleTerminalClick}
+					disabled={isOpeningTerminal}
+					className={cn(
+						"h-9 px-3 gap-2 transition-all",
+						isTerminalOpen && "text-green-500 hover:text-green-400",
+					)}
+					title={isTerminalOpen ? "Focar terminal do projeto" : "Abrir terminal do projeto"}
+				>
+					<Monitor className={cn("size-4", isOpeningTerminal && "animate-pulse")} />
+					<span className="text-xs hidden sm:inline">Terminal</span>
+				</Button>
+			)}
 		</div>
 	);
 }

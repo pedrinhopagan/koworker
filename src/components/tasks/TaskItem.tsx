@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ListChecks, Loader2 } from "lucide-react";
+import { ListChecks, Loader2, Terminal } from "lucide-react";
 import type { MouseEvent } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
@@ -8,7 +8,9 @@ import { orpc } from "@/client";
 import { Title } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
 import { deriveTaskAttentionState } from "@/domain/tasks/attention";
+import { isTauri } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
+import { useIsProjectTerminalOpen } from "@/stores/terminal-status";
 import type { TaskWithMeta } from "@/types/tasks";
 
 const taskItemVariants = tv({
@@ -57,6 +59,7 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 	const effectiveStatus = task.status;
 	const isDone = Boolean(task.completedAt);
 	const statusVariant = statusVariants[effectiveStatus] ?? "muted";
+	const isTerminalOpen = useIsProjectTerminalOpen(task.projectId);
 
 	const subtasks = task.subtasks ?? [];
 	const firstNotCompleted = subtasks.find((st) => {
@@ -155,6 +158,12 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 			</div>
 
 			<div className="flex flex-1 self-end justify-end shrink-0 items-center gap-2">
+				{isTauri() && isTerminalOpen && (
+					<span title="Terminal ativo">
+						<Terminal size={14} className="text-green-500" />
+					</span>
+				)}
+
 				{isMaxAttention ? (
 					<Loader2 size={14} className="animate-spin text-purple-300" />
 				) : attention.shouldSpin ? (

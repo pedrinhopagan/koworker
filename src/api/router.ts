@@ -8,6 +8,7 @@ import { prioritiesRouter } from "./routers/priorities";
 import { projectsRouter } from "./routers/projects";
 import { subtasksRouter } from "./routers/subtasks";
 import { tasksRouter } from "./routers/tasks";
+import { terminalRouter, terminalWsRouter } from "./routers/terminal";
 import { EndpointSchemas, TaskListByProjectSchema } from "./schemas";
 
 export const router = {
@@ -27,6 +28,7 @@ export const router = {
 	priorities: prioritiesRouter,
 	agents: agentsRouter,
 	models: modelsRouter,
+	terminal: terminalRouter,
 
 	testNotification: protectedProcedure.handler(async ({ context }) => {
 		await PubSub.publish("notification", String(context.user.id), {
@@ -52,4 +54,6 @@ export const wsRouter = {
 			.input(TaskListByProjectSchema)
 			.handler(({ input, signal }) => PubSub.subscribe("tasks", input.projectId, signal)),
 	},
+
+	terminal: terminalWsRouter,
 };

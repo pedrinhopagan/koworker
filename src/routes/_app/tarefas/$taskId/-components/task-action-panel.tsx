@@ -1,4 +1,4 @@
-import { ArrowBigRight, Plus, X } from "lucide-react";
+import { ArrowBigRight, Plus, Terminal, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -10,6 +10,9 @@ import { Text } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { isTauri } from "@/lib/tauri";
+import { closeProjectTerminal, closeTaskTerminal } from "@/lib/terminal";
+import { useIsProjectTerminalOpen, useIsTaskWindowOpen } from "@/stores/terminal-status";
 import type { TaskFull } from "@/types/tasks";
 
 import {
@@ -47,6 +50,9 @@ export function TaskActionPanel({
 	const [selectedModelId, setSelectedModelId] = useState<string | null>(() => getStoredModel());
 	const [executingSkillId, setExecutingSkillId] = useState<SkillId | null>(null);
 	const [editingSkillId, setEditingSkillId] = useState<SkillId | null>(null);
+
+	const isProjectTerminalOpen = useIsProjectTerminalOpen(task.projectId);
+	const isTaskWindowOpen = useIsTaskWindowOpen(task.id);
 
 	useEffect(() => {
 		if (selectedAgentId) {
@@ -118,6 +124,12 @@ export function TaskActionPanel({
 				agent: selectedAgentId ?? "default",
 				model: selectedModelId ?? "default",
 				taskId: task.id,
+				task: {
+					id: task.id,
+					title: task.title,
+					projectId: task.projectId,
+					project: task.project,
+				},
 			});
 
 			if (result.status === "success") {
@@ -164,8 +176,49 @@ export function TaskActionPanel({
 		setEditingSkillId(skillId);
 	}
 
+	async function onCloseProjectSession() {
+		if (!task.projectId) return;
+		await closeProjectTerminal(task.projectId);
+	}
+
+	async function onCloseTaskWindow() {
+		if (!task.projectId) return;
+		await closeTaskTerminal(task.projectId, { id: task.id, title: task.title });
+	}
+
 	return (
 		<section className="space-y-2 p-2">
+			{isTauri() && isProjectTerminalOpen && (
+				<div className="flex items-center justify-between p-2 border border-green-500/30 bg-green-500/10 rounded">
+					<div className="flex items-center gap-2">
+						<Terminal className="h-4 w-4 text-green-500" />
+						<Text size="xs" className="text-green-500">
+							Terminal ativo {isTaskWindowOpen && "(tab aberta)"}
+						</Text>
+					</div>
+					<div className="flex items-center gap-1">
+						{isTaskWindowOpen && (
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={onCloseTaskWindow}
+								className="h-6 text-xs px-2"
+							>
+								Fechar tab
+							</Button>
+						)}
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={onCloseProjectSession}
+							className="h-6 text-xs px-2 text-destructive hover:text-destructive"
+						>
+							Encerrar terminal
+						</Button>
+					</div>
+				</div>
+			)}
+
 			<div className="space-y-2">
 				<Text size="xs" tone="muted" className="uppercase tracking-wide">
 					Configurar Agent

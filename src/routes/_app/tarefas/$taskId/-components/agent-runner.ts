@@ -1,4 +1,21 @@
+import {
+	executeInTerminal,
+	type ProjectInfo,
+	type TaskInfo as TerminalTaskInfo,
+} from "@/lib/terminal";
+
 import type { SkillId } from "./skill-registry";
+
+export type TaskWithProject = {
+	id: string;
+	title: string;
+	projectId: string;
+	project?: {
+		id: string;
+		name: string;
+		mainRoute: string;
+	} | null;
+};
 
 export type RunSkillParams = {
 	skillId: SkillId;
@@ -6,6 +23,7 @@ export type RunSkillParams = {
 	agent: string;
 	model: string;
 	taskId: string;
+	task: TaskWithProject;
 };
 
 export type RunSkillResult = {
@@ -40,27 +58,34 @@ export function setStoredModel(model: string): void {
 }
 
 export async function runSkill(params: RunSkillParams): Promise<RunSkillResult> {
-	const { skillId, prompt, agent, model, taskId } = params;
-
-	console.log("=".repeat(60));
-	console.log("[Agent Runner] Executando skill:", skillId);
-	console.log("[Agent Runner] Agent:", agent);
-	console.log("[Agent Runner] Model:", model);
-	console.log("[Agent Runner] Task ID:", taskId);
-	console.log("[Agent Runner] Prompt:");
-	console.log(prompt);
-	console.log("=".repeat(60));
-
-	await new Promise<void>((resolve) => {
-		setTimeout(() => resolve(), 1500);
-	});
-
+	const { prompt, model, task } = params;
 	const executionId = `exec_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+	if (!task.project) {
+		return {
+			executionId,
+			status: "error",
+			message: "Projeto não encontrado para esta tarefa",
+		};
+	}
+
+	const project: ProjectInfo = {
+		id: task.project.id,
+		name: task.project.name,
+		mainRoute: task.project.mainRoute,
+	};
+
+	const terminalTask: TerminalTaskInfo = {
+		id: task.id,
+		title: task.title,
+	};
+
+	const result = await executeInTerminal(project, terminalTask, prompt, model);
 
 	return {
 		executionId,
-		status: "success",
-		message: `Skill "${skillId}" executada com sucesso via ${agent}`,
+		status: result.success ? "success" : "error",
+		message: result.message,
 	};
 }
 

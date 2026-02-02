@@ -1,6 +1,7 @@
 mod backend;
 mod commands;
 mod shortcut;
+mod terminal;
 mod tray;
 mod window;
 
@@ -18,7 +19,12 @@ pub fn run() {
             commands::hide_window,
             commands::show_window,
             commands::toggle_window,
-            commands::pick_project_folder
+            commands::pick_project_folder,
+            terminal::open_terminal_for_task,
+            terminal::close_project_session,
+            terminal::close_task_window,
+            terminal::get_active_sessions,
+            terminal::check_session_exists
         ])
         .setup(|app| {
             backend::start();

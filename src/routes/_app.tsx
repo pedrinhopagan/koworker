@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { orpc } from "@/client";
 import { AppShell } from "@/components/layout/app-shell";
+import { useTerminalEvents } from "@/hooks/use-terminal-events";
 
 export const Route = createFileRoute("/_app")({
 	beforeLoad: async ({ context }) => {
@@ -16,6 +17,8 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
+	useTerminalEvents();
+
 	return (
 		<AppShell>
 			<Outlet />

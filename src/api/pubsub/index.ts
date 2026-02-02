@@ -14,6 +14,22 @@ type PubSubChannels = {
 	};
 };
 
+export type TerminalEventType =
+	| "session_opened"
+	| "session_closed"
+	| "window_opened"
+	| "window_closed";
+
+export type TerminalEvent = {
+	eventType: TerminalEventType;
+	projectId: string;
+	taskId?: string;
+	sessionName: string;
+	windowName?: string;
+};
+
+const TERMINAL_CHANNEL = "terminal:global";
+
 export const PubSub = {
 	subscribe<T extends keyof PubSubChannels>(type: T, uuid: string, signal?: AbortSignal) {
 		const key = `${type}:${uuid}`;
@@ -25,5 +41,15 @@ export const PubSub = {
 		const key = `${type}:${uuid}`;
 
 		return publisher.publish(key, data);
+	},
+
+	terminal: {
+		subscribe(signal?: AbortSignal) {
+			return publisher.subscribe(TERMINAL_CHANNEL, { signal }) as AsyncIterable<TerminalEvent>;
+		},
+
+		publish(data: TerminalEvent) {
+			return publisher.publish(TERMINAL_CHANNEL, data);
+		},
 	},
 };
