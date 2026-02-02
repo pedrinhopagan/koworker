@@ -82,6 +82,7 @@ function EditarProjetoPage() {
 						mainRoute: project.mainRoute,
 					}}
 					onSubmit={updateProject}
+					projectId={projetoId}
 				/>
 			</div>
 		</PageShell>

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { FolderPlus } from "lucide-react";
 
 import { PageShell } from "@/components/layout/page-shell";
-import { getDefaultProjectColor, ProjectForm } from "../-components/project-form";
+import { ProjectForm } from "../-components/project-form";
 import { ProjectHeaderActions } from "../-components/project-header-actions";
 import { useCreateProject } from "./-utils/use-create-project";
 
@@ -30,17 +30,7 @@ function NovoProjetoPage() {
 				/>
 			}
 		>
-			<ProjectForm
-				mode="create"
-				formId={formId}
-				defaultValues={{
-					name: "",
-					description: "",
-					color: getDefaultProjectColor(),
-					mainRoute: "",
-				}}
-				onSubmit={createProject}
-			/>
+			<ProjectForm mode="create" formId={formId} onSubmit={createProject} />
 		</PageShell>
 	);
 }
