@@ -82,36 +82,6 @@ const prioritiesSchema = type({
 	"updated_at?": "number.integer",
 });
 
-const executionThreadsSchema = type({
-	id: type("string").configure({ primaryKey: true }),
-	// 1 thread por task
-	task_id: type("string").configure({
-		references: "tasks.id",
-		onDelete: "restrict",
-		unique: true,
-	}),
-	created_at: type("number.integer").configure({ default: "now" }),
-	"updated_at?": "number.integer",
-});
-
-const executionMessagesSchema = type({
-	id: type("string").configure({ primaryKey: true }),
-	thread_id: type("string").configure({
-		references: "execution_threads.id",
-		onDelete: "restrict",
-	}),
-	role: type.enumerated("user", "assistant", "system", "tool"),
-	content: "string",
-	"metadata?": "string",
-	"model?": "string",
-	"skill?": "string",
-	"author_user_id?": type("number.integer").configure({
-		references: "users.id",
-		onDelete: "restrict",
-	}),
-	created_at: type("number.integer").configure({ default: "now" }),
-});
-
 const database = new Database({
 	path: envVariables.DATABASE_URL,
 	tables: {
@@ -122,8 +92,6 @@ const database = new Database({
 		project_routes: projectRoutesSchema,
 		tasks: tasksSchema,
 		subtasks: subtasksSchema,
-		execution_threads: executionThreadsSchema,
-		execution_messages: executionMessagesSchema,
 	},
 });
 
@@ -138,8 +106,6 @@ export type tasks = DB["tasks"];
 export type subtasks = DB["subtasks"];
 export type categories = DB["categories"];
 export type priorities = DB["priorities"];
-export type execution_threads = DB["execution_threads"];
-export type execution_messages = DB["execution_messages"];
 
 export {
 	user_type,
@@ -151,6 +117,4 @@ export {
 	subtasksSchema,
 	categoriesSchema,
 	prioritiesSchema,
-	executionThreadsSchema,
-	executionMessagesSchema,
 };

@@ -4,8 +4,6 @@ import { tv, type VariantProps } from "tailwind-variants";
 
 import { sortTasksByAttention } from "@/domain/tasks/sort";
 import { cn } from "@/lib/utils";
-import { useTerminalOpenTaskIds } from "@/terminal/hooks";
-import { sortTasksByTerminal } from "@/terminal/task-sort";
 import type { TaskWithMeta } from "@/types/tasks";
 import { TaskItem, type TaskItemVariant } from "./TaskItem";
 
@@ -55,11 +53,7 @@ export const TaskList = memo(function TaskList({
 }: TaskListProps) {
 	const styles = taskListVariants({ variant });
 	const itemVariant: TaskItemVariant = variant;
-	const openTaskIds = useTerminalOpenTaskIds();
-	const orderedTasks = useMemo(
-		() => sortTasksByTerminal(sortTasksByAttention(tasks), openTaskIds),
-		[tasks, openTaskIds],
-	);
+	const orderedTasks = useMemo(() => sortTasksByAttention(tasks), [tasks]);
 
 	if (isLoading) {
 		return (
@@ -97,8 +91,8 @@ export const TaskList = memo(function TaskList({
 	);
 
 	if (separateDone) {
-		const pendingTasks = orderedTasks.filter((t) => !t.completedAt || openTaskIds.includes(t.id));
-		const doneTasks = orderedTasks.filter((t) => t.completedAt && !openTaskIds.includes(t.id));
+		const pendingTasks = orderedTasks.filter((t) => !t.completedAt);
+		const doneTasks = orderedTasks.filter((t) => t.completedAt);
 
 		return (
 			<div className={styles.root()}>

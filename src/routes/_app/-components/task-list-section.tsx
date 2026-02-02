@@ -1,17 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { Activity, CheckCircle2, Loader2 } from "lucide-react";
 import { memo } from "react";
-
+import { TaskItem } from "@/components/tasks";
 import { Text } from "@/components/typography";
 import { sortTasksByAttention } from "@/domain/tasks/sort";
-import { useTerminalOpenTaskIds } from "@/terminal/hooks";
-import { sortTasksByTerminal } from "@/terminal/task-sort";
 import type { TaskWithMeta } from "@/types/tasks";
-
 import { SectionHeader } from "./section-header";
-import { TaskItem } from "@/components/tasks";
 
-// Empty section placeholder
 type EmptySectionProps = {
 	icon: React.ReactNode;
 	message: string;
@@ -40,7 +35,6 @@ const EmptySection = memo(function EmptySection({
 	);
 });
 
-// Loading state
 const LoadingState = memo(function LoadingState() {
 	return (
 		<div className="flex items-center justify-center py-8">
@@ -52,7 +46,6 @@ const LoadingState = memo(function LoadingState() {
 	);
 });
 
-// Task list section component
 type TaskListSectionProps = {
 	tasks: TaskWithMeta[];
 	loading: boolean;
@@ -61,11 +54,10 @@ type TaskListSectionProps = {
 };
 
 export function TaskListSection({ tasks, loading }: TaskListSectionProps) {
-	const openTaskIds = useTerminalOpenTaskIds();
 	const inProgressCount = tasks.filter(
-		(t) => openTaskIds.includes(t.id) || t.status === "pending" || t.status === "in_execution",
+		(t) => t.status === "pending" || t.status === "in_execution",
 	).length;
-	const orderedTasks = sortTasksByTerminal(sortTasksByAttention(tasks), openTaskIds);
+	const orderedTasks = sortTasksByAttention(tasks);
 
 	return (
 		<section>

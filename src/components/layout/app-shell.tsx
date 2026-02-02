@@ -2,7 +2,6 @@ import type { CSSProperties, ReactNode } from "react";
 import { ProjectFocusBar } from "@/components/layout/project-focus-bar";
 import { TabBar } from "@/components/layout/tab-bar";
 import { usePrimaryColor, useProjectFocus, useUser } from "@/hooks";
-import { TerminalManager } from "@/terminal/terminal-manager";
 
 type AppShellProps = {
 	children: ReactNode;
@@ -69,7 +68,6 @@ export function AppShell({ children }: AppShellProps) {
 				>
 					{children}
 				</main>
-				<TerminalManager />
 			</div>
 		</div>
 	);

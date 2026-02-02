@@ -1,8 +1,6 @@
 mod backend;
 mod commands;
-mod pty;
 mod shortcut;
-mod tmux;
 mod tray;
 mod window;
 
@@ -20,14 +18,7 @@ pub fn run() {
             commands::hide_window,
             commands::show_window,
             commands::toggle_window,
-            commands::pick_project_folder,
-            pty::pty_create,
-            pty::pty_write,
-            pty::pty_resize,
-            pty::pty_kill,
-            tmux::tmux_has_session,
-            tmux::tmux_kill_session,
-            tmux::tmux_new_window
+            commands::pick_project_folder
         ])
         .setup(|app| {
             backend::start();
