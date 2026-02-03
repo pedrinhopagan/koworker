@@ -104,6 +104,7 @@ Estruturar a tarefa com detalhes completos, criterios de aceite e subtasks clara
 5. **Metadados**
    - Atualize \`ai_metadata.lastCompletedAction\` para \`"structure"\`
    - Use \`notes\` para registrar decisoes importantes tomadas durante a estruturacao
+   - **NAO altere o status da task** - mantenha como \`pending\`
 
 6. **Finalizacao**
    - Execute o comando \`kowork update-task\` com todos os dados estruturados (ver secao "CLI para Atualizacao da Tarefa" abaixo)
@@ -199,8 +200,9 @@ Executar apenas as subtasks selecionadas pelo usuario.
 
 ## Processo
 
-1. **Foco**
+1. **Inicio**
    - Leia as "Instrucoes do Usuario" no inicio do prompt
+   - Se a task ainda estiver \`pending\`, marque como \`status: "in_execution"\` via CLI
    - Trabalhe apenas nas subtasks listadas em \`selectedSubtasks\`
    - Respeite a ordem exibida
 
@@ -218,6 +220,7 @@ Executar apenas as subtasks selecionadas pelo usuario.
 
 4. **Finalizacao**
    - Atualize \`notes\` com resumo das subtasks executadas
+   - **NAO marque a task principal como executed** - apenas as subtasks selecionadas
    - Execute o comando \`kowork update-task\` final (ver secao "CLI para Atualizacao da Tarefa" abaixo)
    - Verifique se o comando retornou mensagem de sucesso
    - Finalize com: "✅ Subtask(s) selecionada(s) executada(s) no Koworker, volte ao app para revisar."
@@ -326,6 +329,9 @@ Criar um commit git com as alteracoes feitas nesta tarefa.
 
 4. **Finalizacao**
    - Atualize \`notes\` via CLI com: hash do commit, mensagem e lista de arquivos commitados
+   - Se **todas as subtasks estiverem executed** e **todos os acceptance_criteria com done:true**:
+     - Marque a task como \`status: "executed"\` (se ainda nao estiver)
+     - Informe ao usuario: "Tarefa pronta para aprovacao - usuario deve marcar como concluida no app"
    - Execute o comando \`kowork update-task\` (ver secao "CLI para Atualizacao da Tarefa" abaixo)
    - Verifique se o comando retornou mensagem de sucesso
    - Finalize com: "✅ Commit criado e registrado no Koworker, volte ao app para continuar."
@@ -334,6 +340,7 @@ Criar um commit git com as alteracoes feitas nesta tarefa.
 
 - **Nunca commitar arquivos sensiveis** (.env, credentials, tokens, etc.)
 - Nao alterar \`ai_metadata.lastCompletedAction\` (manter valor atual)
+- **NAO defina completed_at** - isso e feito apenas pelo usuario ao aprovar no app
 - Use a CLI \`kowork update-task\` para registrar o commit
 - Verifique o sucesso do comando CLI antes de finalizar`,
 	},
@@ -376,6 +383,7 @@ Aplicar um ajuste rapido e pontual conforme descrito pelo usuario.
    - Registre o que foi feito em \`notes\` via CLI
    - Atualize \`acceptance_criteria\` se o ajuste afetar algum item
    - Envie o array completo de acceptance_criteria
+   - **NAO altere status da task ou subtasks** - Quick Fix nao muda estados de execucao
 
 4. **Finalizacao**
    - Execute o comando \`kowork update-task\` com o registro do ajuste (ver secao "CLI para Atualizacao da Tarefa" abaixo)
