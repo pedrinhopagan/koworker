@@ -12,24 +12,52 @@ type ProjectSummaryRow = projects & {
 };
 
 export const dbProjects = {
-	getAll: () =>
-		db
+	getAll: async () => {
+		const projects = await db
 			.selectFrom("projects")
 			.selectAll()
 			.where("deleted_at", "is", null)
 			.orderBy("display_order", "asc")
-			.execute(),
+			.execute();
 
-	getById: (id: string) =>
-		db
+		const projectsWithRoutes = await Promise.all(
+			projects.map(async (project) => {
+				const routes = await db
+					.selectFrom("project_routes")
+					.selectAll()
+					.where("project_id", "=", project.id)
+					.orderBy("display_order", "asc")
+					.execute();
+
+				return Object.assign({}, project, { routes });
+			}),
+		);
+
+		return projectsWithRoutes;
+	},
+
+	getById: async (id: string) => {
+		const project = await db
 			.selectFrom("projects")
 			.selectAll()
 			.where("id", "=", id)
 			.where("deleted_at", "is", null)
-			.executeTakeFirst(),
+			.executeTakeFirst();
 
-	getByIdWithSummary: (id: string) =>
-		db
+		if (!project) return null;
+
+		const routes = await db
+			.selectFrom("project_routes")
+			.selectAll()
+			.where("project_id", "=", id)
+			.orderBy("display_order", "asc")
+			.execute();
+
+		return Object.assign({}, project, { routes });
+	},
+
+	getByIdWithSummary: async (id: string) => {
+		const project = (await db
 			.selectFrom("projects")
 			.leftJoin("tasks", (join) =>
 				join.onRef("tasks.project_id", "=", "projects.id").on("tasks.deleted_at", "is", null),
@@ -50,7 +78,19 @@ export const dbProjects = {
 			.where("projects.id", "=", id)
 			.where("projects.deleted_at", "is", null)
 			.groupBy("projects.id")
-			.executeTakeFirst() as Promise<ProjectSummaryRow | undefined>,
+			.executeTakeFirst()) as Promise<ProjectSummaryRow | undefined>;
+
+		if (!project) return null;
+
+		const routes = await db
+			.selectFrom("project_routes")
+			.selectAll()
+			.where("project_id", "=", id)
+			.orderBy("display_order", "asc")
+			.execute();
+
+		return Object.assign({}, project, { routes });
+	},
 
 	create: async (input: ProjectDbCreateInput) => {
 		const maxOrder = await db

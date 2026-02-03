@@ -3,6 +3,7 @@ import { Auth } from "./auth/login";
 import { PubSub } from "./pubsub";
 import { categoriesRouter } from "./routers/categories";
 import { prioritiesRouter } from "./routers/priorities";
+import { projectRoutesRouter } from "./routers/project-routes";
 import { projectsRouter } from "./routers/projects";
 import { subtasksRouter } from "./routers/subtasks";
 import { tasksRouter } from "./routers/tasks";
@@ -20,6 +21,7 @@ export const router = {
 		me: protectedProcedure.handler(({ context }) => context.user),
 	},
 	projects: projectsRouter,
+	projectRoutes: projectRoutesRouter,
 	tasks: tasksRouter,
 	subtasks: subtasksRouter,
 	categories: categoriesRouter,

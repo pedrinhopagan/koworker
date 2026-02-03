@@ -21,6 +21,10 @@ function EditarProjetoPage() {
 	const { updateProject, loading, error, success } = useUpdateProject({ projectId: projetoId });
 	const formId = "project-edit-form";
 
+	const handleRouteChange = () => {
+		projectQuery.refetch();
+	};
+
 	if (projectQuery.isLoading) {
 		return (
 			<PageShell
@@ -83,6 +87,8 @@ function EditarProjetoPage() {
 					}}
 					onSubmit={updateProject}
 					projectId={projetoId}
+					routes={project.routes ?? []}
+					onRouteChange={handleRouteChange}
 				/>
 			</div>
 		</PageShell>

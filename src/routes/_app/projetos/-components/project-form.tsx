@@ -4,11 +4,12 @@ import { FormProvider, type SubmitHandler, useForm } from "react-hook-form";
 
 import { ProjectCreateSchema } from "@/api/schemas";
 import type { ProjectCreateInput } from "@/api/schemas/projects";
-import { ProjectDeleteSection } from "./project-delete-section";
 import { defaultProjectColor } from "./project-form.constants";
 import { ProjectFormBasics } from "./project-form-basics";
 import { ProjectFormColors } from "./project-form-colors";
 import { ProjectFormPreview } from "./project-form-preview";
+import { ProjectDeleteSection } from "./project-delete-section";
+import { ProjectFormRoutes } from "./ProjectFormRoutes";
 
 export type ProjectFormValues = {
 	name: string;
@@ -17,12 +18,24 @@ export type ProjectFormValues = {
 	mainRoute: string;
 };
 
+type ProjectRouteItem = {
+	id: string;
+	projectId: string;
+	name: string;
+	route: string;
+	icon?: string;
+	command?: string;
+	displayOrder: number;
+};
+
 type ProjectFormProps = {
 	mode: "create" | "edit";
 	formId?: string;
 	defaultValues?: ProjectFormValues;
 	onSubmit: (data: ProjectCreateInput) => void;
 	projectId?: string;
+	routes?: ProjectRouteItem[];
+	onRouteChange?: () => void;
 };
 
 export function ProjectForm({
@@ -31,6 +44,8 @@ export function ProjectForm({
 	defaultValues,
 	onSubmit,
 	projectId,
+	routes,
+	onRouteChange,
 }: ProjectFormProps) {
 	// const { projetoId } = Route.useParams();
 
@@ -75,9 +90,15 @@ export function ProjectForm({
 				<div className="space-y-4 min-h-0 h-full overflow-y-auto pr-2 pb-6">
 					<ProjectFormBasics />
 					<ProjectFormColors />
-
 					{mode === "edit" && projectId && projectName && (
-						<ProjectDeleteSection projectId={projectId} projectName={projectName} />
+						<>
+							<ProjectFormRoutes
+								projectId={projectId}
+								routes={routes}
+								onRouteChange={onRouteChange}
+							/>
+							<ProjectDeleteSection projectId={projectId} projectName={projectName} />
+						</>
 					)}
 				</div>
 			</form>

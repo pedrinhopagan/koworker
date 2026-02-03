@@ -26,9 +26,12 @@ const projectsSchema = type({
 
 const projectRoutesSchema = type({
 	id: type("string").configure({ primaryKey: true }),
-	project_id: type("string").configure({ references: "projects.id", onDelete: "restrict" }),
+	project_id: type("string").configure({ references: "projects.id", onDelete: "cascade" }),
 	name: "string",
 	route: "string",
+	"icon?": "string",
+	"command?": "string",
+	display_order: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 });

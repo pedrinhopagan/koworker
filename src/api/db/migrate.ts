@@ -83,5 +83,24 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		}
 	}
 
+	// project_routes
+	{
+		const cols = tableInfo(sqlite, "project_routes");
+		if (!hasColumn(cols, "icon")) {
+			ensureColumn(sqlite, "project_routes", "icon TEXT");
+		}
+		if (!hasColumn(cols, "command")) {
+			ensureColumn(sqlite, "project_routes", "command TEXT");
+		}
+		if (!hasColumn(cols, "display_order")) {
+			ensureColumn(sqlite, "project_routes", "display_order INTEGER NOT NULL DEFAULT 0");
+			// Resequenciar por projeto
+			const projects = sqlite.query("SELECT DISTINCT project_id FROM project_routes").all();
+			for (const project of projects as { project_id: string }[]) {
+				resequenceDisplayOrder(sqlite, "project_routes", `project_id = '${project.project_id}'`);
+			}
+		}
+	}
+
 	sqlite.close();
 }

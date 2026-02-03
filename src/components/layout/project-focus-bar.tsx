@@ -1,11 +1,17 @@
-import { type LinkProps, type RegisteredRouter, useRouterState } from "@tanstack/react-router";
-import { CheckCheckIcon, ChevronDownIcon, FolderKanbanIcon, Monitor } from "lucide-react";
+import {
+	type LinkProps,
+	type RegisteredRouter,
+	useRouterState,
+	Link,
+} from "@tanstack/react-router";
+import { CheckCheckIcon, ChevronDownIcon, FolderKanbanIcon, Plus, Terminal } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { useProjectFocus } from "@/hooks";
+import { LucideIcon } from "@/lib/lucide-icon";
 import { isTauri } from "@/lib/tauri";
-import { openProjectTerminal } from "@/lib/terminal";
+import { openProjectRoute, openProjectTerminal } from "@/lib/terminal";
 import { cn } from "@/lib/utils";
 import { useIsProjectTerminalOpen } from "@/stores/terminal-status";
 
@@ -26,6 +32,7 @@ const DISABLED_PATHS = new Set<LinkProps<RegisteredRouter>["to"]>([
 export function ProjectFocusBar() {
 	const routerState = useRouterState();
 	const [isOpeningTerminal, setIsOpeningTerminal] = useState(false);
+	const [isOpeningRoute, setIsOpeningRoute] = useState(false);
 
 	const { projects, selectedProjectId, selectedProject, accent, loading, setSelectedProjectId } =
 		useProjectFocus();
@@ -71,6 +78,26 @@ export function ProjectFocusBar() {
 			});
 		} finally {
 			setIsOpeningTerminal(false);
+		}
+	}
+
+	async function handleRouteClick(route: any) {
+		if (!selectedProject || !selectedProjectId) return;
+
+		setIsOpeningRoute(true);
+		try {
+			await openProjectRoute({
+				projectId: selectedProjectId,
+				projectName: selectedProject.name,
+				route: {
+					id: route.id,
+					name: route.name,
+					path: route.route,
+					command: route.command,
+				},
+			});
+		} finally {
+			setIsOpeningRoute(false);
 		}
 	}
 
@@ -161,21 +188,64 @@ export function ProjectFocusBar() {
 				)}
 			/>
 
-			{isTauri() && selectedProjectId && selectedProject && (
-				<Button
-					variant="ghost"
-					size="sm"
-					onClick={handleTerminalClick}
-					disabled={isOpeningTerminal}
-					className={cn(
-						"h-9 px-3 gap-2 transition-all",
-						isTerminalOpen && "text-green-500 hover:text-green-400",
+			{selectedProjectId && selectedProject && (
+				<>
+					{isTauri() && (
+						<>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={handleTerminalClick}
+								disabled={isOpeningTerminal}
+								className={cn(
+									"h-9 px-3 gap-2 transition-all",
+									isTerminalOpen && "text-green-500 hover:text-green-400",
+								)}
+								title={isTerminalOpen ? "Focar terminal do projeto" : "Abrir terminal do projeto"}
+							>
+								<Terminal className={cn("size-4", isOpeningTerminal && "animate-pulse")} />
+								<span className="text-xs hidden sm:inline">Terminal</span>
+							</Button>
+
+							{selectedProject.routes
+								?.sort((a: any, b: any) => a.displayOrder - b.displayOrder)
+								.map((route: any) => (
+									<Button
+										key={route.id}
+										variant="ghost"
+										size="sm"
+										onClick={() => handleRouteClick(route)}
+										disabled={isOpeningRoute}
+										className={cn("h-9 px-3 gap-2 transition-all")}
+										title={
+											route.command
+												? `${route.name}: ${route.command}`
+												: `Abrir terminal em ${route.name}`
+										}
+									>
+										<LucideIcon
+											name={route.icon ?? "FolderOpen"}
+											className={cn("size-4", isOpeningRoute && "animate-pulse")}
+										/>
+										<span className="text-xs hidden sm:inline">{route.name}</span>
+									</Button>
+								))}
+						</>
 					)}
-					title={isTerminalOpen ? "Focar terminal do projeto" : "Abrir terminal do projeto"}
-				>
-					<Monitor className={cn("size-4", isOpeningTerminal && "animate-pulse")} />
-					<span className="text-xs hidden sm:inline">Terminal</span>
-				</Button>
+
+					<Button
+						variant="ghost"
+						size="sm"
+						asChild
+						className="h-9 px-2 gap-1 text-muted-foreground hover:text-foreground transition-colors"
+						title="Adicionar rota personalizada"
+					>
+						<Link to="/projetos/$projetoId" params={{ projetoId: selectedProjectId }}>
+							<Plus className="size-3" />
+							<span className="text-xs hidden sm:inline">Adicionar</span>
+						</Link>
+					</Button>
+				</>
 			)}
 		</div>
 	);

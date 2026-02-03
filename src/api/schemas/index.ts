@@ -22,6 +22,12 @@ export {
 	ProjectUpdateSchema,
 } from "./projects";
 export {
+	ProjectRouteCreateSchema,
+	ProjectRouteIdSchema,
+	ProjectRouteReorderSchema,
+	ProjectRouteUpdateSchema,
+} from "./project-routes";
+export {
 	SubtaskCreateSchema,
 	SubtaskIdSchema,
 	SubtaskListByTaskSchema,

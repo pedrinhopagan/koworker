@@ -1,5 +1,5 @@
 import { protectedProcedure } from "../auth/context";
-import type { projects } from "../db/connection";
+import type { project_routes, projects } from "../db/connection";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
 import {
@@ -9,7 +9,19 @@ import {
 	ProjectUpdateSchema,
 } from "../schemas";
 
-const mapProject = (row: projects) => ({
+const mapProjectRoute = (row: project_routes) => ({
+	id: row.id,
+	projectId: row.project_id,
+	name: row.name,
+	route: row.route,
+	icon: row.icon ?? undefined,
+	command: row.command ?? undefined,
+	displayOrder: row.display_order,
+	createdAt: row.created_at,
+	updatedAt: row.updated_at ?? undefined,
+});
+
+const mapProject = (row: projects & { routes?: project_routes[] }) => ({
 	id: row.id,
 	name: row.name,
 	description: row.description ?? undefined,
@@ -19,6 +31,7 @@ const mapProject = (row: projects) => ({
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,
 	deletedAt: row.deleted_at ?? undefined,
+	routes: row.routes?.map(mapProjectRoute) ?? [],
 });
 
 export const projectsRouter = {
