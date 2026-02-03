@@ -5,6 +5,7 @@ import { categoriesRouter } from "./routers/categories";
 import { prioritiesRouter } from "./routers/priorities";
 import { projectRoutesRouter } from "./routers/project-routes";
 import { projectsRouter } from "./routers/projects";
+import { skillsRouter } from "./routers/skills";
 import { subtasksRouter } from "./routers/subtasks";
 import { tasksRouter } from "./routers/tasks";
 import { terminalRouter, terminalWsRouter } from "./routers/terminal";
@@ -26,6 +27,7 @@ export const router = {
 	subtasks: subtasksRouter,
 	categories: categoriesRouter,
 	priorities: prioritiesRouter,
+	skills: skillsRouter,
 	terminal: terminalRouter,
 
 	testNotification: protectedProcedure.handler(async ({ context }) => {

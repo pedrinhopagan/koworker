@@ -102,5 +102,15 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		}
 	}
 
+	// skills
+	{
+		const cols = tableInfo(sqlite, "skills");
+		if (!hasColumn(cols, "display_order")) {
+			ensureColumn(sqlite, "skills", "display_order INTEGER NOT NULL DEFAULT 0");
+			resequenceDisplayOrder(sqlite, "skills", "source = 'builtin'");
+			resequenceDisplayOrder(sqlite, "skills", "source = 'custom'");
+		}
+	}
+
 	sqlite.close();
 }

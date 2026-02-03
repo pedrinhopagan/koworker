@@ -85,6 +85,21 @@ const prioritiesSchema = type({
 	"updated_at?": "number.integer",
 });
 
+const skill_source = type.enumerated("builtin", "custom");
+
+const skillsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	slug: type("string").configure({ unique: true }),
+	name: "string",
+	description: "string",
+	"content?": "string",
+	"metadata?": "string",
+	source: skill_source.configure({ default: "custom" }),
+	display_order: type("number.integer").configure({ default: 0 }),
+	created_at: type("number.integer").configure({ default: "now" }),
+	"updated_at?": "number.integer",
+});
+
 const database = new Database({
 	path: envVariables.DATABASE_URL,
 	tables: {
@@ -95,6 +110,7 @@ const database = new Database({
 		project_routes: projectRoutesSchema,
 		tasks: tasksSchema,
 		subtasks: subtasksSchema,
+		skills: skillsSchema,
 	},
 });
 
@@ -109,10 +125,12 @@ export type tasks = DB["tasks"];
 export type subtasks = DB["subtasks"];
 export type categories = DB["categories"];
 export type priorities = DB["priorities"];
+export type skills = DB["skills"];
 
 export {
 	user_type,
 	task_status,
+	skill_source,
 	usersSchema,
 	projectsSchema,
 	projectRoutesSchema,
@@ -120,4 +138,5 @@ export {
 	subtasksSchema,
 	categoriesSchema,
 	prioritiesSchema,
+	skillsSchema,
 };

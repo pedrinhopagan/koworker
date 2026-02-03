@@ -46,6 +46,12 @@ export {
 	TaskStatusSchema,
 	TaskUpdateSchema,
 } from "./tasks";
+export {
+	SkillCreateSchema,
+	SkillIdSchema,
+	SkillReorderSchema,
+	SkillUpdateSchema,
+} from "./skills";
 
 export const EndpointSchemas = {
 	authLogin: AuthLoginSchema,

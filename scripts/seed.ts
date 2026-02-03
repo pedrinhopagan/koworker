@@ -1,7 +1,92 @@
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+import { readdir } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { db } from "../src/api/db/connection";
+import { jsonStringify } from "../src/api/helpers/json";
+import { readSkillFile, type SkillFile } from "../src/lib/skills/parser";
+
+const scriptsDir = dirname(fileURLToPath(import.meta.url));
+const SKILLS_CONFIG_PATH = join(homedir(), ".config/opencode/skills");
+const BUILTIN_SKILLS_PATH = join(scriptsDir, "../static/skills");
 
 const createId = () => crypto.randomUUID();
 const now = Date.now();
+
+async function upsertBuiltinSkill(slug: string, skillFile: SkillFile): Promise<void> {
+	const metadata = { ...skillFile.frontmatter };
+	delete metadata.name;
+	delete metadata.description;
+
+	const existing = await db
+		.selectFrom("skills")
+		.select(["id"])
+		.where("slug", "=", slug)
+		.executeTakeFirst();
+
+	if (existing) {
+		await db
+			.updateTable("skills")
+			.set({
+				name: skillFile.frontmatter.name,
+				description: skillFile.frontmatter.description,
+				content: skillFile.body,
+				metadata: jsonStringify(metadata),
+				source: "builtin",
+				updated_at: now,
+			})
+			.where("id", "=", existing.id)
+			.executeTakeFirst();
+		return;
+	}
+
+	const maxOrder = await db
+		.selectFrom("skills")
+		.select(({ fn }) => [fn.max("display_order").as("maxOrder")])
+		.where("source", "=", "builtin")
+		.executeTakeFirst();
+	const displayOrder = ((maxOrder?.maxOrder as number | null) ?? -1) + 1;
+
+	await db
+		.insertInto("skills")
+		.values({
+			id: createId(),
+			slug,
+			name: skillFile.frontmatter.name,
+			description: skillFile.frontmatter.description,
+			content: skillFile.body,
+			metadata: jsonStringify(metadata),
+			source: "builtin",
+			display_order: displayOrder,
+			created_at: now,
+		})
+		.executeTakeFirst();
+}
+
+async function seedBuiltinSkillsFromPath(basePath: string, importedSlugs: Set<string>) {
+	let entries: Awaited<ReturnType<typeof readdir>>;
+	try {
+		entries = await readdir(basePath, { withFileTypes: true });
+	} catch (error) {
+		const err = error as NodeJS.ErrnoException;
+		if (err?.code === "ENOENT") {
+			return;
+		}
+		throw error;
+	}
+
+	const skillDirs = entries.filter((entry) => entry.isDirectory());
+
+	for (const dir of skillDirs) {
+		const slug = dir.name;
+		if (importedSlugs.has(slug)) continue;
+
+		const skillFile = await readSkillFile(join(basePath, slug, "SKILL.md"));
+		if (!skillFile) continue;
+
+		await upsertBuiltinSkill(slug, skillFile);
+	}
+}
 
 await db
 	.insertInto("users")
@@ -43,3 +128,31 @@ await db
 		},
 	])
 	.execute();
+
+try {
+	const importedSlugs = new Set<string>();
+	const entries = await readdir(SKILLS_CONFIG_PATH, { withFileTypes: true });
+	const skillDirs = entries.filter((entry) => entry.isDirectory() && entry.name.startsWith("koworker-"));
+
+	for (const dir of skillDirs) {
+		const slug = dir.name;
+		const skillFile = await readSkillFile(join(SKILLS_CONFIG_PATH, slug, "SKILL.md"));
+
+		if (!skillFile) {
+			continue;
+		}
+
+		await upsertBuiltinSkill(slug, skillFile);
+
+		importedSlugs.add(slug);
+	}
+
+	await seedBuiltinSkillsFromPath(BUILTIN_SKILLS_PATH, importedSlugs);
+} catch (error) {
+	const err = error as NodeJS.ErrnoException;
+	if (err?.code === "ENOENT") {
+		await seedBuiltinSkillsFromPath(BUILTIN_SKILLS_PATH, new Set<string>());
+	} else {
+		console.error("Falha ao importar skills koworker para o seed:", error);
+	}
+}
