@@ -142,7 +142,7 @@ export function TaskActionPanel({
 					onChange={(e) => setUserInput(e.target.value)}
 					placeholder="Descreva instrucoes adicionais, contexto ou ajustes que o agente deve considerar ao executar a skill..."
 					disabled={disabled}
-					className="min-h-[140px] resize-none bg-background text-sm"
+					className="min-h-35 resize-none bg-background text-sm"
 					rows={6}
 				/>
 			</div>

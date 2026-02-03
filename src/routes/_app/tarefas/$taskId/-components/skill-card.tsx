@@ -85,7 +85,7 @@ export function SkillCard({
 				}
 				aria-label={`${skill.label}: ${skill.description}`}
 			>
-				<div className="flex-shrink-0">
+				<div className="shrink-0">
 					{justCopied ? (
 						<Check size={20} className="text-green-500" />
 					) : showCheckIcon ? (
