@@ -1,8 +1,8 @@
 import {
+	Link,
 	type LinkProps,
 	type RegisteredRouter,
 	useRouterState,
-	Link,
 } from "@tanstack/react-router";
 import { CheckCheckIcon, ChevronDownIcon, FolderKanbanIcon, Plus, Terminal } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -120,7 +120,7 @@ export function ProjectFocusBar() {
 				loading={loading}
 				triggerClassName={cn(
 					"flex items-center gap-3 px-4 py-2 rounded-lg min-w-[220px] transition-all duration-200 border-2 bg-card/80 backdrop-blur",
-					accentColor ? "shadow-sm hover:shadow-md" : "border-border",
+					accentColor ? "shadow-sm hover:shadow-md" : "border-border"
 				)}
 				triggerStyle={
 					accent
@@ -148,7 +148,7 @@ export function ProjectFocusBar() {
 						<span
 							className={cn(
 								"flex-1 text-sm font-medium truncate text-left",
-								accentColor ? "text-foreground" : "text-foreground",
+								accentColor ? "text-foreground" : "text-foreground"
 							)}
 						>
 							{label}
@@ -156,7 +156,7 @@ export function ProjectFocusBar() {
 						<ChevronDownIcon
 							className={cn(
 								"size-4 shrink-0 transition-colors",
-								accentColor ? "text-foreground" : "text-muted-foreground",
+								accentColor ? "text-foreground" : "text-muted-foreground"
 							)}
 						/>
 					</>
@@ -165,7 +165,7 @@ export function ProjectFocusBar() {
 					<div
 						className={cn(
 							"flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors",
-							isSelected && "font-medium",
+							isSelected && "font-medium"
 						)}
 						style={isSelected ? { color: project.color ?? undefined } : undefined}
 					>
@@ -199,7 +199,7 @@ export function ProjectFocusBar() {
 								disabled={isOpeningTerminal}
 								className={cn(
 									"h-9 px-3 gap-2 transition-all",
-									isTerminalOpen && "text-green-500 hover:text-green-400",
+									isTerminalOpen && "text-green-500 hover:text-green-400"
 								)}
 								title={isTerminalOpen ? "Focar terminal do projeto" : "Abrir terminal do projeto"}
 							>

@@ -37,7 +37,7 @@ export function WeekTaskChip({ task, compact = false }: WeekTaskChipProps) {
 			className={cn(
 				"cursor-grab rounded px-2 py-1 text-xs transition-all hover:opacity-80",
 				isDragging && "z-50 cursor-grabbing opacity-60 shadow-lg",
-				isDone && "line-through opacity-50",
+				isDone && "line-through opacity-50"
 			)}
 			title={task.title}
 		>

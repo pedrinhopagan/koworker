@@ -30,7 +30,7 @@ type WeekCalendarProps = {
 
 export const WeekCalendar = forwardRef<WeekCalendarRef, WeekCalendarProps>(function WeekCalendar(
 	{ onTasksChanged },
-	ref,
+	ref
 ) {
 	const queryClient = useQueryClient();
 	const [activeTask, setActiveTask] = useState<TaskWithMeta | null>(null);
@@ -58,7 +58,7 @@ export const WeekCalendar = forwardRef<WeekCalendarRef, WeekCalendarProps>(funct
 				delay: 200,
 				tolerance: 5,
 			},
-		}),
+		})
 	);
 
 	const updateTaskMutation = useMutation({
@@ -93,7 +93,7 @@ export const WeekCalendar = forwardRef<WeekCalendarRef, WeekCalendarProps>(funct
 			{ id: task.id, scheduledDate: targetDate },
 			{
 				onError: (e) => console.error("Failed to reschedule task:", e),
-			},
+			}
 		);
 	}
 

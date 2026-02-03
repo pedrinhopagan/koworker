@@ -14,8 +14,7 @@ const customSelectTriggerVariants = tv({
 	base: "flex items-center justify-between gap-2 min-w-0 whitespace-nowrap transition-all outline-none disabled:cursor-not-allowed disabled:opacity-50",
 	variants: {
 		variant: {
-			default:
-				"px-3 py-2 rounded-md border border-input bg-card hover:bg-muted hover:border-muted-foreground",
+			default: "px-3 py-2 border border-input bg-card hover:bg-muted hover:border-muted-foreground",
 			ghost: "hover:bg-accent hover:text-accent-foreground",
 			minimal: "",
 		},
@@ -50,7 +49,7 @@ const customSelectItemVariants = tv({
 		"bg-background text-muted-foreground",
 		"data-[highlighted]:bg-muted data-[highlighted]:text-foreground",
 		"data-[state=checked]:bg-muted data-[state=checked]:text-foreground",
-		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
 	),
 });
 
@@ -63,9 +62,8 @@ type CustomSelectTriggerRenderContext = {
 	error: string | null;
 };
 
-interface CustomSelectProps<T extends { id: string }> extends VariantProps<
-	typeof customSelectTriggerVariants
-> {
+interface CustomSelectProps<T extends { id: string }>
+	extends VariantProps<typeof customSelectTriggerVariants> {
 	items: T[];
 	value?: string;
 	onValueChange: (value: string, item: T) => void;
@@ -154,7 +152,7 @@ function CustomSelect<T extends { id: string }>({
 					className={cn(
 						customSelectTriggerVariants({ variant, size }),
 						className,
-						triggerClassName,
+						triggerClassName
 					)}
 					style={triggerStyle}
 				>
@@ -296,7 +294,7 @@ function CustomSelectInlineEditInput({
 				"w-full min-w-0 bg-transparent outline-none truncate",
 				// keep the input from expanding the row
 				"text-ellipsis",
-				className,
+				className
 			)}
 			onPointerDown={(e) => {
 				// Prevent selecting the item / closing the select when trying to edit.

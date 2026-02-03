@@ -39,7 +39,7 @@ export function WeekDay({ day, tasks, onDayClick }: WeekDayProps) {
 			className={cn(
 				"flex min-h-[200px] flex-col border-r border-border transition-colors last:border-r-0",
 				isOver && "bg-primary/10",
-				isSelected && "bg-primary/5",
+				isSelected && "bg-primary/5"
 			)}
 		>
 			{/* Day Header */}
@@ -49,13 +49,13 @@ export function WeekDay({ day, tasks, onDayClick }: WeekDayProps) {
 				className={cn(
 					"flex flex-col items-center border-b border-border px-2 py-3 transition-colors hover:bg-secondary/50",
 					day.isToday && "bg-primary/10",
-					day.isPast && !day.isToday && "opacity-60",
+					day.isPast && !day.isToday && "opacity-60"
 				)}
 			>
 				<span
 					className={cn(
 						"text-xs font-medium uppercase text-muted-foreground",
-						day.isToday && "text-primary",
+						day.isToday && "text-primary"
 					)}
 				>
 					{day.shortDayName}
@@ -64,7 +64,7 @@ export function WeekDay({ day, tasks, onDayClick }: WeekDayProps) {
 					className={cn(
 						"mt-1 flex h-8 w-8 items-center justify-center rounded-full text-lg font-semibold",
 						day.isToday && "bg-primary text-primary-foreground",
-						!day.isToday && "text-foreground",
+						!day.isToday && "text-foreground"
 					)}
 				>
 					{day.dayNumber}
