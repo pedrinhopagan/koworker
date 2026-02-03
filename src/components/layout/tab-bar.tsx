@@ -13,7 +13,7 @@ import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 
 // Navigation tabs configuration
-type TabPath = "/" | "/projetos" | "/tarefas" | "/agenda";
+type TabPath = "/" | "/projetos" | "/tarefas" | "/agenda" | "/skills";
 type Tab = { path: TabPath; label: string; altKey: string };
 
 const tabs: Tab[] = [
@@ -21,6 +21,7 @@ const tabs: Tab[] = [
 	{ path: "/projetos", label: "Projetos", altKey: "2" },
 	{ path: "/tarefas", label: "Tarefas", altKey: "3" },
 	{ path: "/agenda", label: "Agenda", altKey: "4" },
+	{ path: "/skills", label: "Skills", altKey: "5" },
 ];
 
 // Tab item styles
@@ -61,7 +62,7 @@ export function TabBar() {
 	const routerState = useRouterState();
 	const currentPath = location.pathname;
 
-	// Keyboard navigation: Alt+1-4 for tabs, Alt+0 for settings
+	// Keyboard navigation: Alt+1-5 for tabs, Alt+0 for settings
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
 			if (!e.altKey || e.key < "0" || e.key > "9") {

@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppConfiguracoesRouteImport } from './routes/_app/configuracoes'
 import { Route as AppTarefasIndexRouteImport } from './routes/_app/tarefas/index'
+import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
 import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/index'
 import { Route as AppAgendaIndexRouteImport } from './routes/_app/agenda/index'
 import { Route as AppTarefasTaskIdIndexRouteImport } from './routes/_app/tarefas/$taskId/index'
@@ -42,6 +43,11 @@ const AppConfiguracoesRoute = AppConfiguracoesRouteImport.update({
 const AppTarefasIndexRoute = AppTarefasIndexRouteImport.update({
   id: '/tarefas/',
   path: '/tarefas/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSkillsIndexRoute = AppSkillsIndexRouteImport.update({
+  id: '/skills/',
+  path: '/skills/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProjetosIndexRoute = AppProjetosIndexRouteImport.update({
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof AppConfiguracoesRoute
   '/agenda/': typeof AppAgendaIndexRoute
   '/projetos/': typeof AppProjetosIndexRoute
+  '/skills/': typeof AppSkillsIndexRoute
   '/tarefas/': typeof AppTarefasIndexRoute
   '/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo/': typeof AppProjetosNovoIndexRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/agenda': typeof AppAgendaIndexRoute
   '/projetos': typeof AppProjetosIndexRoute
+  '/skills': typeof AppSkillsIndexRoute
   '/tarefas': typeof AppTarefasIndexRoute
   '/projetos/$projetoId': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo': typeof AppProjetosNovoIndexRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/agenda/': typeof AppAgendaIndexRoute
   '/_app/projetos/': typeof AppProjetosIndexRoute
+  '/_app/skills/': typeof AppSkillsIndexRoute
   '/_app/tarefas/': typeof AppTarefasIndexRoute
   '/_app/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/_app/projetos/novo/': typeof AppProjetosNovoIndexRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/agenda/'
     | '/projetos/'
+    | '/skills/'
     | '/tarefas/'
     | '/projetos/$projetoId/'
     | '/projetos/novo/'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/projetos'
+    | '/skills'
     | '/tarefas'
     | '/projetos/$projetoId'
     | '/projetos/novo'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/agenda/'
     | '/_app/projetos/'
+    | '/_app/skills/'
     | '/_app/tarefas/'
     | '/_app/projetos/$projetoId/'
     | '/_app/projetos/novo/'
@@ -185,6 +197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTarefasIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/skills/': {
+      id: '/_app/skills/'
+      path: '/skills'
+      fullPath: '/skills/'
+      preLoaderRoute: typeof AppSkillsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/projetos/': {
       id: '/_app/projetos/'
       path: '/projetos'
@@ -228,6 +247,7 @@ interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppAgendaIndexRoute: typeof AppAgendaIndexRoute
   AppProjetosIndexRoute: typeof AppProjetosIndexRoute
+  AppSkillsIndexRoute: typeof AppSkillsIndexRoute
   AppTarefasIndexRoute: typeof AppTarefasIndexRoute
   AppProjetosProjetoIdIndexRoute: typeof AppProjetosProjetoIdIndexRoute
   AppProjetosNovoIndexRoute: typeof AppProjetosNovoIndexRoute
@@ -239,6 +259,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppAgendaIndexRoute: AppAgendaIndexRoute,
   AppProjetosIndexRoute: AppProjetosIndexRoute,
+  AppSkillsIndexRoute: AppSkillsIndexRoute,
   AppTarefasIndexRoute: AppTarefasIndexRoute,
   AppProjetosProjetoIdIndexRoute: AppProjetosProjetoIdIndexRoute,
   AppProjetosNovoIndexRoute: AppProjetosNovoIndexRoute,
