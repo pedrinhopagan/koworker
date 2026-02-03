@@ -31,16 +31,15 @@ function ProjetosPage() {
 			title="Projetos"
 			description="Organize seus projetos e contextos"
 			icon={FolderKanban}
+			variant="grid"
 		>
-			<div className="flex flex-col-reverse gap-6 h-full min-h-0 md:grid md:grid-cols-[2fr_3fr]">
-				<div className="min-h-0">
-					<ProjectList projects={data.projects} selectedId={selectedId} loading={loading} />
-				</div>
-
-				<section className="space-y-4 min-h-0 h-full overflow-y-auto pr-2 pb-6">
-					<ProjectSummary project={selectedProject} />
-				</section>
+			<div className="min-h-0 min-w-0 px-4 pb-4">
+				<ProjectList projects={data.projects} selectedId={selectedId} loading={loading} />
 			</div>
+
+			<section className="space-y-4 min-h-0 min-w-0 h-full overflow-y-auto px-4 pr-2 pb-6">
+				<ProjectSummary project={selectedProject} />
+			</section>
 		</PageShell>
 	);
 }

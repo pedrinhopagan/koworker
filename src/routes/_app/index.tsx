@@ -58,47 +58,50 @@ function HomePage() {
 	);
 
 	return (
-		<PageShell title="Dashboard" description="Seu painel de controle" icon={LayoutDashboardIcon}>
-			<div className="flex flex-col-reverse gap-6 h-full min-h-0 md:grid md:grid-cols-[2fr_3fr]">
-				<div className="min-w-70 overflow-y-auto">
-					<HomeSidebar
-						selectedTask={selectedTask}
+		<PageShell
+			title="Dashboard"
+			description="Seu painel de controle"
+			icon={LayoutDashboardIcon}
+			variant="grid"
+		>
+			<div className="min-h-0 min-w-0 overflow-y-auto">
+				<HomeSidebar
+					selectedTask={selectedTask}
+					tasks={tasks}
+					selectedDate={selectedDate}
+					selectedTaskId={selectedTaskId}
+					onTaskSelect={setSelectedTaskId}
+				/>
+			</div>
+
+			<div className="flex-1 min-h-0 min-w-0 overflow-y-auto px-4 pb-4 space-y-6">
+				<TaskListSection
+					tasks={displayTasks}
+					loading={loading}
+					selectedTaskId={selectedTaskId}
+					onTaskClick={handleTaskClick}
+				/>
+
+				<ProjectsSection projects={projects} />
+
+				<section>
+					<SectionHeader
+						title="Minha Semana"
+						icon={Calendar}
+						linkTo="/agenda"
+						linkLabel="ver agenda"
+						accentColor="hsl(var(--primary))"
+					/>
+					<WeekCalendar
 						tasks={tasks}
 						selectedDate={selectedDate}
-						selectedTaskId={selectedTaskId}
-						onTaskSelect={setSelectedTaskId}
+						onDateSelect={setSelectedDate}
 					/>
-				</div>
+				</section>
 
-				<div className="flex-1 overflow-y-auto p-4 space-y-6">
-					<TaskListSection
-						tasks={displayTasks}
-						loading={loading}
-						selectedTaskId={selectedTaskId}
-						onTaskClick={handleTaskClick}
-					/>
-
-					<ProjectsSection projects={projects} />
-
-					<section>
-						<SectionHeader
-							title="Minha Semana"
-							icon={Calendar}
-							linkTo="/agenda"
-							linkLabel="ver agenda"
-							accentColor="hsl(var(--primary))"
-						/>
-						<WeekCalendar
-							tasks={tasks}
-							selectedDate={selectedDate}
-							onDateSelect={setSelectedDate}
-						/>
-					</section>
-
-					<section>
-						<QuickLinks tasks={tasks} />
-					</section>
-				</div>
+				<section>
+					<QuickLinks tasks={tasks} />
+				</section>
 			</div>
 		</PageShell>
 	);

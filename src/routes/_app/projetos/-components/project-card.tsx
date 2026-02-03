@@ -31,6 +31,8 @@ export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 				? `${metrics.done} concluídas`
 				: `${pendingCount} pendente${pendingCount > 1 ? "s" : ""}`;
 
+	const displayPath = project.mainRoute.replace(/^\/home\/[^/]+/, "");
+
 	return (
 		<Link
 			to="/projetos"
@@ -38,13 +40,16 @@ export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 			className={cn(cardVariants({ active: isSelected }), "block w-full")}
 		>
 			<div className="flex items-start gap-3">
-				<div className="mt-1 size-9 rounded-md" style={{ backgroundColor: project.color }} />
+				<div
+					className="mt-1 size-9 rounded-md shrink-0"
+					style={{ backgroundColor: project.color }}
+				/>
 				<div className="flex-1">
 					<Title size="sm" as="div">
 						{project.name}
 					</Title>
-					<Text size="sm" tone="muted">
-						{project.mainRoute}
+					<Text size="sm" tone="muted" className="truncate line-clamp-1">
+						{displayPath}
 					</Text>
 					<div className="mt-2 flex flex-wrap items-center gap-3">
 						<Text size="xs" tone="muted">
@@ -52,7 +57,10 @@ export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 						</Text>
 					</div>
 				</div>
-				<div className="mt-1 size-2 rounded-full" style={{ backgroundColor: project.color }} />
+				<div
+					className="mt-1 size-2 rounded-full shrink-0"
+					style={{ backgroundColor: project.color }}
+				/>
 			</div>
 		</Link>
 	);

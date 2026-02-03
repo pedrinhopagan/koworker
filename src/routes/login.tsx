@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageShell } from "@/components/layout/page-shell";
 import { useLogin } from "@/hooks/use-login";
 import type { LoginInput } from "@/types/auth";
 
@@ -16,17 +17,19 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
 	return (
-		<div className="flex min-h-screen items-center justify-center bg-background">
-			<Card className="w-full max-w-sm">
-				<LoginCardHeader />
+		<PageShell title="Login" description="Entre com suas credenciais para acessar" icon={LogIn}>
+			<div className="flex flex-1 items-center justify-center py-8">
+				<Card className="w-full max-w-sm">
+					<LoginCardHeader />
 
-				<LoginCardContent>
-					<LoginCardName />
-					<LoginCardPassword />
-					<LoginCardFooter />
-				</LoginCardContent>
-			</Card>
-		</div>
+					<LoginCardContent>
+						<LoginCardName />
+						<LoginCardPassword />
+						<LoginCardFooter />
+					</LoginCardContent>
+				</Card>
+			</div>
+		</PageShell>
 	);
 }
 
@@ -34,9 +37,6 @@ function LoginCardHeader() {
 	return (
 		<CardHeader>
 			<Title size="md">Koworker</Title>
-			<Text size="sm" tone="muted">
-				Entre com suas credenciais para acessar
-			</Text>
 		</CardHeader>
 	);
 }
