@@ -188,6 +188,66 @@ export async function executeInTerminal(
 }
 
 /**
+ * Abre terminal para uma rota personalizada do projeto.
+ * Cria/foca uma tab tmux nomeada pelo apelido da rota.
+ */
+export async function openProjectRoute(params: {
+	projectId: string;
+	projectName: string;
+	route: {
+		id: string;
+		name: string;
+		path: string;
+		command?: string;
+	};
+	options?: OpenTerminalOptions;
+}): Promise<TerminalResult> {
+	const { projectId, projectName, route, options = {} } = params;
+	const { showToast = true } = options;
+
+	if (!isTauri()) {
+		console.log("=".repeat(60));
+		console.log(`[Terminal] Modo browser - Route: ${route.name} at ${route.path}`);
+		if (route.command) console.log(`Command: ${route.command}`);
+		console.log("=".repeat(60));
+
+		const message = "Modo browser: rota logada no console";
+		if (showToast) toast.info(message);
+		return { success: true, message };
+	}
+
+	try {
+		const { invoke } = await import("@tauri-apps/api/core");
+
+		const result = await invoke<OpenTerminalResult>("open_terminal_for_route", {
+			projectId,
+			projectName,
+			routeId: route.id,
+			routeName: route.name,
+			routePath: route.path,
+			command: route.command,
+		});
+
+		if (!result) {
+			const message = "Falha ao abrir terminal para rota";
+			if (showToast) toast.error(message);
+			return { success: false, message };
+		}
+
+		const message = result.isNewWindow
+			? `Terminal aberto: ${route.name}`
+			: `Focando em ${route.name}`;
+
+		if (showToast) toast.success(message);
+		return { success: true, message, result };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "Erro ao abrir terminal";
+		if (showToast) toast.error(message);
+		return { success: false, message };
+	}
+}
+
+/**
  * Fecha o terminal inteiro de um projeto (todas as tabs).
  */
 export async function closeProjectTerminal(

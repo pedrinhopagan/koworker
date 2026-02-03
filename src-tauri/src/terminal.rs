@@ -468,6 +468,107 @@ pub fn open_terminal_for_task(
     })
 }
 
+fn sanitize_route_name(route_name: &str) -> String {
+    route_name
+        .to_lowercase()
+        .replace(' ', "_")
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_')
+        .collect()
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub fn open_terminal_for_route(
+    project_id: String,
+    project_name: String,
+    route_id: String,
+    route_name: String,
+    route_path: String,
+    command: Option<String>,
+) -> Result<OpenTerminalResult, String> {
+    let session_name = session_name_for_project(&project_id);
+    let window_name = sanitize_route_name(&route_name);
+    let terminal_title = format!("{} - Kowork", project_name);
+
+    let mut is_new_session = false;
+    let mut is_new_window = false;
+
+    if !tmux_session_exists(&session_name) {
+        create_tmux_session(&session_name, &route_path, &window_name)?;
+
+        spawn_alacritty_with_tmux(&session_name, &terminal_title)?;
+        is_new_session = true;
+        is_new_window = true;
+
+        std::thread::sleep(Duration::from_millis(500));
+
+        notify_backend(&TerminalEvent {
+            event_type: "session_opened".to_string(),
+            project_id: project_id.clone(),
+            task_id: None,
+            session_name: session_name.clone(),
+            window_name: None,
+        });
+
+        notify_backend(&TerminalEvent {
+            event_type: "route_opened".to_string(),
+            project_id: project_id.clone(),
+            task_id: Some(route_id.clone()),
+            session_name: session_name.clone(),
+            window_name: Some(window_name.clone()),
+        });
+    } else {
+        if !terminal_process_exists_for_session(&session_name) {
+            spawn_alacritty_with_tmux(&session_name, &terminal_title)?;
+            std::thread::sleep(Duration::from_millis(300));
+        }
+
+        focus_terminal_window(&project_name)?;
+
+        if tmux_window_exists(&session_name, &window_name) {
+            select_tmux_window(&session_name, &window_name)?;
+            update_known_session(&project_id, &session_name, &route_id, &window_name);
+            start_session_monitor();
+
+            return Ok(OpenTerminalResult {
+                session_name,
+                window_name,
+                is_new_session: false,
+                is_new_window: false,
+            });
+        }
+
+        create_tmux_window(&session_name, &window_name, &route_path)?;
+        is_new_window = true;
+
+        notify_backend(&TerminalEvent {
+            event_type: "route_opened".to_string(),
+            project_id: project_id.clone(),
+            task_id: Some(route_id.clone()),
+            session_name: session_name.clone(),
+            window_name: Some(window_name.clone()),
+        });
+    }
+
+    select_tmux_window(&session_name, &window_name)?;
+
+    if let Some(cmd) = command {
+        if !cmd.trim().is_empty() {
+            send_command_to_tmux(&session_name, &window_name, &cmd)?;
+        }
+    }
+
+    update_known_session(&project_id, &session_name, &route_id, &window_name);
+    start_session_monitor();
+
+    Ok(OpenTerminalResult {
+        session_name,
+        window_name,
+        is_new_session,
+        is_new_window,
+    })
+}
+
 #[tauri::command(rename_all = "camelCase")]
 pub fn close_project_session(project_id: String) -> Result<(), String> {
     let session_name = session_name_for_project(&project_id);

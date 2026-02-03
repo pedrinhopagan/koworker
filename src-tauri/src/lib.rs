@@ -21,6 +21,7 @@ pub fn run() {
             commands::toggle_window,
             commands::pick_project_folder,
             terminal::open_terminal_for_task,
+            terminal::open_terminal_for_route,
             terminal::close_project_session,
             terminal::close_task_window,
             terminal::get_active_sessions,
