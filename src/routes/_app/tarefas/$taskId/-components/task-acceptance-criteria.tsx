@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Circle, Plus } from "lucide-react";
 import type { KeyboardEvent } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { orpc } from "@/client";
 import { Text } from "@/components/typography";
@@ -22,10 +22,6 @@ export function TaskAcceptanceCriteria({ task }: TaskAcceptanceCriteriaProps) {
 	const queryClient = useQueryClient();
 	const [criteria, setCriteria] = useState(task.acceptanceCriteria ?? []);
 	const [newItem, setNewItem] = useState("");
-
-	useEffect(() => {
-		setCriteria(task.acceptanceCriteria ?? []);
-	}, [task.acceptanceCriteria]);
 
 	const updateMutation = useMutation({
 		...orpc.tasks.update.mutationOptions(),
@@ -107,7 +103,7 @@ export function TaskAcceptanceCriteria({ task }: TaskAcceptanceCriteriaProps) {
 										key={item.id}
 										className={cn(
 											"flex items-start gap-2 rounded-md border border-border/60 px-3 py-2 bg-card",
-											isDone && "opacity-60",
+											isDone && "opacity-60"
 										)}
 									>
 										<button
@@ -127,7 +123,7 @@ export function TaskAcceptanceCriteria({ task }: TaskAcceptanceCriteriaProps) {
 											className={cn(
 												"flex-1 bg-transparent text-sm text-foreground",
 												"focus:outline-none",
-												isDone && "line-through text-muted-foreground",
+												isDone && "line-through text-muted-foreground"
 											)}
 											placeholder="Descreva o criterio..."
 										/>
@@ -149,7 +145,7 @@ export function TaskAcceptanceCriteria({ task }: TaskAcceptanceCriteriaProps) {
 							className={cn(
 								"flex-1 bg-transparent text-foreground text-sm",
 								"focus:outline-none border-b border-transparent focus:border-primary transition-colors",
-								"placeholder:text-muted-foreground/60 disabled:opacity-50 disabled:cursor-not-allowed",
+								"placeholder:text-muted-foreground/60 disabled:opacity-50 disabled:cursor-not-allowed"
 							)}
 						/>
 						<button
@@ -158,7 +154,7 @@ export function TaskAcceptanceCriteria({ task }: TaskAcceptanceCriteriaProps) {
 							disabled={!newItem.trim() || isMutating}
 							className={cn(
 								"px-3 py-1 text-xs bg-primary text-primary-foreground",
-								"hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors",
+								"hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 							)}
 						>
 							Adicionar

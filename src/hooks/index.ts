@@ -4,6 +4,7 @@ export { useLogin } from "./use-login";
 export { useLogout } from "./use-logout";
 export { usePrimaryColor } from "./use-primary-color";
 export { useProjectFocus } from "./use-project-focus";
+export { useSkillsQuery } from "./use-skills";
 export { type Subtask, useSubtasks } from "./use-subtasks";
 export { type TaskMetrics, useTaskMetrics } from "./use-task-metrics";
 export { type UseTaskProgressResult, useTaskProgress } from "./use-task-progress";

@@ -6,16 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Drawer } from "@/components/ui/drawer";
 import { Textarea } from "@/components/ui/textarea";
 
+import type { TaskSkill } from "@/types/skills";
 import { getCustomInstructions, setCustomInstructions } from "./build-prompt";
-import { getSkillById, type SkillId } from "./skill-registry";
 
 type SkillInstructionsEditorProps = {
-	skillId: SkillId | null;
+	skill: TaskSkill | null;
 	onClose: () => void;
 };
 
-export function SkillInstructionsEditor({ skillId, onClose }: SkillInstructionsEditorProps) {
-	const skill = skillId ? getSkillById(skillId) : null;
+export function SkillInstructionsEditor({ skill, onClose }: SkillInstructionsEditorProps) {
+	const skillId = skill?.id ?? null;
 	const [instructions, setInstructions] = useState("");
 	const [hasChanges, setHasChanges] = useState(false);
 

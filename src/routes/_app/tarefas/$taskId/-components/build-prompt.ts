@@ -1,10 +1,10 @@
 import type { SubtaskFull, TaskFull } from "@/types/tasks";
 
-import type { Skill } from "./skill-registry";
+import type { TaskSkill } from "@/types/skills";
 
 export type BuildPromptParams = {
 	userInput: string;
-	skill: Skill;
+	skill: TaskSkill;
 	task: NonNullable<TaskFull>;
 	selectedSubtaskIds: string[];
 };

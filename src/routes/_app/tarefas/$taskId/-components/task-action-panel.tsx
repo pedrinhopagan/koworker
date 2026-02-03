@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { Plus, Terminal, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -6,16 +7,16 @@ import { Text } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useSkillsQuery } from "@/hooks/use-skills";
 import { isTauri } from "@/lib/tauri";
 import { closeProjectTerminal, closeTaskTerminal } from "@/lib/terminal";
 import { useIsProjectTerminalOpen, useIsTaskWindowOpen } from "@/stores/terminal-status";
+import type { TaskSkill } from "@/types/skills";
 import type { TaskFull } from "@/types/tasks";
-
 import { copyToClipboard } from "./agent-runner";
 import { buildPromptWithCustomInstructions } from "./build-prompt";
 import { SkillCard } from "./skill-card";
 import { SkillInstructionsEditor } from "./skill-instructions-editor";
-import { getSkillById, SKILL_IDS, SKILLS, type SkillId } from "./skill-registry";
 
 type TaskActionPanelProps = {
 	task: NonNullable<TaskFull>;
@@ -34,13 +35,21 @@ export function TaskActionPanel({
 	onCancelSubtaskSelection,
 	disabled,
 }: TaskActionPanelProps) {
+	const navigate = useNavigate();
+	const skillsQuery = useSkillsQuery();
 	const [userInput, setUserInput] = useState("");
-	const [editingSkillId, setEditingSkillId] = useState<SkillId | null>(null);
+	const [editingSkillId, setEditingSkillId] = useState<string | null>(null);
 
 	const isProjectTerminalOpen = useIsProjectTerminalOpen(task.projectId);
 	const isTaskWindowOpen = useIsTaskWindowOpen(task.id);
+	const builtinSkills = skillsQuery.taskSkills.filter((skill) => skill.source === "builtin");
+	const customSkills = skillsQuery.taskSkills.filter((skill) => skill.source === "custom");
 
-	function buildCurrentPrompt(skillId: SkillId): string | null {
+	function getSkillById(id: string): TaskSkill | null {
+		return skillsQuery.taskSkills.find((skill) => skill.id === id) ?? null;
+	}
+
+	function buildCurrentPrompt(skillId: string): string | null {
 		const skill = getSkillById(skillId);
 		if (!skill) return null;
 
@@ -52,7 +61,7 @@ export function TaskActionPanel({
 		});
 	}
 
-	async function handleCopyPrompt(skillId: SkillId) {
+	async function handleCopyPrompt(skillId: string) {
 		const skill = getSkillById(skillId);
 		if (!skill) return;
 
@@ -101,7 +110,7 @@ export function TaskActionPanel({
 	}
 
 	return (
-		<section className="space-y-4 p-2">
+		<section className="space-y-4 p-2 overflow-y-auto pr-4">
 			{isTauri() && isProjectTerminalOpen && (
 				<div className="flex items-center justify-between p-2 border border-green-500/30 bg-green-500/10 rounded">
 					<div className="flex items-center gap-2">
@@ -163,34 +172,78 @@ export function TaskActionPanel({
 			)}
 
 			<div className="space-y-2">
-				<Text size="xs" tone="muted" className="uppercase tracking-wide">
-					Skills Disponiveis
-				</Text>
+				{skillsQuery.isLoading && (
+					<Text size="sm" tone="muted">
+						Carregando skills...
+					</Text>
+				)}
 
-				<div className="grid grid-cols-1 gap-2">
-					{SKILLS.map((skill) => (
-						<SkillCard
-							key={skill.id}
-							skill={skill}
-							isConfirmMode={selectingSubtasks && skill.id === SKILL_IDS.EXECUTE_SUBTASKS}
-							disabled={disabled}
-							onCopyPrompt={handleCopyPrompt}
-							onEditInstructions={handleEditInstructions}
-						/>
-					))}
+				{!skillsQuery.isLoading && (
+					<div className="space-y-4">
+						<section className="space-y-2">
+							<Text size="xs" tone="muted" className="uppercase tracking-wide">
+								Skills nativas
+							</Text>
+							<div className="grid grid-cols-1 gap-2">
+								{builtinSkills.length === 0 && (
+									<Text size="sm" tone="muted">
+										Nenhuma skill nativa encontrada
+									</Text>
+								)}
+								{builtinSkills.map((skill) => (
+									<SkillCard
+										key={skill.id}
+										skill={skill}
+										variant="task"
+										isConfirmMode={selectingSubtasks && skill.requiresSubtaskSelection}
+										disabled={disabled}
+										onCopyPrompt={handleCopyPrompt}
+										onEditInstructions={handleEditInstructions}
+									/>
+								))}
+							</div>
+						</section>
 
-					<button
-						type="button"
-						className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors"
-						onClick={() => toast.info("Em breve: criar nova skill personalizada")}
-					>
-						<Plus size={16} />
-						<span className="text-sm">Criar nova skill</span>
-					</button>
-				</div>
+						<section className="space-y-2">
+							<Text size="xs" tone="muted" className="uppercase tracking-wide">
+								Skills custom
+							</Text>
+							<div className="grid grid-cols-1 gap-2">
+								{customSkills.length === 0 && (
+									<Text size="sm" tone="muted">
+										Nenhuma skill custom encontrada
+									</Text>
+								)}
+								{customSkills.map((skill) => (
+									<SkillCard
+										key={skill.id}
+										skill={skill}
+										variant="task"
+										isConfirmMode={selectingSubtasks && skill.requiresSubtaskSelection}
+										disabled={disabled}
+										onCopyPrompt={handleCopyPrompt}
+										onEditInstructions={handleEditInstructions}
+									/>
+								))}
+
+								<button
+									type="button"
+									className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors"
+									onClick={() => navigate({ to: "/skills" })}
+								>
+									<Plus size={16} />
+									<span className="text-sm">Criar nova skill</span>
+								</button>
+							</div>
+						</section>
+					</div>
+				)}
 			</div>
 
-			<SkillInstructionsEditor skillId={editingSkillId} onClose={() => setEditingSkillId(null)} />
+			<SkillInstructionsEditor
+				skill={editingSkillId ? getSkillById(editingSkillId) : null}
+				onClose={() => setEditingSkillId(null)}
+			/>
 		</section>
 	);
 }
