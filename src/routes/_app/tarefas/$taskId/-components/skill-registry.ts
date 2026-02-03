@@ -29,6 +29,23 @@ export type Skill = {
 	requiresSubtaskSelection?: boolean;
 };
 
+const TOOLS_AVAILABLE = `## Ferramentas Disponiveis
+
+Voce tem acesso a ferramenta **Bash** para executar comandos no terminal.
+
+Use-a para executar o comando CLI do Koworker:
+
+\`\`\`bash
+kowork update-task '<JSON>'
+\`\`\`
+
+**IMPORTANTE:**
+- Sempre use a ferramenta Bash, NUNCA apenas sugira o comando
+- Execute o comando diretamente usando Bash tool
+- Verifique o output do comando (deve mostrar mensagem de sucesso)
+- Se houver erro, corrija e tente novamente
+- NAO prossiga sem confirmar que o comando foi executado com sucesso`;
+
 const TASK_BASE = `## Base da Task (Koworker)
 
 - \`description\` e a fonte principal dos requisitos e detalhes
@@ -53,6 +70,8 @@ export const SKILLS: Skill[] = [
 4. **Atualize a tarefa via CLI** usando o comando \`kowork update-task\` (documentado abaixo)
 5. **Verifique o sucesso** da execucao do comando antes de finalizar
 6. **Finalize** com: "✅ Tarefa estruturada no Koworker, volte ao app para visualizar os detalhes."
+
+${TOOLS_AVAILABLE}
 
 ${TASK_BASE}
 
@@ -114,6 +133,8 @@ Estruturar a tarefa com detalhes completos, criterios de aceite e subtasks clara
 4. **Verifique o sucesso** da execucao do comando antes de finalizar
 5. **Finalize** com: "✅ Todas as subtasks foram executadas no Koworker, volte ao app para revisar."
 
+${TOOLS_AVAILABLE}
+
 ${TASK_BASE}
 
 ## Objetivo
@@ -168,6 +189,8 @@ Executar todas as subtasks pendentes da tarefa em sequencia.
 4. **Verifique o sucesso** da execucao do comando antes de finalizar
 5. **Finalize** com: "✅ Subtask(s) selecionada(s) executada(s) no Koworker, volte ao app para revisar."
 
+${TOOLS_AVAILABLE}
+
 ${TASK_BASE}
 
 ## Objetivo
@@ -221,6 +244,8 @@ Executar apenas as subtasks selecionadas pelo usuario.
 5. **Verifique o sucesso** da execucao do comando antes de finalizar
 6. **Finalize** com: "✅ Revisao concluida no Koworker, volte ao app para visualizar o resultado."
 
+${TOOLS_AVAILABLE}
+
 ${TASK_BASE}
 
 ## Objetivo
@@ -273,6 +298,8 @@ Revisar a tarefa, criterios de aceite e subtasks antes do commit.
 5. **Verifique o sucesso** da execucao do comando antes de finalizar
 6. **Finalize** com: "✅ Commit criado e registrado no Koworker, volte ao app para continuar."
 
+${TOOLS_AVAILABLE}
+
 ${TASK_BASE}
 
 ## Objetivo
@@ -324,6 +351,8 @@ Criar um commit git com as alteracoes feitas nesta tarefa.
 4. **Atualize a tarefa via CLI** usando o comando \`kowork update-task\` (documentado abaixo)
 5. **Verifique o sucesso** da execucao do comando antes de finalizar
 6. **Finalize** com: "✅ Ajuste aplicado e registrado no Koworker, volte ao app para validar."
+
+${TOOLS_AVAILABLE}
 
 ${TASK_BASE}
 
