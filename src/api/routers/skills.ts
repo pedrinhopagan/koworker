@@ -3,16 +3,20 @@ import type { skills } from "../db/connection";
 import { dbSkills } from "../db/skills";
 import { jsonParse, jsonStringify } from "../helpers/json";
 import {
+	exportSkillsToConfig,
+	importSkillsFromConfig,
+	previewExportToConfig,
+	previewImportFromConfig,
+	syncDefaultSkillsFromStatic,
+	syncSkillToConfig,
+} from "../helpers/skills-sync";
+import {
 	SkillCreateSchema,
 	SkillIdSchema,
 	SkillReorderSchema,
+	SkillSyncSchema,
 	SkillUpdateSchema,
 } from "../schemas/skills";
-import {
-	exportSkillsToConfig,
-	syncSkillToConfig,
-	importSkillsFromConfig,
-} from "../helpers/skills-sync";
 
 const mapSkill = (row: skills) => ({
 	id: row.id,
@@ -98,11 +102,23 @@ export const skillsRouter = {
 		return { success: true };
 	}),
 
-	importFromConfig: protectedProcedure.handler(async () => {
-		return await importSkillsFromConfig();
+	previewImportFromConfig: protectedProcedure.handler(async () => {
+		return await previewImportFromConfig();
 	}),
 
-	exportToConfig: protectedProcedure.handler(async () => {
-		return await exportSkillsToConfig();
+	previewExportToConfig: protectedProcedure.handler(async () => {
+		return await previewExportToConfig();
+	}),
+
+	importFromConfig: protectedProcedure.input(SkillSyncSchema).handler(async ({ input }) => {
+		return await importSkillsFromConfig(input);
+	}),
+
+	exportToConfig: protectedProcedure.input(SkillSyncSchema).handler(async ({ input }) => {
+		return await exportSkillsToConfig(input);
+	}),
+
+	syncDefaultsFromStatic: protectedProcedure.handler(async () => {
+		return await syncDefaultSkillsFromStatic();
 	}),
 };

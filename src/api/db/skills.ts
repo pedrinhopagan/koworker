@@ -50,6 +50,11 @@ export const dbSkills = {
 	deleteBySlug: (slug: string) =>
 		db.deleteFrom("skills").where("slug", "=", slug).executeTakeFirst(),
 
+	deleteAll: () => db.deleteFrom("skills").execute(),
+
+	deleteBySource: (source: "builtin" | "custom") =>
+		db.deleteFrom("skills").where("source", "=", source).execute(),
+
 	reorder: async (orderedIds: string[]) => {
 		await db.transaction().execute(async (trx) => {
 			for (const [index, id] of orderedIds.entries()) {

@@ -45,5 +45,13 @@ export const SkillReorderSchema = z.object({
 	orderedIds: z.array(z.string().uuid()).min(1),
 });
 
+export const SkillConflictStrategySchema = z.enum(["overwrite", "ignore"]);
+
+export const SkillSyncSchema = z.object({
+	slugs: z.array(z.string()).optional(),
+	conflictStrategy: SkillConflictStrategySchema.default("ignore"),
+});
+
 export type SkillCreateInput = z.infer<typeof SkillCreateSchema>;
 export type SkillUpdateInput = z.infer<typeof SkillUpdateSchema>;
+export type SkillSyncInput = z.infer<typeof SkillSyncSchema>;

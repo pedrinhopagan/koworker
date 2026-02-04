@@ -1,12 +1,12 @@
-import type { SubtaskFull, TaskFull } from "@/types/tasks";
-
 import type { TaskSkill } from "@/types/skills";
+import type { SubtaskFull, TaskFull } from "@/types/tasks";
 
 export type BuildPromptParams = {
 	userInput: string;
 	skill: TaskSkill;
 	task: NonNullable<TaskFull>;
 	selectedSubtaskIds: string[];
+	customInstructions?: string;
 };
 
 export type TaskPromptJson = {
@@ -31,7 +31,7 @@ export type TaskPromptJson = {
 };
 
 export function buildPrompt(params: BuildPromptParams): string {
-	const { userInput, skill, task, selectedSubtaskIds } = params;
+	const { userInput, skill, task, selectedSubtaskIds, customInstructions } = params;
 
 	const selectedSubtasks = task.subtasks?.filter((s) => selectedSubtaskIds.includes(s.id)) ?? [];
 
@@ -55,16 +55,6 @@ export function buildPrompt(params: BuildPromptParams): string {
 		timestamp: new Date().toISOString(),
 		locale: "pt-BR",
 	};
-
-	const userInputSection = userInput.trim()
-		? `## Instrucoes do Usuario
-
-${userInput.trim()}
-
----
-
-`
-		: "";
 
 	const cliExampleUpdate = {
 		taskId: task.id,
@@ -91,21 +81,27 @@ ${userInput.trim()}
 					],
 	};
 
-	return `${userInputSection}## Skill: ${skill.label}
+	const baseInstructionsSection = `## Instrucoes do Koworker
 
-${skill.instructions}
+Estas instrucoes sao comuns a todas as skills e garantem o uso correto do app.
 
----
+### Uso da CLI
 
-## Dados da Tarefa (Koworker)
+- Sempre use a ferramenta Bash para executar o comando \`kowork update-task '<JSON>'\`
+- Verifique o output do comando (deve mostrar mensagem de sucesso)
+- Se houver erro, corrija e tente novamente
+- Nao prossiga sem confirmar que o comando foi executado com sucesso
 
-\`\`\`json
-${JSON.stringify(taskJson, null, 2)}
-\`\`\`
+### Base da Task (Koworker)
 
----
+- \`description\` e a fonte principal dos requisitos e detalhes
+- \`acceptance_criteria\` e uma lista JSON: \`[{ id, text, done }]\`
+- Use \`notes\` para registrar observacoes relevantes da IA
+- Subtasks devem ter \`title\` e \`description\` completos
+- Ao atualizar \`acceptance_criteria\`, envie o array completo
+- Status valido: \`pending\` | \`in_execution\` | \`executed\`
 
-## CLI para Atualizacao da Tarefa
+### CLI para Atualizacao da Tarefa
 
 Apos completar o trabalho, atualize o status da tarefa usando a CLI do Koworker:
 
@@ -156,6 +152,42 @@ kowork update-task '${JSON.stringify(cliExampleUpdate)}'
 6. Mesmo sendo armazenado como string, mantenha o formato de lista JSON
 7. Use o campo \`notes\` para documentar o que foi feito
 8. Nao defina \`completed_at\` - isso e feito pelo usuario ao aprovar`;
+
+	const customInstructionsSection = customInstructions?.trim()
+		? `## Instrucoes personalizadas
+
+${customInstructions.trim()}`
+		: null;
+
+	const userInputSection = userInput.trim()
+		? `## Prompt do Usuario
+
+${userInput.trim()}`
+		: null;
+
+	const userPromptHint = userInput.trim()
+		? "seguindo o prompt do usuario acima"
+		: "seguindo as instrucoes acima";
+
+	const skillInvocationSection = `## Skill selecionada
+
+Utilize a skill "${skill.slug}" ${userPromptHint}.`;
+
+	const taskDataSection = `## Dados da Tarefa (Koworker)
+
+\`\`\`json
+${JSON.stringify(taskJson, null, 2)}
+\`\`\``;
+
+	const sections = [
+		baseInstructionsSection,
+		customInstructionsSection,
+		userInputSection,
+		skillInvocationSection,
+		taskDataSection,
+	].filter(Boolean);
+
+	return sections.join("\n\n---\n\n");
 }
 
 export function getCustomInstructions(skillId: string): string | null {
@@ -177,15 +209,8 @@ export function setCustomInstructions(skillId: string, instructions: string): vo
 export function buildPromptWithCustomInstructions(params: BuildPromptParams): string {
 	const customInstructions = getCustomInstructions(params.skill.id);
 
-	if (customInstructions) {
-		return buildPrompt({
-			...params,
-			skill: {
-				...params.skill,
-				instructions: customInstructions,
-			},
-		});
-	}
-
-	return buildPrompt(params);
+	return buildPrompt({
+		...params,
+		customInstructions: customInstructions ?? undefined,
+	});
 }

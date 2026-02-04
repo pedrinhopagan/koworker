@@ -1,6 +1,7 @@
 import type { RouterOutputs } from "@/client";
 
 export type SkillRecord = RouterOutputs["skills"]["list"][number];
+export type SkillSyncPreviewItem = RouterOutputs["skills"]["previewImportFromConfig"][number];
 
 export type TaskSkill = {
 	id: string;

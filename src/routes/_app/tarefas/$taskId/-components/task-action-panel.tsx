@@ -95,7 +95,7 @@ export function TaskActionPanel({
 		}
 	}
 
-	function handleEditInstructions(skillId: SkillId) {
+	function handleEditInstructions(skillId: string) {
 		setEditingSkillId(skillId);
 	}
 
@@ -110,7 +110,7 @@ export function TaskActionPanel({
 	}
 
 	return (
-		<section className="space-y-4 p-2 overflow-y-auto pr-4">
+		<section className="space-y-4 p-2 pr-4 flex h-full flex-col min-h-0">
 			{isTauri() && isProjectTerminalOpen && (
 				<div className="flex items-center justify-between p-2 border border-green-500/30 bg-green-500/10 rounded">
 					<div className="flex items-center gap-2">
@@ -171,7 +171,7 @@ export function TaskActionPanel({
 				</div>
 			)}
 
-			<div className="space-y-2">
+			<div className="flex flex-col gap-2 flex-1 min-h-0">
 				{skillsQuery.isLoading && (
 					<Text size="sm" tone="muted">
 						Carregando skills...
@@ -179,7 +179,7 @@ export function TaskActionPanel({
 				)}
 
 				{!skillsQuery.isLoading && (
-					<div className="space-y-4">
+					<div className="flex flex-col gap-4 flex-1 min-h-0">
 						<section className="space-y-2">
 							<Text size="xs" tone="muted" className="uppercase tracking-wide">
 								Skills nativas
@@ -204,37 +204,41 @@ export function TaskActionPanel({
 							</div>
 						</section>
 
-						<section className="space-y-2">
+						<section className="flex flex-col gap-2 flex-1 min-h-0">
 							<Text size="xs" tone="muted" className="uppercase tracking-wide">
 								Skills custom
 							</Text>
-							<div className="grid grid-cols-1 gap-2">
-								{customSkills.length === 0 && (
-									<Text size="sm" tone="muted">
-										Nenhuma skill custom encontrada
-									</Text>
-								)}
-								{customSkills.map((skill) => (
-									<SkillCard
-										key={skill.id}
-										skill={skill}
-										variant="task"
-										isConfirmMode={selectingSubtasks && skill.requiresSubtaskSelection}
-										disabled={disabled}
-										onCopyPrompt={handleCopyPrompt}
-										onEditInstructions={handleEditInstructions}
-									/>
-								))}
+							{customSkills.length === 0 && (
+								<Text size="sm" tone="muted">
+									Nenhuma skill custom encontrada
+								</Text>
+							)}
+							{customSkills.length > 0 && (
+								<div className="flex-1 min-h-0 overflow-y-auto pr-1">
+									<div className="grid grid-cols-1 gap-2">
+										{customSkills.map((skill) => (
+											<SkillCard
+												key={skill.id}
+												skill={skill}
+												variant="task"
+												isConfirmMode={selectingSubtasks && skill.requiresSubtaskSelection}
+												disabled={disabled}
+												onCopyPrompt={handleCopyPrompt}
+												onEditInstructions={handleEditInstructions}
+											/>
+										))}
+									</div>
+								</div>
+							)}
 
-								<button
-									type="button"
-									className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors"
-									onClick={() => navigate({ to: "/skills" })}
-								>
-									<Plus size={16} />
-									<span className="text-sm">Criar nova skill</span>
-								</button>
-							</div>
+							<button
+								type="button"
+								className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors"
+								onClick={() => navigate({ to: "/skills" })}
+							>
+								<Plus size={16} />
+								<span className="text-sm">Criar nova skill</span>
+							</button>
 						</section>
 					</div>
 				)}

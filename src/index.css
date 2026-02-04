@@ -3,6 +3,8 @@
 
 @custom-variant dark (&:is(.dark *));
 
+
+
 :root {
 	--radius: 0rem;
 }
@@ -153,6 +155,19 @@
 		@apply bg-background text-foreground;
 	}
 }
+
+@layer utilities {
+	/* Oculta para Chrome, Safari e Edge (WebView2 do Tauri) */
+	.no-scrollbar::-webkit-scrollbar {
+	  display: none;
+	}
+  
+	/* Oculta para Firefox e navegadores modernos */
+	.no-scrollbar {
+	  -ms-overflow-style: none; /* IE/Edge antigo */
+	  scrollbar-width: none;  /* Firefox */
+	}
+  }
 
 /* ============================================================================
    Animations - Migrated from WorkOpilot

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Download, Plus, Upload } from "lucide-react";
+import { ArrowRightIcon, Download, Plus, RefreshCcw, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { orpc } from "@/client";
@@ -26,8 +26,10 @@ type SkillsListProps = {
 	onNew: () => void;
 	onImport: () => void;
 	onExport: () => void;
+	onSyncDefaults: () => void;
 	importing: boolean;
 	exporting: boolean;
+	syncingDefaults: boolean;
 	loading: boolean;
 };
 
@@ -64,8 +66,10 @@ export function SkillsList({
 	onNew,
 	onImport,
 	onExport,
+	onSyncDefaults,
 	importing,
 	exporting,
+	syncingDefaults,
 	loading,
 }: SkillsListProps) {
 	const queryClient = useQueryClient();
@@ -155,32 +159,48 @@ export function SkillsList({
 	}
 
 	return (
-		<div className="space-y-6 min-h-0 min-w-0 px-4 pb-4 flex flex-col overflow-y-auto">
-			<div className="flex items-center justify-between gap-4">
-				<div>
+		<div className="space-y-6 min-h-0 min-w-0 px-4 pb-4 flex flex-col overflow-hidden transition-none">
+			<div className="flex flex-wrap items-start justify-between gap-4">
+				<div className="space-y-1">
 					<Title as="h2" size="sm">
 						Skills
 					</Title>
 					<Text size="sm" tone="muted">
 						{skills.length} skill(s) cadastrada(s)
 					</Text>
+					<Text size="xs" tone="muted" className="flex items-center gap-1">
+						Importar: Pasta {<ArrowRightIcon size={12} />} DB | Exportar: DB{" "}
+						{<ArrowRightIcon size={12} />} Pasta
+					</Text>
 				</div>
-				<div className="flex flex-wrap items-center justify-end gap-2">
-					<Tooltip label="Importa skills da pasta de configuração">
-						<Button size="sm" variant="outline" onClick={onImport} disabled={importing}>
+				<div className="flex flex-wrap items-center gap-2 w-full">
+					<Tooltip label="Importa da pasta de configuracao para o DB">
+						<Button
+							size="lg"
+							variant="outline"
+							onClick={onImport}
+							disabled={importing}
+							className="flex-1"
+						>
 							<Download className={cn("h-4 w-4", importing && "animate-spin")} />
 							Importar
 						</Button>
 					</Tooltip>
-					<Tooltip label="Exporta todas as skills do DB para a configuração">
-						<Button size="sm" variant="outline" onClick={onExport} disabled={exporting}>
+					<Tooltip label="Exporta do DB para a pasta de configuracao">
+						<Button
+							size="lg"
+							variant="outline"
+							onClick={onExport}
+							disabled={exporting}
+							className="flex-1"
+						>
 							<Upload className={cn("h-4 w-4", exporting && "animate-spin")} />
 							Exportar
 						</Button>
 					</Tooltip>
-					<Button size="sm" onClick={onNew}>
+					<Button size="lg" onClick={onNew} className="flex-1">
 						<Plus className="h-4 w-4" />
-						Nova
+						Nova skill
 					</Button>
 				</div>
 			</div>
@@ -192,11 +212,24 @@ export function SkillsList({
 			)}
 
 			{!loading && (
-				<div className="space-y-6">
+				<div className="flex flex-col gap-6 flex-1 min-h-0">
 					<section className="space-y-3">
-						<Title as="h3" size="xs">
-							Skills nativas
-						</Title>
+						<div className="flex items-center justify-between gap-2">
+							<Title as="h3" size="xs">
+								Skills nativas
+							</Title>
+							<Tooltip label="Sincroniza defaults (recria skills nativas)">
+								<Button
+									size="icon-sm"
+									variant="ghost"
+									onClick={onSyncDefaults}
+									disabled={syncingDefaults}
+									className="h-7 w-7"
+								>
+									<RefreshCcw className={cn("h-3.5 w-3.5", syncingDefaults && "animate-spin")} />
+								</Button>
+							</Tooltip>
+						</div>
 						{orderedBuiltin.length === 0 && (
 							<Text size="sm" tone="muted">
 								Nenhuma skill nativa encontrada
@@ -216,7 +249,7 @@ export function SkillsList({
 						)}
 					</section>
 
-					<section className="space-y-3">
+					<section className="flex flex-col gap-3 flex-1 min-h-0">
 						<Title as="h3" size="xs">
 							Skills custom
 						</Title>
@@ -226,16 +259,18 @@ export function SkillsList({
 							</Text>
 						)}
 						{orderedCustom.length > 0 && (
-							<SortableList
-								items={orderedCustom}
-								onReorder={(items) => {
-									setOrderedCustom(items);
-									reorderMutation.mutate({ orderedIds: items.map((item) => item.id) });
-								}}
-								renderItem={renderSkillItem}
-								itemClassName=""
-								disabled={reorderMutation.isPending}
-							/>
+							<div className="flex-1 min-h-0 overflow-y-auto pr-1">
+								<SortableList
+									items={orderedCustom}
+									onReorder={(items) => {
+										setOrderedCustom(items);
+										reorderMutation.mutate({ orderedIds: items.map((item) => item.id) });
+									}}
+									renderItem={renderSkillItem}
+									itemClassName=""
+									disabled={reorderMutation.isPending}
+								/>
+							</div>
 						)}
 
 						<button
