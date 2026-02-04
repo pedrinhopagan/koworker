@@ -1,5 +1,6 @@
 export { deriveProgressState } from "@/domain/tasks/attention";
 export { type FocusSubtask, type FocusTask, useFocusTask } from "./use-focus-task";
+export { MAX_VISIBLE_TASKS, useHomeData } from "./use-home-data";
 export { useLogin } from "./use-login";
 export { useLogout } from "./use-logout";
 export { usePrimaryColor } from "./use-primary-color";

@@ -244,6 +244,7 @@ export function TaskActionPanel({
 								type="button"
 								className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors"
 								onClick={() => navigate({ to: "/skills" })}
+								variant="outline"
 							>
 								<Plus size={16} />
 								<span className="text-sm">Criar nova skill</span>

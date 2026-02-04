@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Calendar, LayoutDashboardIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { z } from "zod";
+import { MAX_VISIBLE_TASKS, useHomeData } from "@/hooks";
 import { PageShell } from "../../components/layout/page-shell";
 import { HomeSidebar } from "./-components/home-sidebar";
 import { ProjectsSection } from "./-components/projects-section";
@@ -9,7 +10,6 @@ import { QuickLinks } from "./-components/quick-links";
 import { SectionHeader } from "./-components/section-header";
 import { TaskListSection } from "./-components/task-list-section";
 import { WeekCalendar } from "./-components/week-calendar";
-import { MAX_VISIBLE_TASKS, useHomeData } from "./-utils/use-home-data";
 
 const searchSchema = z.object({
 	foco: z.enum(["semana", "mes"]).optional(),
@@ -92,11 +92,7 @@ function HomePage() {
 						linkLabel="ver agenda"
 						accentColor="hsl(var(--primary))"
 					/>
-					<WeekCalendar
-						tasks={tasks}
-						selectedDate={selectedDate}
-						onDateSelect={setSelectedDate}
-					/>
+					<WeekCalendar tasks={tasks} selectedDate={selectedDate} onDateSelect={setSelectedDate} />
 				</section>
 
 				<section>
