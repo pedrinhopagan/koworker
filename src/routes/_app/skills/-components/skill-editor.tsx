@@ -1,3 +1,10 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Save, Trash2, X } from "lucide-react";
+import { useCallback, useEffect } from "react";
+import { useController, useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import { orpc } from "@/client";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
@@ -7,20 +14,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SkillCard } from "@/routes/_app/tarefas/$taskId/-components/skill-card";
 import type { TaskSkill } from "@/types/skills";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Save, Trash2, X } from "lucide-react";
-import { useEffect } from "react";
-import { useController, useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
 
 const skillFormSchema = z.object({
 	slug: z
 		.string()
 		.min(1, "Slug é obrigatório")
 		.regex(/^[a-z0-9-]+$/, "Slug deve conter apenas letras minúsculas, números e hífens"),
-	name: z.string().min(1, "Título é obrigatório"),
+	title: z.string().min(1, "Título é obrigatório"),
 	description: z.string().min(1, "Descrição é obrigatória"),
 	content: z.string().optional(),
 	icon: z.string().optional(),
@@ -51,18 +51,25 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 	const baseMetadata = skill?.metadata ?? {};
 	const defaultIcon = typeof baseMetadata.icon === "string" ? baseMetadata.icon : "FolderOpen";
 	const defaultColor = typeof baseMetadata.color === "string" ? baseMetadata.color : "#94a3b8";
-	const buildValues = (currentSkill?: Skill): SkillFormData => ({
-		slug: currentSkill?.slug ?? "",
-		name: currentSkill?.name ?? "",
-		description: currentSkill?.description ?? "",
-		content: currentSkill?.content ?? "",
-		icon:
-			typeof currentSkill?.metadata?.icon === "string" ? currentSkill.metadata.icon : defaultIcon,
-		color:
-			typeof currentSkill?.metadata?.color === "string"
-				? currentSkill.metadata.color
-				: defaultColor,
-	});
+	const defaultTitle =
+		typeof baseMetadata.title === "string" && baseMetadata.title.trim()
+			? baseMetadata.title
+			: (skill?.name ?? "");
+	const buildValues = useCallback(
+		(currentSkill?: Skill): SkillFormData => ({
+			slug: currentSkill?.slug ?? "",
+			title: defaultTitle,
+			description: currentSkill?.description ?? "",
+			content: currentSkill?.content ?? "",
+			icon:
+				typeof currentSkill?.metadata?.icon === "string" ? currentSkill.metadata.icon : defaultIcon,
+			color:
+				typeof currentSkill?.metadata?.color === "string"
+					? currentSkill.metadata.color
+					: defaultColor,
+		}),
+		[defaultTitle, defaultIcon, defaultColor],
+	);
 
 	const {
 		control,
@@ -82,7 +89,7 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 
 	useEffect(() => {
 		reset(buildValues(skill));
-	}, [skill?.id, reset]);
+	}, [reset, skill, buildValues]);
 
 	const createMutation = useMutation({
 		...orpc.skills.create.mutationOptions(),
@@ -120,7 +127,7 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 		},
 	});
 
-	const previewName = watch("name");
+	const previewTitle = watch("title");
 	const previewDescription = watch("description");
 	const previewIcon = iconField.field.value;
 	const previewColor = colorField.field.value;
@@ -128,7 +135,7 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 	const previewSkill: TaskSkill = {
 		id: "preview",
 		slug: "preview",
-		label: previewName || "Nova skill",
+		label: previewTitle || "Nova skill",
 		description: previewDescription || "Descrição curta da skill",
 		instructions: previewInstructions || "",
 		icon: previewIcon || defaultIcon,
@@ -139,6 +146,11 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 
 	function buildMetadata(next: SkillFormData) {
 		const metadata = { ...baseMetadata } as Record<string, unknown>;
+		if (next.title) {
+			metadata.title = next.title;
+		} else {
+			delete metadata.title;
+		}
 		if (next.icon) {
 			metadata.icon = next.icon;
 		} else {
@@ -153,8 +165,8 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 	}
 
 	const onSubmit = (data: SkillFormData) => {
-		const { icon, color, ...rest } = data;
-		const metadata = buildMetadata({ ...data, icon, color });
+		const { icon, color, title, ...rest } = data;
+		const metadata = buildMetadata({ ...data, icon, color, title });
 
 		if (isEditing) {
 			const { slug: _slug, ...payload } = rest;
@@ -166,17 +178,22 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 		} else {
 			createMutation.mutate({
 				...rest,
+				name: data.slug,
 				metadata,
 				source: "custom",
 			});
 		}
 	};
 
+	const displayTitle =
+		skill && typeof skill.metadata?.title === "string" && skill.metadata.title.trim()
+			? skill.metadata.title
+			: (skill?.name ?? "");
 	const handleDelete = () => {
 		if (!skill) return;
 
 		const confirmed = confirm(
-			`Tem certeza que deseja remover a skill "${skill.name}"?\n\nEsta ação não pode ser desfeita.`,
+			`Tem certeza que deseja remover a skill "${displayTitle}"?\n\nEsta ação não pode ser desfeita.`,
 		);
 
 		if (confirmed) {
@@ -247,16 +264,16 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 								</div>
 							</div>
 							<div className="space-y-2">
-								<Label htmlFor="name">Título</Label>
+								<Label htmlFor="title">Título</Label>
 								<Input
-									id="name"
-									{...register("name")}
+									id="title"
+									{...register("title")}
 									placeholder="Título da skill"
 									className="w-full"
 								/>
-								{errors.name && (
+								{errors.title && (
 									<Text size="xs" tone="destructive">
-										{errors.name.message}
+										{errors.title.message}
 									</Text>
 								)}
 							</div>

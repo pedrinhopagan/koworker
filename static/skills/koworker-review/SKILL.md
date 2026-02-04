@@ -1,5 +1,6 @@
 ---
-name: Revisar Plano
+name: koworker-review
+title: Revisar Plano
 description: Revisa a tarefa e faz perguntas
 icon: FileSearch
 color: "#c678dd"

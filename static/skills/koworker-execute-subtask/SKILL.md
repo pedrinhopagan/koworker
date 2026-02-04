@@ -1,5 +1,6 @@
 ---
-name: Executar Subtask(s)
+name: koworker-execute-subtask
+title: Executar Subtask(s)
 description: Executa apenas as subtasks selecionadas
 icon: CirclePlay
 color: "#e5c07b"

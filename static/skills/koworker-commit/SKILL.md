@@ -1,5 +1,6 @@
 ---
-name: Commit
+name: koworker-commit
+title: Commit
 description: Cria um commit das alteracoes
 icon: GitCommitHorizontal
 color: "#56b6c2"

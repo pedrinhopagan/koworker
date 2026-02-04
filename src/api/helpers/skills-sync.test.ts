@@ -16,27 +16,37 @@ let exportSkillsToConfig: any;
 let previewImportFromConfig: any;
 let previewExportToConfig: any;
 
-async function createConfigSkill(slug: string, body: string) {
+async function createConfigSkill(
+	slug: string,
+	body: string,
+	options: { name?: string; title?: string } = {},
+) {
 	const skillPath = join(configPath, slug, "SKILL.md");
 	await mkdir(join(configPath, slug), { recursive: true });
+	const { name, title } = options;
+	const frontmatter: SkillFile["frontmatter"] = {
+		name: name ?? slug,
+		description: `Descricao ${slug}`,
+	};
+	if (title) {
+		frontmatter.title = title;
+	}
 	const skill: SkillFile = {
-		frontmatter: {
-			name: slug,
-			description: `Descricao ${slug}`,
-		},
+		frontmatter,
 		body,
 	};
 	await writeSkillFile(skillPath, skill);
 }
 
-async function createDbSkill(slug: string, content: string) {
+async function createDbSkill(slug: string, content: string, options: { title?: string } = {}) {
+	const metadata = options.title ? { title: options.title } : {};
 	await dbSkills.create({
 		id: crypto.randomUUID(),
 		slug,
 		name: slug,
 		description: `Descricao ${slug}`,
 		content,
-		metadata: jsonStringify({}),
+		metadata: jsonStringify(metadata),
 		source: "custom",
 	});
 }
@@ -141,5 +151,33 @@ describe("skills-sync", () => {
 		);
 		expect(exportMap.get("alpha")).toBe(true);
 		expect(exportMap.get("gamma")).toBe(false);
+	});
+
+	it("mantem name como slug e salva title no metadata", async () => {
+		await createConfigSkill("alpha", "conteudo-alpha", {
+			name: "Titulo Alpha",
+		});
+
+		await importSkillsFromConfig({
+			configPath,
+			conflictStrategy: "overwrite",
+		});
+
+		const imported = await dbSkills.getBySlug("alpha");
+		expect(imported?.name).toBe("alpha");
+		expect(JSON.parse(imported?.metadata ?? "{}")).toEqual({ title: "Titulo Alpha" });
+	});
+
+	it("exporta com name slug e title no frontmatter", async () => {
+		await createDbSkill("alpha", "conteudo-db", { title: "Titulo Alpha" });
+
+		await exportSkillsToConfig({
+			configPath,
+			conflictStrategy: "overwrite",
+		});
+
+		const exported = await readSkillFile(join(configPath, "alpha", "SKILL.md"));
+		expect(exported?.frontmatter.name).toBe("alpha");
+		expect(exported?.frontmatter.title).toBe("Titulo Alpha");
 	});
 });

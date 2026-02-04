@@ -1,5 +1,5 @@
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import { orpc } from "@/client";
 import type { SkillRecord, TaskSkill } from "@/types/skills";
@@ -12,11 +12,13 @@ function toTaskSkill(skill: SkillRecord): TaskSkill {
 	const icon = typeof metadata.icon === "string" ? metadata.icon : DEFAULT_SKILL_ICON;
 	const color = typeof metadata.color === "string" ? metadata.color : DEFAULT_SKILL_COLOR;
 	const requiresSubtaskSelection = metadata.requiresSubtaskSelection === true;
+	const title =
+		typeof metadata.title === "string" && metadata.title.trim() ? metadata.title : skill.name;
 
 	return {
 		id: skill.slug,
 		slug: skill.slug,
-		label: skill.name,
+		label: title,
 		description: skill.description,
 		instructions: skill.content ?? "",
 		icon,

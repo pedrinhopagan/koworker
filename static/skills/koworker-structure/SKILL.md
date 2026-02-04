@@ -1,5 +1,6 @@
 ---
-name: Estruturar
+name: koworker-structure
+title: Estruturar
 description: Estrutura a tarefa em subtasks detalhadas
 icon: ListChecks
 color: "#61afef"

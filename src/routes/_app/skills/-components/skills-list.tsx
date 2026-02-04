@@ -40,11 +40,13 @@ function toSkillItem(skill: SkillRecord): SkillItem {
 	const metadata = (skill.metadata ?? {}) as Record<string, unknown>;
 	const icon = typeof metadata.icon === "string" ? metadata.icon : DEFAULT_SKILL_ICON;
 	const color = typeof metadata.color === "string" ? metadata.color : DEFAULT_SKILL_COLOR;
+	const title =
+		typeof metadata.title === "string" && metadata.title.trim() ? metadata.title : skill.name;
 
 	return {
 		id: skill.id,
 		slug: skill.slug,
-		label: skill.name,
+		label: title,
 		description: skill.description,
 		instructions: skill.content ?? "",
 		icon,

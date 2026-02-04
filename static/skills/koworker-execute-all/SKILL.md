@@ -1,5 +1,6 @@
 ---
-name: Executar Tudo
+name: koworker-execute-all
+title: Executar Tudo
 description: Executa todas as subtasks pendentes
 icon: Rocket
 color: "#98c379"

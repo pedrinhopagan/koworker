@@ -1,6 +1,6 @@
+import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { db } from "../src/api/db/connection";
 import { jsonStringify } from "../src/api/helpers/json";
@@ -14,9 +14,20 @@ const createId = () => crypto.randomUUID();
 const now = Date.now();
 
 async function upsertBuiltinSkill(slug: string, skillFile: SkillFile): Promise<void> {
-	const metadata = { ...skillFile.frontmatter };
-	delete metadata.name;
-	delete metadata.description;
+	const {
+		name: frontmatterName,
+		description: _description,
+		...metadata
+	} = skillFile.frontmatter as Record<string, unknown>;
+	const title =
+		typeof skillFile.frontmatter.title === "string"
+			? skillFile.frontmatter.title
+			: typeof frontmatterName === "string" && frontmatterName !== slug
+				? frontmatterName
+				: undefined;
+	if (title) {
+		metadata.title = title;
+	}
 
 	const existing = await db
 		.selectFrom("skills")
@@ -28,7 +39,7 @@ async function upsertBuiltinSkill(slug: string, skillFile: SkillFile): Promise<v
 		await db
 			.updateTable("skills")
 			.set({
-				name: skillFile.frontmatter.name,
+				name: slug,
 				description: skillFile.frontmatter.description,
 				content: skillFile.body,
 				metadata: jsonStringify(metadata),
@@ -52,7 +63,7 @@ async function upsertBuiltinSkill(slug: string, skillFile: SkillFile): Promise<v
 		.values({
 			id: createId(),
 			slug,
-			name: skillFile.frontmatter.name,
+			name: slug,
 			description: skillFile.frontmatter.description,
 			content: skillFile.body,
 			metadata: jsonStringify(metadata),
@@ -63,10 +74,12 @@ async function upsertBuiltinSkill(slug: string, skillFile: SkillFile): Promise<v
 		.executeTakeFirst();
 }
 
+type SkillDirent = { name: string; isDirectory: () => boolean };
+
 async function seedBuiltinSkillsFromPath(basePath: string, importedSlugs: Set<string>) {
-	let entries: Awaited<ReturnType<typeof readdir>>;
+	let entries: SkillDirent[];
 	try {
-		entries = await readdir(basePath, { withFileTypes: true });
+		entries = (await readdir(basePath, { withFileTypes: true })) as SkillDirent[];
 	} catch (error) {
 		const err = error as NodeJS.ErrnoException;
 		if (err?.code === "ENOENT") {
@@ -78,7 +91,7 @@ async function seedBuiltinSkillsFromPath(basePath: string, importedSlugs: Set<st
 	const skillDirs = entries.filter((entry) => entry.isDirectory());
 
 	for (const dir of skillDirs) {
-		const slug = dir.name;
+		const slug = String(dir.name);
 		if (importedSlugs.has(slug)) continue;
 
 		const skillFile = await readSkillFile(join(basePath, slug, "SKILL.md"));
@@ -132,7 +145,9 @@ await db
 try {
 	const importedSlugs = new Set<string>();
 	const entries = await readdir(SKILLS_CONFIG_PATH, { withFileTypes: true });
-	const skillDirs = entries.filter((entry) => entry.isDirectory() && entry.name.startsWith("koworker-"));
+	const skillDirs = entries.filter(
+		(entry) => entry.isDirectory() && entry.name.startsWith("koworker-"),
+	);
 
 	for (const dir of skillDirs) {
 		const slug = dir.name;

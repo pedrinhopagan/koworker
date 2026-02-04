@@ -1,8 +1,8 @@
-import { readSkillFile, writeSkillFile } from "@/lib/skills/parser";
 import { mkdir, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readSkillFile, writeSkillFile } from "@/lib/skills/parser";
 import type { skills } from "../db/connection";
 import { dbSkills } from "../db/skills";
 import { jsonParse, jsonStringify } from "../helpers/json";
@@ -37,18 +37,29 @@ const normalizeSkillMetadata = (metadata: Record<string, unknown>) => {
 	return normalized;
 };
 
+const extractSkillTitle = (slug: string, frontmatter: Record<string, unknown>): string | null => {
+	const title = typeof frontmatter.title === "string" ? frontmatter.title.trim() : "";
+	if (title) return title;
+	const name = typeof frontmatter.name === "string" ? frontmatter.name.trim() : "";
+	if (name && name !== slug) return name;
+	return null;
+};
+
 export async function syncSkillToConfig(skill: skills, configPath?: string): Promise<void> {
 	const basePath = resolveConfigPath(configPath);
 	const skillDir = join(basePath, skill.slug);
 	const skillPath = join(skillDir, "SKILL.md");
 	const metadata = jsonParse<Record<string, unknown>>(skill.metadata) ?? {};
+	const { title, ...restMetadata } = metadata as Record<string, unknown>;
+	const frontmatterTitle = typeof title === "string" && title.trim() ? title.trim() : undefined;
 
 	await mkdir(skillDir, { recursive: true });
 	await writeSkillFile(skillPath, {
 		frontmatter: {
-			name: skill.name,
+			name: skill.slug,
 			description: skill.description,
-			...metadata,
+			...(frontmatterTitle ? { title: frontmatterTitle } : {}),
+			...restMetadata,
 		},
 		body: skill.content || "",
 	});
@@ -141,6 +152,8 @@ export async function importSkillsFromConfig(
 
 			const existing = existingBySlug.get(slug);
 			const metadata = normalizeSkillMetadata(skillFile.frontmatter);
+			const title = extractSkillTitle(slug, skillFile.frontmatter);
+			if (title) metadata.title = title;
 			const source = slug.startsWith("koworker-") ? "builtin" : "custom";
 
 			if (existing) {
@@ -151,7 +164,7 @@ export async function importSkillsFromConfig(
 
 				await dbSkills.update({
 					id: existing.id,
-					name: skillFile.frontmatter.name,
+					name: slug,
 					description: skillFile.frontmatter.description,
 					content: skillFile.body,
 					metadata: jsonStringify(metadata),
@@ -165,7 +178,7 @@ export async function importSkillsFromConfig(
 			await dbSkills.create({
 				id: crypto.randomUUID(),
 				slug,
-				name: skillFile.frontmatter.name,
+				name: slug,
 				description: skillFile.frontmatter.description,
 				content: skillFile.body,
 				metadata: jsonStringify(metadata),
@@ -237,10 +250,12 @@ export async function syncDefaultSkillsFromStatic(): Promise<{ inserted: number 
 		if (!skillFile) continue;
 
 		const metadata = normalizeSkillMetadata(skillFile.frontmatter);
+		const title = extractSkillTitle(slug, skillFile.frontmatter);
+		if (title) metadata.title = title;
 		await dbSkills.create({
 			id: crypto.randomUUID(),
 			slug,
-			name: skillFile.frontmatter.name,
+			name: slug,
 			description: skillFile.frontmatter.description,
 			content: skillFile.body,
 			metadata: jsonStringify(metadata),

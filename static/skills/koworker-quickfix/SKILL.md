@@ -1,5 +1,6 @@
 ---
-name: Quick Fix
+name: koworker-quickfix
+title: Quick Fix
 description: Aplica um ajuste rapido e pontual
 icon: Wrench
 color: "#e06c75"

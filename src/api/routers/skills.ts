@@ -48,7 +48,7 @@ export const skillsRouter = {
 		await dbSkills.create({
 			id,
 			slug: input.slug,
-			name: input.name,
+			name: input.slug,
 			description: input.description,
 			content: input.content,
 			metadata: jsonStringify(input.metadata ?? {}),
@@ -68,11 +68,14 @@ export const skillsRouter = {
 	}),
 
 	update: protectedProcedure.input(SkillUpdateSchema).handler(async ({ input }) => {
-		const { id, metadata, ...rest } = input;
+		const { id, metadata, name: _name, ...rest } = input;
+		const existing = await dbSkills.getById(id);
+		if (!existing) return null;
 
 		await dbSkills.update({
 			id,
 			...rest,
+			name: existing.slug,
 			metadata: metadata ? jsonStringify(metadata) : undefined,
 		});
 
