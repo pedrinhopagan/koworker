@@ -81,7 +81,7 @@ export function deriveProgressState(task: TaskAttentionInput): TaskProgressState
 	const inProgressCount = subtaskList.filter((s) => s.status === "in_progress").length;
 	const hasDescription = Boolean(description);
 	if (status === "executed") {
-		if (lastAction === "review") {
+		if (lastAction === "review_execution" || lastAction === "review") {
 			return "ready-to-commit";
 		}
 		return "ready-to-review";
@@ -94,7 +94,7 @@ export function deriveProgressState(task: TaskAttentionInput): TaskProgressState
 
 	// All subtasks done - check if ready for commit or review
 	if (subtaskCount > 0 && doneCount === subtaskCount) {
-		if (lastAction === "review") {
+		if (lastAction === "review_execution" || lastAction === "review") {
 			return "ready-to-commit";
 		}
 		return "ready-to-review";

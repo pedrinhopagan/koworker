@@ -1,3 +1,6 @@
+import { Check, Copy, Layers, MoreVertical, Pencil } from "lucide-react";
+import { useState } from "react";
+import { tv } from "tailwind-variants";
 import { Chip } from "@/components/ui/chip";
 import {
 	DropdownMenu,
@@ -5,23 +8,21 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip } from "@/components/ui/tooltip";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
-import { Check, Copy, MoreVertical, Pencil } from "lucide-react";
-import { useState } from "react";
-import { tv } from "tailwind-variants";
 
 import type { TaskSkill } from "@/types/skills";
 
 const skillCardVariants = tv({
 	base: cn(
-		"relative flex items-center gap-3 p-3 w-full min-w-0",
+		"relative flex items-center jsutify-between gap-3 p-3 w-full min-w-0",
 		"border border-border bg-card text-foreground",
 		"transition-all duration-200 cursor-pointer",
 		"hover:border-muted hover:bg-secondary",
 		"disabled:opacity-50 disabled:cursor-not-allowed",
 		"focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-		"overflow-hidden"
+		"overflow-hidden",
 	),
 	variants: {
 		isActive: {
@@ -36,7 +37,8 @@ type SkillCardProps = {
 	isConfirmMode?: boolean;
 	isSelected?: boolean;
 	disabled?: boolean;
-	onCopyPrompt?: (skillId: string) => void;
+	onCopyPrompt?: (skillId: string) => Promise<boolean> | boolean;
+	onCancelSelection?: () => void;
 	onEditInstructions?: (skillId: string) => void;
 	onSelect?: (skillId: string) => void;
 };
@@ -48,6 +50,7 @@ export function SkillCard({
 	isSelected = false,
 	disabled,
 	onCopyPrompt,
+	onCancelSelection,
 	onEditInstructions,
 	onSelect,
 }: SkillCardProps) {
@@ -55,10 +58,12 @@ export function SkillCard({
 	const isActive = isManage ? isSelected : isConfirmMode;
 	const showCheckIcon = !isManage && isConfirmMode && skill.requiresSubtaskSelection;
 	const [justCopied, setJustCopied] = useState(false);
-	const showActions = !isManage && onCopyPrompt && onEditInstructions;
+	const showActions = !isManage && !isConfirmMode && onCopyPrompt && onEditInstructions;
 	const showSourceChip = isManage && skill.source === "builtin";
+	const showCancel =
+		!isManage && isConfirmMode && skill.requiresSubtaskSelection && Boolean(onCancelSelection);
 
-	function handleClick() {
+	async function handleClick() {
 		if (disabled) return;
 
 		if (isManage) {
@@ -67,7 +72,9 @@ export function SkillCard({
 		}
 
 		if (!onCopyPrompt) return;
-		onCopyPrompt(skill.id);
+		const result = onCopyPrompt(skill.id);
+		const copied = typeof result === "boolean" ? result : await result;
+		if (!copied) return;
 
 		setJustCopied(true);
 		setTimeout(() => setJustCopied(false), 1500);
@@ -76,7 +83,7 @@ export function SkillCard({
 	function handleKeyDown(e: React.KeyboardEvent) {
 		if (e.key === "Enter" || e.key === " ") {
 			e.preventDefault();
-			handleClick();
+			void handleClick();
 		}
 	}
 
@@ -87,9 +94,13 @@ export function SkillCard({
 				onClick={handleClick}
 				onKeyDown={handleKeyDown}
 				disabled={disabled}
-				className={skillCardVariants({
-					isActive,
-				})}
+				className={cn(
+					skillCardVariants({
+						isActive,
+					}),
+					showCancel && "pr-16",
+					"relative",
+				)}
 				style={
 					!isManage && isConfirmMode
 						? {
@@ -107,7 +118,7 @@ export function SkillCard({
 				<div
 					className={cn(
 						"shrink-0 flex h-9 w-9 items-center justify-center border border-border bg-muted/40",
-						isManage && "rounded-md"
+						isManage && "rounded-md",
 					)}
 					style={{
 						borderColor: skill.color,
@@ -124,9 +135,18 @@ export function SkillCard({
 				</div>
 				<div className="flex-1 min-w-0 text-left">
 					<div className="text-sm font-medium flex items-center justify-between gap-2 min-w-0">
-						<span className="truncate">
-							{isConfirmMode && skill.requiresSubtaskSelection ? "Confirmar" : skill.label}
-						</span>
+						<div className="flex gap-2">
+							<span className="truncate">
+								{isConfirmMode && skill.requiresSubtaskSelection ? "Copiar" : skill.label}
+							</span>
+							{skill.requiresSubtaskSelection && (
+								<div className=" left-2">
+									<Tooltip label="Multi-selecao" side="right">
+										<Layers className="size-4 text-foreground" />
+									</Tooltip>
+								</div>
+							)}
+						</div>
 						{justCopied && <span className="text-xs text-green-500 font-normal">Copiado!</span>}
 						{showSourceChip && (
 							<Chip size="xs" variant="primary">
@@ -135,8 +155,8 @@ export function SkillCard({
 						)}
 					</div>
 					{!isConfirmMode && (
-						<div className="text-xs text-muted-foreground max-w-full line-clamp-1">
-							{skill.description}
+						<div className="text-xs text-muted-foreground flex items-center gap-2 min-w-0">
+							<span className="line-clamp-1 min-w-0">{skill.description}</span>
 						</div>
 					)}
 				</div>
@@ -170,13 +190,18 @@ export function SkillCard({
 				)}
 			</button>
 
-			{!isManage && isConfirmMode && skill.requiresSubtaskSelection && (
-				<span
-					className="absolute -top-2 -left-2 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-background z-10"
-					style={{ backgroundColor: skill.color }}
+			{showCancel && (
+				<button
+					type="button"
+					onClick={(event) => {
+						event.stopPropagation();
+						onCancelSelection?.();
+					}}
+					disabled={disabled}
+					className="absolute right-2 top-2 px-2 py-1 text-[10px] uppercase tracking-wide border border-border bg-background text-foreground hover:bg-secondary transition-colors"
 				>
-					Selecionando
-				</span>
+					Cancelar
+				</button>
 			)}
 		</div>
 	);

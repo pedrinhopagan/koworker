@@ -11,7 +11,8 @@ function toTaskSkill(skill: SkillRecord): TaskSkill {
 	const metadata = (skill.metadata ?? {}) as Record<string, unknown>;
 	const icon = typeof metadata.icon === "string" ? metadata.icon : DEFAULT_SKILL_ICON;
 	const color = typeof metadata.color === "string" ? metadata.color : DEFAULT_SKILL_COLOR;
-	const requiresSubtaskSelection = metadata.requiresSubtaskSelection === true;
+	const requiresSubtaskSelection =
+		metadata.multiSelect === true || metadata.requiresSubtaskSelection === true;
 	const title =
 		typeof metadata.title === "string" && metadata.title.trim() ? metadata.title : skill.name;
 

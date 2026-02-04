@@ -1,7 +1,7 @@
 /**
  * Action Registry - Defines all flow actions for task execution
  *
- * Actions: Structure, Execute All, Execute Subtask, Review, Commit, Focus Terminal
+ * Actions: Structure, Execute All, Execute Subtask, Review Execution, Commit, Focus Terminal
  * Each action has icon, color, suggestion logic, and prompt generation.
  */
 
@@ -26,7 +26,7 @@ export type ActionId =
 	| "structure"
 	| "execute_all"
 	| "execute_subtask"
-	| "review"
+	| "review_execution"
 	| "commit"
 	| "focus_terminal";
 
@@ -62,7 +62,7 @@ const ACTION_COLORS: Record<ActionId, string> = {
 	structure: PROGRESS_STATE_COLORS.started,
 	execute_all: PROGRESS_STATE_COLORS["ready-to-start"],
 	execute_subtask: PROGRESS_STATE_COLORS["in-execution"],
-	review: PROGRESS_STATE_COLORS["ready-to-review"],
+	review_execution: PROGRESS_STATE_COLORS["ready-to-review"],
 	commit: PROGRESS_STATE_COLORS["ready-to-commit"],
 	focus_terminal: PROGRESS_STATE_COLORS["ai-working"],
 };
@@ -94,21 +94,25 @@ const commit: ActionDefinition = {
 		const doneCount = subtasks.filter((s) => s.status === "done").length;
 		const allDone = subtaskCount > 0 && doneCount === subtaskCount;
 		const lastAction = task.aiMetadata?.lastCompletedAction;
-		return allDone && lastAction === "review" && task.status !== "executed";
+		return (
+			allDone &&
+			(lastAction === "review_execution" || lastAction === "review") &&
+			task.status !== "executed"
+		);
 	},
 	generatePrompt: (task) =>
 		`Commit: ${task.title}, utilize a skill koworker-commit para commitar as mudanças da task de id: ${task.id}`,
 };
 
-const review: ActionDefinition = {
-	id: "review",
-	label: "Revisar",
+const reviewExecution: ActionDefinition = {
+	id: "review_execution",
+	label: "Revisar Execucao",
 	icon: FileCheck,
-	skill: "koworker-review",
-	color: ACTION_COLORS.review,
+	skill: "koworker-review-execution",
+	color: ACTION_COLORS.review_execution,
 	suggestedWhen: (_, progressState) => progressState === "ready-to-review",
 	generatePrompt: (task) =>
-		`Revisar: ${task.title}, utilize a skill koworker-review para revisar a task de id: ${task.id}`,
+		`Revisar execucao: ${task.title}, utilize a skill koworker-review-execution para revisar a task de id: ${task.id}`,
 };
 
 const executeSubtask: ActionDefinition = {
@@ -166,8 +170,8 @@ const structure: ActionDefinition = {
 /**
  * Actions ordered by suggestion priority (first match wins):
  * 1. focus_terminal - AI is active, highest priority
- * 2. commit - subset of review condition (more specific)
- * 3. review - all subtasks done
+ * 2. commit - subset of review_execution condition (more specific)
+ * 3. review_execution - all subtasks done
  * 4. execute_subtask - in-execution or ready-to-start with many subtasks
  * 5. execute_all - ready-to-start with few subtasks
  * 6. structure - idle/started, least progressed
@@ -175,7 +179,7 @@ const structure: ActionDefinition = {
 export const ACTIONS: ActionDefinition[] = [
 	focusTerminal,
 	commit,
-	review,
+	reviewExecution,
 	executeSubtask,
 	executeAll,
 	structure,
@@ -188,7 +192,7 @@ export const TOOLBAR_ACTIONS: ActionDefinition[] = [
 	structure,
 	executeAll,
 	executeSubtask,
-	review,
+	reviewExecution,
 	commit,
 ];
 

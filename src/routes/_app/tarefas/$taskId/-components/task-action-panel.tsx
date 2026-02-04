@@ -1,10 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Plus, Terminal, X } from "lucide-react";
+import { Plus, Terminal } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Text } from "@/components/typography";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSkillsQuery } from "@/hooks/use-skills";
@@ -21,8 +20,10 @@ import { SkillInstructionsEditor } from "./skill-instructions-editor";
 type TaskActionPanelProps = {
 	task: NonNullable<TaskFull>;
 	selectingSubtasks: boolean;
+	selectionSkillId: string | null;
 	selectedSubtaskIds: string[];
-	onStartSubtaskSelection: () => void;
+	selectedParentTask: boolean;
+	onStartSubtaskSelection: (skillId: string) => void;
 	onCancelSubtaskSelection: () => void;
 	disabled?: boolean;
 };
@@ -30,7 +31,9 @@ type TaskActionPanelProps = {
 export function TaskActionPanel({
 	task,
 	selectingSubtasks,
+	selectionSkillId,
 	selectedSubtaskIds,
+	selectedParentTask,
 	onStartSubtaskSelection,
 	onCancelSubtaskSelection,
 	disabled,
@@ -49,7 +52,11 @@ export function TaskActionPanel({
 		return skillsQuery.taskSkills.find((skill) => skill.id === id) ?? null;
 	}
 
-	function buildCurrentPrompt(skillId: string): string | null {
+	function buildCurrentPrompt(
+		skillId: string,
+		activeSelectedSubtaskIds: string[],
+		activeSelectedParentTask: boolean,
+	): string | null {
 		const skill = getSkillById(skillId);
 		if (!skill) return null;
 
@@ -57,30 +64,34 @@ export function TaskActionPanel({
 			userInput,
 			skill,
 			task,
-			selectedSubtaskIds,
+			selectedSubtaskIds: activeSelectedSubtaskIds,
+			selectedParentTask: activeSelectedParentTask,
 		});
 	}
 
-	async function handleCopyPrompt(skillId: string) {
+	async function handleCopyPrompt(skillId: string): Promise<boolean> {
 		const skill = getSkillById(skillId);
-		if (!skill) return;
+		if (!skill) return false;
 
 		if (skill.requiresSubtaskSelection) {
-			if (!selectingSubtasks) {
-				onStartSubtaskSelection();
-				return;
+			if (!selectingSubtasks || selectionSkillId !== skillId) {
+				onStartSubtaskSelection(skillId);
+				return false;
 			}
 
-			if (selectedSubtaskIds.length === 0) {
-				toast.warning("Selecione pelo menos uma subtask para copiar o prompt");
-				return;
+			if (selectedSubtaskIds.length === 0 && !selectedParentTask) {
+				toast.warning("Selecione pelo menos uma subtask ou a tarefa principal");
+				return false;
 			}
 		}
 
-		const prompt = buildCurrentPrompt(skillId);
+		const isActiveSelection = skill.requiresSubtaskSelection && selectionSkillId === skillId;
+		const activeSelectedSubtaskIds = isActiveSelection ? selectedSubtaskIds : [];
+		const activeSelectedParentTask = isActiveSelection ? selectedParentTask : false;
+		const prompt = buildCurrentPrompt(skillId, activeSelectedSubtaskIds, activeSelectedParentTask);
 		if (!prompt) {
 			toast.error("Erro ao gerar prompt");
-			return;
+			return false;
 		}
 
 		const success = await copyToClipboard(prompt);
@@ -90,9 +101,12 @@ export function TaskActionPanel({
 			if (selectingSubtasks) {
 				onCancelSubtaskSelection();
 			}
-		} else {
-			toast.error("Erro ao copiar prompt");
+
+			return true;
 		}
+
+		toast.error("Erro ao copiar prompt");
+		return false;
 	}
 
 	function handleEditInstructions(skillId: string) {
@@ -156,21 +170,6 @@ export function TaskActionPanel({
 				/>
 			</div>
 
-			{selectingSubtasks && (
-				<div className="flex items-center justify-between p-2 border border-accent bg-accent/10">
-					<div className="flex items-center gap-2">
-						<Badge variant="warning">{selectedSubtaskIds.length} selecionada(s)</Badge>
-						<Text size="xs" tone="muted">
-							Selecione subtasks na lista ao lado
-						</Text>
-					</div>
-					<Button variant="ghost" size="sm" onClick={onCancelSubtaskSelection} className="h-7">
-						<X size={14} />
-						Cancelar
-					</Button>
-				</div>
-			)}
-
 			<div className="flex flex-col gap-2 flex-1 min-h-0">
 				{skillsQuery.isLoading && (
 					<Text size="sm" tone="muted">
@@ -195,9 +194,14 @@ export function TaskActionPanel({
 										key={skill.id}
 										skill={skill}
 										variant="task"
-										isConfirmMode={selectingSubtasks && skill.requiresSubtaskSelection}
+										isConfirmMode={
+											selectingSubtasks &&
+											skill.requiresSubtaskSelection &&
+											selectionSkillId === skill.id
+										}
 										disabled={disabled}
 										onCopyPrompt={handleCopyPrompt}
+										onCancelSelection={onCancelSubtaskSelection}
 										onEditInstructions={handleEditInstructions}
 									/>
 								))}
@@ -221,9 +225,14 @@ export function TaskActionPanel({
 												key={skill.id}
 												skill={skill}
 												variant="task"
-												isConfirmMode={selectingSubtasks && skill.requiresSubtaskSelection}
+												isConfirmMode={
+													selectingSubtasks &&
+													skill.requiresSubtaskSelection &&
+													selectionSkillId === skill.id
+												}
 												disabled={disabled}
 												onCopyPrompt={handleCopyPrompt}
+												onCancelSelection={onCancelSubtaskSelection}
 												onEditInstructions={handleEditInstructions}
 											/>
 										))}
@@ -231,14 +240,14 @@ export function TaskActionPanel({
 								</div>
 							)}
 
-							<button
+							<Button
 								type="button"
 								className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground transition-colors"
 								onClick={() => navigate({ to: "/skills" })}
 							>
 								<Plus size={16} />
 								<span className="text-sm">Criar nova skill</span>
-							</button>
+							</Button>
 						</section>
 					</div>
 				)}

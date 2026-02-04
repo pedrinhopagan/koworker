@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { readSkillFile, writeSkillFile, type SkillFile } from "./parser";
-import { join } from "node:path";
 import { mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { readSkillFile, type SkillFile, writeSkillFile } from "./parser";
 
 const TEST_DIR = "/tmp/kowork-skill-test";
 const TEST_SKILL_PATH = join(TEST_DIR, "test-skill", "SKILL.md");
@@ -62,12 +62,12 @@ This is a test skill for end-to-end validation.
 	});
 
 	it("should read existing koworker skills from config", async () => {
-		const skillPath =
-			"/home/pedro/.config/opencode/skills/koworker-structure/SKILL.md";
+		const skillPath = "/home/pedro/.config/opencode/skills/koworker-structure/SKILL.md";
 		const skill = await readSkillFile(skillPath);
 
 		expect(skill).not.toBeNull();
-		expect(skill?.frontmatter.name).toBe("Estruturar");
+		expect(skill?.frontmatter.name).toBe("koworker-structure");
+		expect(skill?.frontmatter.title).toBe("Estruturar");
 		expect(skill?.frontmatter.description).toBeTruthy();
 		expect(skill?.body).toBeTruthy();
 	});

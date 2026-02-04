@@ -22,26 +22,45 @@ export const Route = createFileRoute("/_app/tarefas/$taskId/")({
 function TaskDetailPage() {
 	const { taskId } = Route.useParams();
 
-	const [selectingSubtasks, setSelectingSubtasks] = useState(false);
+	const [selectionSkillId, setSelectionSkillId] = useState<string | null>(null);
 	const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<string[]>([]);
+	const [selectedParentTask, setSelectedParentTask] = useState(false);
+	const selectingSubtasks = Boolean(selectionSkillId);
 
 	const taskQuery = useQuery(orpc.tasks.getFull.queryOptions({ input: { id: taskId } }));
 	const task = taskQuery.data ?? null;
 
-	function handleStartSubtaskSelection() {
-		setSelectingSubtasks(true);
+	function handleStartSubtaskSelection(skillId: string) {
+		setSelectionSkillId(skillId);
 		setSelectedSubtaskIds([]);
+		setSelectedParentTask(false);
 	}
 
 	function handleCancelSubtaskSelection() {
-		setSelectingSubtasks(false);
+		setSelectionSkillId(null);
 		setSelectedSubtaskIds([]);
+		setSelectedParentTask(false);
 	}
 
 	function handleToggleSubtaskSelection(id: string) {
 		setSelectedSubtaskIds((prev) =>
 			prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
 		);
+	}
+
+	function handleToggleParentTaskSelection() {
+		setSelectedParentTask((prev) => !prev);
+	}
+
+	function handleSelectAllSubtasks() {
+		const allIds = task?.subtasks?.map((subtask) => subtask.id) ?? [];
+		setSelectedSubtaskIds(allIds);
+		setSelectedParentTask(true);
+	}
+
+	function handleClearSelection() {
+		setSelectedSubtaskIds([]);
+		setSelectedParentTask(false);
 	}
 
 	if (taskQuery.isLoading) {
@@ -77,7 +96,9 @@ function TaskDetailPage() {
 				<TaskActionPanel
 					task={task}
 					selectingSubtasks={selectingSubtasks}
+					selectionSkillId={selectionSkillId}
 					selectedSubtaskIds={selectedSubtaskIds}
+					selectedParentTask={selectedParentTask}
 					onStartSubtaskSelection={handleStartSubtaskSelection}
 					onCancelSubtaskSelection={handleCancelSubtaskSelection}
 				/>
@@ -89,7 +110,11 @@ function TaskDetailPage() {
 						task={task}
 						selectionMode={selectingSubtasks}
 						selectedIds={selectedSubtaskIds}
+						selectedParentTask={selectedParentTask}
 						onToggleSelection={handleToggleSubtaskSelection}
+						onToggleParentTask={handleToggleParentTaskSelection}
+						onSelectAll={handleSelectAllSubtasks}
+						onClearSelection={handleClearSelection}
 					/>
 					<TaskAcceptanceCriteria task={task} />
 					<TaskDescription task={task} />

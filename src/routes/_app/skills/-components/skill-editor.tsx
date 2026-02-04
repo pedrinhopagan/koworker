@@ -132,6 +132,8 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 	const previewIcon = iconField.field.value;
 	const previewColor = colorField.field.value;
 	const previewInstructions = watch("content");
+	const previewRequiresSubtaskSelection =
+		baseMetadata.multiSelect === true || baseMetadata.requiresSubtaskSelection === true;
 	const previewSkill: TaskSkill = {
 		id: "preview",
 		slug: "preview",
@@ -141,7 +143,7 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 		icon: previewIcon || defaultIcon,
 		color: previewColor || defaultColor,
 		source: skill?.source ?? "custom",
-		requiresSubtaskSelection: baseMetadata.requiresSubtaskSelection === true,
+		requiresSubtaskSelection: previewRequiresSubtaskSelection,
 	};
 
 	function buildMetadata(next: SkillFormData) {

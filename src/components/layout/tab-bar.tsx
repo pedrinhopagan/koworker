@@ -8,7 +8,6 @@ import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-
 import { Settings, X } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { tv } from "tailwind-variants";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 
@@ -98,7 +97,7 @@ export function TabBar() {
 		<nav
 			className={cn(
 				"flex items-center border-b gap-4 border-border select-none",
-				isTauri() && "cursor-grab active:cursor-grabbing"
+				isTauri() && "cursor-grab active:cursor-grabbing",
 			)}
 			onMouseDown={handleMouseDown}
 		>
@@ -132,7 +131,6 @@ export function TabBar() {
 			</div>
 
 			{/* Settings button */}
-			<ThemeToggle className={iconButton({ active: false })} />
 			<Link
 				to={"/configuracoes" as const}
 				className={iconButton({ active: currentPath === "/configuracoes" })}

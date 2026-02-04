@@ -52,7 +52,8 @@ function toSkillItem(skill: SkillRecord): SkillItem {
 		icon,
 		color,
 		source: skill.source,
-		requiresSubtaskSelection: metadata.requiresSubtaskSelection === true,
+		requiresSubtaskSelection:
+			metadata.multiSelect === true || metadata.requiresSubtaskSelection === true,
 		displayOrder: typeof skill.displayOrder === "number" ? skill.displayOrder : 0,
 	};
 }

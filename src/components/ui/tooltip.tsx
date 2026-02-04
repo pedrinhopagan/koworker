@@ -19,27 +19,25 @@ export function Tooltip({
 	className,
 }: TooltipProps) {
 	const [open, setOpen] = useState(false);
+	const trigger = <span className="inline-flex">{children}</span>;
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
-				<button
-					type="button"
-					onMouseEnter={() => setOpen(true)}
-					onMouseLeave={() => setOpen(false)}
-					onFocus={() => setOpen(true)}
-					onBlur={() => setOpen(false)}
-					className="inline-flex"
-				>
-					{children}
-				</button>
+			<PopoverTrigger
+				asChild
+				onMouseEnter={() => setOpen(true)}
+				onMouseLeave={() => setOpen(false)}
+				onFocus={() => setOpen(true)}
+				onBlur={() => setOpen(false)}
+			>
+				{trigger}
 			</PopoverTrigger>
 			<PopoverContent
 				side={side}
 				align={align}
 				className={cn(
 					"px-2 py-1 text-xs text-foreground bg-background border border-border",
-					className
+					className,
 				)}
 			>
 				{label}

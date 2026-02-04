@@ -1,10 +1,10 @@
 ---
 name: koworker-execute-subtask
-title: Executar Subtask(s)
+title: Executar subtarefas
 description: Executa apenas as subtasks selecionadas
 icon: CirclePlay
 color: "#e5c07b"
-requiresSubtaskSelection: true
+multiSelect: true
 ---
 
 ## Objetivo
@@ -16,6 +16,7 @@ Executar apenas as subtasks selecionadas pelo usuario.
 1. **Inicio**
    - Se a task ainda estiver `pending`, marque como `status: "in_execution"`
    - Trabalhe apenas nas subtasks listadas em `selectedSubtasks`
+   - Se `selectedParentTask` estiver `true`, atualize tambem o contexto global da task (ex: `notes`, `acceptance_criteria`)
    - Respeite a ordem exibida
 
 2. **Execucao por subtask**
@@ -27,7 +28,7 @@ Executar apenas as subtasks selecionadas pelo usuario.
 
 3. **Criterios de aceite**
    - Atualize `acceptance_criteria` conforme necessario
-   - Marque apenas os criterios relacionados as subtasks executadas
+   - Marque apenas os criterios relacionados as subtasks executadas ou ao escopo global selecionado
 
 4. **Finalizacao**
    - Atualize `notes` com resumo das subtasks executadas

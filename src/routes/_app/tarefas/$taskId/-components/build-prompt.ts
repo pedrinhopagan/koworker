@@ -6,6 +6,7 @@ export type BuildPromptParams = {
 	skill: TaskSkill;
 	task: NonNullable<TaskFull>;
 	selectedSubtaskIds: string[];
+	selectedParentTask?: boolean;
 	customInstructions?: string;
 };
 
@@ -26,12 +27,20 @@ export type TaskPromptJson = {
 	project: { id: string; name: string; color: string; mainRoute: string } | null;
 	selectedSubtaskIds: string[];
 	selectedSubtasks: SubtaskFull[];
+	selectedParentTask: boolean;
 	timestamp: string;
 	locale: string;
 };
 
 export function buildPrompt(params: BuildPromptParams): string {
-	const { userInput, skill, task, selectedSubtaskIds, customInstructions } = params;
+	const {
+		userInput,
+		skill,
+		task,
+		selectedSubtaskIds,
+		selectedParentTask = false,
+		customInstructions,
+	} = params;
 
 	const selectedSubtasks = task.subtasks?.filter((s) => selectedSubtaskIds.includes(s.id)) ?? [];
 
@@ -52,6 +61,7 @@ export function buildPrompt(params: BuildPromptParams): string {
 		project: task.project,
 		selectedSubtaskIds,
 		selectedSubtasks,
+		selectedParentTask,
 		timestamp: new Date().toISOString(),
 		locale: "pt-BR",
 	};
