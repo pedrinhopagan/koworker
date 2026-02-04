@@ -20,6 +20,7 @@ Create a clean, task-scoped commit and record it. Do not push.
 - Never commit sensitive files (e.g., `.env`, credentials, tokens, local DBs).
 - Follow the repo’s recent commit message style and focus on why.
 - No amend, no push.
+- Use Koworker terminology only in user-facing responses.
 
 ## Process
 
@@ -27,8 +28,9 @@ Create a clean, task-scoped commit and record it. Do not push.
    - Run `git status`, `git diff`, and `git log -5 --oneline`.
    - If there are no changes, record it in `notes` and stop.
    - Identify which files belong to the task.
-   - If unrelated files are present, ask whether to include them.
+   - If unrelated files are present, ask whether to include them and stop.
    - If sensitive files are present, refuse to commit them and ask to exclude.
+   - Do not commit until scope is confirmed.
 
 2. **Message**
    - Follow the repo’s recent commit message style.
@@ -55,9 +57,11 @@ Create a clean, task-scoped commit and record it. Do not push.
 
 - Do not commit unrelated files without explicit user confirmation.
 - Never commit sensitive files (e.g., `.env`, credentials, tokens, local DBs).
+- Always run `git status`, `git diff`, and `git log` before committing.
 - Do not use `git commit --amend`.
 - Do not run `git push`.
 - Do not change task status or `ai_metadata.lastCompletedAction`.
+- Do not mention task IDs, CLI, or other products in user-facing responses.
 
 ## Common mistakes
 
@@ -65,6 +69,8 @@ Create a clean, task-scoped commit and record it. Do not push.
 - Including `.env` or other secrets.
 - Amending or pushing without request.
 - Writing a vague commit message.
+- Skipping `git status`/`git diff`/`git log`.
+- Mentioning task IDs or CLI in user-facing messages.
 
 ## Red flags
 
@@ -72,6 +78,7 @@ Create a clean, task-scoped commit and record it. Do not push.
 - "Include .env"
 - "Amend the last commit"
 - "Push right after"
+- "Skip status/diff/log"
 
 ## Rationalizations and fixes
 
@@ -81,6 +88,7 @@ Create a clean, task-scoped commit and record it. Do not push.
 | "The .env is needed" | Never commit secrets. Ask to exclude. |
 | "Amend is fine" | Do not amend unless explicitly requested. |
 | "Push now" | Do not push unless explicitly requested. |
+| "Skip the checks" | Always run `git status`, `git diff`, and `git log` first. |
 
 ## Example
 
