@@ -4,7 +4,7 @@ import { useFormContext } from "react-hook-form";
 
 import { Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { IconPicker } from "@/components/ui/icon-picker";
+import { IconSelector } from "@/components/ui/icon-selector";
 import { Input } from "@/components/ui/input";
 import { isTauri, pickProjectFolder } from "@/lib/tauri";
 import type { ProjectFormValues } from "../../project-form";
@@ -73,7 +73,7 @@ export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormPr
 			</Title>
 			<div className="flex flex-col gap-2 rounded-md border border-border bg-card/50 px-3 py-3">
 				<div className="flex items-center gap-2">
-					<IconPicker value={icon} onChange={setIcon} className="h-9 w-12 shrink-0" />
+					<IconSelector value={icon} onChange={setIcon} className="h-9 w-12 shrink-0" />
 					<Input
 						value={name}
 						onChange={(e) => setName(e.target.value)}

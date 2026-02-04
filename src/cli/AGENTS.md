@@ -24,6 +24,37 @@ cli/
 
 ## COMANDOS
 
+### create-task
+
+Recebe JSON com campos opcionais:
+
+```typescript
+{
+  title: string
+  description?: string
+  notes?: string
+  status?: "pending" | "in_execution" | "executed"
+  projectId?: string
+  projectName?: string
+  categoryId?: string
+  categoryName?: string
+  priorityId?: string
+  priorityName?: string
+  ai_metadata?: object
+  acceptance_criteria?: Array<{ id: string, text: string, done: boolean }>
+  subtasks?: Array<{
+    title: string
+    description?: string
+    status?: "pending" | "in_execution" | "executed"
+  }>
+}
+```
+
+Notas:
+- `projectId` ou `projectName` é obrigatório
+- `categoryId` ou `categoryName` é obrigatório
+- `priorityId` ou `priorityName` é obrigatório
+
 ### update-task
 
 Recebe JSON com campos opcionais:
@@ -49,6 +80,7 @@ Recebe JSON com campos opcionais:
 ## USO
 
 ```bash
+kowork create-task '{"title": "Auditoria Kowork", "projectName": "Kowork", "categoryName": "doc", "priorityName": "Media"}'
 kowork update-task '{"taskId": "uuid", "status": "executed"}'
 ```
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { parseArgs } from "node:util";
+import { createTask } from "./commands/create-task";
 import { updateTask } from "./commands/update-task";
 
 const { positionals } = parseArgs({
@@ -10,6 +11,7 @@ const { positionals } = parseArgs({
 const [command, ...args] = positionals;
 
 const commands: Record<string, (args: string[]) => Promise<void>> = {
+	"create-task": createTask,
 	"update-task": updateTask,
 };
 
@@ -17,10 +19,12 @@ if (!command || command === "help") {
 	console.log(`kowork - CLI para atualização de tasks
 
 Comandos:
+  create-task <json>    Cria task com JSON completo
   update-task <json>    Atualiza task com JSON completo
   help                  Mostra esta mensagem
 
 Uso:
+  kowork create-task '{"title": "...", "projectName": "Kowork", "categoryName": "feature", "priorityName": "Media"}'
   kowork update-task '{"taskId": "...", "status": "executed"}'
 `);
 	process.exit(0);

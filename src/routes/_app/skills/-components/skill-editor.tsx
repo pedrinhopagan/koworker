@@ -1,19 +1,19 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Save, Trash2, X } from "lucide-react";
-import { useEffect } from "react";
-import { useController, useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
 import { orpc } from "@/client";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { IconPicker } from "@/components/ui/icon-picker";
+import { IconSelector } from "@/components/ui/icon-selector";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SkillCard } from "@/routes/_app/tarefas/$taskId/-components/skill-card";
 import type { TaskSkill } from "@/types/skills";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Save, Trash2, X } from "lucide-react";
+import { useEffect } from "react";
+import { useController, useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 
 const skillFormSchema = z.object({
 	slug: z
@@ -78,8 +78,7 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 	const iconField = useController({ control, name: "icon" });
 	const colorField = useController({ control, name: "color" });
 
-	const skillsQueryOptions = orpc.skills.list.queryOptions();
-	const skillsQueryKey = skillsQueryOptions.queryKey;
+	const skillsQuery = useQuery(orpc.skills.list.queryOptions());
 
 	useEffect(() => {
 		reset(buildValues(skill));
@@ -89,8 +88,7 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 		...orpc.skills.create.mutationOptions(),
 		onSuccess: () => {
 			toast.success("Skill criada com sucesso");
-			queryClient.invalidateQueries({ queryKey: skillsQueryKey });
-			queryClient.refetchQueries({ queryKey: skillsQueryKey });
+			skillsQuery.refetch();
 			onSave();
 		},
 		onError: (error: Error) => {
@@ -102,8 +100,7 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 		...orpc.skills.update.mutationOptions(),
 		onSuccess: () => {
 			toast.success("Skill atualizada com sucesso");
-			queryClient.invalidateQueries({ queryKey: skillsQueryKey });
-			queryClient.refetchQueries({ queryKey: skillsQueryKey });
+			skillsQuery.refetch();
 			onSave();
 		},
 		onError: (error: Error) => {
@@ -115,7 +112,7 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 		...orpc.skills.delete.mutationOptions(),
 		onSuccess: () => {
 			toast.success("Skill removida com sucesso");
-			queryClient.invalidateQueries({ queryKey: skillsQueryKey });
+			queryClient.invalidateQueries();
 			onSave();
 		},
 		onError: (error: Error) => {
@@ -179,7 +176,7 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 		if (!skill) return;
 
 		const confirmed = confirm(
-			`Tem certeza que deseja remover a skill "${skill.name}"?\n\nEsta ação não pode ser desfeita.`
+			`Tem certeza que deseja remover a skill "${skill.name}"?\n\nEsta ação não pode ser desfeita.`,
 		);
 
 		if (confirmed) {
@@ -230,7 +227,7 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 								</div>
 								<div className="space-y-2">
 									<Label>Ícone</Label>
-									<IconPicker
+									<IconSelector
 										value={previewIcon ?? defaultIcon}
 										onChange={(value) => iconField.field.onChange(value ?? defaultIcon)}
 										className="h-9 w-full"

@@ -1,6 +1,6 @@
 import type { RouterOutputs } from "@/client";
 
-type Task = RouterOutputs["tasks"]["listByProject"][number];
+export type Task = RouterOutputs["tasks"]["listByProject"][number];
 export type TaskFull = RouterOutputs["tasks"]["getFull"];
 export type SubtaskFull = NonNullable<NonNullable<TaskFull>["subtasks"]>[number];
 

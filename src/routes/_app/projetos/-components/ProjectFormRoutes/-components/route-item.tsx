@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
-import { IconPicker } from "@/components/ui/icon-picker";
+import { IconSelector } from "@/components/ui/icon-selector";
 import { Input } from "@/components/ui/input";
 import { DragHandle, type SortableItemRenderProps } from "@/components/ui/sortable-list";
 import { isTauri, pickProjectFolder } from "@/lib/tauri";
@@ -88,7 +88,7 @@ export function RouteItem({ item, props, onUpdate, onDelete, isDeleting }: Route
 					listeners={props.dragHandleProps.listeners}
 				/>
 
-				<IconPicker value={item.icon} onChange={handleIconChange} className="h-9 w-12 shrink-0" />
+				<IconSelector value={item.icon} onChange={handleIconChange} className="h-9 w-12 shrink-0" />
 
 				<Input
 					value={localName}
