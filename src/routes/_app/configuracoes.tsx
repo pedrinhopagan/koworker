@@ -1,9 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, Palette, Settings } from "lucide-react";
+import { Bell, Flag, Keyboard, Palette, Settings, Shield, Tags } from "lucide-react";
+import { toast } from "sonner";
 
+import { ConfigCard } from "@/components/settings/config-card";
+import { CategoryManagerDrawer } from "@/components/tasks/CategoryManagerDrawer";
+import { PriorityManagerDrawer } from "@/components/tasks/PriorityManagerDrawer";
 import { Text, Title } from "@/components/typography";
-import { cn } from "@/lib/utils";
-import { primaryColorPresets, usePrimaryColorStore } from "@/stores/primary-color";
+import { Icon } from "@/components/ui/icon";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useManageDrawerStore } from "@/stores/manage-drawers";
 import { PageShell } from "../../components/layout/page-shell";
 
 export const Route = createFileRoute("/_app/configuracoes")({
@@ -11,7 +16,44 @@ export const Route = createFileRoute("/_app/configuracoes")({
 });
 
 function ConfiguracoesPage() {
-	const { presetName, setPresetName } = usePrimaryColorStore();
+	const openManageDrawer = useManageDrawerStore((s) => s.open);
+	const cards = [
+		{
+			id: "categorias",
+			icon: Tags,
+			title: "Tipos de tarefa",
+			description: "Gerencie categorias para organizar tarefas.",
+			onClick: () => openManageDrawer("categories"),
+		},
+		{
+			id: "prioridades",
+			icon: Flag,
+			title: "Prioridades",
+			description: "Ajuste os níveis de prioridade e a ordem exibida.",
+			onClick: () => openManageDrawer("priorities"),
+		},
+		{
+			id: "atalhos",
+			icon: Keyboard,
+			title: "Atalhos de teclado",
+			description: "Personalize combinações de teclas e ações rápidas.",
+			onClick: () => toast.message("Atalhos personalizáveis em breve."),
+		},
+		{
+			id: "notificacoes",
+			icon: Bell,
+			title: "Notificações",
+			description: "Gerencie alertas e lembretes importantes.",
+			onClick: () => toast.message("Configurações de notificações em breve."),
+		},
+		{
+			id: "privacidade",
+			icon: Shield,
+			title: "Privacidade",
+			description: "Controle permissões e dados armazenados.",
+			onClick: () => toast.message("Controles de privacidade em breve."),
+		},
+	];
 
 	return (
 		<PageShell
@@ -19,49 +61,31 @@ function ConfiguracoesPage() {
 			description="Personalize o aplicativo de acordo com suas preferências"
 			icon={Settings}
 		>
-			<div className="space-y-8 max-w-2xl">
-				<section className="space-y-4">
-					<div className="flex items-center gap-2">
-						<Palette className="h-5 w-5 text-primary" />
-						<Title as="h2" size="sm">
-							Cor do Tema
-						</Title>
+			<div className="grid gap-4 sm:grid-cols-2">
+				<div className="flex items-start justify-between gap-4 border border-border bg-card p-4">
+					<div className="flex items-start gap-3">
+						<Icon icon={Palette} size="sm" className="mt-0.5" />
+						<div className="space-y-1">
+							<Title as="h3" size="sm" className="text-sm font-semibold">
+								Aparência
+							</Title>
+							<Text size="sm" tone="muted">
+								Alterne entre tema claro e escuro.
+							</Text>
+						</div>
 					</div>
-
-					<Text size="sm" tone="muted">
-						Escolha a cor principal do aplicativo. Esta cor será usada em botões, links e outros
-						elementos de destaque.
-					</Text>
-
-					<div className="grid grid-cols-4 gap-3">
-						{primaryColorPresets.map((preset) => (
-							<button
-								key={preset.name}
-								type="button"
-								onClick={() => setPresetName(preset.name)}
-								className={cn(
-									"flex flex-col items-center gap-2 p-3 border transition-all",
-									presetName === preset.name
-										? "border-primary bg-primary/10"
-										: "border-border hover:border-primary/50 hover:bg-muted/50",
-								)}
-							>
-								<div
-									className="w-8 h-8 rounded-full relative"
-									style={{ backgroundColor: preset.dark }}
-								>
-									{presetName === preset.name && (
-										<Check className="absolute inset-0 m-auto h-4 w-4 text-white" />
-									)}
-								</div>
-								<Text size="xs" tone={presetName === preset.name ? "default" : "muted"}>
-									{preset.name}
-								</Text>
-							</button>
-						))}
-					</div>
-				</section>
+					<ThemeToggle
+						className="h-9 w-9 shrink-0 rounded-md border border-border bg-background hover:bg-muted transition-colors"
+						iconClassName="h-4 w-4"
+					/>
+				</div>
+				{cards.map((card) => (
+					<ConfigCard key={card.id} {...card} />
+				))}
 			</div>
+
+			<CategoryManagerDrawer />
+			<PriorityManagerDrawer />
 		</PageShell>
 	);
 }
