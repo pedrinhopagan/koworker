@@ -1,44 +1,91 @@
 ---
 name: koworker-commit
+description: Use when a simple, organized git commit is needed for the current task without pushing
 title: Criar commit
-description: Cria um commit com as alteracoes da tarefa
 icon: GitCommitHorizontal
 color: "#56b6c2"
 ---
 
-## Objetivo
+# Koworker Commit
 
-Criar um commit git apenas com as alteracoes desta tarefa.
+## Overview
 
-## Processo
+Create a clean, task-scoped commit and record it. Do not push.
 
-1. **Analise**
-   - Execute `git status`, `git diff` e `git log -5 --oneline`
-   - Se nao houver mudancas, registre em `notes` e finalize sem commit
-   - Selecione apenas arquivos relacionados a esta tarefa
+## Principles
 
-2. **Mensagem**
-   - Siga o padrao do historico recente
-   - Descricao concisa em pt-BR
-   - Foque no motivo da mudanca
+- Communicate with the user in English.
+- Commit only files related to the current task.
+- If unrelated files exist, ask before committing them.
+- Never commit sensitive files (e.g., `.env`, credentials, tokens, local DBs).
+- Follow the repo’s recent commit message style and focus on why.
+- No amend, no push.
+
+## Process
+
+1. **Analyze changes**
+   - Run `git status`, `git diff`, and `git log -5 --oneline`.
+   - If there are no changes, record it in `notes` and stop.
+   - Identify which files belong to the task.
+   - If unrelated files are present, ask whether to include them.
+   - If sensitive files are present, refuse to commit them and ask to exclude.
+
+2. **Message**
+   - Follow the repo’s recent commit message style.
+   - Keep it concise and focused on the reason for the change.
 
 3. **Commit**
-   - Execute `git add` nos arquivos selecionados
-   - Execute `git commit -m "mensagem"`
-   - Capture o hash do commit
+   - Stage only the approved task files.
+   - Run `git commit -m "message"`.
+   - Capture the commit hash.
 
-4. **Finalizacao**
-   - Atualize `notes` com: hash do commit, mensagem e lista de arquivos commitados
-   - Se **todas as subtasks estiverem executed** e **todos os acceptance_criteria com done:true**:
-      - Marque a task como `status: "executed"` (se ainda nao estiver)
-      - Informe ao usuario: "Tarefa pronta para aprovacao - usuario deve marcar como concluida no app"
-   - Atualize a task com o resultado do commit
-   - Finalize com: "✅ Commit criado e registrado no Koworker, volte ao app para continuar."
+4. **Finalization**
+   - Update `notes` with commit hash, message, and committed files.
+   - Do not change task status or `ai_metadata.lastCompletedAction`.
+   - Final message: "✅ Commit created and recorded in Koworker, return to the app to continue."
 
-## Regras
+## Quick reference
 
-- **Nunca commitar arquivos sensiveis** (.env, credentials, tokens, etc.)
-- **Nao usar** `git commit --amend`
-- **Nao fazer** `git push`
-- Nao alterar `ai_metadata.lastCompletedAction` (manter valor atual)
-- **NAO defina completed_at** - isso e feito apenas pelo usuario ao aprovar no app
+- English-only communication.
+- Ask before committing unrelated files.
+- Never commit sensitive files.
+- No amend, no push.
+
+## Rules
+
+- Do not commit unrelated files without explicit user confirmation.
+- Never commit sensitive files (e.g., `.env`, credentials, tokens, local DBs).
+- Do not use `git commit --amend`.
+- Do not run `git push`.
+- Do not change task status or `ai_metadata.lastCompletedAction`.
+
+## Common mistakes
+
+- Committing all files without checking scope.
+- Including `.env` or other secrets.
+- Amending or pushing without request.
+- Writing a vague commit message.
+
+## Red flags
+
+- "Commit everything quickly"
+- "Include .env"
+- "Amend the last commit"
+- "Push right after"
+
+## Rationalizations and fixes
+
+| Excuse | Reality |
+| --- | --- |
+| "It is faster to commit everything" | Ask before committing unrelated files. |
+| "The .env is needed" | Never commit secrets. Ask to exclude. |
+| "Amend is fine" | Do not amend unless explicitly requested. |
+| "Push now" | Do not push unless explicitly requested. |
+
+## Example
+
+Task changes: `src/routes/tasks.tsx`, `src/hooks/use-tasks.ts`
+
+- Confirm only those files are task-related.
+- Commit with a concise message following repo style.
+- Record hash and files in `notes`.
