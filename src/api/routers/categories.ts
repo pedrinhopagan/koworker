@@ -30,6 +30,11 @@ export const categoriesRouter = {
 	}),
 
 	create: protectedProcedure.input(CategoryCreateSchema).handler(async ({ input }) => {
+		const existing = await dbCategories.findByNormalizedName(input.name);
+		if (existing) {
+			throw new Error("Já existe uma categoria com este nome");
+		}
+
 		const id = crypto.randomUUID();
 
 		await dbCategories.create({
@@ -43,6 +48,13 @@ export const categoriesRouter = {
 	}),
 
 	update: protectedProcedure.input(CategoryUpdateSchema).handler(async ({ input }) => {
+		if (input.name) {
+			const existing = await dbCategories.findByNormalizedName(input.name, input.id);
+			if (existing) {
+				throw new Error("Já existe uma categoria com este nome");
+			}
+		}
+
 		await dbCategories.update({
 			id: input.id,
 			name: input.name,

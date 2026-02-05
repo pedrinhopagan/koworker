@@ -13,6 +13,13 @@ const BUILTIN_SKILLS_PATH = join(scriptsDir, "../static/skills");
 const createId = () => crypto.randomUUID();
 const now = Date.now();
 
+const normalizeName = (value: string) =>
+	value
+		.normalize("NFD")
+		.replaceAll(/[\u0300-\u036F]/g, "")
+		.trim()
+		.toLowerCase();
+
 async function upsertBuiltinSkill(slug: string, skillFile: SkillFile): Promise<void> {
 	const {
 		name: frontmatterName,
@@ -109,38 +116,53 @@ await db
 	})
 	.execute();
 
-await db
-	.insertInto("categories")
-	.values([
-		{ id: createId(), name: "feature", color: "#22c55e", display_order: 0, created_at: now },
-		{ id: createId(), name: "fix", color: "#ef4444", display_order: 1, created_at: now },
-		{ id: createId(), name: "test", color: "#3b82f6", display_order: 2, created_at: now },
-		{ id: createId(), name: "doc", color: "#a855f7", display_order: 3, created_at: now },
-	])
-	.execute();
+const defaultCategories = [
+	{ name: "feature", color: "#22c55e" },
+	{ name: "fix", color: "#ef4444" },
+	{ name: "test", color: "#3b82f6" },
+	{ name: "doc", color: "#a855f7" },
+];
 
-await db
-	.insertInto("priorities")
-	.values([
-		{ id: createId(), name: "Alta", level: 1, color: "#ef4444", display_order: 0, created_at: now },
-		{
-			id: createId(),
-			name: "Media",
-			level: 2,
-			color: "#f59e0b",
-			display_order: 1,
-			created_at: now,
-		},
-		{
-			id: createId(),
-			name: "Baixa",
-			level: 3,
-			color: "#22c55e",
-			display_order: 2,
-			created_at: now,
-		},
-	])
-	.execute();
+const existingCategories = await db.selectFrom("categories").select(["name"]).execute();
+const existingCategoryNames = new Set(existingCategories.map((item) => normalizeName(item.name)));
+
+const categoriesToInsert = defaultCategories
+	.filter((item) => !existingCategoryNames.has(normalizeName(item.name)))
+	.map((item, index) => ({
+		id: createId(),
+		name: item.name,
+		color: item.color,
+		display_order: index,
+		created_at: now,
+	}));
+
+if (categoriesToInsert.length > 0) {
+	await db.insertInto("categories").values(categoriesToInsert).execute();
+}
+
+const defaultPriorities = [
+	{ name: "Alta", level: 1, color: "#ef4444" },
+	{ name: "Media", level: 2, color: "#f59e0b" },
+	{ name: "Baixa", level: 3, color: "#22c55e" },
+];
+
+const existingPriorities = await db.selectFrom("priorities").select(["name"]).execute();
+const existingPriorityNames = new Set(existingPriorities.map((item) => normalizeName(item.name)));
+
+const prioritiesToInsert = defaultPriorities
+	.filter((item) => !existingPriorityNames.has(normalizeName(item.name)))
+	.map((item, index) => ({
+		id: createId(),
+		name: item.name,
+		level: item.level,
+		color: item.color,
+		display_order: index,
+		created_at: now,
+	}));
+
+if (prioritiesToInsert.length > 0) {
+	await db.insertInto("priorities").values(prioritiesToInsert).execute();
+}
 
 try {
 	const importedSlugs = new Set<string>();

@@ -1,5 +1,6 @@
 import type { CategoryDbCreateInput, CategoryDbUpdateInput } from "../schemas/categories";
 import { type categories, db } from "./connection";
+import { normalizeEntityName } from "./entity-name";
 import { cleanUpdate } from "./helpers";
 
 export const dbCategories = {
@@ -64,5 +65,17 @@ export const dbCategories = {
 					.executeTakeFirst();
 			}
 		});
+	},
+
+	findByNormalizedName: async (name: string, excludeId?: string) => {
+		const rows = await db.selectFrom("categories").selectAll().execute();
+		const normalized = normalizeEntityName(name);
+
+		return (
+			rows.find((row) => {
+				if (excludeId && row.id === excludeId) return false;
+				return normalizeEntityName(row.name) === normalized;
+			}) ?? null
+		);
 	},
 };

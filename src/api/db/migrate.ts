@@ -1,6 +1,7 @@
 import Database from "bun:sqlite";
 
 import { envVariables } from "@/api/config/env";
+import { normalizeEntityName } from "./entity-name";
 
 type ColumnInfo = {
 	cid: number;
@@ -9,6 +10,13 @@ type ColumnInfo = {
 	notnull: 0 | 1;
 	dflt_value: string | null;
 	pk: number;
+};
+
+type NamedEntityRow = {
+	id: string;
+	name: string;
+	created_at: number | null;
+	display_order: number | null;
 };
 
 function hasColumn(columns: ColumnInfo[], columnName: string) {
@@ -25,7 +33,6 @@ function ensureColumn(db: Database, table: string, columnDef: string) {
 }
 
 function resequenceDisplayOrder(db: Database, table: string, whereClause = "1=1") {
-	// SQLite supports window functions.
 	db.exec(`
 WITH ordered AS (
 	SELECT id, (row_number() OVER (ORDER BY created_at)) - 1 AS ord
@@ -36,6 +43,38 @@ UPDATE ${table}
 SET display_order = (SELECT ord FROM ordered WHERE ordered.id = ${table}.id)
 WHERE id IN (SELECT id FROM ordered);
 `);
+}
+
+function deduplicateNamedEntities(
+	db: Database,
+	params: { table: "categories" | "priorities"; taskForeignKey: "category_id" | "priority_id" },
+) {
+	const rows = db
+		.query<NamedEntityRow, []>(
+			`SELECT id, name, created_at, display_order FROM ${params.table} ORDER BY created_at ASC, display_order ASC, id ASC`,
+		)
+		.all();
+	const canonicalByName = new Map<string, NamedEntityRow>();
+
+	for (const row of rows) {
+		const normalizedName = normalizeEntityName(row.name);
+		if (!normalizedName) continue;
+
+		const canonical = canonicalByName.get(normalizedName);
+		if (!canonical) {
+			canonicalByName.set(normalizedName, row);
+			continue;
+		}
+
+		if (canonical.id === row.id) continue;
+
+		db.query(
+			`UPDATE tasks SET ${params.taskForeignKey} = ? WHERE ${params.taskForeignKey} = ?`,
+		).run(canonical.id, row.id);
+		db.query(`DELETE FROM ${params.table} WHERE id = ?`).run(row.id);
+	}
+
+	resequenceDisplayOrder(db, params.table);
 }
 
 /**
@@ -63,6 +102,14 @@ export function ensureDbSchema() {
 			ensureColumn(sqlite, "categories", "display_order INTEGER NOT NULL DEFAULT 0");
 			resequenceDisplayOrder(sqlite, "categories");
 		}
+
+		deduplicateNamedEntities(sqlite, {
+			table: "categories",
+			taskForeignKey: "category_id",
+		});
+		sqlite.exec(
+			"CREATE UNIQUE INDEX IF NOT EXISTS categories_name_unique_idx ON categories (lower(trim(name)))",
+		);
 	}
 
 	// priorities
@@ -70,7 +117,6 @@ export function ensureDbSchema() {
 		const cols = tableInfo(sqlite, "priorities");
 		if (!hasColumn(cols, "level")) {
 			ensureColumn(sqlite, "priorities", "level INTEGER NOT NULL DEFAULT 1");
-			// Best-effort backfill based on common PT-BR names.
 			sqlite.exec(`
 UPDATE priorities SET level = 3 WHERE lower(name) = 'alta';
 UPDATE priorities SET level = 2 WHERE lower(name) = 'media' OR lower(name) = 'média';
@@ -81,6 +127,14 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 			ensureColumn(sqlite, "priorities", "display_order INTEGER NOT NULL DEFAULT 0");
 			resequenceDisplayOrder(sqlite, "priorities");
 		}
+
+		deduplicateNamedEntities(sqlite, {
+			table: "priorities",
+			taskForeignKey: "priority_id",
+		});
+		sqlite.exec(
+			"CREATE UNIQUE INDEX IF NOT EXISTS priorities_name_unique_idx ON priorities (lower(trim(name)))",
+		);
 	}
 
 	// project_routes

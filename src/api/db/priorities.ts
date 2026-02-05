@@ -1,5 +1,6 @@
 import type { PriorityDbCreateInput, PriorityDbUpdateInput } from "../schemas/priorities";
 import { db, type priorities } from "./connection";
+import { normalizeEntityName } from "./entity-name";
 import { cleanUpdate } from "./helpers";
 
 export const dbPriorities = {
@@ -64,14 +65,23 @@ export const dbPriorities = {
 	},
 
 	migrateTasksAndDelete: async (sourceId: string, targetId: string) => {
-		// First migrate all tasks from source to target priority
 		await db
 			.updateTable("tasks")
 			.set({ priority_id: targetId, updated_at: Date.now() })
 			.where("priority_id", "=", sourceId)
 			.execute();
-
-		// Then delete the source priority
 		await db.deleteFrom("priorities").where("id", "=", sourceId).executeTakeFirst();
+	},
+
+	findByNormalizedName: async (name: string, excludeId?: string) => {
+		const rows = await db.selectFrom("priorities").selectAll().execute();
+		const normalized = normalizeEntityName(name);
+
+		return (
+			rows.find((row) => {
+				if (excludeId && row.id === excludeId) return false;
+				return normalizeEntityName(row.name) === normalized;
+			}) ?? null
+		);
 	},
 };

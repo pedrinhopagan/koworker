@@ -31,6 +31,11 @@ export const prioritiesRouter = {
 	}),
 
 	create: protectedProcedure.input(PriorityCreateSchema).handler(async ({ input }) => {
+		const existing = await dbPriorities.findByNormalizedName(input.name);
+		if (existing) {
+			throw new Error("Já existe uma prioridade com este nome");
+		}
+
 		const id = crypto.randomUUID();
 
 		await dbPriorities.create({
@@ -45,6 +50,13 @@ export const prioritiesRouter = {
 	}),
 
 	update: protectedProcedure.input(PriorityUpdateSchema).handler(async ({ input }) => {
+		if (input.name) {
+			const existing = await dbPriorities.findByNormalizedName(input.name, input.id);
+			if (existing) {
+				throw new Error("Já existe uma prioridade com este nome");
+			}
+		}
+
 		await dbPriorities.update({
 			id: input.id,
 			name: input.name,

@@ -1,20 +1,24 @@
 import type * as React from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
 const completionToggleVariants = tv({
-	base: "shrink-0 transition-colors",
+	base: "shrink-0 cursor-pointer font-mono leading-none transition-colors text-muted-foreground hover:text-primary disabled:cursor-not-allowed disabled:opacity-50",
 	variants: {
 		size: {
-			default: "",
-			sm: "",
-			lg: "",
+			default: "text-sm",
+			sm: "text-xs",
+			lg: "text-base",
+		},
+		checked: {
+			true: "text-primary",
+			false: "",
 		},
 	},
 	defaultVariants: {
 		size: "default",
+		checked: false,
 	},
 });
 
@@ -35,26 +39,24 @@ export function CompletionToggle({
 	className,
 	"aria-label": ariaLabel,
 }: CompletionToggleProps) {
-	function handleCheckedChange(value: boolean | "indeterminate") {
-		if (value !== "indeterminate") {
-			onCheckedChange(value);
+	function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
+		e.preventDefault();
+		e.stopPropagation();
+		if (!disabled) {
+			onCheckedChange(!checked);
 		}
 	}
 
-	function handleClick(e: React.MouseEvent) {
-		e.preventDefault();
-		e.stopPropagation();
-	}
-
 	return (
-		<Checkbox
-			checked={checked}
-			onCheckedChange={handleCheckedChange}
+		<button
+			type="button"
 			onClick={handleClick}
 			disabled={disabled}
-			size={size === "sm" ? "sm" : size === "lg" ? "lg" : "default"}
-			className={cn(completionToggleVariants({ size }), className)}
+			className={cn(completionToggleVariants({ size, checked }), className)}
 			aria-label={ariaLabel}
-		/>
+			aria-pressed={checked}
+		>
+			{checked ? "[x]" : "[ ]"}
+		</button>
 	);
 }
