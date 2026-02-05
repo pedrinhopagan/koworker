@@ -8,7 +8,7 @@ import { CheckCheckIcon, ChevronDownIcon, FolderKanbanIcon, Plus, Terminal } fro
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { useProjectFocus } from "@/hooks";
+import { type UseProjectFocusReturn, useProjectFocus } from "@/hooks";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { isTauri } from "@/lib/tauri";
 import { openProjectRoute, openProjectTerminal } from "@/lib/terminal";
@@ -23,6 +23,108 @@ type ProjectItem = {
 	color: string | null;
 };
 
+type ProjectRouteActionsProps = {
+	projectId: string;
+	project: NonNullable<UseProjectFocusReturn["selectedProject"]>;
+};
+
+function ProjectRouteActions({ projectId, project }: ProjectRouteActionsProps) {
+	const [isOpeningTerminal, setIsOpeningTerminal] = useState(false);
+	const [isOpeningRoute, setIsOpeningRoute] = useState(false);
+	const isTerminalOpen = useIsProjectTerminalOpen(projectId);
+
+	async function handleTerminalClick() {
+		setIsOpeningTerminal(true);
+		try {
+			await openProjectTerminal({
+				id: projectId,
+				name: project.name,
+				mainRoute: project.mainRoute,
+			});
+		} finally {
+			setIsOpeningTerminal(false);
+		}
+	}
+
+	async function handleRouteClick(route: NonNullable<typeof project.routes>[number]) {
+		setIsOpeningRoute(true);
+		try {
+			await openProjectRoute({
+				projectId,
+				projectName: project.name,
+				route: {
+					id: route.id,
+					name: route.name,
+					path: route.route,
+					command: route.command,
+				},
+			});
+		} finally {
+			setIsOpeningRoute(false);
+		}
+	}
+
+	return (
+		<>
+			{isTauri() && (
+				<>
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={handleTerminalClick}
+						disabled={isOpeningTerminal}
+						className={cn(
+							"h-9 px-3 gap-2 transition-all",
+							isTerminalOpen && "text-green-500 hover:text-green-400",
+						)}
+						title={isTerminalOpen ? "Focar terminal do projeto" : "Abrir terminal do projeto"}
+					>
+						<Terminal className={cn("size-4", isOpeningTerminal && "animate-pulse")} />
+						<span className="text-xs hidden sm:inline">Terminal</span>
+					</Button>
+
+					{project.routes
+						?.sort((a, b) => a.displayOrder - b.displayOrder)
+						.map((route) => (
+							<Button
+								key={route.id}
+								variant="ghost"
+								size="sm"
+								onClick={() => handleRouteClick(route)}
+								disabled={isOpeningRoute}
+								className={cn("h-9 px-3 gap-2 transition-all")}
+								title={
+									route.command
+										? `${route.name}: ${route.command}`
+										: `Abrir terminal em ${route.name}`
+								}
+							>
+								<LucideIcon
+									name={route.icon ?? "FolderOpen"}
+									className={cn("size-4", isOpeningRoute && "animate-pulse")}
+								/>
+								<span className="text-xs hidden sm:inline">{route.name}</span>
+							</Button>
+						))}
+				</>
+			)}
+
+			<Button
+				variant="ghost"
+				size="sm"
+				asChild
+				className="h-9 px-2 gap-1 text-muted-foreground hover:text-foreground transition-colors"
+				title="Adicionar rota personalizada"
+			>
+				<Link to="/projetos/$projetoId" params={{ projetoId: projectId }}>
+					<Plus className="size-3" />
+					<span className="text-xs hidden sm:inline">Adicionar</span>
+				</Link>
+			</Button>
+		</>
+	);
+}
+
 const DISABLED_PATHS = new Set<LinkProps<RegisteredRouter>["to"]>([
 	"/projetos/$projetoId",
 	"/projetos/novo",
@@ -31,13 +133,9 @@ const DISABLED_PATHS = new Set<LinkProps<RegisteredRouter>["to"]>([
 
 export function ProjectFocusBar() {
 	const routerState = useRouterState();
-	const [isOpeningTerminal, setIsOpeningTerminal] = useState(false);
-	const [isOpeningRoute, setIsOpeningRoute] = useState(false);
 
 	const { projects, selectedProjectId, selectedProject, accent, loading, setSelectedProjectId } =
 		useProjectFocus();
-
-	const isTerminalOpen = useIsProjectTerminalOpen(selectedProjectId);
 
 	const projectItems = useMemo<ProjectItem[]>(() => {
 		return [
@@ -66,43 +164,7 @@ export function ProjectFocusBar() {
 		setSelectedProjectId(id);
 	}
 
-	async function handleTerminalClick() {
-		if (!selectedProject || !selectedProjectId) return;
-
-		setIsOpeningTerminal(true);
-		try {
-			await openProjectTerminal({
-				id: selectedProjectId,
-				name: selectedProject.name,
-				mainRoute: selectedProject.mainRoute,
-			});
-		} finally {
-			setIsOpeningTerminal(false);
-		}
-	}
-
-	async function handleRouteClick(route: any) {
-		if (!selectedProject || !selectedProjectId) return;
-
-		setIsOpeningRoute(true);
-		try {
-			await openProjectRoute({
-				projectId: selectedProjectId,
-				projectName: selectedProject.name,
-				route: {
-					id: route.id,
-					name: route.name,
-					path: route.route,
-					command: route.command,
-				},
-			});
-		} finally {
-			setIsOpeningRoute(false);
-		}
-	}
-
 	const currentRoutePath = (routerState.matches.at(-1)?.fullPath ?? "/").replace(/\/$/, "");
-
 	const disableChangeFocus = DISABLED_PATHS.has(currentRoutePath as any);
 
 	return (
@@ -120,7 +182,7 @@ export function ProjectFocusBar() {
 				loading={loading}
 				triggerClassName={cn(
 					"flex items-center gap-3 px-4 py-2 rounded-lg min-w-[220px] transition-all duration-200 border-2 bg-card/80 backdrop-blur",
-					accentColor ? "shadow-sm hover:shadow-md" : "border-border"
+					accentColor ? "shadow-sm hover:shadow-md" : "border-border",
 				)}
 				triggerStyle={
 					accent
@@ -148,7 +210,7 @@ export function ProjectFocusBar() {
 						<span
 							className={cn(
 								"flex-1 text-sm font-medium truncate text-left",
-								accentColor ? "text-foreground" : "text-foreground"
+								accentColor ? "text-foreground" : "text-foreground",
 							)}
 						>
 							{label}
@@ -156,7 +218,7 @@ export function ProjectFocusBar() {
 						<ChevronDownIcon
 							className={cn(
 								"size-4 shrink-0 transition-colors",
-								accentColor ? "text-foreground" : "text-muted-foreground"
+								accentColor ? "text-foreground" : "text-muted-foreground",
 							)}
 						/>
 					</>
@@ -165,7 +227,7 @@ export function ProjectFocusBar() {
 					<div
 						className={cn(
 							"flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors",
-							isSelected && "font-medium"
+							isSelected && "font-medium",
 						)}
 						style={isSelected ? { color: project.color ?? undefined } : undefined}
 					>
@@ -189,82 +251,8 @@ export function ProjectFocusBar() {
 			/>
 
 			{selectedProjectId && selectedProject && (
-				<>
-					{isTauri() && (
-						<>
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={handleTerminalClick}
-								disabled={isOpeningTerminal}
-								className={cn(
-									"h-9 px-3 gap-2 transition-all",
-									isTerminalOpen && "text-green-500 hover:text-green-400"
-								)}
-								title={isTerminalOpen ? "Focar terminal do projeto" : "Abrir terminal do projeto"}
-							>
-								<Terminal className={cn("size-4", isOpeningTerminal && "animate-pulse")} />
-								<span className="text-xs hidden sm:inline">Terminal</span>
-							</Button>
-
-							{selectedProject.routes
-								?.sort((a: any, b: any) => a.displayOrder - b.displayOrder)
-								.map((route: any) => (
-									<Button
-										key={route.id}
-										variant="ghost"
-										size="sm"
-										onClick={() => handleRouteClick(route)}
-										disabled={isOpeningRoute}
-										className={cn("h-9 px-3 gap-2 transition-all")}
-										title={
-											route.command
-												? `${route.name}: ${route.command}`
-												: `Abrir terminal em ${route.name}`
-										}
-									>
-										<LucideIcon
-											name={route.icon ?? "FolderOpen"}
-											className={cn("size-4", isOpeningRoute && "animate-pulse")}
-										/>
-										<span className="text-xs hidden sm:inline">{route.name}</span>
-									</Button>
-								))}
-						</>
-					)}
-
-					<Button
-						variant="ghost"
-						size="sm"
-						asChild
-						className="h-9 px-2 gap-1 text-muted-foreground hover:text-foreground transition-colors"
-						title="Adicionar rota personalizada"
-					>
-						<Link to="/projetos/$projetoId" params={{ projetoId: selectedProjectId }}>
-							<Plus className="size-3" />
-							<span className="text-xs hidden sm:inline">Adicionar</span>
-						</Link>
-					</Button>
-				</>
+				<ProjectRouteActions projectId={selectedProjectId} project={selectedProject} />
 			)}
 		</div>
-	);
-}
-
-export function AccentStripe() {
-	const { accent } = useProjectFocus();
-
-	if (!accent) {
-		return null;
-	}
-
-	return (
-		<div
-			className="w-1 shrink-0 self-stretch"
-			style={{
-				background: `linear-gradient(to bottom, ${accent.color} 0%, ${accent.border} 55%, ${accent.soft} 100%)`,
-				boxShadow: `0 0 10px ${accent.glow}`,
-			}}
-		/>
 	);
 }

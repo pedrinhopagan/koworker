@@ -1,5 +1,6 @@
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { Component, type ReactNode } from "react";
+import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -41,10 +42,12 @@ export class ErrorBoundary extends Component<Props, State> {
 								<AlertCircle className="size-6 text-destructive" />
 							</div>
 							<div className="space-y-2">
-								<h3 className="font-semibold text-lg">Something went wrong</h3>
-								<p className="text-sm text-muted-foreground max-w-md">
+								<Title as="h3" size="lg">
+									Something went wrong
+								</Title>
+								<Text size="sm" tone="muted" className="max-w-md">
 									An error occurred while loading this content. Please try again.
-								</p>
+								</Text>
 							</div>
 							<Button variant="outline" onClick={this.handleRetry} className="gap-2">
 								<RefreshCw className="size-4" />

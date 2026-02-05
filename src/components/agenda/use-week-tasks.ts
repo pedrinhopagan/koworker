@@ -2,14 +2,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { orpc } from "@/client";
+import { getStatusLabel } from "@/domain/tasks/status";
 import { useProjectFocus } from "@/hooks";
 import type { TaskWithMeta } from "@/types/tasks";
-
-const statusLabels: Record<string, string> = {
-	pending: "Pendente",
-	in_execution: "Em execução",
-	executed: "Executado",
-};
 
 export type TasksByDate = Map<string, TaskWithMeta[]>;
 
@@ -49,7 +44,7 @@ export function useWeekTasks(startDate: string, endDate: string) {
 					name: pri?.name ?? "Sem prioridade",
 					color: pri?.color ?? "#666",
 				},
-				statusLabel: statusLabels[task.status] ?? task.status,
+				statusLabel: getStatusLabel(task.status),
 			};
 		});
 	}, [rawTasks, categories, priorities]);

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 import { orpc } from "@/client";
+import { CompletionToggle } from "@/components/tasks/CompletionToggle";
 import type { Subtask } from "@/hooks/use-subtasks";
 import { cn } from "@/lib/utils";
 
@@ -118,14 +119,12 @@ export function SubtaskItem({ subtask, taskId, disabled = false, className }: Su
 		<div className={cn(styles.root(), className)}>
 			<div className={styles.container()}>
 				{/* Checkbox */}
-				<button
-					type="button"
-					onClick={handleToggle}
+				<CompletionToggle
+					checked={isDone}
+					onCheckedChange={handleToggle}
 					disabled={disabled || isMutating}
-					className={styles.checkbox()}
-				>
-					{isDone ? "[x]" : "[ ]"}
-				</button>
+					aria-label={isDone ? "Marcar como pendente" : "Marcar como concluída"}
+				/>
 
 				{/* Expand button */}
 				<button

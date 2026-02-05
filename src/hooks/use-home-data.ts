@@ -1,17 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { orpc, type RouterOutputs } from "@/client";
+import { getStatusLabel } from "@/domain/tasks/status";
 import { useProjectFocus } from "@/hooks";
 import type { TaskWithMeta } from "@/types/tasks";
 
 export type Project = RouterOutputs["projects"]["list"][number];
 
 export const MAX_VISIBLE_TASKS = 5;
-
-const statusLabels: Record<string, string> = {
-	pending: "Pendente",
-	in_execution: "Em execução",
-	executed: "Executado",
-};
 
 export function useHomeData() {
 	const { projects, selectedProjectId, loading: projectsLoading } = useProjectFocus();
@@ -43,7 +38,7 @@ export function useHomeData() {
 				name: priority?.name ?? "Sem prioridade",
 				color: priority?.color ?? "#666",
 			},
-			statusLabel: statusLabels[task.status] ?? task.status,
+			statusLabel: getStatusLabel(task.status),
 		});
 	});
 

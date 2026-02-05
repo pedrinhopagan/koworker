@@ -1,13 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ListChecks, Loader2, Terminal } from "lucide-react";
-import type { MouseEvent } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 import { orpc } from "@/client";
+import { CompletionToggle } from "@/components/tasks/CompletionToggle";
 import { Title } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
 import { deriveTaskAttentionState } from "@/domain/tasks/attention";
+import { getStatusVariant } from "@/domain/tasks/status";
 import { isTauri } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useIsProjectTerminalOpen } from "@/stores/terminal-status";
@@ -25,12 +26,6 @@ const taskItemVariants = tv({
 		variant: "default",
 	},
 });
-
-const statusVariants = {
-	pending: "muted",
-	in_execution: "warning",
-	executed: "success",
-} as const;
 
 export type TaskItemVariant = VariantProps<typeof taskItemVariants>["variant"];
 
@@ -58,7 +53,7 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 	const queryClient = useQueryClient();
 	const effectiveStatus = task.status;
 	const isDone = Boolean(task.completedAt);
-	const statusVariant = statusVariants[effectiveStatus] ?? "muted";
+	const statusVariant = getStatusVariant(effectiveStatus);
 	const isTerminalOpen = useIsProjectTerminalOpen(task.projectId);
 
 	const subtasks = task.subtasks ?? [];
@@ -101,13 +96,6 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 		},
 	});
 
-	function handleToggleComplete(e: MouseEvent<HTMLButtonElement>) {
-		e.preventDefault();
-		e.stopPropagation();
-		const completedAt = isDone ? null : Date.now();
-		updateTaskMutation.mutate({ id: task.id, completedAt });
-	}
-
 	const isMaxAttention =
 		(task.status === "in_execution" && firstNotCompletedStatus === "in_execution") ||
 		attention.shouldSpin;
@@ -136,15 +124,15 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 			data-attention={attention.progressState}
 		>
 			<div className="flex min-w-0 items-center gap-3 flex-1">
-				<button
-					type="button"
-					onClick={handleToggleComplete}
+				<CompletionToggle
+					checked={isDone}
+					onCheckedChange={() => {
+						const completedAt = isDone ? null : Date.now();
+						updateTaskMutation.mutate({ id: task.id, completedAt });
+					}}
 					disabled={updateTaskMutation.isPending}
-					className={cn("text-muted-foreground transition-colors", isDone && "text-primary")}
 					aria-label={isDone ? "Marcar como não concluída" : "Marcar como concluída"}
-				>
-					{isDone ? "[x]" : "[ ]"}
-				</button>
+				/>
 				<Title
 					as="span"
 					size="sm"

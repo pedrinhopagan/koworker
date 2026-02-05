@@ -4,7 +4,7 @@ export { MAX_VISIBLE_TASKS, useHomeData } from "./use-home-data";
 export { useLogin } from "./use-login";
 export { useLogout } from "./use-logout";
 export { usePrimaryColor } from "./use-primary-color";
-export { useProjectFocus } from "./use-project-focus";
+export { type UseProjectFocusReturn, useProjectFocus } from "./use-project-focus";
 export { useSkillsQuery } from "./use-skills";
 export { type Subtask, useSubtasks } from "./use-subtasks";
 export { type TaskMetrics, useTaskMetrics } from "./use-task-metrics";

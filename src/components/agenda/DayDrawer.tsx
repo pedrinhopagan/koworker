@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import { useCallback, useEffect } from "react";
 
+import { Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAgendaStore } from "@/stores/agenda";
@@ -69,7 +70,9 @@ export function DayDrawer({ onTaskChange }: DayDrawerProps) {
 						<Button variant="ghost" size="icon" onClick={closeDrawer} className="h-8 w-8">
 							<X className="h-4 w-4" />
 						</Button>
-						<h2 className="text-base font-medium capitalize text-foreground">{formattedDate()}</h2>
+						<Title as="h2" size="md" className="font-medium capitalize">
+							{formattedDate()}
+						</Title>
 					</div>
 					<span className="text-sm text-muted-foreground">
 						{tasks.length} {tasks.length === 1 ? "tarefa" : "tarefas"}

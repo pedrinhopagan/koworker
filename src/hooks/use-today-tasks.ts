@@ -2,14 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
 import { orpc } from "@/client";
+import { getStatusLabel } from "@/domain/tasks/status";
 import type { TaskWithMeta } from "@/types/tasks";
 import { useProjectFocus } from "./use-project-focus";
-
-const statusLabels: Record<string, string> = {
-	pending: "Pendente",
-	in_execution: "Em execução",
-	executed: "Executado",
-};
 
 export function useTodayTasks() {
 	const queryClient = useQueryClient();
@@ -58,7 +53,7 @@ export function useTodayTasks() {
 						name: pri?.name ?? "Sem prioridade",
 						color: pri?.color ?? "#666",
 					},
-					statusLabel: statusLabels[task.status] ?? task.status,
+					statusLabel: getStatusLabel(task.status),
 				};
 			}),
 		[rawTasks, categoryMap, priorityMap],

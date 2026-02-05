@@ -21,6 +21,8 @@ const badgeVariants = tv({
 	},
 });
 
+export type BadgeVariant = VariantProps<typeof badgeVariants>["variant"];
+
 type BadgeProps = React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof badgeVariants>;
 
 export function Badge({ className, variant, ...props }: BadgeProps) {

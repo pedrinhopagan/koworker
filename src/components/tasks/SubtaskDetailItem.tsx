@@ -1,26 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
-import type { MouseEvent } from "react";
 import { useState } from "react";
 import { tv } from "tailwind-variants";
 
 import { orpc } from "@/client";
-import { Title, Text } from "@/components/typography";
+import { CompletionToggle } from "@/components/tasks/CompletionToggle";
+import { Text, Title } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
+import { getStatusLabel, getStatusVariant } from "@/domain/tasks/status";
 import { cn } from "@/lib/utils";
 import type { SubtaskFull } from "@/types/tasks";
-
-const statusLabels: Record<string, string> = {
-	pending: "Pendente",
-	in_execution: "Em execução",
-	executed: "Executada",
-};
-
-const statusVariants = {
-	pending: "muted",
-	in_execution: "warning",
-	executed: "success",
-} as const;
 
 const subtaskDetailVariants = tv({
 	slots: {
@@ -76,14 +65,6 @@ export function SubtaskDetailItem({ subtask }: SubtaskDetailItemProps) {
 		},
 	});
 
-	function handleToggleComplete(e: MouseEvent<HTMLButtonElement>) {
-		e.preventDefault();
-		e.stopPropagation();
-		const newStatus = isDone ? "pending" : "executed";
-		const completedAt = newStatus === "executed" ? Date.now() : null;
-		updateMutation.mutate({ id: subtask.id, status: newStatus, completedAt });
-	}
-
 	function handleToggleOpen() {
 		setOpen((prev) => !prev);
 	}
@@ -93,8 +74,8 @@ export function SubtaskDetailItem({ subtask }: SubtaskDetailItemProps) {
 	}
 
 	const styles = subtaskDetailVariants({ done: isDone, open });
-	const statusLabel = statusLabels[subtask.status] ?? subtask.status;
-	const statusVariant = statusVariants[subtask.status as keyof typeof statusVariants] ?? "muted";
+	const statusLabel = getStatusLabel(subtask.status);
+	const statusVariant = getStatusVariant(subtask.status);
 
 	return (
 		<div className={styles.root()}>
@@ -112,15 +93,16 @@ export function SubtaskDetailItem({ subtask }: SubtaskDetailItemProps) {
 				}}
 			>
 				<div className={styles.titleRow()}>
-					<button
-						type="button"
-						onClick={handleToggleComplete}
+					<CompletionToggle
+						checked={isDone}
+						onCheckedChange={() => {
+							const newStatus = isDone ? "pending" : "executed";
+							const completedAt = newStatus === "executed" ? Date.now() : null;
+							updateMutation.mutate({ id: subtask.id, status: newStatus, completedAt });
+						}}
 						disabled={updateMutation.isPending}
-						className={styles.checkbox()}
 						aria-label={isDone ? "Marcar como pendente" : "Marcar como concluída"}
-					>
-						{isDone ? "[x]" : "[ ]"}
-					</button>
+					/>
 					<Title as="span" size="sm" className={styles.title()}>
 						{subtask.title}
 					</Title>

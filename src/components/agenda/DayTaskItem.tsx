@@ -1,10 +1,9 @@
+import { useDraggable } from "@dnd-kit/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 
 import { orpc } from "@/client";
 import { TaskItem } from "@/components/tasks";
 import { cn } from "@/lib/utils";
-import { useAgendaStore } from "@/stores/agenda";
 import type { TaskWithMeta } from "@/types/tasks";
 
 type DayTaskItemProps = {
@@ -15,16 +14,26 @@ type DayTaskItemProps = {
 
 export function DayTaskItem({ task, scheduledDate = null, onStatusChange }: DayTaskItemProps) {
 	const queryClient = useQueryClient();
-	const setDraggedTask = useAgendaStore((s) => s.setDraggedTask);
-	const setDrawerCollapsed = useAgendaStore((s) => s.setDrawerCollapsed);
-	const [isDragging, setIsDragging] = useState(false);
-
 	const isDone = task.status === "executed";
+
+	const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+		id: `day-task-${task.id}`,
+		data: {
+			task,
+			type: "task",
+			fromDate: scheduledDate,
+		},
+	});
+
+	const style = transform
+		? {
+				transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+			}
+		: undefined;
 
 	const updateStatusMutation = useMutation({
 		...orpc.tasks.update.mutationOptions(),
 		onSuccess: () => {
-			// ORPC query keys are nested; invalidate all tasks queries.
 			queryClient.invalidateQueries({
 				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "tasks",
 			});
@@ -40,38 +49,22 @@ export function DayTaskItem({ task, scheduledDate = null, onStatusChange }: DayT
 		);
 	}
 
-	function handleDragStart(e: React.DragEvent) {
-		setIsDragging(true);
-		setDrawerCollapsed(true);
-		setDraggedTask({
-			id: task.id,
-			title: task.title,
-			fromDate: scheduledDate,
-		});
-		if (e.dataTransfer) {
-			e.dataTransfer.effectAllowed = "move";
-			e.dataTransfer.setData("text/plain", task.id);
-		}
-	}
-
-	function handleDragEnd() {
-		setIsDragging(false);
-		setDrawerCollapsed(false);
-		setDraggedTask(null);
-	}
-
 	return (
 		<div
+			ref={setNodeRef}
+			style={style}
+			{...listeners}
+			{...attributes}
 			role="document"
 			onKeyDown={(e) => {
 				if (e.key === "Enter" || e.key === " ") {
 					toggleStatus();
 				}
 			}}
-			draggable
-			onDragStart={handleDragStart}
-			onDragEnd={handleDragEnd}
-			className={cn(isDragging && "cursor-grabbing opacity-50")}
+			className={cn(
+				"cursor-grab transition-opacity",
+				isDragging && "z-50 cursor-grabbing opacity-50",
+			)}
 		>
 			<TaskItem task={task} variant="compact" />
 		</div>

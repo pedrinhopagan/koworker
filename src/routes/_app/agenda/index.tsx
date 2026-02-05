@@ -3,9 +3,14 @@ import { CalendarCheck } from "lucide-react";
 import { useRef } from "react";
 import { z } from "zod";
 
-import { DayDrawer, WeekCalendar, type WeekCalendarRef } from "@/components/agenda";
-import { useProjectFocus } from "@/hooks";
+import {
+	AgendaDndWrapper,
+	DayDrawer,
+	WeekCalendar,
+	type WeekCalendarRef,
+} from "@/components/agenda";
 import { PageShell } from "@/components/layout/page-shell";
+import { useProjectFocus } from "@/hooks";
 
 const searchSchema = z.object({
 	inicio: z.string().optional(),
@@ -34,11 +39,12 @@ function AgendaPage() {
 			description="Arraste tarefas entre dias para reagendar"
 			icon={CalendarCheck}
 		>
-			<div className="flex h-[calc(100vh-180px)] flex-col overflow-hidden rounded-lg border border-border bg-card">
-				<WeekCalendar ref={calendarRef} onTasksChanged={handleTaskChange} />
-			</div>
-
-			<DayDrawer onTaskChange={handleTaskChange} />
+			<AgendaDndWrapper onTasksChanged={handleTaskChange}>
+				<div className="flex h-[calc(100vh-180px)] flex-col overflow-hidden rounded-lg border border-border bg-card">
+					<WeekCalendar ref={calendarRef} />
+				</div>
+				<DayDrawer onTaskChange={handleTaskChange} />
+			</AgendaDndWrapper>
 		</PageShell>
 	);
 }

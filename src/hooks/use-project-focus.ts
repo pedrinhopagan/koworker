@@ -79,3 +79,5 @@ export function useProjectFocus(options: UseProjectFocusOptions = {}) {
 		setSelectedProjectId,
 	};
 }
+
+export type UseProjectFocusReturn = ReturnType<typeof useProjectFocus>;
