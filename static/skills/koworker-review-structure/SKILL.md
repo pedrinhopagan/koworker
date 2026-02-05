@@ -1,7 +1,7 @@
 ---
 name: koworker-review-structure
-title: Review Structure
 description: Use when reviewing task structure and selected subtasks to strengthen the plan without touching code or status
+title: Revisar estrutura
 icon: FileSearch
 color: "#56b6c2"
 multiSelect: true

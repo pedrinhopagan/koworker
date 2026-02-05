@@ -1,7 +1,7 @@
 ---
 name: koworker-execute-all
+description: Use when all pending subtasks of a low-complexity task must be executed in one pass with best-effort decisions and minimal questioning
 title: Executar pendentes
-description: Executa todas as subtasks pendentes de tarefas simples em uma unica rodada
 icon: Rocket
 color: "#98c379"
 ---

@@ -1,7 +1,7 @@
 ---
 name: koworker-execute-subtask
+description: Use when the user selected specific subtasks to execute with deep, careful execution, strict scope control, and evidence-based completion
 title: Executar subtarefas
-description: Executa apenas as subtasks selecionadas
 icon: CirclePlay
 color: "#e5c07b"
 multiSelect: true

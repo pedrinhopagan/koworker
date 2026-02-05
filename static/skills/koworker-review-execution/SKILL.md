@@ -1,7 +1,7 @@
 ---
 name: koworker-review-execution
-title: Review Execution
 description: Use when reviewing executed subtasks for evidence, code quality, and AGENTS/CLAUDE compliance without changing status
+title: Revisar execucao
 icon: FileCheck
 color: "#d19a66"
 multiSelect: true

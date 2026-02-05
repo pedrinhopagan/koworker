@@ -12,6 +12,8 @@ color: "#56b6c2"
 
 Create a clean, task-scoped commit and record it. Do not push.
 
+**Stop condition:** If you have not run `git status`, `git diff`, and `git log -5 --oneline`, do not create a commit. Ask to run them (or request the outputs) and stop.
+
 ## Principles
 
 - Communicate with the user in English.
@@ -28,9 +30,9 @@ Create a clean, task-scoped commit and record it. Do not push.
    - Run `git status`, `git diff`, and `git log -5 --oneline`.
    - If there are no changes, record it in `notes` and stop.
    - Identify which files belong to the task.
-   - If unrelated files are present, ask whether to include them and stop.
+   - If unrelated files are present, your only allowed response is to ask whether to include them. Do not commit yet.
    - If sensitive files are present, refuse to commit them and ask to exclude.
-   - Do not commit until scope is confirmed.
+   - Do not commit until scope is explicitly confirmed.
 
 2. **Message**
    - Follow the repo’s recent commit message style.
@@ -62,6 +64,9 @@ Create a clean, task-scoped commit and record it. Do not push.
 - Do not run `git push`.
 - Do not change task status or `ai_metadata.lastCompletedAction`.
 - Do not mention task IDs, CLI, or other products in user-facing responses.
+- Do not claim a commit was created unless you actually ran the git commands.
+- If git commands cannot be run, ask the user to provide the outputs and stop.
+- All user-facing messages must be in English.
 
 ## Common mistakes
 
@@ -71,6 +76,8 @@ Create a clean, task-scoped commit and record it. Do not push.
 - Writing a vague commit message.
 - Skipping `git status`/`git diff`/`git log`.
 - Mentioning task IDs or CLI in user-facing messages.
+- Claiming a commit was created without running git commands.
+- Responding in Portuguese.
 
 ## Red flags
 
@@ -79,6 +86,7 @@ Create a clean, task-scoped commit and record it. Do not push.
 - "Amend the last commit"
 - "Push right after"
 - "Skip status/diff/log"
+- "I already committed" (without evidence)
 
 ## Rationalizations and fixes
 
@@ -89,6 +97,7 @@ Create a clean, task-scoped commit and record it. Do not push.
 | "Amend is fine" | Do not amend unless explicitly requested. |
 | "Push now" | Do not push unless explicitly requested. |
 | "Skip the checks" | Always run `git status`, `git diff`, and `git log` first. |
+| "I will commit without seeing changes" | Ask for `git status`/`git diff`/`git log` outputs and stop. |
 
 ## Example
 
