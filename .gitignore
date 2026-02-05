@@ -40,3 +40,5 @@ CLAUDE.md
 .claude
 db.sqliteworkopilot-front-end/
 example_**.png
+
+*.sqlite

@@ -61,6 +61,7 @@ const subtasksSchema = type({
 	title: "string",
 	"description?": "string",
 	status: task_status.configure({ default: "pending" }),
+	display_order: type("number.integer").configure({ default: 0 }),
 	"completed_at?": "number.integer",
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",

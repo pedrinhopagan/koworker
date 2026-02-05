@@ -15,6 +15,7 @@ export const SubtaskCreateSchema = z.object({
 	description: z.string().optional(),
 	status: TaskStatusSchema.optional(),
 	completedAt: z.number().int().optional(),
+	displayOrder: z.number().int().optional(),
 });
 
 export const SubtaskUpdateSchema = z.object({
@@ -23,6 +24,11 @@ export const SubtaskUpdateSchema = z.object({
 	description: z.string().optional(),
 	status: TaskStatusSchema.optional(),
 	completedAt: z.number().int().nullable().optional(),
+	displayOrder: z.number().int().optional(),
+});
+
+export const SubtaskReorderSchema = z.object({
+	orderedIds: z.array(z.string().min(1)).min(1),
 });
 
 export type SubtaskCreateInput = z.infer<typeof SubtaskCreateSchema>;
@@ -35,6 +41,7 @@ export const SubtaskDbCreateSchema = z.object({
 	description: z.string().optional(),
 	status: TaskStatusSchema.optional(),
 	completed_at: z.number().int().nullable().optional(),
+	display_order: z.number().int().optional(),
 	created_at: z.number().int().optional(),
 	updated_at: z.number().int().optional(),
 });

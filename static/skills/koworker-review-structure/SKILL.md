@@ -59,8 +59,9 @@ Review task structure with focus on selected subtasks, strengthening the plan on
 
 4. **Plan refinement (after answers)**
    - If `selectedParentTask` is `true`, refine task `description` and `acceptance_criteria` only for the selected scope.
-   - Refine `title` and `description` for selected subtasks only.
-   - Keep criteria `id` stable; do not edit items with `done: true`.
+- Refine `title` and `description` for selected subtasks only.
+- Ensure subtasks use sequential `displayOrder` (0..n-1) and avoid numbering titles.
+- Keep criteria `id` stable; do not edit items with `done: true`.
    - If a new criterion is needed, add a new `id` and keep old ones.
    - Do not create new subtasks; suggest them in `notes` if needed.
 

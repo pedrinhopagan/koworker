@@ -6,6 +6,7 @@ const subtaskInputSchema = z.object({
 	title: z.string().min(1),
 	description: z.string().optional(),
 	status: z.enum(["pending", "in_execution", "executed"]).optional(),
+	displayOrder: z.number().int().optional(),
 });
 
 const criterionSchema = z.object({
@@ -74,15 +75,31 @@ export async function updateTask(args: string[]): Promise<void> {
 		await trx.updateTable("tasks").set(updates).where("id", "=", input.taskId).execute();
 
 		if (input.subtasks) {
+			const maxOrder = (await trx
+				.selectFrom("subtasks")
+				.select(({ fn }) => [fn.max("display_order").as("maxOrder")])
+				.where("task_id", "=", input.taskId)
+				.executeTakeFirst()) as { maxOrder?: number | null } | undefined;
+			let nextOrder = ((maxOrder?.maxOrder as number | null) ?? -1) + 1;
+
 			for (const sub of input.subtasks) {
 				if (sub.id) {
 					const subUpdates: Record<string, unknown> = { updated_at: now };
 					if (sub.title) subUpdates.title = sub.title;
 					if (sub.description !== undefined) subUpdates.description = sub.description;
 					if (sub.status) subUpdates.status = sub.status;
+					if (typeof sub.displayOrder === "number") subUpdates.display_order = sub.displayOrder;
 
 					await trx.updateTable("subtasks").set(subUpdates).where("id", "=", sub.id).execute();
 				} else {
+					let displayOrder = sub.displayOrder;
+					if (typeof displayOrder !== "number") {
+						displayOrder = nextOrder;
+						nextOrder += 1;
+					} else if (displayOrder >= nextOrder) {
+						nextOrder = displayOrder + 1;
+					}
+
 					await trx
 						.insertInto("subtasks")
 						.values({
@@ -91,6 +108,7 @@ export async function updateTask(args: string[]): Promise<void> {
 							title: sub.title,
 							description: sub.description ?? null,
 							status: sub.status ?? "pending",
+							display_order: displayOrder,
 							created_at: now,
 							updated_at: now,
 						} as never)

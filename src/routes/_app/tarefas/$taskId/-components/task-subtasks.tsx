@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Plus, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { tv } from "tailwind-variants";
 
 import { orpc } from "@/client";
@@ -14,6 +14,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+	DragHandle,
+	type SortableItemRenderProps,
+	SortableList,
+} from "@/components/ui/sortable-list";
 import { cn } from "@/lib/utils";
 import type { SubtaskFull, TaskFull } from "@/types/tasks";
 
@@ -343,6 +348,32 @@ export function TaskSubtasks({
 
 	const subtasks = task.subtasks ?? [];
 	const doneCount = subtasks.filter((s) => s.status === "executed").length;
+	const sortedSubtasks = useMemo(
+		() => [...subtasks].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)),
+		[subtasks],
+	);
+	const [orderedSubtasks, setOrderedSubtasks] = useState<SubtaskFull[]>([]);
+	const invalidateTimeoutRef = useRef<number | null>(null);
+	const taskQueryOptions = orpc.tasks.getFull.queryOptions({ input: { id: task.id } });
+	const taskQueryKey = taskQueryOptions.queryKey;
+
+	useEffect(() => {
+		setOrderedSubtasks((prev) => {
+			if (
+				prev.length === sortedSubtasks.length &&
+				prev.every((item, i) => item.id === sortedSubtasks[i]?.id)
+			) {
+				return prev;
+			}
+			return sortedSubtasks;
+		});
+	}, [sortedSubtasks]);
+
+	useEffect(() => {
+		return () => {
+			if (invalidateTimeoutRef.current) window.clearTimeout(invalidateTimeoutRef.current);
+		};
+	}, []);
 
 	const addMutation = useMutation({
 		...orpc.subtasks.create.mutationOptions(),
@@ -353,6 +384,42 @@ export function TaskSubtasks({
 			queryClient.invalidateQueries({
 				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "subtasks",
 			});
+		},
+	});
+
+	const reorderMutation = useMutation({
+		...orpc.subtasks.reorder.mutationOptions(),
+		onMutate: async ({ orderedIds }) => {
+			await queryClient.cancelQueries({ queryKey: taskQueryKey });
+			const previous = queryClient.getQueryData(taskQueryKey) as TaskFull | undefined;
+
+			if (previous?.subtasks) {
+				const byId = new Map(previous.subtasks.map((subtask) => [subtask.id, subtask] as const));
+				const nextSubtasks = orderedIds
+					.map((id, index) => {
+						const item = byId.get(id);
+						return item ? { ...item, displayOrder: index } : null;
+					})
+					.filter(Boolean) as SubtaskFull[];
+				queryClient.setQueryData(taskQueryKey, { ...previous, subtasks: nextSubtasks });
+			}
+
+			return { previous };
+		},
+		onError: (_error, _vars, ctx) => {
+			if (ctx?.previous) queryClient.setQueryData(taskQueryKey, ctx.previous);
+		},
+		onSettled: () => {
+			if (invalidateTimeoutRef.current) window.clearTimeout(invalidateTimeoutRef.current);
+			invalidateTimeoutRef.current = window.setTimeout(() => {
+				queryClient.invalidateQueries({ queryKey: taskQueryKey });
+				queryClient.invalidateQueries({
+					predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "tasks",
+				});
+				queryClient.invalidateQueries({
+					predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "subtasks",
+				});
+			}, 350);
 		},
 	});
 
@@ -368,7 +435,37 @@ export function TaskSubtasks({
 		}
 	}
 
+	function handleReorder(items: SubtaskFull[]) {
+		setOrderedSubtasks(items);
+		reorderMutation.mutate({ orderedIds: items.map((item) => item.id) });
+	}
+
+	function renderSortableItem(subtask: SubtaskFull, props: SortableItemRenderProps) {
+		return (
+			<div className={cn("flex items-start gap-2", props.isDragging && "opacity-60")}>
+				<div className="flex items-start pt-2">
+					<DragHandle
+						attributes={props.dragHandleProps.attributes}
+						listeners={props.dragHandleProps.listeners}
+						disabled={disabled || addMutation.isPending || reorderMutation.isPending}
+					/>
+				</div>
+				<div className="flex-1 min-w-0">
+					<SubtaskItemV1
+						subtask={subtask}
+						disabled={disabled || addMutation.isPending || reorderMutation.isPending}
+					/>
+				</div>
+			</div>
+		);
+	}
+
+	function renderDragOverlay(subtask: SubtaskFull) {
+		return <div className="rounded bg-card px-3 py-2 text-sm shadow-lg">{subtask.title}</div>;
+	}
+
 	const selectedCount = selectedIds.length + (selectedParentTask ? 1 : 0);
+	const reorderDisabled = disabled || addMutation.isPending || reorderMutation.isPending;
 
 	return (
 		<Accordion type="single" collapsible defaultValue="subtasks">
@@ -445,8 +542,8 @@ export function TaskSubtasks({
 							<div className="py-4 text-center border border-dashed border-border text-sm text-muted-foreground">
 								Nenhuma subtask ainda
 							</div>
-						) : (
-							subtasks.map((subtask) => (
+						) : selectionMode ? (
+							sortedSubtasks.map((subtask) => (
 								<SubtaskItemV1
 									key={subtask.id}
 									subtask={subtask}
@@ -456,6 +553,15 @@ export function TaskSubtasks({
 									onToggleSelection={onToggleSelection}
 								/>
 							))
+						) : (
+							<SortableList
+								items={orderedSubtasks}
+								onReorder={handleReorder}
+								renderItem={renderSortableItem}
+								renderDragOverlay={renderDragOverlay}
+								disabled={reorderDisabled}
+								itemClassName=""
+							/>
 						)}
 
 						{!selectionMode && (

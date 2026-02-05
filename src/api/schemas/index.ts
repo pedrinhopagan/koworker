@@ -16,21 +16,23 @@ export {
 	PriorityUpdateSchema,
 } from "./priorities";
 export {
-	ProjectCreateSchema,
-	ProjectIdSchema,
-	ProjectReorderSchema,
-	ProjectUpdateSchema,
-} from "./projects";
-export {
 	ProjectRouteCreateSchema,
 	ProjectRouteIdSchema,
 	ProjectRouteReorderSchema,
 	ProjectRouteUpdateSchema,
 } from "./project-routes";
 export {
+	ProjectCreateSchema,
+	ProjectIdSchema,
+	ProjectReorderSchema,
+	ProjectUpdateSchema,
+} from "./projects";
+export { SkillCreateSchema, SkillIdSchema, SkillReorderSchema, SkillUpdateSchema } from "./skills";
+export {
 	SubtaskCreateSchema,
 	SubtaskIdSchema,
 	SubtaskListByTaskSchema,
+	SubtaskReorderSchema,
 	SubtaskUpdateSchema,
 } from "./subtasks";
 export {
@@ -46,12 +48,6 @@ export {
 	TaskStatusSchema,
 	TaskUpdateSchema,
 } from "./tasks";
-export {
-	SkillCreateSchema,
-	SkillIdSchema,
-	SkillReorderSchema,
-	SkillUpdateSchema,
-} from "./skills";
 
 export const EndpointSchemas = {
 	authLogin: AuthLoginSchema,

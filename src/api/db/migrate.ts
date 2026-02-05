@@ -112,5 +112,17 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		}
 	}
 
+	// subtasks
+	{
+		const cols = tableInfo(sqlite, "subtasks");
+		if (!hasColumn(cols, "display_order")) {
+			ensureColumn(sqlite, "subtasks", "display_order INTEGER NOT NULL DEFAULT 0");
+			const tasks = sqlite.query("SELECT DISTINCT task_id FROM subtasks").all();
+			for (const task of tasks as { task_id: string }[]) {
+				resequenceDisplayOrder(sqlite, "subtasks", `task_id = '${task.task_id}'`);
+			}
+		}
+	}
+
 	sqlite.close();
 }

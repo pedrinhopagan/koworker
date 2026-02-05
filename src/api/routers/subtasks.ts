@@ -5,6 +5,7 @@ import {
 	SubtaskCreateSchema,
 	SubtaskIdSchema,
 	SubtaskListByTaskSchema,
+	SubtaskReorderSchema,
 	SubtaskUpdateSchema,
 } from "../schemas";
 
@@ -17,6 +18,7 @@ const mapSubtask = (row: subtasks) => ({
 	completedAt: row.completed_at ?? undefined,
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,
+	displayOrder: row.display_order,
 });
 
 export const subtasksRouter = {
@@ -40,6 +42,7 @@ export const subtasksRouter = {
 			description: input.description,
 			status: input.status,
 			completed_at: input.completedAt,
+			display_order: input.displayOrder,
 		});
 
 		const row = await dbSubtasks.getById(id);
@@ -53,6 +56,7 @@ export const subtasksRouter = {
 			description: input.description,
 			status: input.status,
 			completed_at: input.completedAt,
+			display_order: input.displayOrder,
 		});
 
 		const row = await dbSubtasks.getById(input.id);
@@ -62,5 +66,10 @@ export const subtasksRouter = {
 	remove: protectedProcedure.input(SubtaskIdSchema).handler(async ({ input }) => {
 		await dbSubtasks.delete(input.id);
 		return { id: input.id };
+	}),
+
+	reorder: protectedProcedure.input(SubtaskReorderSchema).handler(async ({ input }) => {
+		await dbSubtasks.reorder(input.orderedIds);
+		return { success: true };
 	}),
 };

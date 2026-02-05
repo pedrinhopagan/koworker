@@ -1,6 +1,6 @@
 import { protectedProcedure } from "../auth/context";
-import type { subtasks, tasks } from "../db/connection";
 import { dbCategories } from "../db/categories";
+import type { subtasks, tasks } from "../db/connection";
 import { dbPriorities } from "../db/priorities";
 import { dbProjects } from "../db/projects";
 import { dbSubtasks } from "../db/subtasks";
@@ -28,6 +28,7 @@ const mapSubtask = (row: subtasks) => ({
 	completedAt: row.completed_at ?? undefined,
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,
+	displayOrder: row.display_order,
 });
 
 const mapTask = (row: tasks, input?: { subtasks?: subtasks[] }) => ({

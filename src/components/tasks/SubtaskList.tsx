@@ -68,8 +68,10 @@ export function SubtaskList({ taskId, disabled = false, className }: SubtaskList
 
 	const styles = subtaskListVariants({ disabled: disabled || isLoading });
 
-	// Sorted subtasks - for now, order is implicit in array position
-	const sortedSubtasks = useMemo(() => [...subtasks], [subtasks]);
+	const sortedSubtasks = useMemo(
+		() => [...subtasks].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)),
+		[subtasks],
+	);
 
 	// Count completed subtasks
 	const doneCount = subtasks.filter((s) => s.status === "executed").length;

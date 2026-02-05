@@ -1,11 +1,12 @@
-import { z } from "zod";
 import { sql } from "kysely";
+import { z } from "zod";
 import { db } from "@/cli/db";
 
 const subtaskInputSchema = z.object({
 	title: z.string().min(1),
 	description: z.string().optional(),
 	status: z.enum(["pending", "in_execution", "executed"]).optional(),
+	displayOrder: z.number().int().optional(),
 });
 
 const criterionSchema = z.object({
@@ -132,7 +133,16 @@ export async function createTask(args: string[]): Promise<void> {
 			.execute();
 
 		if (input.subtasks?.length) {
+			let nextOrder = 0;
 			for (const sub of input.subtasks) {
+				let displayOrder = sub.displayOrder;
+				if (typeof displayOrder !== "number") {
+					displayOrder = nextOrder;
+					nextOrder += 1;
+				} else if (displayOrder >= nextOrder) {
+					nextOrder = displayOrder + 1;
+				}
+
 				await trx
 					.insertInto("subtasks")
 					.values({
@@ -141,6 +151,7 @@ export async function createTask(args: string[]): Promise<void> {
 						title: sub.title,
 						description: sub.description ?? null,
 						status: sub.status ?? "pending",
+						display_order: displayOrder,
 						created_at: now,
 						updated_at: now,
 					} as never)

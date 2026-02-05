@@ -25,6 +25,31 @@ export function useSubtasks(taskId: string) {
 		onSuccess: invalidate,
 	});
 
+	const reorderMutation = useMutation({
+		...orpc.subtasks.reorder.mutationOptions(),
+		onMutate: async ({ orderedIds }) => {
+			await queryClient.cancelQueries({ queryKey: queryOptions.queryKey });
+			const previous = queryClient.getQueryData(queryOptions.queryKey) as Subtask[] | undefined;
+
+			if (previous && previous.length > 0) {
+				const byId = new Map(previous.map((subtask) => [subtask.id, subtask] as const));
+				const next = orderedIds
+					.map((id, index) => {
+						const item = byId.get(id);
+						return item ? { ...item, displayOrder: index } : null;
+					})
+					.filter(Boolean) as Subtask[];
+				queryClient.setQueryData(queryOptions.queryKey, next);
+			}
+
+			return { previous };
+		},
+		onError: (_err, _vars, ctx) => {
+			if (ctx?.previous) queryClient.setQueryData(queryOptions.queryKey, ctx.previous);
+		},
+		onSettled: invalidate,
+	});
+
 	const removeMutation = useMutation({
 		...orpc.subtasks.remove.mutationOptions(),
 		onSuccess: invalidate,
@@ -66,16 +91,9 @@ export function useSubtasks(taskId: string) {
 
 	const reorder = useCallback(
 		(reorderedSubtasks: Subtask[]) => {
-			// Optimistic update
-			queryClient.setQueryData(queryOptions.queryKey, reorderedSubtasks);
-
-			// No backend support for order field yet - just keep optimistic update
-			// When order field is added to DB, uncomment below:
-			// reorderedSubtasks.forEach((subtask, index) => {
-			//   updateMutation.mutate({ id: subtask.id, order: index });
-			// });
+			reorderMutation.mutate({ orderedIds: reorderedSubtasks.map((subtask) => subtask.id) });
 		},
-		[queryClient, queryOptions.queryKey],
+		[reorderMutation],
 	);
 
 	return {

@@ -105,6 +105,7 @@ Estas instrucoes sao comuns a todas as skills e garantem o uso correto do app.
 - \`acceptance_criteria\` e uma lista JSON: \`[{ id, text, done }]\`
 - Use \`notes\` para registrar observacoes relevantes da IA
 - Subtasks devem ter \`title\` e \`description\` completos
+- Ao criar subtasks, defina \`displayOrder\` sequencial e nao numere os titulos
 - Ao atualizar \`acceptance_criteria\`, envie o array completo
 - Status valido: \`pending\` | \`in_execution\` | \`executed\`
 
@@ -140,6 +141,7 @@ kowork update-task '<JSON>'
   title: string,         // Titulo da subtask (obrigatorio para criar)
   description?: string,  // Descricao opcional
   status?: "pending" | "in_execution" | "executed"
+  displayOrder?: number  // Ordem sequencial (0..n-1) na lista
 }
 \`\`\`
 
@@ -158,7 +160,8 @@ kowork update-task '${JSON.stringify(cliExampleUpdate)}'
 5. Ao atualizar \`acceptance_criteria\`, envie o array completo
 6. Mesmo sendo armazenado como string, mantenha o formato de lista JSON
 7. Use o campo \`notes\` para documentar o que foi feito
-8. Nao defina \`completed_at\` - isso e feito pelo usuario ao aprovar`;
+8. Ao criar subtasks, use \`displayOrder\` sequencial e nao numere titulos
+9. Nao defina \`completed_at\` - isso e feito pelo usuario ao aprovar`;
 
 	const userInputSection = userInput.trim()
 		? `## Prompt do Usuario

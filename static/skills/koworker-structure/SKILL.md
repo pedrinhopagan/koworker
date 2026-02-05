@@ -62,9 +62,10 @@ Turn a request into a concise, validated plan without assumptions.
 
 4. **Concise plan**
    - `description`: clear summary of objective + task map
-   - `acceptance_criteria`: verifiable items with stable `id` and `done: false`
-   - Create subtasks only for real dependencies, distinct layers, or technical risk
-   - Order subtasks by dependency
+- `acceptance_criteria`: verifiable items with stable `id` and `done: false`
+- Create subtasks only for real dependencies, distinct layers, or technical risk
+- Order subtasks by dependency
+- Include `displayOrder` sequential (0..n-1) for subtasks; do not prefix titles with numbering
 
 5. **Metadata and CLI**
    - Use the CLI defined in `AGENTS.md` or `CLAUDE.md`
