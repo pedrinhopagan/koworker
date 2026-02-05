@@ -4,9 +4,10 @@
  * Supports window dragging in Tauri environment
  */
 
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Settings, X } from "lucide-react";
-import { useCallback, useEffect } from "react";
+import { RefreshCw, Settings, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { tv } from "tailwind-variants";
 import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
@@ -56,10 +57,12 @@ function isTabActive(currentPath: string, tabPath: string): boolean {
 }
 
 export function TabBar() {
+	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
 	const routerState = useRouterState();
 	const currentPath = location.pathname;
+	const [refreshingPageData, setRefreshingPageData] = useState(false);
 
 	// Keyboard navigation: Alt+1-5 for tabs, Alt+0 for settings
 	useEffect(() => {
@@ -89,6 +92,16 @@ export function TabBar() {
 	const handleMouseDown = useCallback((e: React.MouseEvent) => {
 		startWindowDrag(e);
 	}, []);
+
+	const handleQuickRefresh = useCallback(async () => {
+		if (refreshingPageData) return;
+		setRefreshingPageData(true);
+		try {
+			await queryClient.refetchQueries({ type: "active" });
+		} finally {
+			setRefreshingPageData(false);
+		}
+	}, [queryClient, refreshingPageData]);
 
 	// Current route path for debug display (optional)
 	const currentRoutePath = routerState.matches.at(-1)?.fullPath ?? "/";
@@ -129,6 +142,17 @@ export function TabBar() {
 			<div className="flex-1 text-center">
 				<span className="text-xs text-muted-foreground opacity-30">{currentRoutePath}</span>
 			</div>
+
+			{/* Settings button */}
+			<button
+				type="button"
+				onClick={handleQuickRefresh}
+				className={iconButton({ active: false })}
+				title="Atualizar dados da página"
+				disabled={refreshingPageData}
+			>
+				<RefreshCw size={16} className={cn(refreshingPageData && "animate-spin")} />
+			</button>
 
 			{/* Settings button */}
 			<Link

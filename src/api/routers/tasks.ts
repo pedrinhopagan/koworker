@@ -182,6 +182,14 @@ export const tasksRouter = {
 			taskId: id,
 			projectId: input.projectId,
 			action: "created",
+			source: "api",
+		});
+
+		await PubSub.publish("tasks", "global", {
+			taskId: id,
+			projectId: input.projectId,
+			action: "created",
+			source: "api",
 		});
 
 		const row = await dbTasks.getById(id);
@@ -209,6 +217,14 @@ export const tasksRouter = {
 				taskId: row.id,
 				projectId: row.project_id,
 				action: "updated",
+				source: "api",
+			});
+
+			await PubSub.publish("tasks", "global", {
+				taskId: row.id,
+				projectId: row.project_id,
+				action: "updated",
+				source: "api",
 			});
 		}
 		return row ? mapTask(row) : null;
@@ -222,6 +238,14 @@ export const tasksRouter = {
 				taskId: row.id,
 				projectId: row.project_id,
 				action: "deleted",
+				source: "api",
+			});
+
+			await PubSub.publish("tasks", "global", {
+				taskId: row.id,
+				projectId: row.project_id,
+				action: "deleted",
+				source: "api",
 			});
 		}
 		return { id: input.id };

@@ -11,7 +11,9 @@ cli/
 ├── index.ts             # Entry point, parse de comandos
 ├── db.ts                # Conexão Kysely direta
 └── commands/
-    └── update-task.ts   # Comando principal
+    ├── create-task.ts   # Criação de task/subtasks
+    ├── update-task.ts   # Atualização de task/subtasks
+    └── schemas.ts       # Schemas/enums compartilhados
 ```
 
 ## REGRAS
@@ -20,13 +22,13 @@ cli/
 - Validar input com Zod
 - Erros em pt-BR e exit code != 0
 - Sempre atualizar `updated_at`
-- Nunca setar `completed_at` (só o usuário aprova)
+- Nunca setar `completed_at` para task ou subtask (só o usuário aprova)
 
 ## COMANDOS
 
 ### create-task
 
-Recebe JSON com campos opcionais:
+Recebe JSON com campos:
 
 ```typescript
 {
@@ -46,6 +48,7 @@ Recebe JSON com campos opcionais:
     title: string
     description?: string
     status?: "pending" | "in_execution" | "executed"
+    displayOrder?: number
   }>
 }
 ```
@@ -57,7 +60,7 @@ Notas:
 
 ### update-task
 
-Recebe JSON com campos opcionais:
+Recebe JSON com campos:
 
 ```typescript
 {
@@ -73,9 +76,16 @@ Recebe JSON com campos opcionais:
     title: string
     description?: string
     status?: "pending" | "in_execution" | "executed"
+    displayOrder?: number
   }>
 }
 ```
+
+Notas:
+- `taskId` é obrigatório
+- Atualização de subtask por `id` valida se a subtask existe
+- Atualização de subtask por `id` valida se pertence à `taskId` informada
+- Quando `id` é omitido em `subtasks`, uma nova subtask é criada
 
 ## USO
 

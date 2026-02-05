@@ -1,65 +1,41 @@
 import { z } from "zod";
 import { db } from "@/cli/db";
-
-const subtaskInputSchema = z.object({
-	id: z.string().optional(),
-	title: z.string().min(1),
-	description: z.string().optional(),
-	status: z.enum(["pending", "in_execution", "executed"]).optional(),
-	displayOrder: z.number().int().optional(),
-});
-
-const criterionSchema = z.object({
-	id: z.string(),
-	text: z.string(),
-	done: z.boolean(),
-});
+import { notifyTaskChange } from "./notify-backend";
+import {
+	criterionSchema,
+	parseJsonInput,
+	taskStatusSchema,
+	updateSubtaskInputSchema,
+} from "./schemas";
 
 const updateTaskInputSchema = z.object({
 	taskId: z.string(),
 	title: z.string().min(1).optional(),
 	description: z.string().optional(),
-	status: z.enum(["pending", "in_execution", "executed"]).optional(),
+	status: taskStatusSchema.optional(),
 	notes: z.string().optional(),
 	ai_metadata: z.record(z.string(), z.unknown()).optional(),
 	acceptance_criteria: z.array(criterionSchema).optional(),
-	subtasks: z.array(subtaskInputSchema).optional(),
+	subtasks: z.array(updateSubtaskInputSchema).optional(),
 });
 
 export async function updateTask(args: string[]): Promise<void> {
-	const jsonInput = args[0];
-	if (!jsonInput) {
-		throw new Error("JSON de input é obrigatório");
-	}
-
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(jsonInput);
-	} catch {
-		throw new Error("JSON inválido");
-	}
-
-	const result = updateTaskInputSchema.safeParse(parsed);
-	if (!result.success) {
-		const issues = result.error.issues
-			.map((i) => `  - ${i.path.join(".")}: ${i.message}`)
-			.join("\n");
-		throw new Error(`Validação falhou:\n${issues}`);
-	}
-
-	const input = result.data;
+	const input = parseJsonInput(args[0], updateTaskInputSchema);
 	const now = Date.now();
+	let projectId = "";
 
 	await db.transaction().execute(async (trx) => {
 		const task = await trx
 			.selectFrom("tasks")
-			.select(["id"])
+			.select(["id", "project_id"])
 			.where("id", "=", input.taskId)
 			.executeTakeFirst();
 
 		if (!task) {
 			throw new Error(`Task ${input.taskId} não encontrada`);
 		}
+
+		projectId = task.project_id;
 
 		const updates: Record<string, unknown> = { updated_at: now };
 
@@ -75,6 +51,34 @@ export async function updateTask(args: string[]): Promise<void> {
 		await trx.updateTable("tasks").set(updates).where("id", "=", input.taskId).execute();
 
 		if (input.subtasks) {
+			const subtasksWithId = input.subtasks.filter((subtask) => Boolean(subtask.id));
+
+			if (subtasksWithId.length) {
+				const existingSubtasks = await trx
+					.selectFrom("subtasks")
+					.select(["id", "task_id"])
+					.where(
+						"id",
+						"in",
+						subtasksWithId.map((subtask) => subtask.id as string),
+					)
+					.execute();
+
+				const subtaskById = new Map(existingSubtasks.map((subtask) => [subtask.id, subtask]));
+
+				for (const subtask of subtasksWithId) {
+					const existingSubtask = subtaskById.get(subtask.id as string);
+
+					if (!existingSubtask) {
+						throw new Error(`Subtask ${subtask.id} não encontrada`);
+					}
+
+					if (existingSubtask.task_id !== input.taskId) {
+						throw new Error(`Subtask ${subtask.id} não pertence à task ${input.taskId}`);
+					}
+				}
+			}
+
 			const maxOrder = (await trx
 				.selectFrom("subtasks")
 				.select(({ fn }) => [fn.max("display_order").as("maxOrder")])
@@ -90,7 +94,12 @@ export async function updateTask(args: string[]): Promise<void> {
 					if (sub.status) subUpdates.status = sub.status;
 					if (typeof sub.displayOrder === "number") subUpdates.display_order = sub.displayOrder;
 
-					await trx.updateTable("subtasks").set(subUpdates).where("id", "=", sub.id).execute();
+					await trx
+						.updateTable("subtasks")
+						.set(subUpdates)
+						.where("id", "=", sub.id)
+						.where("task_id", "=", input.taskId)
+						.execute();
 				} else {
 					let displayOrder = sub.displayOrder;
 					if (typeof displayOrder !== "number") {
@@ -117,6 +126,14 @@ export async function updateTask(args: string[]): Promise<void> {
 			}
 		}
 	});
+
+	if (projectId) {
+		await notifyTaskChange({
+			taskId: input.taskId,
+			projectId,
+			action: "updated",
+		});
+	}
 
 	console.log(`Task ${input.taskId} atualizada com sucesso`);
 }

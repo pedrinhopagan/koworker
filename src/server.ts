@@ -40,6 +40,37 @@ Bun.serve<WsData>({
 
 			return response ?? new Response("Not Found", { status: 404 });
 		},
+		"/api/tasks/notify": async (request: Request) => {
+			if (request.method !== "POST") {
+				return new Response("Method Not Allowed", { status: 405 });
+			}
+
+			try {
+				const body = (await request.json()) as {
+					task_id: string;
+					project_id: string;
+					action?: "created" | "updated" | "deleted";
+				};
+
+				if (!body.task_id || !body.project_id) {
+					return new Response("Bad Request", { status: 400 });
+				}
+
+				const event = {
+					taskId: body.task_id,
+					projectId: body.project_id,
+					action: body.action ?? "updated",
+					source: "cli" as const,
+				};
+
+				await PubSub.publish("tasks", body.project_id, event);
+				await PubSub.publish("tasks", "global", event);
+
+				return Response.json({ ok: true });
+			} catch {
+				return new Response("Bad Request", { status: 400 });
+			}
+		},
 		"/api/terminal/notify": async (request: Request) => {
 			if (request.method !== "POST") {
 				return new Response("Method Not Allowed", { status: 405 });

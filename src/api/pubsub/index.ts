@@ -11,6 +11,7 @@ type PubSubChannels = {
 		taskId: string;
 		projectId: string;
 		action: "created" | "updated" | "deleted";
+		source: "api" | "cli";
 	};
 };
 

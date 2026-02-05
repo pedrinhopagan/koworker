@@ -53,6 +53,9 @@ export const wsRouter = {
 		events: protectedProcedure
 			.input(TaskListByProjectSchema)
 			.handler(({ input, signal }) => PubSub.subscribe("tasks", input.projectId, signal)),
+		globalEvents: protectedProcedure.handler(({ signal }) =>
+			PubSub.subscribe("tasks", "global", signal),
+		),
 	},
 
 	terminal: terminalWsRouter,

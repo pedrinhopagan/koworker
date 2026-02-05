@@ -1,19 +1,12 @@
 import { sql } from "kysely";
 import { z } from "zod";
 import { db } from "@/cli/db";
-
-const subtaskInputSchema = z.object({
-	title: z.string().min(1),
-	description: z.string().optional(),
-	status: z.enum(["pending", "in_execution", "executed"]).optional(),
-	displayOrder: z.number().int().optional(),
-});
-
-const criterionSchema = z.object({
-	id: z.string(),
-	text: z.string(),
-	done: z.boolean(),
-});
+import {
+	createSubtaskInputSchema,
+	criterionSchema,
+	parseJsonInput,
+	taskStatusSchema,
+} from "./schemas";
 
 const createTaskInputSchema = z
 	.object({
@@ -22,14 +15,14 @@ const createTaskInputSchema = z
 		notes: z.string().optional(),
 		ai_metadata: z.record(z.string(), z.unknown()).optional(),
 		acceptance_criteria: z.array(criterionSchema).optional(),
-		status: z.enum(["pending", "in_execution", "executed"]).optional(),
+		status: taskStatusSchema.optional(),
 		projectId: z.string().min(1).optional(),
 		projectName: z.string().min(1).optional(),
 		categoryId: z.string().min(1).optional(),
 		categoryName: z.string().min(1).optional(),
 		priorityId: z.string().min(1).optional(),
 		priorityName: z.string().min(1).optional(),
-		subtasks: z.array(subtaskInputSchema).optional(),
+		subtasks: z.array(createSubtaskInputSchema).optional(),
 	})
 	.refine((v) => v.projectId || v.projectName, {
 		message: "projectId ou projectName é obrigatório",
@@ -45,27 +38,7 @@ const createTaskInputSchema = z
 	});
 
 export async function createTask(args: string[]): Promise<void> {
-	const jsonInput = args[0];
-	if (!jsonInput) {
-		throw new Error("JSON de input é obrigatório");
-	}
-
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(jsonInput);
-	} catch {
-		throw new Error("JSON inválido");
-	}
-
-	const result = createTaskInputSchema.safeParse(parsed);
-	if (!result.success) {
-		const issues = result.error.issues
-			.map((i) => `  - ${i.path.join(".")}: ${i.message}`)
-			.join("\n");
-		throw new Error(`Validação falhou:\n${issues}`);
-	}
-
-	const input = result.data;
+	const input = parseJsonInput(args[0], createTaskInputSchema);
 	const now = Date.now();
 
 	const [project, category, priority] = await Promise.all([
