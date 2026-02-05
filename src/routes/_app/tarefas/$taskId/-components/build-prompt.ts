@@ -7,7 +7,11 @@ export type BuildPromptParams = {
 	task: NonNullable<TaskFull>;
 	selectedSubtaskIds: string[];
 	selectedParentTask?: boolean;
-	customInstructions?: string;
+};
+
+export type BuildCleanPromptParams = {
+	userInput: string;
+	skillSlug: string;
 };
 
 export type TaskPromptJson = {
@@ -33,14 +37,7 @@ export type TaskPromptJson = {
 };
 
 export function buildPrompt(params: BuildPromptParams): string {
-	const {
-		userInput,
-		skill,
-		task,
-		selectedSubtaskIds,
-		selectedParentTask = false,
-		customInstructions,
-	} = params;
+	const { userInput, skill, task, selectedSubtaskIds, selectedParentTask = false } = params;
 
 	const selectedSubtasks = task.subtasks?.filter((s) => selectedSubtaskIds.includes(s.id)) ?? [];
 
@@ -163,12 +160,6 @@ kowork update-task '${JSON.stringify(cliExampleUpdate)}'
 7. Use o campo \`notes\` para documentar o que foi feito
 8. Nao defina \`completed_at\` - isso e feito pelo usuario ao aprovar`;
 
-	const customInstructionsSection = customInstructions?.trim()
-		? `## Instrucoes personalizadas
-
-${customInstructions.trim()}`
-		: null;
-
 	const userInputSection = userInput.trim()
 		? `## Prompt do Usuario
 
@@ -179,9 +170,20 @@ ${userInput.trim()}`
 		? "seguindo o prompt do usuario acima"
 		: "seguindo as instrucoes acima";
 
-	const skillInvocationSection = `## Skill selecionada
+	const skillInvocationSection = `## Skill Obrigatoria
 
-Utilize a skill "${skill.slug}" ${userPromptHint}.`;
+VOCE DEVE usar a skill "${skill.slug}" para esta tarefa${userInput.trim() ? ", " + userPromptHint : ""}.
+
+### Como usar
+1. Invoque a ferramenta Skill com name="${skill.slug}"
+2. Anuncie: "Usando skill ${skill.slug} para [proposito]"
+3. Siga as instrucoes da skill EXATAMENTE
+
+### IMPORTANTE - NAO RACIONALIZE
+- NAO pense "isso e simples demais para usar skill" - USE A SKILL
+- NAO pense "vou explorar primeiro" - A SKILL DIZ COMO EXPLORAR
+- NAO pense "ja sei o que fazer" - A SKILL TEM O PROCESSO ATUAL
+- Isso NAO e opcional. NAO e negociavel. USE A SKILL.`;
 
 	const taskDataSection = `## Dados da Tarefa (Koworker)
 
@@ -191,7 +193,6 @@ ${JSON.stringify(taskJson, null, 2)}
 
 	const sections = [
 		baseInstructionsSection,
-		customInstructionsSection,
 		userInputSection,
 		skillInvocationSection,
 		taskDataSection,
@@ -200,27 +201,16 @@ ${JSON.stringify(taskJson, null, 2)}
 	return sections.join("\n\n---\n\n");
 }
 
-export function getCustomInstructions(skillId: string): string | null {
-	if (typeof window === "undefined") return null;
-	const key = `kowork_skill_instructions_${skillId}`;
-	return localStorage.getItem(key);
-}
+export function buildCleanPrompt(params: BuildCleanPromptParams): string {
+	const { userInput, skillSlug } = params;
 
-export function setCustomInstructions(skillId: string, instructions: string): void {
-	if (typeof window === "undefined") return;
-	const key = `kowork_skill_instructions_${skillId}`;
-	if (instructions.trim()) {
-		localStorage.setItem(key, instructions);
-	} else {
-		localStorage.removeItem(key);
+	const parts: string[] = [];
+
+	if (userInput.trim()) {
+		parts.push(userInput.trim());
 	}
-}
 
-export function buildPromptWithCustomInstructions(params: BuildPromptParams): string {
-	const customInstructions = getCustomInstructions(params.skill.id);
+	parts.push(`Use a skill "${skillSlug}". Nao mencione a tarefa.`);
 
-	return buildPrompt({
-		...params,
-		customInstructions: customInstructions ?? undefined,
-	});
+	return parts.join("\n\n");
 }

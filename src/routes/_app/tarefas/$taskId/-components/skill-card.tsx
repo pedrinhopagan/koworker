@@ -16,7 +16,7 @@ import type { TaskSkill } from "@/types/skills";
 
 const skillCardVariants = tv({
 	base: cn(
-		"relative flex items-center jsutify-between gap-3 p-3 w-full min-w-0",
+		"relative flex items-center jcsutify-between gap-3 p-3 w-full min-w-0",
 		"border border-border bg-card text-foreground",
 		"transition-all duration-200 cursor-pointer",
 		"hover:border-muted hover:bg-secondary",

@@ -12,10 +12,10 @@ import { closeProjectTerminal, closeTaskTerminal } from "@/lib/terminal";
 import { useIsProjectTerminalOpen, useIsTaskWindowOpen } from "@/stores/terminal-status";
 import type { TaskSkill } from "@/types/skills";
 import type { TaskFull } from "@/types/tasks";
+
 import { copyToClipboard } from "./agent-runner";
-import { buildPromptWithCustomInstructions } from "./build-prompt";
+import { buildPrompt } from "./build-prompt";
 import { SkillCard } from "./skill-card";
-import { SkillInstructionsEditor } from "./skill-instructions-editor";
 
 type TaskActionPanelProps = {
 	task: NonNullable<TaskFull>;
@@ -41,7 +41,6 @@ export function TaskActionPanel({
 	const navigate = useNavigate();
 	const skillsQuery = useSkillsQuery();
 	const [userInput, setUserInput] = useState("");
-	const [editingSkillId, setEditingSkillId] = useState<string | null>(null);
 
 	const isProjectTerminalOpen = useIsProjectTerminalOpen(task.projectId);
 	const isTaskWindowOpen = useIsTaskWindowOpen(task.id);
@@ -60,7 +59,7 @@ export function TaskActionPanel({
 		const skill = getSkillById(skillId);
 		if (!skill) return null;
 
-		return buildPromptWithCustomInstructions({
+		return buildPrompt({
 			userInput,
 			skill,
 			task,
@@ -107,10 +106,6 @@ export function TaskActionPanel({
 
 		toast.error("Erro ao copiar prompt");
 		return false;
-	}
-
-	function handleEditInstructions(skillId: string) {
-		setEditingSkillId(skillId);
 	}
 
 	async function onCloseProjectSession() {
@@ -200,9 +195,9 @@ export function TaskActionPanel({
 											selectionSkillId === skill.id
 										}
 										disabled={disabled}
+										userInput={userInput}
 										onCopyPrompt={handleCopyPrompt}
 										onCancelSelection={onCancelSubtaskSelection}
-										onEditInstructions={handleEditInstructions}
 									/>
 								))}
 							</div>
@@ -231,9 +226,9 @@ export function TaskActionPanel({
 													selectionSkillId === skill.id
 												}
 												disabled={disabled}
+												userInput={userInput}
 												onCopyPrompt={handleCopyPrompt}
 												onCancelSelection={onCancelSubtaskSelection}
-												onEditInstructions={handleEditInstructions}
 											/>
 										))}
 									</div>
@@ -253,11 +248,6 @@ export function TaskActionPanel({
 					</div>
 				)}
 			</div>
-
-			<SkillInstructionsEditor
-				skill={editingSkillId ? getSkillById(editingSkillId) : null}
-				onClose={() => setEditingSkillId(null)}
-			/>
 		</section>
 	);
 }

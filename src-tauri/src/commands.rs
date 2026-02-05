@@ -1,4 +1,5 @@
 use rfd::FileDialog;
+use std::process::Command;
 use tauri::AppHandle;
 
 use crate::window;
@@ -6,6 +7,37 @@ use crate::window;
 #[tauri::command]
 pub fn hide_window(app: AppHandle) {
     window::hide(&app);
+}
+
+#[tauri::command]
+pub fn open_folder(path: String) -> Result<(), String> {
+    let expanded_path = shellexpand::tilde(&path).to_string();
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(&expanded_path)
+            .spawn()
+            .map_err(|e| format!("Erro ao abrir pasta: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(&expanded_path)
+            .spawn()
+            .map_err(|e| format!("Erro ao abrir pasta: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .arg(&expanded_path)
+            .spawn()
+            .map_err(|e| format!("Erro ao abrir pasta: {}", e))?;
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

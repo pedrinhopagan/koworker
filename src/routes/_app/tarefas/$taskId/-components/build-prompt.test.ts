@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
 import type { TaskFull } from "@/types/tasks";
-import { type BuildPromptParams, buildPrompt } from "./build-prompt";
+import { type BuildPromptParams, buildCleanPrompt, buildPrompt } from "./build-prompt";
 
 describe("buildPrompt", () => {
-	it("organiza o prompt com instrucoes globais, customizadas, usuario, skill e dados", () => {
+	it("organiza o prompt com instrucoes globais, usuario, skill obrigatoria e dados", () => {
 		const task = {
 			id: "task-1",
 			projectId: "project-1",
@@ -34,7 +34,6 @@ describe("buildPrompt", () => {
 
 		const prompt = buildPrompt({
 			userInput: "Preciso deste ajuste",
-			customInstructions: "Siga o fluxo do app",
 			skill: {
 				id: "koworker-structure",
 				slug: "koworker-structure",
@@ -51,20 +50,18 @@ describe("buildPrompt", () => {
 		} as unknown as BuildPromptParams);
 
 		expect(prompt).toContain("## Instrucoes do Koworker");
-		expect(prompt).toContain("## Instrucoes personalizadas");
-		expect(prompt).toContain("Siga o fluxo do app");
 		expect(prompt).toContain("## Prompt do Usuario");
 		expect(prompt).toContain("Preciso deste ajuste");
-		expect(prompt).toContain("## Skill selecionada");
-		expect(prompt).toContain('Utilize a skill "koworker-structure"');
+		expect(prompt).toContain("## Skill Obrigatoria");
+		expect(prompt).toContain('VOCE DEVE usar a skill "koworker-structure"');
+		expect(prompt).toContain("NAO RACIONALIZE");
 		expect(prompt).toContain("## Dados da Tarefa (Koworker)");
 		expect(prompt).not.toContain("NAO-DEVE-APARECER");
 
 		const sections = [
 			"## Instrucoes do Koworker",
-			"## Instrucoes personalizadas",
 			"## Prompt do Usuario",
-			"## Skill selecionada",
+			"## Skill Obrigatoria",
 			"## Dados da Tarefa (Koworker)",
 		];
 
@@ -73,5 +70,27 @@ describe("buildPrompt", () => {
 		for (let index = 1; index < positions.length; index += 1) {
 			expect(positions[index]).toBeGreaterThan(positions[index - 1]);
 		}
+	});
+});
+
+describe("buildCleanPrompt", () => {
+	it("gera prompt enxuto com userInput e skill", () => {
+		const prompt = buildCleanPrompt({
+			userInput: "Faca isso rapidamente",
+			skillSlug: "koworker-quickfix",
+		});
+
+		expect(prompt).toContain("Faca isso rapidamente");
+		expect(prompt).toContain('Use a skill "koworker-quickfix"');
+		expect(prompt).toContain("Nao mencione a tarefa");
+	});
+
+	it("gera prompt apenas com skill quando userInput vazio", () => {
+		const prompt = buildCleanPrompt({
+			userInput: "",
+			skillSlug: "koworker-structure",
+		});
+
+		expect(prompt).toBe('Use a skill "koworker-structure". Nao mencione a tarefa.');
 	});
 });
