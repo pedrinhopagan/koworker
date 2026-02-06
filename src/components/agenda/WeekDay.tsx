@@ -1,5 +1,6 @@
 import { useDroppable } from "@dnd-kit/core";
 
+import { Text } from "@/components/typography";
 import { cn } from "@/lib/utils";
 import { useAgendaStore } from "@/stores/agenda";
 import type { TaskWithMeta } from "@/types/tasks";
@@ -27,6 +28,9 @@ export function WeekDay({ day, tasks, onDayClick }: WeekDayProps) {
 	const isSelected = selectedDate === day.date;
 	const visibleTasks = tasks.slice(0, 5);
 	const overflowCount = Math.max(0, tasks.length - 5);
+	const doneCount = tasks.filter((task) => task.status === "executed").length;
+	const pendingCount = tasks.length - doneCount;
+	const pastLabel = `(${doneCount}/${tasks.length})`;
 
 	function handleClick() {
 		openDrawer(day.date);
@@ -36,26 +40,25 @@ export function WeekDay({ day, tasks, onDayClick }: WeekDayProps) {
 	return (
 		<div
 			ref={setNodeRef}
+			onPointerUp={handleClick}
 			className={cn(
-				"flex min-h-[200px] flex-col border-r border-border transition-colors last:border-r-0",
+				"flex min-h-[200px] cursor-pointer flex-col border-r border-border transition-colors hover:bg-secondary/35 last:border-r-0",
 				isOver && "bg-primary/10",
-				isSelected && "bg-primary/5"
+				isSelected && "bg-primary/5",
+				day.isToday && "ring-1 ring-primary/45 ring-inset",
 			)}
 		>
-			{/* Day Header */}
-			<button
-				type="button"
-				onClick={handleClick}
+			<div
 				className={cn(
-					"flex flex-col items-center border-b border-border px-2 py-3 transition-colors hover:bg-secondary/50",
+					"flex flex-col items-center border-b border-border px-2 py-3 transition-colors",
 					day.isToday && "bg-primary/10",
-					day.isPast && !day.isToday && "opacity-60"
+					day.isPast && !day.isToday && "opacity-60",
 				)}
 			>
 				<span
 					className={cn(
 						"text-xs font-medium uppercase text-muted-foreground",
-						day.isToday && "text-primary"
+						day.isToday && "text-primary",
 					)}
 				>
 					{day.shortDayName}
@@ -64,27 +67,30 @@ export function WeekDay({ day, tasks, onDayClick }: WeekDayProps) {
 					className={cn(
 						"mt-1 flex h-8 w-8 items-center justify-center rounded-full text-lg font-semibold",
 						day.isToday && "bg-primary text-primary-foreground",
-						!day.isToday && "text-foreground"
+						!day.isToday && "text-foreground",
 					)}
 				>
 					{day.dayNumber}
 				</span>
-			</button>
+				<Text
+					as="span"
+					size="xs"
+					tone="muted"
+					className={cn("mt-1", day.isPast && pendingCount > 0 && "text-destructive")}
+				>
+					{pastLabel}
+				</Text>
+			</div>
 
-			{/* Tasks Container */}
 			<div className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
 				{visibleTasks.map((task) => (
 					<WeekTaskChip key={task.id} task={task} compact={tasks.length > 3} />
 				))}
 
 				{overflowCount > 0 && (
-					<button
-						type="button"
-						onClick={handleClick}
-						className="mt-1 text-center text-xs text-muted-foreground hover:text-foreground"
-					>
+					<span className="mt-1 text-center text-xs text-muted-foreground">
 						+{overflowCount} mais
-					</button>
+					</span>
 				)}
 
 				{tasks.length === 0 && !isOver && (

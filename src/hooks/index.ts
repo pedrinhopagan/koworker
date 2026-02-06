@@ -9,5 +9,6 @@ export { useSkillsQuery } from "./use-skills";
 export { type Subtask, useSubtasks } from "./use-subtasks";
 export { type TaskMetrics, useTaskMetrics } from "./use-task-metrics";
 export { type UseTaskProgressResult, useTaskProgress } from "./use-task-progress";
+export { type TasksSearchFilters, useTasksData } from "./use-tasks-data";
 export { useTodayTasks } from "./use-today-tasks";
 export { useUser } from "./use-user";

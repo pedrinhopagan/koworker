@@ -44,6 +44,7 @@ const mapTask = (row: tasks, input?: { subtasks?: subtasks[] }) => ({
 	acceptanceCriteria:
 		jsonParse<{ id: string; text: string; done: boolean }[]>(row.acceptance_criteria) ?? [],
 	scheduledDate: row.scheduled_date ?? undefined,
+	scheduledTime: row.scheduled_time ?? undefined,
 	completedAt: row.completed_at ?? undefined,
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,
@@ -176,6 +177,7 @@ export const tasksRouter = {
 			status: input.status,
 			acceptance_criteria: jsonStringify(input.acceptanceCriteria),
 			scheduled_date: input.scheduledDate,
+			scheduled_time: input.scheduledTime,
 		});
 
 		await PubSub.publish("tasks", input.projectId, {
@@ -208,6 +210,7 @@ export const tasksRouter = {
 			status: input.status,
 			acceptance_criteria: jsonStringify(input.acceptanceCriteria),
 			scheduled_date: input.scheduledDate,
+			scheduled_time: input.scheduledTime,
 			completed_at: input.completedAt,
 		});
 

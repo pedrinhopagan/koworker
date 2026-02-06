@@ -1,52 +1,19 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { orpc } from "@/client";
-import { getStatusLabel } from "@/domain/tasks/status";
-import { useProjectFocus } from "@/hooks";
+import { useTasksData } from "@/hooks/use-tasks-data";
 import type { TaskWithMeta } from "@/types/tasks";
 
 export function useDayTasks(date: string | null) {
 	const queryClient = useQueryClient();
-	const { selectedProjectId } = useProjectFocus();
-	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
-	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
+	const { data, loading } = useTasksData({ includeCompleted: false });
 
-	const tasksQuery = useQuery({
-		...orpc.tasks.getAll.queryOptions({
-			input: { date: date ?? "", projectId: selectedProjectId ?? null },
-		}),
-		enabled: !!date,
-	});
-
-	const categories = categoriesQuery.data ?? [];
-	const priorities = prioritiesQuery.data ?? [];
-	const rawTasks = tasksQuery.data ?? [];
-
-	type Category = (typeof categories)[number];
-	type Priority = (typeof priorities)[number];
-
-	const categoryMap = new Map<string, Category>(categories.map((c) => [c.id, c]));
-	const priorityMap = new Map<string, Priority>(priorities.map((p) => [p.id, p]));
-
-	const tasks: TaskWithMeta[] = rawTasks.map((task) => {
-		const cat = categoryMap.get(task.categoryId);
-		const pri = priorityMap.get(task.priorityId);
-		return Object.assign(task, {
-			category: {
-				id: cat?.id ?? ``,
-				name: cat?.name ?? `Sem categoria`,
-				color: cat?.color ?? `#666`,
-			},
-			priority: {
-				id: pri?.id ?? ``,
-				name: pri?.name ?? `Sem prioridade`,
-				color: pri?.color ?? `#666`,
-			},
-			statusLabel: getStatusLabel(task.status),
+	const tasks: TaskWithMeta[] = data.tasks
+		.filter((task) => task.scheduledDate === date)
+		.sort((a, b) => {
+			const timeCompare = (a.scheduledTime ?? "00:00").localeCompare(b.scheduledTime ?? "00:00");
+			if (timeCompare !== 0) return timeCompare;
+			return a.title.localeCompare(b.title);
 		});
-	});
-
-	const loading = categoriesQuery.isLoading || prioritiesQuery.isLoading || tasksQuery.isLoading;
 
 	const refetch = () => {
 		queryClient.invalidateQueries({ queryKey: ["tasks"] });

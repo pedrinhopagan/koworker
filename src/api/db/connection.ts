@@ -49,6 +49,7 @@ const tasksSchema = type({
 	"acceptance_criteria?": "string",
 	// YYYY-MM-DD format
 	"scheduled_date?": "string",
+	"scheduled_time?": "string",
 	"completed_at?": "number.integer",
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",

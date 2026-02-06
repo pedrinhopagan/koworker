@@ -178,5 +178,13 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		}
 	}
 
+	// tasks
+	{
+		const cols = tableInfo(sqlite, "tasks");
+		if (!hasColumn(cols, "scheduled_time")) {
+			ensureColumn(sqlite, "tasks", "scheduled_time TEXT");
+		}
+	}
+
 	sqlite.close();
 }

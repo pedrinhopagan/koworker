@@ -13,6 +13,7 @@ import { isTauri } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useIsProjectTerminalOpen } from "@/stores/terminal-status";
 import type { TaskWithMeta } from "@/types/tasks";
+import { type AgendaTaskItemVariant, TaskItemAgendaVariant } from "./task-item-agenda-variant";
 
 const taskItemVariants = tv({
 	base: "flex items-center justify-between gap-4 border border-transparent bg-card transition-all duration-200 hover:border-border hover:bg-secondary/30 animate-fade-in w-full truncate",
@@ -27,11 +28,14 @@ const taskItemVariants = tv({
 	},
 });
 
-export type TaskItemVariant = VariantProps<typeof taskItemVariants>["variant"];
+export type TaskItemVariant =
+	| VariantProps<typeof taskItemVariants>["variant"]
+	| AgendaTaskItemVariant;
 
 type TaskItemProps = {
 	task: TaskWithMeta;
 	variant?: TaskItemVariant;
+	showScheduledDate?: boolean;
 };
 
 function normalizeStatus(status: unknown): "pending" | "in_execution" | "executed" {
@@ -49,7 +53,12 @@ function normalizeStatus(status: unknown): "pending" | "in_execution" | "execute
 	}
 }
 
-export function TaskItem({ task, variant = "default" }: TaskItemProps) {
+type TaskItemDefaultProps = {
+	task: TaskWithMeta;
+	variant: "default" | "compact";
+};
+
+function TaskItemDefault({ task, variant }: TaskItemDefaultProps) {
 	const queryClient = useQueryClient();
 	const effectiveStatus = task.status;
 	const isDone = Boolean(task.completedAt);
@@ -202,4 +211,14 @@ export function TaskItem({ task, variant = "default" }: TaskItemProps) {
 			</div>
 		</Link>
 	);
+}
+
+export function TaskItem({ task, variant = "default", showScheduledDate = false }: TaskItemProps) {
+	if (variant === "agendaBacklog" || variant === "agendaMini") {
+		return (
+			<TaskItemAgendaVariant task={task} variant={variant} showScheduledDate={showScheduledDate} />
+		);
+	}
+
+	return <TaskItemDefault task={task} variant={variant} />;
 }

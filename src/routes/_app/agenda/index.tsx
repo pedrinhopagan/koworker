@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CalendarCheck } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { z } from "zod";
 
 import {
 	AgendaDndWrapper,
+	AgendaSidebar,
 	DayDrawer,
+	MonthCalendar,
+	type MonthCalendarRef,
 	WeekCalendar,
 	type WeekCalendarRef,
 } from "@/components/agenda";
@@ -27,24 +30,60 @@ export const Route = createFileRoute("/_app/agenda/")({
 function AgendaPage() {
 	const { projetoId } = Route.useSearch();
 	useProjectFocus({ preferredProjectId: projetoId ?? null });
-	const calendarRef = useRef<WeekCalendarRef>(null);
+	const [viewMode, setViewMode] = useState<"semana" | "mes">("semana");
+	const weekCalendarRef = useRef<WeekCalendarRef>(null);
+	const monthCalendarRef = useRef<MonthCalendarRef>(null);
 
 	function handleTaskChange() {
-		calendarRef.current?.refresh();
+		weekCalendarRef.current?.refresh();
+		monthCalendarRef.current?.refresh();
 	}
 
 	return (
-		<PageShell
-			title="Agenda"
-			description="Arraste tarefas entre dias para reagendar"
-			icon={CalendarCheck}
-		>
-			<AgendaDndWrapper onTasksChanged={handleTaskChange}>
-				<div className="flex h-[calc(100vh-180px)] flex-col overflow-hidden rounded-lg border border-border bg-card">
-					<WeekCalendar ref={calendarRef} />
+		<AgendaDndWrapper onTasksChanged={handleTaskChange}>
+			<PageShell
+				title="Agenda"
+				description="Planeje tarefas por semana ou mês e arraste para reagendar"
+				icon={CalendarCheck}
+				variant="grid"
+				contentClassName="gap-0 md:grid-cols-[320px_minmax(0,1fr)]"
+				headerClassName="mb-0"
+			>
+				<AgendaSidebar />
+
+				<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+					<div className="flex items-center gap-2 border-b border-border px-4 py-3">
+						<button
+							type="button"
+							onClick={() => setViewMode("semana")}
+							className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+								viewMode === "semana"
+									? "bg-primary text-primary-foreground"
+									: "bg-muted text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							Semana
+						</button>
+						<button
+							type="button"
+							onClick={() => setViewMode("mes")}
+							className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+								viewMode === "mes"
+									? "bg-primary text-primary-foreground"
+									: "bg-muted text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							Mês
+						</button>
+					</div>
+
+					<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+						{viewMode === "semana" && <WeekCalendar ref={weekCalendarRef} />}
+						{viewMode === "mes" && <MonthCalendar ref={monthCalendarRef} />}
+					</div>
 				</div>
-				<DayDrawer onTaskChange={handleTaskChange} />
-			</AgendaDndWrapper>
-		</PageShell>
+			</PageShell>
+			<DayDrawer onTaskChange={handleTaskChange} />
+		</AgendaDndWrapper>
 	);
 }

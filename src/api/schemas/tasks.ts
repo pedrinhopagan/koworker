@@ -99,6 +99,11 @@ export const TaskCreateSchema = z.object({
 		.regex(/^\d{4}-\d{2}-\d{2}$/)
 		.nullable()
 		.optional(),
+	scheduledTime: z
+		.string()
+		.regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+		.nullable()
+		.optional(),
 });
 
 export const TaskUpdateSchema = z.object({
@@ -114,6 +119,11 @@ export const TaskUpdateSchema = z.object({
 	scheduledDate: z
 		.string()
 		.regex(/^\d{4}-\d{2}-\d{2}$/)
+		.nullable()
+		.optional(),
+	scheduledTime: z
+		.string()
+		.regex(/^([01]\d|2[0-3]):[0-5]\d$/)
 		.nullable()
 		.optional(),
 	completedAt: z.number().int().nullable().optional(),
@@ -136,6 +146,7 @@ export const TaskDbCreateSchema = z.object({
 	status: TaskStatusSchema.optional(),
 	acceptance_criteria: z.string().optional(),
 	scheduled_date: z.string().nullable().optional(),
+	scheduled_time: z.string().nullable().optional(),
 	completed_at: z.number().int().nullable().optional(),
 	created_at: z.number().int().optional(),
 	updated_at: z.number().int().optional(),

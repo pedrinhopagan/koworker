@@ -1,53 +1,23 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { orpc } from "@/client";
-import { getStatusLabel } from "@/domain/tasks/status";
-import { useProjectFocus } from "@/hooks";
+import { useTasksData } from "@/hooks/use-tasks-data";
 import type { TaskWithMeta } from "@/types/tasks";
 
 export type TasksByDate = Map<string, TaskWithMeta[]>;
 
 export function useWeekTasks(startDate: string, endDate: string) {
 	const queryClient = useQueryClient();
-	const { selectedProjectId } = useProjectFocus();
-	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
-	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
+	const { data, loading } = useTasksData({ includeCompleted: false });
 
-	const tasksQuery = useQuery({
-		...orpc.tasks.getAll.queryOptions({
-			input: { startDate, endDate, projectId: selectedProjectId ?? null },
-		}),
-		enabled: !!startDate && !!endDate,
-	});
-
-	const categories = categoriesQuery.data ?? [];
-	const priorities = prioritiesQuery.data ?? [];
-	const rawTasks = tasksQuery.data ?? [];
-
-	const tasks: TaskWithMeta[] = useMemo(() => {
-		const categoryMap = new Map(categories.map((c) => [c.id, c]));
-		const priorityMap = new Map(priorities.map((p) => [p.id, p]));
-
-		return rawTasks.map((task) => {
-			const cat = categoryMap.get(task.categoryId);
-			const pri = priorityMap.get(task.priorityId);
-			return {
-				...task,
-				category: {
-					id: cat?.id ?? "",
-					name: cat?.name ?? "Sem categoria",
-					color: cat?.color ?? "#666",
-				},
-				priority: {
-					id: pri?.id ?? "",
-					name: pri?.name ?? "Sem prioridade",
-					color: pri?.color ?? "#666",
-				},
-				statusLabel: getStatusLabel(task.status),
-			};
-		});
-	}, [rawTasks, categories, priorities]);
+	const tasks: TaskWithMeta[] = useMemo(
+		() =>
+			data.tasks.filter((task) => {
+				if (!task.scheduledDate) return false;
+				return task.scheduledDate >= startDate && task.scheduledDate <= endDate;
+			}),
+		[data.tasks, startDate, endDate],
+	);
 
 	const tasksByDate: TasksByDate = useMemo(() => {
 		const map = new Map<string, TaskWithMeta[]>();
@@ -58,10 +28,22 @@ export function useWeekTasks(startDate: string, endDate: string) {
 				map.set(task.scheduledDate, existing);
 			}
 		}
+
+		for (const [date, list] of map.entries()) {
+			map.set(
+				date,
+				list.sort((a, b) => {
+					const timeCompare = (a.scheduledTime ?? "00:00").localeCompare(
+						b.scheduledTime ?? "00:00",
+					);
+					if (timeCompare !== 0) return timeCompare;
+					return a.title.localeCompare(b.title);
+				}),
+			);
+		}
+
 		return map;
 	}, [tasks]);
-
-	const loading = categoriesQuery.isLoading || prioritiesQuery.isLoading || tasksQuery.isLoading;
 
 	const refetch = () => {
 		queryClient.invalidateQueries({ queryKey: ["tasks"] });
