@@ -4,8 +4,8 @@ import { Text, Title } from "@/components/typography";
 import { cn } from "@/lib/utils";
 import { useAgendaStore } from "@/stores/agenda";
 import type { TaskWithMeta } from "@/types/tasks";
-import type { MonthDayData } from "./use-month-calendar";
-import { WeekTaskChip } from "./WeekTaskChip";
+import type { MonthDayData } from "../-utils/use-month-calendar";
+import { WeekTaskChip } from "./week-task-chip";
 
 type MonthDayProps = {
 	day: MonthDayData;

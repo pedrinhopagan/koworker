@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CalendarCheck } from "lucide-react";
 import { useRef, useState } from "react";
 import { z } from "zod";
-
+import { PageShell } from "@/components/layout/page-shell";
+import { useProjectFocus } from "@/hooks";
 import {
 	AgendaDndWrapper,
 	AgendaSidebar,
@@ -11,9 +12,7 @@ import {
 	type MonthCalendarRef,
 	WeekCalendar,
 	type WeekCalendarRef,
-} from "@/components/agenda";
-import { PageShell } from "@/components/layout/page-shell";
-import { useProjectFocus } from "@/hooks";
+} from "./-components";
 
 const searchSchema = z.object({
 	inicio: z.string().optional(),

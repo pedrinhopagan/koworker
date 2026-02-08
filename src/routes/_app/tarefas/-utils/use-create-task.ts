@@ -5,6 +5,7 @@ import { orpc } from "@/client";
 type CreateTaskInput = {
 	projectId: string;
 	title: string;
+	description?: string;
 	categoryId: string;
 	priorityId: string;
 };

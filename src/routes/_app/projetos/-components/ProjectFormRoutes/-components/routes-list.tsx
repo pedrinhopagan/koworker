@@ -19,21 +19,41 @@ type RoutesListProps = {
 	isDeleting: boolean;
 };
 
-export function RoutesList({ routes, onUpdate, onDelete, onReorder, isDeleting }: RoutesListProps) {
-	const sorted = useMemo(
-		() => [...routes].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)),
-		[routes],
-	);
+function sortRoutes(items: ProjectRouteItem[]) {
+	return [...items].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+}
 
-	const [orderedItems, setOrderedItems] = useState<ProjectRouteItem[]>(sorted);
+export function RoutesList({ routes, onUpdate, onDelete, onReorder, isDeleting }: RoutesListProps) {
+	const sortedIds = useMemo(() => sortRoutes(routes).map((item) => item.id), [routes]);
+	const [orderedIds, setOrderedIds] = useState<string[]>(sortedIds);
 
 	useEffect(() => {
-		setOrderedItems(sorted);
-	}, [sorted]);
+		setOrderedIds((current) => {
+			if (
+				current.length === sortedIds.length &&
+				current.every((id, index) => id === sortedIds[index])
+			) {
+				return current;
+			}
+
+			return sortedIds;
+		});
+	}, [sortedIds]);
+
+	const orderedItems = useMemo(() => {
+		const routeById = new Map(routes.map((route) => [route.id, route]));
+		const ordered = orderedIds
+			.map((id) => routeById.get(id))
+			.filter((item): item is ProjectRouteItem => item !== undefined);
+		const missing = sortRoutes(routes).filter((item) => !orderedIds.includes(item.id));
+
+		return [...ordered, ...missing];
+	}, [routes, orderedIds]);
 
 	function handleReorder(items: ProjectRouteItem[]) {
-		setOrderedItems(items);
-		onReorder(items.map((item) => item.id));
+		const ids = items.map((item) => item.id);
+		setOrderedIds(ids);
+		onReorder(ids);
 	}
 
 	function renderItem(item: ProjectRouteItem, props: SortableItemRenderProps) {

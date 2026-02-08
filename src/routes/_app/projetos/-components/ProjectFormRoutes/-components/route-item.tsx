@@ -1,5 +1,5 @@
 import { Check, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -35,20 +35,21 @@ export function RouteItem({ item, props, onUpdate, onDelete, isDeleting }: Route
 	const [pickingRoute, setPickingRoute] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-	useEffect(() => {
-		setLocalName(item.name);
-		setLocalRoute(item.route);
-		setLocalCommand(item.command ?? "");
-	}, [item.name, item.route, item.command]);
-
 	function handleSubmit() {
-		if (!localName.trim() || !localRoute.trim()) return;
+		const nextName = localName.trim();
+		const nextRoute = localRoute.trim();
+		const nextCommand = localCommand.trim() || undefined;
+		const currentCommand = item.command?.trim() || undefined;
+
+		if (!nextName || !nextRoute) return;
+		if (nextName === item.name && nextRoute === item.route && nextCommand === currentCommand)
+			return;
 
 		onUpdate({
 			id: item.id,
-			name: localName,
-			route: localRoute,
-			command: localCommand || undefined,
+			name: nextName,
+			route: nextRoute,
+			command: nextCommand,
 		});
 	}
 

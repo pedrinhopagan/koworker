@@ -2,82 +2,69 @@
 
 ## OBJETIVO
 
-Padronizar o uso do TanStack Router e integração com ORPC.
+Manter as rotas TanStack Router alinhadas ao estado real de `src/routes`.
 
-## ESTRUTURA
+## ESTRUTURA REAL (ATUAL)
 
-```
+```text
 routes/
-├── __root.tsx           # Layout raiz
-├── _app.tsx             # Layout autenticado
+├── __root.tsx
+├── _app.tsx
+├── login.tsx
 ├── _app/
-│   ├── -components/     # Componentes compartilhados do app
-│   ├── index.tsx        # Dashboard
+│   ├── index.tsx
+│   ├── agenda/
+│   │   ├── index.tsx
+│   │   ├── -components/
+│   │   └── -utils/
+│   ├── configuracoes.tsx
+│   ├── skills/
+│   │   ├── index.tsx
+│   │   ├── -components/
+│   │   └── -utils/
 │   ├── tarefas/
 │   │   ├── index.tsx
-│   │   ├── -components/ # Componentes da página
-│   │   └── -utils/      # Hooks específicos
-│   ├── projetos/
-│   └── agenda/
-└── login.tsx
+│   │   ├── $taskId/index.tsx
+│   │   ├── -components/
+│   │   └── -utils/
+│   └── projetos/
+│       ├── index.tsx
+│       ├── novo/index.tsx
+│       ├── $projetoId/index.tsx
+│       ├── -components/
+│       └── -utils/
+└── ROUTES_MAP.md
 ```
+
+## ROTAS PÚBLICAS
+
+- `/login`
+- `/`
+- `/tarefas`
+- `/tarefas/$taskId`
+- `/projetos`
+- `/projetos/novo`
+- `/projetos/$projetoId`
+- `/agenda`
+- `/skills`
+- `/configuracoes`
+
+## LAYOUTS E GUARDA
+
+- `__root.tsx`: layout global + `ErrorBoundary`.
+- `_app.tsx`: layout autenticado (pathless), valida sessão (`orpc.auth.me`) e redireciona para `/login` sem autenticação.
+- Rotas internas usam `AppShell`; páginas usam `PageShell` quando aplicável.
+- Exceção: `/tarefas/$taskId` usa layout próprio (`TaskPageLayout`).
 
 ## REGRAS
 
-- Rotas seguem file-based routing
-- Exportar `Route` com `createFileRoute`
-- Rotas protegidas ficam abaixo de `/_app`
-- Dados via `orpc` + `@tanstack/react-query`
-- Eventos em tempo real via `orpcWs`
+- File-based routing com `createFileRoute`.
+- Pastas com prefixo `-` (`-components`, `-utils`) são suporte e **não** criam rota.
+- Segmento `/_app` é estrutural e não aparece no path público.
+- Dados: ORPC + TanStack Query.
+- Realtime: listeners globais no layout autenticado.
 
-## ORGANIZAÇÃO DE ROTA
+## FONTE DE VERDADE
 
-```
-routes/_app/tarefas/
-├── index.tsx              # Página principal
-├── -components/           # Componentes específicos
-│   ├── task-card.tsx
-│   └── task-filters/
-│       └── index.tsx
-└── -utils/                # Hooks específicos
-    └── use-tasks-query.ts
-```
-
-## UI
-
-- Usar `<Title>` e `<Text>` para texto
-- Componentes base em `src/components/ui/`
-- Condicionais com `&&`
-- Ícones apenas de `lucide-react`
-
-## STATE MANAGEMENT
-
-| Tipo | Ferramenta |
-|------|------------|
-| Server state | TanStack Query |
-| UI/Local state | Zustand |
-| Form state | react-hook-form |
-
-## STYLING
-
-Usar `tailwind-variants` para variantes de componentes:
-
-```typescript
-const cardVariants = tv({
-  base: "rounded-lg",
-  variants: {
-    variant: { default: "bg-card", outline: "border" },
-    size: { sm: "p-3", md: "p-4" }
-  }
-})
-```
-
-## ANTI-PATTERNS
-
-| Proibido | Correto |
-|----------|---------|
-| `<h1>`, `<p>` | `<Title>`, `<Text>` |
-| `? <X /> : null` | `&& <X />` |
-| Componente >200 linhas | Extrair para -components/ |
-| Ícones de outras libs | `lucide-react` |
-| Prop drilling | Fetch no componente que usa |
+- Conferir rotas geradas em `src/routeTree.gen.ts`.
+- Referência humana de navegação/layout: `src/routes/ROUTES_MAP.md`.

@@ -6,7 +6,7 @@ import { TaskItem } from "@/components/tasks";
 import { Text } from "@/components/typography";
 import { cn } from "@/lib/utils";
 import type { TaskWithMeta } from "@/types/tasks";
-import { buildTimeSlots } from "./time-slots";
+import { buildTimeSlots } from "../-utils/time-slots";
 
 type DayTaskItemProps = {
 	task: TaskWithMeta;

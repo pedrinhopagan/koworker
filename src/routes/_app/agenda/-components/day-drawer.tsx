@@ -5,8 +5,8 @@ import { Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAgendaStore } from "@/stores/agenda";
-import { DayTaskItem } from "./DayTaskItem";
-import { useDayTasks } from "./use-day-tasks";
+import { useDayTasks } from "../-utils/use-day-tasks";
+import { DayTaskItem } from "./day-task-item";
 
 type DayDrawerProps = {
 	onTaskChange?: () => void;

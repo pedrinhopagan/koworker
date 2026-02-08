@@ -3,9 +3,9 @@ import { forwardRef, useImperativeHandle } from "react";
 
 import { Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { useWeekCalendar } from "./use-week-calendar";
-import { useWeekTasks } from "./use-week-tasks";
-import { WeekDay } from "./WeekDay";
+import { useWeekCalendar } from "../-utils/use-week-calendar";
+import { useWeekTasks } from "../-utils/use-week-tasks";
+import { WeekDay } from "./week-day";
 
 export type WeekCalendarRef = {
 	refresh: () => void;

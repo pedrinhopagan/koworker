@@ -4,8 +4,8 @@ import { CalendarClock, ListTodo } from "lucide-react";
 import { Text, Title } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { AgendaSidebarTask } from "./AgendaSidebarTask";
-import { useAgendaSidebarTasks } from "./use-agenda-sidebar-tasks";
+import { useAgendaSidebarTasks } from "../-utils/use-agenda-sidebar-tasks";
+import { AgendaSidebarTask } from "./agenda-sidebar-task";
 
 function SidebarSectionHeader({
 	title,

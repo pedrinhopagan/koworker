@@ -3,9 +3,9 @@ import { forwardRef, useImperativeHandle } from "react";
 
 import { Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { MonthDay } from "./MonthDay";
-import { useMonthCalendar } from "./use-month-calendar";
-import { useWeekTasks } from "./use-week-tasks";
+import { useMonthCalendar } from "../-utils/use-month-calendar";
+import { useWeekTasks } from "../-utils/use-week-tasks";
+import { MonthDay } from "./month-day";
 
 const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 

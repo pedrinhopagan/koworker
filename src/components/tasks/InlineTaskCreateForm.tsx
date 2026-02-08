@@ -12,11 +12,13 @@ import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useSelectedProjectStore } from "@/stores/selected-project";
 
 const InlineTaskCreateFormSchema = z.object({
 	title: z.string().trim().min(1, "Título obrigatório"),
+	description: z.string().optional(),
 	categoryId: z.string().min(1, "Categoria obrigatória"),
 	priorityId: z.string().min(1, "Prioridade obrigatória"),
 });
@@ -44,6 +46,7 @@ export type InlineTaskCreateFormProps = {
 	 * - none: keeps all values
 	 */
 	resetMode?: "title" | "all" | "none";
+	variant?: "default" | "home";
 	inputProps?: Omit<ComponentProps<typeof Input>, "value" | "onChange" | "defaultValue" | "name">;
 };
 
@@ -68,6 +71,7 @@ export function InlineTaskCreateForm({
 	className,
 	autoFocus,
 	resetMode = "title",
+	variant = "default",
 	inputProps,
 }: InlineTaskCreateFormProps) {
 	// IMPORTANT: only READ from the store here (no writes).
@@ -86,6 +90,7 @@ export function InlineTaskCreateForm({
 
 	const effectiveProjectId = storeProjectId ?? projectId ?? transientProjectId;
 	const shouldRenderProjectSelect = !storeProjectId && !projectId;
+	const isHomeVariant = variant === "home";
 
 	const selectedProject =
 		effectiveProjectId && projects.length > 0
@@ -103,6 +108,7 @@ export function InlineTaskCreateForm({
 		resolver: zodResolver(InlineTaskCreateFormSchema),
 		defaultValues: {
 			title: "",
+			description: "",
 			categoryId: "",
 			priorityId: "",
 		},
@@ -114,9 +120,12 @@ export function InlineTaskCreateForm({
 	const submitWithProjectId =
 		(pid: string): SubmitHandler<InlineTaskCreateFormValues> =>
 		(values) => {
+			const description = values.description?.trim();
+
 			onSubmit({
 				projectId: pid,
 				title: values.title.trim(),
+				description: description ? description : undefined,
 				categoryId: values.categoryId,
 				priorityId: values.priorityId,
 			});
@@ -125,6 +134,7 @@ export function InlineTaskCreateForm({
 				reset();
 			} else if (resetMode === "title") {
 				resetField("title", { defaultValue: "" });
+				resetField("description", { defaultValue: "" });
 			}
 		};
 
@@ -134,9 +144,9 @@ export function InlineTaskCreateForm({
 				if (!effectiveProjectId) return;
 				submitWithProjectId(effectiveProjectId)(values);
 			})}
-			className={className ?? "flex flex-wrap items-end gap-3"}
+			className={className ?? (isHomeVariant ? "grid gap-3" : "flex flex-wrap items-end gap-3")}
 		>
-			<div className="flex-1 min-w-55">
+			<div className={cn(isHomeVariant ? "w-full" : "flex-1 min-w-55")}>
 				<Input
 					placeholder="Nova tarefa..."
 					autoFocus={autoFocus}
@@ -144,7 +154,7 @@ export function InlineTaskCreateForm({
 					aria-invalid={!!errors.title}
 					{...inputProps}
 					{...register("title")}
-					className={`h-10 ${inputProps?.className ?? ""}`}
+					className={cn("h-10 w-full", inputProps?.className)}
 				/>
 				{errors.title?.message && (
 					<Text size="xs" tone="destructive" className="mt-1">
@@ -153,43 +163,56 @@ export function InlineTaskCreateForm({
 				)}
 			</div>
 
-			<Controller
-				control={control}
-				name="categoryId"
-				render={({ field }) => (
-					<div className="grid gap-1">
-						<CategorySelect
-							value={field.value ? field.value : null}
-							onValueChange={(id) => field.onChange(id ?? "")}
-							disabled={fieldsDisabled}
-						/>
-						{errors.categoryId?.message && (
-							<Text size="xs" tone="destructive">
-								{errors.categoryId.message}
-							</Text>
-						)}
-					</div>
-				)}
-			/>
+			<div className={cn(isHomeVariant ? "grid gap-3 sm:grid-cols-2" : "contents")}>
+				<Controller
+					control={control}
+					name="categoryId"
+					render={({ field }) => (
+						<div className="grid gap-1">
+							<CategorySelect
+								value={field.value ? field.value : null}
+								onValueChange={(id) => field.onChange(id ?? "")}
+								disabled={fieldsDisabled}
+							/>
+							{errors.categoryId?.message && (
+								<Text size="xs" tone="destructive">
+									{errors.categoryId.message}
+								</Text>
+							)}
+						</div>
+					)}
+				/>
 
-			<Controller
-				control={control}
-				name="priorityId"
-				render={({ field }) => (
-					<div className="grid gap-1">
-						<PrioritySelect
-							value={field.value ? field.value : null}
-							onValueChange={(id) => field.onChange(id ?? "")}
-							disabled={fieldsDisabled}
-						/>
-						{errors.priorityId?.message && (
-							<Text size="xs" tone="destructive">
-								{errors.priorityId.message}
-							</Text>
-						)}
-					</div>
-				)}
-			/>
+				<Controller
+					control={control}
+					name="priorityId"
+					render={({ field }) => (
+						<div className="grid gap-1">
+							<PrioritySelect
+								value={field.value ? field.value : null}
+								onValueChange={(id) => field.onChange(id ?? "")}
+								disabled={fieldsDisabled}
+							/>
+							{errors.priorityId?.message && (
+								<Text size="xs" tone="destructive">
+									{errors.priorityId.message}
+								</Text>
+							)}
+						</div>
+					)}
+				/>
+			</div>
+
+			{isHomeVariant && (
+				<div className="grid gap-1">
+					<Textarea
+						placeholder="Descrição (opcional)"
+						disabled={fieldsDisabled}
+						{...register("description")}
+						className="min-h-24 resize-none"
+					/>
+				</div>
+			)}
 
 			{shouldRenderProjectSelect && (
 				<div className="grid gap-1">
@@ -253,10 +276,10 @@ export function InlineTaskCreateForm({
 				</div>
 			)}
 
-			<div className="grid gap-1">
-				<Button type="submit" disabled={submitDisabled}>
+			<div className={cn("grid gap-1", isHomeVariant && "w-full")}>
+				<Button type="submit" disabled={submitDisabled} className={cn(isHomeVariant && "w-full")}>
 					<Plus className="mr-1 size-4" />
-					Adicionar
+					{isHomeVariant ? "Submit" : "Adicionar"}
 				</Button>
 			</div>
 		</form>

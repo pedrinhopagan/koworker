@@ -1,212 +1,63 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Save, Trash2, X } from "lucide-react";
-import { useCallback, useEffect } from "react";
-import { useController, useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
-import { orpc } from "@/client";
+
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { IconSelector } from "@/components/ui/icon-selector";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { SkillCard } from "@/routes/_app/tarefas/$taskId/-components/skill-card";
-import type { TaskSkill } from "@/types/skills";
-
-const skillFormSchema = z.object({
-	slug: z
-		.string()
-		.min(1, "Slug é obrigatório")
-		.regex(/^[a-z0-9-]+$/, "Slug deve conter apenas letras minúsculas, números e hífens"),
-	title: z.string().min(1, "Título é obrigatório"),
-	description: z.string().min(1, "Descrição é obrigatória"),
-	content: z.string().optional(),
-	icon: z.string().optional(),
-	color: z.string().optional(),
-});
-
-type SkillFormData = z.infer<typeof skillFormSchema>;
-
-interface Skill {
-	id: string;
-	slug: string;
-	name: string;
-	description: string;
-	content?: string;
-	metadata?: Record<string, unknown>;
-	source: "builtin" | "custom";
-}
+import { type EditableSkill, type SkillFormData, useSkillForm } from "../-utils/use-skill-form";
+import { useSkillMutations } from "../-utils/use-skill-mutations";
+import { SkillPreviewPanel } from "./skill-preview-panel";
 
 interface SkillEditorProps {
-	skill?: Skill;
+	skill?: EditableSkill;
 	onClose: () => void;
 	onSave: () => void;
 }
 
 export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
-	const queryClient = useQueryClient();
-	const isEditing = !!skill;
-	const baseMetadata = skill?.metadata ?? {};
-	const defaultIcon = typeof baseMetadata.icon === "string" ? baseMetadata.icon : "FolderOpen";
-	const defaultColor = typeof baseMetadata.color === "string" ? baseMetadata.color : "#94a3b8";
-	const defaultTitle =
-		typeof baseMetadata.title === "string" && baseMetadata.title.trim()
-			? baseMetadata.title
-			: (skill?.name ?? "");
-	const buildValues = useCallback(
-		(currentSkill?: Skill): SkillFormData => ({
-			slug: currentSkill?.slug ?? "",
-			title: defaultTitle,
-			description: currentSkill?.description ?? "",
-			content: currentSkill?.content ?? "",
-			icon:
-				typeof currentSkill?.metadata?.icon === "string" ? currentSkill.metadata.icon : defaultIcon,
-			color:
-				typeof currentSkill?.metadata?.color === "string"
-					? currentSkill.metadata.color
-					: defaultColor,
-		}),
-		[defaultTitle, defaultIcon, defaultColor],
-	);
-
 	const {
-		control,
 		register,
 		handleSubmit,
-		formState: { errors, isDirty },
-		reset,
-		watch,
-	} = useForm<SkillFormData>({
-		resolver: zodResolver(skillFormSchema),
-		defaultValues: buildValues(skill),
-	});
-	const iconField = useController({ control, name: "icon" });
-	const colorField = useController({ control, name: "color" });
+		errors,
+		isDirty,
+		iconField,
+		colorField,
+		previewSkill,
+		previewIcon,
+		previewColor,
+		defaultIcon,
+		defaultColor,
+		displayTitle,
+		buildMetadata,
+	} = useSkillForm(skill);
 
-	const skillsQuery = useQuery(orpc.skills.list.queryOptions());
-
-	useEffect(() => {
-		reset(buildValues(skill));
-	}, [reset, skill, buildValues]);
-
-	const createMutation = useMutation({
-		...orpc.skills.create.mutationOptions(),
-		onSuccess: () => {
-			toast.success("Skill criada com sucesso");
-			skillsQuery.refetch();
-			onSave();
-		},
-		onError: (error: Error) => {
-			toast.error(`Erro ao criar skill: ${error.message}`);
-		},
+	const { saveSkill, removeSkill, isEditing, isSaving, isDeleting } = useSkillMutations({
+		skill,
+		onSave,
 	});
 
-	const updateMutation = useMutation({
-		...orpc.skills.update.mutationOptions(),
-		onSuccess: () => {
-			toast.success("Skill atualizada com sucesso");
-			skillsQuery.refetch();
-			onSave();
-		},
-		onError: (error: Error) => {
-			toast.error(`Erro ao atualizar skill: ${error.message}`);
-		},
-	});
-
-	const deleteMutation = useMutation({
-		...orpc.skills.delete.mutationOptions(),
-		onSuccess: () => {
-			toast.success("Skill removida com sucesso");
-			queryClient.invalidateQueries();
-			onSave();
-		},
-		onError: (error: Error) => {
-			toast.error(`Erro ao remover skill: ${error.message}`);
-		},
-	});
-
-	const previewTitle = watch("title");
-	const previewDescription = watch("description");
-	const previewIcon = iconField.field.value;
-	const previewColor = colorField.field.value;
-	const previewInstructions = watch("content");
-	const previewRequiresSubtaskSelection =
-		baseMetadata.multiSelect === true || baseMetadata.requiresSubtaskSelection === true;
-	const previewSkill: TaskSkill = {
-		id: "preview",
-		slug: "preview",
-		label: previewTitle || "Nova skill",
-		description: previewDescription || "Descrição curta da skill",
-		instructions: previewInstructions || "",
-		icon: previewIcon || defaultIcon,
-		color: previewColor || defaultColor,
-		source: skill?.source ?? "custom",
-		requiresSubtaskSelection: previewRequiresSubtaskSelection,
-	};
-
-	function buildMetadata(next: SkillFormData) {
-		const metadata = { ...baseMetadata } as Record<string, unknown>;
-		if (next.title) {
-			metadata.title = next.title;
-		} else {
-			delete metadata.title;
-		}
-		if (next.icon) {
-			metadata.icon = next.icon;
-		} else {
-			delete metadata.icon;
-		}
-		if (next.color) {
-			metadata.color = next.color;
-		} else {
-			delete metadata.color;
-		}
-		return metadata;
-	}
+	const editorTitle = isEditing ? "Editar Skill" : "Nova Skill";
+	const submitLabel = isEditing ? "Salvar" : "Criar";
 
 	const onSubmit = (data: SkillFormData) => {
-		const { icon, color, title, ...rest } = data;
-		const metadata = buildMetadata({ ...data, icon, color, title });
-
-		if (isEditing) {
-			const { slug: _slug, ...payload } = rest;
-			updateMutation.mutate({
-				id: skill.id,
-				...payload,
-				metadata,
-			});
-		} else {
-			createMutation.mutate({
-				...rest,
-				name: data.slug,
-				metadata,
-				source: "custom",
-			});
-		}
+		saveSkill(data, buildMetadata(data));
 	};
 
-	const displayTitle =
-		skill && typeof skill.metadata?.title === "string" && skill.metadata.title.trim()
-			? skill.metadata.title
-			: (skill?.name ?? "");
-	const handleDelete = () => {
-		if (!skill) return;
+	function handleDelete() {
+		if (!skill) {
+			return;
+		}
 
 		const confirmed = confirm(
 			`Tem certeza que deseja remover a skill "${displayTitle}"?\n\nEsta ação não pode ser desfeita.`,
 		);
 
 		if (confirmed) {
-			deleteMutation.mutate({ id: skill.id });
+			removeSkill();
 		}
-	};
-
-	const isSaving = createMutation.isPending || updateMutation.isPending;
-	const isDeleting = deleteMutation.isPending;
-	const editorTitle = isEditing ? "Editar Skill" : "Nova Skill";
-	const submitLabel = isEditing ? "Salvar" : "Criar";
+	}
 
 	return (
 		<div className="h-full flex flex-col">
@@ -296,12 +147,7 @@ export function SkillEditor({ skill, onClose, onSave }: SkillEditorProps) {
 							</div>
 						</div>
 
-						<div className="space-y-2">
-							<Label>Preview</Label>
-							<div className="rounded-md border border-border bg-background p-2">
-								<SkillCard skill={previewSkill} variant="manage" disabled />
-							</div>
-						</div>
+						<SkillPreviewPanel skill={previewSkill} />
 					</div>
 
 					<div className="space-y-2">

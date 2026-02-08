@@ -1,104 +1,127 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Calendar, LayoutDashboardIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { z } from "zod";
-import { MAX_VISIBLE_TASKS, useHomeData } from "@/hooks";
-import { PageShell } from "../../components/layout/page-shell";
-import { HomeSidebar } from "./-components/home-sidebar";
-import { ProjectsSection } from "./-components/projects-section";
-import { QuickLinks } from "./-components/quick-links";
-import { SectionHeader } from "./-components/section-header";
-import { TaskListSection } from "./-components/task-list-section";
-import { WeekCalendar } from "./-components/week-calendar";
-
-const searchSchema = z.object({
-	foco: z.enum(["semana", "mes"]).optional(),
-	q: z.string().optional(),
-});
+import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowUpRight, LayoutDashboardIcon } from "lucide-react";
+import { useMemo } from "react";
+import { orpc } from "@/client";
+import { PageShell } from "@/components/layout/page-shell";
+import { Text, Title } from "@/components/typography";
+import { Button } from "@/components/ui/button";
+import { useSelectedProjectStore } from "@/stores/selected-project";
+import { HomeProjectShowcase } from "./-components/home-project-showcase";
+import { useCreateTask } from "./tarefas/-utils/use-create-task";
 
 export const Route = createFileRoute("/_app/")({
-	validateSearch: (search) => searchSchema.parse(search),
 	component: HomePage,
 });
 
 function HomePage() {
-	const { tasks, projects, loading } = useHomeData();
+	const selectedProjectId = useSelectedProjectStore((s) => s.selectedProjectId);
 
-	const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-	const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
+	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
+	const resolvedProjectId = useMemo(() => {
+		if (!selectedProjectId) return null;
+		const hasProjectSelected = (projectsQuery.data ?? []).some(
+			(project) => project.id === selectedProjectId,
+		);
+		if (!hasProjectSelected) return null;
+		return selectedProjectId;
+	}, [projectsQuery.data, selectedProjectId]);
 
-	// Get display tasks (pending first, then in execution)
-	const displayTasks = useMemo(() => {
-		const pending = tasks.filter((t) => t.status === "pending");
-		const inExecution = tasks.filter((t) => t.status === "in_execution");
-		return [...inExecution, ...pending].slice(0, MAX_VISIBLE_TASKS);
-	}, [tasks]);
+	const projectQuery = useQuery({
+		...orpc.projects.getById.queryOptions({
+			input: { id: resolvedProjectId ?? "" },
+		}),
+		enabled: Boolean(resolvedProjectId),
+	});
 
-	// Auto-select first task
-	useEffect(() => {
-		if (displayTasks.length > 0 && selectedTaskId === null) {
-			setSelectedTaskId(displayTasks[0].id);
-		}
-	}, [displayTasks, selectedTaskId]);
+	const { createTask, loading: creatingTask } = useCreateTask(() => {
+		void projectQuery.refetch();
+	});
 
-	const selectedTask = useMemo(() => {
-		if (!selectedTaskId) return null;
-		return tasks.find((t) => t.id === selectedTaskId) ?? null;
-	}, [tasks, selectedTaskId]);
+	if (selectedProjectId && projectsQuery.isLoading) {
+		return (
+			<PageShell
+				title="Home"
+				description="Preparando o painel do projeto em foco"
+				icon={LayoutDashboardIcon}
+			>
+				<div className="mx-auto flex h-full w-full max-w-5xl items-center justify-center px-4 pb-8">
+					<Text tone="muted">Carregando projeto em foco...</Text>
+				</div>
+			</PageShell>
+		);
+	}
 
-	const handleTaskClick = useCallback(
-		(taskId: string) => {
-			if (selectedTaskId === taskId) {
-				window.location.href = "/tarefas";
-			} else {
-				setSelectedTaskId(taskId);
-			}
-		},
-		[selectedTaskId],
-	);
+	if (!resolvedProjectId) {
+		return (
+			<PageShell
+				title="Home"
+				description="Selecione o foco do dia para ver o painel"
+				icon={LayoutDashboardIcon}
+			>
+				<div className="mx-auto flex h-full w-full max-w-5xl items-center justify-center px-4 pb-8">
+					<div className="w-full border border-dashed border-border/60 bg-card/60 px-8 py-14 text-center backdrop-blur">
+						<Title as="h1" className="text-3xl font-black tracking-[0.2em] md:text-6xl">
+							Crie um projeto
+						</Title>
+						<Text className="mx-auto mt-3 max-w-xl text-muted-foreground">
+							Selecione um projeto na barra de foco ou crie um novo para liberar a vitrine da Home.
+						</Text>
+						<div className="mt-8 flex items-center justify-center">
+							<Button asChild>
+								<Link to="/projetos/novo">
+									Novo projeto
+									<ArrowUpRight className="size-4" />
+								</Link>
+							</Button>
+						</div>
+					</div>
+				</div>
+			</PageShell>
+		);
+	}
+
+	if (projectQuery.isLoading) {
+		return (
+			<PageShell
+				title="Home"
+				description="Preparando o painel do projeto em foco"
+				icon={LayoutDashboardIcon}
+			>
+				<div className="mx-auto flex h-full w-full max-w-5xl items-center justify-center px-4 pb-8">
+					<Text tone="muted">Carregando projeto em foco...</Text>
+				</div>
+			</PageShell>
+		);
+	}
+
+	const project = projectQuery.data;
+
+	if (!project) {
+		return (
+			<PageShell
+				title="Home"
+				description="Projeto em foco não encontrado"
+				icon={LayoutDashboardIcon}
+			>
+				<div className="mx-auto flex h-full w-full max-w-5xl items-center justify-center px-4 pb-8">
+					<Text tone="muted">Crie um projeto</Text>
+				</div>
+			</PageShell>
+		);
+	}
 
 	return (
 		<PageShell
-			title="Dashboard"
-			description="Seu painel de controle"
+			title="Home"
+			description="Vitrine visual do projeto selecionado"
 			icon={LayoutDashboardIcon}
-			variant="grid"
 		>
-			<div className="min-h-0 min-w-0 overflow-y-auto">
-				<HomeSidebar
-					selectedTask={selectedTask}
-					tasks={tasks}
-					selectedDate={selectedDate}
-					selectedTaskId={selectedTaskId}
-					onTaskSelect={setSelectedTaskId}
-				/>
-			</div>
-
-			<div className="flex-1 min-h-0 min-w-0 overflow-y-auto px-4 pb-4 space-y-6">
-				<TaskListSection
-					tasks={displayTasks}
-					loading={loading}
-					selectedTaskId={selectedTaskId}
-					onTaskClick={handleTaskClick}
-				/>
-
-				<ProjectsSection projects={projects} />
-
-				<section>
-					<SectionHeader
-						title="Minha Semana"
-						icon={Calendar}
-						linkTo="/agenda"
-						linkLabel="ver agenda"
-						accentColor="hsl(var(--primary))"
-					/>
-					<WeekCalendar tasks={tasks} selectedDate={selectedDate} onDateSelect={setSelectedDate} />
-				</section>
-
-				<section>
-					<QuickLinks tasks={tasks} />
-				</section>
-			</div>
+			<HomeProjectShowcase
+				project={project}
+				onCreateTask={createTask}
+				creatingTask={creatingTask}
+			/>
 		</PageShell>
 	);
 }

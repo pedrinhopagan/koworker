@@ -4,8 +4,8 @@ import { Text } from "@/components/typography";
 import { cn } from "@/lib/utils";
 import { useAgendaStore } from "@/stores/agenda";
 import type { TaskWithMeta } from "@/types/tasks";
-import type { WeekDayData } from "./use-week-calendar";
-import { WeekTaskChip } from "./WeekTaskChip";
+import type { WeekDayData } from "../-utils/use-week-calendar";
+import { WeekTaskChip } from "./week-task-chip";
 
 type WeekDayProps = {
 	day: WeekDayData;

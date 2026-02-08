@@ -21,7 +21,7 @@ import { orpc } from "@/client";
 import { TaskItem } from "@/components/tasks";
 import { useProjectFocus } from "@/hooks";
 import type { TaskWithMeta } from "@/types/tasks";
-import { getNextAvailableSlot } from "./time-slots";
+import { getNextAvailableSlot } from "../-utils/time-slots";
 
 type AgendaDndWrapperProps = {
 	children: ReactNode;
