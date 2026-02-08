@@ -3,11 +3,13 @@ import { useMemo, useState } from "react";
 
 import type { RouterOutputs } from "@/client";
 import { Text } from "@/components/typography";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import type { TaskStatusOption } from "@/domain/tasks/status";
 import { cn } from "@/lib/utils";
-import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { TaskStatusFilter } from "./task-status-filter";
 
 const TASK_TYPE_ALL_ID = "__all_task_type__";
 const PRIORITY_ALL_ID = "__all_priority__";
@@ -19,6 +21,7 @@ type TaskSearchValue = {
 	q?: string;
 	taskTypeId?: string;
 	priorityId?: string;
+	statusIds?: string[];
 	includeCompleted?: boolean;
 };
 
@@ -26,10 +29,11 @@ type TaskSearchProps = {
 	value: TaskSearchValue;
 	categories: Category[];
 	priorities: Priority[];
+	statuses: TaskStatusOption[];
 	onChange: (next: TaskSearchValue) => void;
 };
 
-export function TaskSearch({ value, categories, priorities, onChange }: TaskSearchProps) {
+export function TaskSearch({ value, categories, priorities, statuses, onChange }: TaskSearchProps) {
 	const [open, setOpen] = useState(false);
 
 	const taskTypeItems = useMemo(
@@ -184,6 +188,17 @@ export function TaskSearch({ value, categories, priorities, onChange }: TaskSear
 						triggerClassName="min-w-[190px]"
 					/>
 				</div>
+
+				<TaskStatusFilter
+					value={value.statusIds}
+					options={statuses}
+					onChange={(statusIds) => {
+						onChange({
+							...value,
+							statusIds,
+						});
+					}}
+				/>
 
 				<div className="flex flex-col items-center gap-3">
 					<Text size="xs" tone="muted" className="flex items-center gap-1">

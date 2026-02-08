@@ -9,6 +9,8 @@ import { TaskSearch } from "./-components/task-search";
 import { useCreateTask } from "./-utils/use-create-task";
 import { useTasksData } from "./-utils/use-tasks-data";
 
+const searchArraySchema = z.union([z.string(), z.array(z.string())]).optional();
+
 const rawSearchSchema = z.object({
 	q: z.string().optional(),
 
@@ -16,12 +18,14 @@ const rawSearchSchema = z.object({
 	projectId: z.string().optional(),
 	taskTypeId: z.string().optional(),
 	priorityId: z.string().optional(),
+	statusIds: searchArraySchema,
 	includeCompleted: z.coerce.boolean().optional(),
 
 	// Legacy (PT-BR) — kept for backwards compatibility
 	projetoId: z.string().optional(),
 	categoriaId: z.string().optional(),
 	prioridadeId: z.string().optional(),
+	status: searchArraySchema,
 });
 
 const searchSchema = z.object({
@@ -29,8 +33,20 @@ const searchSchema = z.object({
 	projectId: z.string().optional(),
 	taskTypeId: z.string().optional(),
 	priorityId: z.string().optional(),
+	statusIds: z.array(z.string()).optional(),
 	includeCompleted: z.boolean().optional(),
 });
+
+function normalizeSearchArray(value: string | string[] | undefined) {
+	if (!value) return;
+
+	const parsed = (Array.isArray(value) ? value : value.split(","))
+		.map((item) => item.trim())
+		.filter(Boolean)
+		.filter((item, index, array) => array.indexOf(item) === index);
+
+	return parsed.length > 0 ? parsed : undefined;
+}
 
 export const Route = createFileRoute("/_app/tarefas/")({
 	validateSearch: (search) => {
@@ -40,6 +56,7 @@ export const Route = createFileRoute("/_app/tarefas/")({
 			projectId: raw.projectId ?? raw.projetoId,
 			taskTypeId: raw.taskTypeId ?? raw.categoriaId,
 			priorityId: raw.priorityId ?? raw.prioridadeId,
+			statusIds: normalizeSearchArray(raw.statusIds ?? raw.status),
 			includeCompleted: raw.includeCompleted,
 		});
 	},
@@ -56,6 +73,7 @@ function TarefasPage() {
 		q?: string;
 		taskTypeId?: string;
 		priorityId?: string;
+		statusIds?: string[];
 		includeCompleted?: boolean;
 	}) {
 		navigate({
@@ -64,6 +82,7 @@ function TarefasPage() {
 				q: next.q,
 				taskTypeId: next.taskTypeId,
 				priorityId: next.priorityId,
+				statusIds: next.statusIds,
 				includeCompleted: next.includeCompleted,
 			}),
 			replace: true,
@@ -83,10 +102,12 @@ function TarefasPage() {
 						q: search.q,
 						taskTypeId: search.taskTypeId,
 						priorityId: search.priorityId,
+						statusIds: search.statusIds,
 						includeCompleted: search.includeCompleted,
 					}}
 					categories={data.categories}
 					priorities={data.priorities}
+					statuses={data.statuses}
 					onChange={handleSearchChange}
 				/>
 
