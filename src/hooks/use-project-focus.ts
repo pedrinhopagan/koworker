@@ -47,10 +47,11 @@ export function useProjectFocus(options: UseProjectFocusOptions = {}) {
 
 	useEffect(() => {
 		if (!syncToStore) return;
+		if (projectsQuery.data === undefined) return;
 		if (resolvedProjectId !== selectedProjectId) {
 			setSelectedProjectId(resolvedProjectId);
 		}
-	}, [resolvedProjectId, selectedProjectId, setSelectedProjectId, syncToStore]);
+	}, [projectsQuery.data, resolvedProjectId, selectedProjectId, setSelectedProjectId, syncToStore]);
 
 	const selectedProject = useMemo(() => {
 		if (!resolvedProjectId) return null;
