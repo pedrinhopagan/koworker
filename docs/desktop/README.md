@@ -17,7 +17,48 @@ Criar uma base simples e robusta para rodar no desktop com o minimo de Rust, man
 
 O app desktop depende do backend ORPC rodando em `http://localhost:3000` (HTTP + WS). Sem isso, o front não carrega dados. Para builds estáticos, também é possível definir `window.__KOWORK_API_URL__` antes do bundle carregar.
 
-No desktop, o app tenta subir o backend via `bun` automaticamente quando abre. Se já existir um backend rodando na porta 3000, ele não inicia outro.
+No desktop, o app tenta subir o backend automaticamente quando abre. Se já existir um backend rodando na porta 3000, ele não inicia outro.
+
+- Em desenvolvimento, sobe via `bun --watch src/server.ts`.
+- Em build de produção, sobe via binário `kowork-backend` empacotado no bundle Tauri.
+
+## Build de produção (Linux)
+
+```bash
+bun run desktop:build
+```
+
+Pipeline executado:
+
+1. `desktop:prepare`
+2. Build web em `dist/`
+3. Build backend compilado em `src-tauri/bin/kowork-backend`
+4. `cargo tauri build`
+
+Artefatos finais ficam em `src-tauri/target/release/bundle/`.
+
+## Atualizar e rebuildar do remoto
+
+```bash
+bun run desktop:update
+```
+
+Esse comando:
+
+1. Faz `git fetch origin --prune`
+2. Usa `origin/master` (ou fallback para `origin/main`)
+3. Cria um worktree temporário nessa referência
+4. Instala dependências e gera o build desktop
+5. Copia os artefatos para `releases/linux/<branch>-<sha>-<timestamp>/`
+6. Atualiza o atalho `releases/linux/latest`
+
+## Inicialização com o desktop
+
+No Linux (apenas build de produção), o app cria/atualiza automaticamente:
+
+`~/.config/autostart/kowork.desktop`
+
+Assim o Kowork inicia junto com a sessão do usuário.
 
 ## Estrutura proposta
 

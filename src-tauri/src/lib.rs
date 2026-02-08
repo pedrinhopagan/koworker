@@ -1,3 +1,4 @@
+mod autostart;
 mod backend;
 mod commands;
 mod shortcut;
@@ -29,7 +30,10 @@ pub fn run() {
             terminal::check_session_exists
         ])
         .setup(|app| {
-            backend::start();
+            backend::start(app.handle());
+            if let Err(error) = autostart::ensure_enabled(app.handle()) {
+                eprintln!("[KOWORK] Falha ao configurar inicializacao automatica: {}", error);
+            }
             shortcut::register(app.handle())?;
             tray::setup(app)?;
             eprintln!("[KOWORK] Setup completo. Atalho: Alt+O");

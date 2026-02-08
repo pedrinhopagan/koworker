@@ -70,4 +70,16 @@ bun test
 
 ## Desktop
 
-Documentacao inicial em `docs/desktop/README.md`.
+Build desktop Linux:
+
+```bash
+bun run desktop:build
+```
+
+Atualizar do remoto (`origin/master` com fallback para `origin/main`) e rebuildar executavel:
+
+```bash
+bun run desktop:update
+```
+
+Documentacao completa em `docs/desktop/README.md`.

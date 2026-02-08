@@ -17,6 +17,11 @@
 	"scripts": {
 		"dev": "concurrently -k 'tsr watch' 'bun --watch src/server.ts' 'cargo tauri dev'",
 		"dev:web": "concurrently 'tsr watch' 'bun --watch src/server.ts'",
+		"build:web": "bun run scripts/desktop/build-web.ts",
+		"build:backend": "bun run scripts/desktop/build-backend.ts",
+		"desktop:prepare": "bun run build:web && bun run build:backend",
+		"desktop:build": "bun run desktop:prepare && cargo tauri build",
+		"desktop:update": "bash ./scripts/desktop/update-and-build.sh",
 		"tauri": "cargo tauri",
 		"tauri:dev": "cargo tauri dev",
 		"tauri:build": "cargo tauri build",

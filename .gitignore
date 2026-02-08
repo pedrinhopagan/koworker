@@ -8,6 +8,10 @@ dist
 
 # Tauri
 src-tauri/target
+src-tauri/bin
+
+# desktop artifacts
+releases
 
 # code coverage
 coverage
