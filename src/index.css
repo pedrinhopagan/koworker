@@ -3,8 +3,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-
-
 :root {
 	--radius: 0rem;
 }
@@ -32,8 +30,8 @@
 	--muted: oklch(0.93 0.011 107);
 	--muted-foreground: oklch(0.5 0 90);
 
-	--accent: oklch(0.74 0.101 84);
-	--accent-foreground: oklch(0.23 0 90);
+	--accent: oklch(0.34 0.082 148);
+	--accent-foreground: oklch(0.97 0.007 107);
 
 	--destructive: oklch(0.58 0.133 24);
 	--destructive-foreground: oklch(0.97 0.007 107);
@@ -74,8 +72,8 @@
 	--muted: oklch(0.29 0 90);
 	--muted-foreground: oklch(0.61 0 90);
 
-	--accent: oklch(0.83 0.101 80);
-	--accent-foreground: oklch(0.23 0 90);
+	--accent: oklch(0.39 0.082 148);
+	--accent-foreground: oklch(0.88 0 90);
 
 	--destructive: oklch(0.58 0.133 24);
 	--destructive-foreground: oklch(0.88 0 90);
@@ -159,15 +157,15 @@
 @layer utilities {
 	/* Oculta para Chrome, Safari e Edge (WebView2 do Tauri) */
 	.no-scrollbar::-webkit-scrollbar {
-	  display: none;
+		display: none;
 	}
-  
+
 	/* Oculta para Firefox e navegadores modernos */
 	.no-scrollbar {
-	  -ms-overflow-style: none; /* IE/Edge antigo */
-	  scrollbar-width: none;  /* Firefox */
+		-ms-overflow-style: none; /* IE/Edge antigo */
+		scrollbar-width: none; /* Firefox */
 	}
-  }
+}
 
 /* ============================================================================
    Animations - Migrated from WorkOpilot

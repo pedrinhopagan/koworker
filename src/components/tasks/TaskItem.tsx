@@ -7,6 +7,7 @@ import { orpc } from "@/client";
 import { CompletionToggle } from "@/components/tasks/CompletionToggle";
 import { Title } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
+import { DeleteConfirmButton } from "@/components/ui/delete-confirm-button";
 import { deriveTaskAttentionState } from "@/domain/tasks/attention";
 import { getStatusVariant } from "@/domain/tasks/status";
 import { isTauri } from "@/lib/tauri";
@@ -105,6 +106,17 @@ function TaskItemDefault({ task, variant }: TaskItemDefaultProps) {
 		},
 	});
 
+	const removeTaskMutation = useMutation({
+		...orpc.tasks.remove.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "tasks",
+			});
+		},
+	});
+
+	const isMutating = updateTaskMutation.isPending || removeTaskMutation.isPending;
+
 	const isMaxAttention =
 		(task.status === "in_execution" && firstNotCompletedStatus === "in_execution") ||
 		attention.shouldSpin;
@@ -139,7 +151,7 @@ function TaskItemDefault({ task, variant }: TaskItemDefaultProps) {
 						const completedAt = isDone ? null : Date.now();
 						updateTaskMutation.mutate({ id: task.id, completedAt });
 					}}
-					disabled={updateTaskMutation.isPending}
+					disabled={isMutating}
 					aria-label={isDone ? "Marcar como não concluída" : "Marcar como concluída"}
 				/>
 				<Title
@@ -208,6 +220,14 @@ function TaskItemDefault({ task, variant }: TaskItemDefaultProps) {
 				>
 					{task.priority.name}
 				</Badge>
+
+				<DeleteConfirmButton
+					onDelete={() => removeTaskMutation.mutate({ id: task.id })}
+					disabled={isMutating}
+					size="icon-sm"
+					title="Remover tarefa"
+					confirmTitle="Confirmar remoção da tarefa"
+				/>
 			</div>
 		</Link>
 	);

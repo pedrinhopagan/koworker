@@ -9,7 +9,7 @@ import { skillsRouter } from "./routers/skills";
 import { subtasksRouter } from "./routers/subtasks";
 import { tasksRouter } from "./routers/tasks";
 import { terminalRouter, terminalWsRouter } from "./routers/terminal";
-import { EndpointSchemas, TaskListByProjectSchema } from "./schemas";
+import { EndpointSchemas } from "./schemas";
 
 export const router = {
 	auth: {
@@ -48,15 +48,6 @@ export const wsRouter = {
 	notifications: protectedProcedure.handler(({ context, signal }) =>
 		PubSub.subscribe("notification", String(context.user.id), signal),
 	),
-
-	tasks: {
-		events: protectedProcedure
-			.input(TaskListByProjectSchema)
-			.handler(({ input, signal }) => PubSub.subscribe("tasks", input.projectId, signal)),
-		globalEvents: protectedProcedure.handler(({ signal }) =>
-			PubSub.subscribe("tasks", "global", signal),
-		),
-	},
 
 	terminal: terminalWsRouter,
 };

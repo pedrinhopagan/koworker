@@ -1,10 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, X } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 import { orpc } from "@/client";
 import { CompletionToggle } from "@/components/tasks/CompletionToggle";
+import { DeleteConfirmButton } from "@/components/ui/delete-confirm-button";
 import type { Subtask } from "@/hooks/use-subtasks";
 import { cn } from "@/lib/utils";
 
@@ -16,8 +17,7 @@ const subtaskItemVariants = tv({
 		expandButton: "text-muted-foreground transition-colors hover:text-primary",
 		title: "flex-1 text-sm text-foreground",
 		detailsHint: "text-xs text-muted-foreground",
-		removeButton:
-			"p-1 text-destructive opacity-0 transition-all hover:text-destructive/80 group-hover:opacity-100",
+		removeButton: "opacity-0 transition-all group-hover:opacity-100",
 		expandedContent:
 			"ml-6 animate-slide-down space-y-4 border-l-2 border-border bg-background px-3 py-3",
 		label: "text-xs uppercase tracking-wide text-muted-foreground",
@@ -144,15 +144,14 @@ export function SubtaskItem({ subtask, taskId, disabled = false, className }: Su
 				{!expanded && hasDetails && <span className={styles.detailsHint()}>(detalhes)</span>}
 
 				{/* Remove button */}
-				<button
-					type="button"
-					onClick={handleRemove}
+				<DeleteConfirmButton
+					onDelete={handleRemove}
 					disabled={disabled || isMutating}
+					size="icon-sm"
 					className={styles.removeButton()}
 					title="Remover subtask"
-				>
-					<X size={14} />
-				</button>
+					confirmTitle="Confirmar remoção da subtask"
+				/>
 			</div>
 
 			{/* Expanded content */}

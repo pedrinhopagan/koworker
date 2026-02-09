@@ -11,6 +11,7 @@ import {
 	AccordionItem,
 	AccordionTrigger,
 } from "@/components/ui/accordion";
+import { DeleteConfirmButton } from "@/components/ui/delete-confirm-button";
 import { cn } from "@/lib/utils";
 import type { TaskFull } from "@/types/tasks";
 
@@ -67,6 +68,11 @@ export function TaskAcceptanceCriteria({ task }: TaskAcceptanceCriteriaProps) {
 		setNewItem("");
 	}
 
+	function handleRemove(id: string) {
+		const next = criteria.filter((item) => item.id !== id);
+		commitCriteria(next);
+	}
+
 	function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
 		if (e.key === "Enter") {
 			e.preventDefault();
@@ -102,8 +108,8 @@ export function TaskAcceptanceCriteria({ task }: TaskAcceptanceCriteriaProps) {
 									<li
 										key={item.id}
 										className={cn(
-											"flex items-start gap-2 rounded-md border border-border/60 px-3 py-2 bg-card",
-											isDone && "opacity-60"
+											"flex items-center gap-2 rounded-md border border-border/60 px-3 py-2 bg-card",
+											isDone && "opacity-60",
 										)}
 									>
 										<button
@@ -123,9 +129,16 @@ export function TaskAcceptanceCriteria({ task }: TaskAcceptanceCriteriaProps) {
 											className={cn(
 												"flex-1 bg-transparent text-sm text-foreground",
 												"focus:outline-none",
-												isDone && "line-through text-muted-foreground"
+												isDone && "line-through text-muted-foreground",
 											)}
 											placeholder="Descreva o criterio..."
+										/>
+										<DeleteConfirmButton
+											onDelete={() => handleRemove(item.id)}
+											disabled={isMutating}
+											sizeVariant="xs"
+											title="Remover criterio"
+											confirmTitle="Confirmar remoção do criterio"
 										/>
 									</li>
 								);
@@ -145,7 +158,7 @@ export function TaskAcceptanceCriteria({ task }: TaskAcceptanceCriteriaProps) {
 							className={cn(
 								"flex-1 bg-transparent text-foreground text-sm",
 								"focus:outline-none border-b border-transparent focus:border-primary transition-colors",
-								"placeholder:text-muted-foreground/60 disabled:opacity-50 disabled:cursor-not-allowed"
+								"placeholder:text-muted-foreground/60 disabled:opacity-50 disabled:cursor-not-allowed",
 							)}
 						/>
 						<button
@@ -154,7 +167,7 @@ export function TaskAcceptanceCriteria({ task }: TaskAcceptanceCriteriaProps) {
 							disabled={!newItem.trim() || isMutating}
 							className={cn(
 								"px-3 py-1 text-xs bg-primary text-primary-foreground",
-								"hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+								"hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors",
 							)}
 						>
 							Adicionar

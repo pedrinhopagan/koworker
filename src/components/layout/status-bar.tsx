@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Bug, DatabaseZap, RefreshCw, RotateCcw } from "lucide-react";
+import { Bug, DatabaseZap } from "lucide-react";
 import { type ComponentType, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getAppEnv, getAppVersionFallback, isDevelopmentEnvironment } from "@/lib/env";
@@ -30,7 +30,6 @@ function ActionButton({ onClick, label, icon: Icon, disabled }: ActionButtonProp
 export function StatusBar() {
 	const queryClient = useQueryClient();
 	const [appVersion, setAppVersion] = useState(getAppVersionFallback());
-	const [refreshingData, setRefreshingData] = useState(false);
 	const appEnv = getAppEnv();
 	const isDev = isDevelopmentEnvironment();
 
@@ -74,26 +73,6 @@ export function StatusBar() {
 		}
 	}
 
-	function handleFullReload() {
-		window.location.reload();
-	}
-
-	async function handleRefreshData() {
-		if (refreshingData) {
-			return;
-		}
-
-		setRefreshingData(true);
-		try {
-			await queryClient.refetchQueries({ type: "active" });
-			toast.success("Dados atualizados");
-		} catch {
-			toast.error("Falha ao atualizar dados");
-		} finally {
-			setRefreshingData(false);
-		}
-	}
-
 	function handleClearCache() {
 		queryClient.clear();
 		toast.success("Cache limpo, recarregando...");
@@ -121,13 +100,6 @@ export function StatusBar() {
 
 			<div className="flex items-center gap-1 min-w-0">
 				<ActionButton onClick={handleOpenConsole} label="Console" icon={Bug} />
-				<ActionButton onClick={handleFullReload} label="Full Reload" icon={RotateCcw} />
-				<ActionButton
-					onClick={handleRefreshData}
-					label="Atualizar Dados"
-					icon={RefreshCw}
-					disabled={refreshingData}
-				/>
 				<ActionButton onClick={handleClearCache} label="Limpar Cache" icon={DatabaseZap} />
 			</div>
 		</footer>

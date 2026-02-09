@@ -1,8 +1,8 @@
-import { Check, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { DeleteConfirmButton } from "@/components/ui/delete-confirm-button";
 import { IconSelector } from "@/components/ui/icon-selector";
 import { Input } from "@/components/ui/input";
 import { DragHandle, type SortableItemRenderProps } from "@/components/ui/sortable-list";
@@ -33,7 +33,6 @@ export function RouteItem({ item, props, onUpdate, onDelete, isDeleting }: Route
 	const [localRoute, setLocalRoute] = useState(item.route);
 	const [localCommand, setLocalCommand] = useState(item.command ?? "");
 	const [pickingRoute, setPickingRoute] = useState(false);
-	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	function handleSubmit() {
 		const nextName = localName.trim();
@@ -71,11 +70,6 @@ export function RouteItem({ item, props, onUpdate, onDelete, isDeleting }: Route
 		setPickingRoute(false);
 	}
 
-	function handleConfirmDelete() {
-		onDelete(item.id);
-		setConfirmingDelete(false);
-	}
-
 	return (
 		<div
 			className={cn(
@@ -99,29 +93,12 @@ export function RouteItem({ item, props, onUpdate, onDelete, isDeleting }: Route
 					className="h-9 flex-1"
 				/>
 
-				{confirmingDelete ? (
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon"
-						disabled={isDeleting}
-						onClick={handleConfirmDelete}
-						title="Confirmar remoção"
-						className="text-destructive hover:text-destructive hover:bg-destructive/10"
-					>
-						<Check className="h-4 w-4" />
-					</Button>
-				) : (
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon"
-						onClick={() => setConfirmingDelete(true)}
-						title="Remover rota"
-					>
-						<Trash2 className="h-4 w-4" />
-					</Button>
-				)}
+				<DeleteConfirmButton
+					onDelete={() => onDelete(item.id)}
+					disabled={isDeleting}
+					title="Remover rota"
+					confirmTitle="Confirmar remoção da rota"
+				/>
 			</div>
 
 			<div className="flex items-center gap-2">

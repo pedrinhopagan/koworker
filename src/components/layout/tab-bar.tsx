@@ -4,10 +4,9 @@
  * Supports window dragging in Tauri environment
  */
 
-import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
 import { RefreshCw, Settings, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { tv } from "tailwind-variants";
 import { getAppEnv } from "@/lib/env";
 import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
@@ -58,12 +57,10 @@ function isTabActive(currentPath: string, tabPath: string): boolean {
 }
 
 export function TabBar() {
-	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
 	const routerState = useRouterState();
 	const currentPath = location.pathname;
-	const [refreshingPageData, setRefreshingPageData] = useState(false);
 	const toggleShortcutLabel = getAppEnv() === "production" ? "Alt+P" : "Alt+O";
 
 	// Keyboard navigation: Alt+1-5 for tabs, Alt+0 for settings
@@ -95,15 +92,9 @@ export function TabBar() {
 		startWindowDrag(e);
 	}, []);
 
-	const handleQuickRefresh = useCallback(async () => {
-		if (refreshingPageData) return;
-		setRefreshingPageData(true);
-		try {
-			await queryClient.refetchQueries({ type: "active" });
-		} finally {
-			setRefreshingPageData(false);
-		}
-	}, [queryClient, refreshingPageData]);
+	const handlePageReload = useCallback(() => {
+		window.location.reload();
+	}, []);
 
 	// Current route path for debug display (optional)
 	const currentRoutePath = routerState.matches.at(-1)?.fullPath ?? "/";
@@ -148,12 +139,11 @@ export function TabBar() {
 			{/* Settings button */}
 			<button
 				type="button"
-				onClick={handleQuickRefresh}
+				onClick={handlePageReload}
 				className={iconButton({ active: false })}
 				title="Atualizar dados da página"
-				disabled={refreshingPageData}
 			>
-				<RefreshCw size={16} className={cn(refreshingPageData && "animate-spin")} />
+				<RefreshCw size={16} />
 			</button>
 
 			{/* Settings button */}

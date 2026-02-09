@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { db } from "@/cli/db";
-import { notifyTaskChange } from "./notify-backend";
 import {
 	criterionSchema,
 	parseJsonInput,
@@ -22,20 +21,17 @@ const updateTaskInputSchema = z.object({
 export async function updateTask(args: string[]): Promise<void> {
 	const input = parseJsonInput(args[0], updateTaskInputSchema);
 	const now = Date.now();
-	let projectId = "";
 
 	await db.transaction().execute(async (trx) => {
 		const task = await trx
 			.selectFrom("tasks")
-			.select(["id", "project_id"])
+			.select(["id"])
 			.where("id", "=", input.taskId)
 			.executeTakeFirst();
 
 		if (!task) {
 			throw new Error(`Task ${input.taskId} não encontrada`);
 		}
-
-		projectId = task.project_id;
 
 		const updates: Record<string, unknown> = { updated_at: now };
 
@@ -126,14 +122,6 @@ export async function updateTask(args: string[]): Promise<void> {
 			}
 		}
 	});
-
-	if (projectId) {
-		await notifyTaskChange({
-			taskId: input.taskId,
-			projectId,
-			action: "updated",
-		});
-	}
 
 	console.log(`Task ${input.taskId} atualizada com sucesso`);
 }

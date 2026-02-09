@@ -34,6 +34,29 @@ type TaskSubtasksProps = {
 	onClearSelection?: () => void;
 };
 
+export function shouldPreserveOrderedSubtasks(previous: SubtaskFull[], next: SubtaskFull[]) {
+	if (previous.length !== next.length) {
+		return false;
+	}
+
+	return previous.every((item, index) => {
+		const candidate = next[index];
+		if (!candidate) {
+			return false;
+		}
+
+		return (
+			item.id === candidate.id &&
+			item.title === candidate.title &&
+			item.description === candidate.description &&
+			item.status === candidate.status &&
+			item.completedAt === candidate.completedAt &&
+			item.updatedAt === candidate.updatedAt &&
+			item.displayOrder === candidate.displayOrder
+		);
+	});
+}
+
 export function TaskSubtasks({
 	task,
 	disabled,
@@ -62,10 +85,7 @@ export function TaskSubtasks({
 
 	useEffect(() => {
 		setOrderedSubtasks((previous) => {
-			if (
-				previous.length === sortedSubtasks.length &&
-				previous.every((item, index) => item.id === sortedSubtasks[index]?.id)
-			) {
+			if (shouldPreserveOrderedSubtasks(previous, sortedSubtasks)) {
 				return previous;
 			}
 			return sortedSubtasks;

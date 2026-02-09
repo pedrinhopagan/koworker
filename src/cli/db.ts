@@ -29,7 +29,10 @@ const projectsSchema = type({
 
 const projectRoutesSchema = type({
 	id: type("string").configure({ primaryKey: true }),
-	project_id: type("string").configure({ references: "projects.id", onDelete: "restrict" }),
+	project_id: type("string").configure({
+		references: "projects.id",
+		onDelete: "restrict",
+	}),
 	name: "string",
 	route: "string",
 	created_at: type("number.integer").configure({ default: "now" }),
@@ -38,13 +41,22 @@ const projectRoutesSchema = type({
 
 const tasksSchema = type({
 	id: type("string").configure({ primaryKey: true }),
-	project_id: type("string").configure({ references: "projects.id", onDelete: "restrict" }),
+	project_id: type("string").configure({
+		references: "projects.id",
+		onDelete: "restrict",
+	}),
 	title: "string",
 	"description?": "string",
 	"notes?": "string",
 	"ai_metadata?": "string",
-	priority_id: type("string").configure({ references: "priorities.id", onDelete: "restrict" }),
-	category_id: type("string").configure({ references: "categories.id", onDelete: "restrict" }),
+	priority_id: type("string").configure({
+		references: "priorities.id",
+		onDelete: "restrict",
+	}),
+	category_id: type("string").configure({
+		references: "categories.id",
+		onDelete: "restrict",
+	}),
 	status: task_status.configure({ default: "pending" }),
 	"acceptance_criteria?": "string",
 	"completed_at?": "number.integer",
@@ -55,7 +67,10 @@ const tasksSchema = type({
 
 const subtasksSchema = type({
 	id: type("string").configure({ primaryKey: true }),
-	task_id: type("string").configure({ references: "tasks.id", onDelete: "restrict" }),
+	task_id: type("string").configure({
+		references: "tasks.id",
+		onDelete: "restrict",
+	}),
 	title: "string",
 	"description?": "string",
 	status: task_status.configure({ default: "pending" }),

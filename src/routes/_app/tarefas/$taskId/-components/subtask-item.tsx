@@ -1,10 +1,11 @@
-import { ChevronRight, X } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { tv } from "tailwind-variants";
 
 import { Text } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DeleteConfirmButton } from "@/components/ui/delete-confirm-button";
 import { cn } from "@/lib/utils";
 import type { SubtaskFull } from "@/types/tasks";
 
@@ -18,7 +19,7 @@ const subtaskItemVariants = tv({
 		chevron: "text-muted-foreground transition-transform shrink-0",
 		title: "flex-1 text-sm text-foreground min-w-0 truncate",
 		hint: "text-xs text-muted-foreground shrink-0",
-		remove: "p-1 text-destructive opacity-0 group-hover:opacity-100 transition-all shrink-0",
+		remove: "opacity-0 group-hover:opacity-100 transition-all shrink-0",
 		content: "pl-9 px-3 pb-1 space-y-2 border-l-2 border-border bg-card",
 		label: "text-xs uppercase tracking-wide text-muted-foreground",
 		textarea: cn(
@@ -81,11 +82,6 @@ export function SubtaskItem({
 		const newStatus = isDone ? "pending" : "executed";
 		const completedAt = newStatus === "executed" ? Date.now() : null;
 		updateMutation.mutate({ id: subtask.id, status: newStatus, completedAt });
-	}
-
-	function handleRemove(event: React.MouseEvent) {
-		event.stopPropagation();
-		removeMutation.mutate({ id: subtask.id });
 	}
 
 	function handleDescriptionBlur() {
@@ -161,15 +157,14 @@ export function SubtaskItem({
 						/>
 					</span>
 				) : (
-					<button
-						type="button"
-						onClick={handleRemove}
+					<DeleteConfirmButton
+						onDelete={() => removeMutation.mutate({ id: subtask.id })}
 						disabled={disabled || isMutating}
+						size="icon-sm"
 						className={styles.remove()}
 						title="Remover subtask"
-					>
-						<X size={14} />
-					</button>
+						confirmTitle="Confirmar remoção da subtask"
+					/>
 				)}
 			</div>
 
