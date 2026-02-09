@@ -19,11 +19,24 @@ Execute only the selected subtasks with rigorous, professional execution and evi
 
 - Read `AGENTS.md` or `CLAUDE.md` before any execution or requirement question.
 - If the conversation does not explicitly confirm that those files were read, treat them as not read.
-- Communicate with the user in English, professional and cordial.
+- Communicate with the user in pt-BR, professional and cordial.
 - Never assume missing information. Ask when it affects correctness.
 - One question per message.
 - Evidence before marking acceptance criteria or statuses.
 - Do not propose defaults, recommendations, or assumptions.
+
+## Koworker CLI (required)
+
+**Escrita:** `kowork update-task '<JSON>'` — para atualizar status, notes, criterios, subtasks.
+**Leitura:** `kowork read-task '{"taskId":"<ID>"}'` — retorna JSON completo do DB. Use APENAS se os dados do prompt forem insuficientes.
+
+- Confirm command success in output; if it fails, fix and run again.
+- Use `description` as the main source of requirements.
+- Keep `notes` updated with implementation evidence and assumptions.
+- When updating `acceptance_criteria`, send the full array `[{ id, text, done }]`.
+- Valid status values: `pending`, `in_execution`, `executed`.
+- For subtask updates, keep `title`/`description`; for new subtasks, omit `id` and use sequential `displayOrder`.
+- Never set `completed_at`.
 
 ## Process
 
@@ -39,7 +52,7 @@ Execute only the selected subtasks with rigorous, professional execution and evi
    **Hard gate:** If `AGENTS.md`/`CLAUDE.md` was not read or pasted, your only allowed response is to request the file content. Do not ask any other questions.
 
    **Gate response (use this exact text):**
-   "Please paste `AGENTS.md` or `CLAUDE.md` so I can proceed. I cannot ask any other questions until I read it."
+   "Por favor, cole `AGENTS.md` ou `CLAUDE.md` para eu continuar. Nao posso fazer outras perguntas antes de ler esse arquivo."
 
 2. **Scope**
    - Work only on subtasks listed in `selectedSubtasks`.
@@ -68,12 +81,12 @@ Execute only the selected subtasks with rigorous, professional execution and evi
 
 6. **Finalization**
    - Do not mark the parent task as `executed` in this skill.
-   - Final message: "✅ Selected subtask(s) executed in Koworker, return to the app to review."
+   - Final message: "✅ Subtask(s) selecionada(s) executada(s) no Koworker, volte ao app para revisar."
 
 ## Quick reference
 
 - Read `AGENTS.md`/`CLAUDE.md` before any execution or questions.
-- English-only communication with professional, cordial tone.
+- pt-BR communication with professional, cordial tone.
 - Execute only `selectedSubtasks`; no scope creep.
 - Evidence before marking `executed` or criteria `done`.
 - If blocked, stop and ask one question.
@@ -85,7 +98,7 @@ Execute only the selected subtasks with rigorous, professional execution and evi
 - Do not change task or subtask status without real work and evidence.
 - Do not mark acceptance criteria without evidence.
 - Do not assume missing information.
-- All user-facing messages must be in English.
+- All user-facing messages must be in pt-BR.
 - Do not ask for task ids or subtask ids before the gate is satisfied.
 - Do not mention databases or file paths unless `AGENTS.md`/`CLAUDE.md` instructs it.
 - Do not mark the parent task as `executed`.
@@ -102,7 +115,7 @@ Execute only the selected subtasks with rigorous, professional execution and evi
 - Doing extra fixes outside selected subtasks.
 - Marking criteria as done without evidence.
 - Asking multiple questions at once.
-- Answering in Portuguese.
+- Responding in English.
 - Asking for permission to use tools instead of requesting file content.
 - Asking for ids before the gate is satisfied.
 

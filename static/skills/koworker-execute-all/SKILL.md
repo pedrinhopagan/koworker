@@ -18,12 +18,25 @@ Execute all pending subtasks in one pass, prioritizing resolution with best-effo
 
 - Read `AGENTS.md` or `CLAUDE.md` before any execution or requirement question.
 - If the conversation does not explicitly confirm that those files were read, treat them as not read.
-- Communicate with the user in English.
+- Communicate with the user in pt-BR.
 - Ask questions only when blocked or when safety/data loss is at risk.
 - Prefer best-effort decisions using existing info; record assumptions in `notes`.
 - Do not do deep research; prioritize delivery.
 - Evidence before marking acceptance criteria as done.
 - Do not propose defaults or recommendations.
+
+## Koworker CLI (required)
+
+**Escrita:** `kowork update-task '<JSON>'` — para atualizar status, notes, criterios, subtasks.
+**Leitura:** `kowork read-task '{"taskId":"<ID>"}'` — retorna JSON completo do DB. Use APENAS se os dados do prompt forem insuficientes.
+
+- Confirm command success in output; if it fails, fix and run again.
+- Use `description` as the main source of requirements.
+- Keep `notes` updated with implementation evidence and assumptions.
+- When updating `acceptance_criteria`, send the full array `[{ id, text, done }]`.
+- Valid status values: `pending`, `in_execution`, `executed`.
+- For subtask updates, keep `title`/`description`; for new subtasks, omit `id` and use sequential `displayOrder`.
+- Never set `completed_at`.
 
 ## Process
 
@@ -39,7 +52,7 @@ Execute all pending subtasks in one pass, prioritizing resolution with best-effo
    **Hard gate:** If `AGENTS.md`/`CLAUDE.md` was not read or pasted, your only allowed response is to request the file content. Do not ask any other questions.
 
    **Gate response (use this exact text):**
-   "Please paste `AGENTS.md` or `CLAUDE.md` so I can proceed. I cannot ask any other questions until I read it."
+   "Por favor, cole `AGENTS.md` ou `CLAUDE.md` para eu continuar. Nao posso fazer outras perguntas antes de ler esse arquivo."
 
 2. **Scope**
    - Execute all pending subtasks in order.
@@ -69,12 +82,12 @@ Execute all pending subtasks in one pass, prioritizing resolution with best-effo
 
 6. **Finalization**
    - Mark the parent task as `executed` only if all subtasks are `executed`.
-   - Final message: "✅ Pending subtasks executed in Koworker, return to the app to review."
+   - Final message: "✅ Subtasks pendentes executadas no Koworker, volte ao app para revisar."
 
 ## Quick reference
 
 - Read `AGENTS.md`/`CLAUDE.md` before any execution or questions.
-- English-only communication.
+- pt-BR communication.
 - Minimal questions; ask only when blocked.
 - Best-effort decisions are allowed, but must be logged as assumptions.
 - Evidence before marking criteria `done`.
@@ -87,7 +100,7 @@ Execute all pending subtasks in one pass, prioritizing resolution with best-effo
 - Do not ask optional questions; only ask when blocked or unsafe.
 - Do not do deep research; prioritize delivery.
 - Do not mark acceptance criteria without evidence.
-- All user-facing messages must be in English.
+- All user-facing messages must be in pt-BR.
 - Always update `notes` with assumptions and execution summary.
 - Do not edit executed subtasks.
 - Do not mention databases or file paths unless `AGENTS.md`/`CLAUDE.md` instructs it.
@@ -104,7 +117,7 @@ Execute all pending subtasks in one pass, prioritizing resolution with best-effo
 - Asking many questions and delaying delivery.
 - Marking criteria as done without evidence.
 - Not recording assumptions in `notes`.
-- Answering in Portuguese.
+- Responding in English.
 - Suggesting a default instead of asking one blocked question.
 - Executing without a task/subtask context.
 

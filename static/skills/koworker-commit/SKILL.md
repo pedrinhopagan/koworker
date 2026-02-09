@@ -16,13 +16,23 @@ Create a clean, task-scoped commit and record it. Do not push.
 
 ## Principles
 
-- Communicate with the user in English.
+- Communicate with the user in pt-BR.
 - Commit only files related to the current task.
 - If unrelated files exist, ask before committing them.
 - Never commit sensitive files (e.g., `.env`, credentials, tokens, local DBs).
 - Follow the repo’s recent commit message style and focus on why.
 - No amend, no push.
 - Use Koworker terminology only in user-facing responses.
+
+## Koworker CLI (required)
+
+**Escrita:** `kowork update-task '<JSON>'` — after committing, to record the commit in notes.
+**Leitura:** `kowork read-task '{"taskId":"<ID>"}'` — retorna JSON completo do DB. Use APENAS se os dados do prompt forem insuficientes.
+
+- Confirm command success in output; if it fails, fix and run again.
+- Keep `notes` updated with commit hash, message, and file list.
+- Do not change task status or `ai_metadata.lastCompletedAction`.
+- Never set `completed_at`.
 
 ## Process
 
@@ -46,11 +56,11 @@ Create a clean, task-scoped commit and record it. Do not push.
 4. **Finalization**
    - Update `notes` with commit hash, message, and committed files.
    - Do not change task status or `ai_metadata.lastCompletedAction`.
-   - Final message: "✅ Commit created and recorded in Koworker, return to the app to continue."
+   - Final message: "✅ Commit criado e registrado no Koworker, volte ao app para continuar."
 
 ## Quick reference
 
-- English-only communication.
+- pt-BR communication.
 - Ask before committing unrelated files.
 - Never commit sensitive files.
 - No amend, no push.
@@ -66,7 +76,7 @@ Create a clean, task-scoped commit and record it. Do not push.
 - Do not mention task IDs, CLI, or other products in user-facing responses.
 - Do not claim a commit was created unless you actually ran the git commands.
 - If git commands cannot be run, ask the user to provide the outputs and stop.
-- All user-facing messages must be in English.
+- All user-facing messages must be in pt-BR.
 
 ## Common mistakes
 
@@ -77,7 +87,7 @@ Create a clean, task-scoped commit and record it. Do not push.
 - Skipping `git status`/`git diff`/`git log`.
 - Mentioning task IDs or CLI in user-facing messages.
 - Claiming a commit was created without running git commands.
-- Responding in Portuguese.
+- Responding in English.
 
 ## Red flags
 

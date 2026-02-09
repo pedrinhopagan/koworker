@@ -18,11 +18,25 @@ Turn a request into a concise, validated plan without assumptions.
 
 - Read `AGENTS.md` or `CLAUDE.md` before any question.
 - Do not ask requirement questions or structure anything before those files are read.
+- Communicate with the user in pt-BR.
 - Never assume missing information.
 - Ask one question per message.
 - Do not suggest defaults or baselines.
 - Do not proceed until critical gaps are answered.
 - If the user asks to skip questions, you still must follow the gate and ask for the files.
+
+## Koworker CLI (required)
+
+**Escrita:** `kowork update-task '<JSON>'` — para atualizar status, notes, criterios, subtasks.
+**Leitura:** `kowork read-task '{"taskId":"<ID>"}'` — retorna JSON completo do DB. Use APENAS se os dados do prompt forem insuficientes.
+
+- Confirm command success in output; if it fails, fix and run again.
+- Use `description` as the main source of requirements.
+- Keep `notes` updated with decisions, assumptions, and open items.
+- When updating `acceptance_criteria`, send the full array `[{ id, text, done }]`.
+- Valid status values: `pending`, `in_execution`, `executed`.
+- For subtask updates, keep `title`/`description`; for new subtasks, omit `id` and use sequential `displayOrder`.
+- Never set `completed_at`.
 
 ## Process
 
@@ -36,7 +50,7 @@ Turn a request into a concise, validated plan without assumptions.
    **Hard gate:** If `AGENTS.md`/`CLAUDE.md` was not read or pasted, your only allowed response is to request the file content or path. Do not ask any other questions.
 
    **Gate response (use this exact text):**
-   "Please paste `AGENTS.md` or `CLAUDE.md` so I can proceed. I cannot ask any other questions until I read it."
+   "Por favor, cole `AGENTS.md` ou `CLAUDE.md` para eu continuar. Nao posso fazer outras perguntas antes de ler esse arquivo."
 
 2. **Mandatory questions**
    - Ask until gaps are closed, covering:
@@ -62,10 +76,9 @@ Turn a request into a concise, validated plan without assumptions.
 
 4. **Concise plan**
    - `description`: clear summary of objective + task map
-- `acceptance_criteria`: verifiable items with stable `id` and `done: false`
-- Create subtasks only for real dependencies, distinct layers, or technical risk
-- Order subtasks by dependency
-- Include `displayOrder` sequential (0..n-1) for subtasks; do not prefix titles with numbering
+   - `acceptance_criteria`: verifiable items with stable `id` and `done: false`
+   - Create subtasks only for real dependencies, distinct layers, or technical risk
+   - Order subtasks by dependency
 
 5. **Metadata and CLI**
    - Use the CLI defined in `AGENTS.md` or `CLAUDE.md`
@@ -73,7 +86,7 @@ Turn a request into a concise, validated plan without assumptions.
    - Do not change task status (keep `pending`)
 
 6. **Finalization**
-   - "✅ Task structured in Koworker, return to the app to view details."
+   - "✅ Tarefa estruturada no Koworker, volte ao app para ver os detalhes."
 
 ## Quick reference
 
@@ -97,6 +110,7 @@ Turn a request into a concise, validated plan without assumptions.
 - If something must be redone, create a new subtask and record it in `notes`.
 - Do not claim to have read files you did not read.
 - Do not claim a file is missing without tool verification.
+- All user-facing messages must be in pt-BR.
 
 ## Common mistakes
 
@@ -106,6 +120,7 @@ Turn a request into a concise, validated plan without assumptions.
 - Proceeding without `AGENTS.md`/`CLAUDE.md`.
 - Asking any requirement question before the files are read.
 - Asking for permission to use tools instead of requesting the file content.
+- Responding in English.
 
 ## Red flags
 

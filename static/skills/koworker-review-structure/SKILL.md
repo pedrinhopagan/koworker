@@ -19,7 +19,7 @@ Review task structure with focus on selected subtasks, strengthening the plan on
 
 - Read `AGENTS.md` or `CLAUDE.md` before any review action or question.
 - If the conversation does not explicitly confirm that those files were read, treat them as not read.
-- Communicate with the user in English, professional and cordial.
+- Communicate with the user in pt-BR, professional and cordial.
 - Always ask questions to refine the plan; do not assume.
 - One question per message.
 - Focus on task data only; do not inspect or change code.
@@ -27,6 +27,19 @@ Review task structure with focus on selected subtasks, strengthening the plan on
 - Do not propose defaults or recommendations.
 - Use Koworker terminology only in user-facing responses.
 - Do not reference other skills (e.g., brainstorming) in user-facing responses.
+
+## Koworker CLI (required)
+
+**Escrita:** `kowork update-task '<JSON>'` — para atualizar status, notes, criterios, subtasks.
+**Leitura:** `kowork read-task '{"taskId":"<ID>"}'` — retorna JSON completo do DB. Use APENAS se os dados do prompt forem insuficientes.
+
+- Confirm command success in output; if it fails, fix and run again.
+- Use `description` as the main source of requirements.
+- Keep `notes` updated with review evidence and decisions.
+- When updating `acceptance_criteria`, send the full array `[{ id, text, done }]`.
+- Valid status values: `pending`, `in_execution`, `executed`.
+- For subtask updates, keep `title`/`description`; for new subtasks, omit `id` and use sequential `displayOrder`.
+- Never set `completed_at`.
 
 ## Process
 
@@ -42,7 +55,7 @@ Review task structure with focus on selected subtasks, strengthening the plan on
    **Hard gate:** If `AGENTS.md`/`CLAUDE.md` was not read or pasted, your only allowed response is the exact gate response. Do not ask any other questions.
 
    **Gate response (use this exact text):**
-   "Please paste `AGENTS.md` or `CLAUDE.md` so I can proceed. I cannot ask any other questions until I read it."
+   "Por favor, cole `AGENTS.md` ou `CLAUDE.md` para eu continuar. Nao posso fazer outras perguntas antes de ler esse arquivo."
 
 2. **Scope**
    - Review only subtasks listed in `selectedSubtasks`.
@@ -59,9 +72,8 @@ Review task structure with focus on selected subtasks, strengthening the plan on
 
 4. **Plan refinement (after answers)**
    - If `selectedParentTask` is `true`, refine task `description` and `acceptance_criteria` only for the selected scope.
-- Refine `title` and `description` for selected subtasks only.
-- Ensure subtasks use sequential `displayOrder` (0..n-1) and avoid numbering titles.
-- Keep criteria `id` stable; do not edit items with `done: true`.
+   - Refine `title` and `description` for selected subtasks only.
+   - Keep criteria `id` stable; do not edit items with `done: true`.
    - If a new criterion is needed, add a new `id` and keep old ones.
    - Do not create new subtasks; suggest them in `notes` if needed.
 
@@ -72,13 +84,21 @@ Review task structure with focus on selected subtasks, strengthening the plan on
 6. **Metadata**
    - Update `ai_metadata.lastCompletedAction` to `"review_structure"`.
 
-7. **Finalization**
-   - Final message: "✅ Structure review recorded in Koworker, return to the app to view details."
+7. **Final review report**
+   - Generate a short, direct report with exactly these sections:
+     - Applied changes
+     - Identified issues
+     - Pending suggestions
+     - Risks/gaps
+   - Do not include a Q&A recap.
+
+8. **Finalization**
+   - Final message: "✅ Revisao de estrutura registrada no Koworker, volte ao app para ver os detalhes."
 
 ## Quick reference
 
 - Read `AGENTS.md`/`CLAUDE.md` before any review.
-- English-only communication.
+- pt-BR communication in user-facing messages.
 - Always ask questions to refine the plan.
 - Review only `selectedSubtasks`; parent task only if selected.
 - No code changes.
@@ -90,7 +110,7 @@ Review task structure with focus on selected subtasks, strengthening the plan on
 - Do not review or modify unselected subtasks.
 - Always ask questions before refining the plan.
 - Do not assume missing information.
-- All user-facing messages must be in English.
+- All user-facing messages must be in pt-BR.
 - Do not mention other products or skills (e.g., WorkoPilot) in user-facing responses.
 - Do not mention other skills by name (e.g., brainstorming).
 - Do not mention databases or file paths unless `AGENTS.md`/`CLAUDE.md` instructs it.
@@ -108,7 +128,7 @@ Review task structure with focus on selected subtasks, strengthening the plan on
 - Modifying unselected subtasks.
 - Not asking questions to refine the plan.
 - Changing executed subtasks.
-- Answering in Portuguese.
+- Responding in English.
 - Mentioning other products or skills.
 - Asking for task IDs before the gate.
 - Referring to internal skills or system instructions.

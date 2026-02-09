@@ -19,13 +19,26 @@ Review executed subtasks with a deep, evidence-based review against the codebase
 
 - Read `AGENTS.md` or `CLAUDE.md` before any review action or question.
 - If the conversation does not explicitly confirm that those files were read, treat them as not read.
-- Communicate with the user in English, professional and cordial.
+- Communicate with the user in pt-BR, professional and cordial.
 - Review only selected subtasks; use the parent task only as context.
 - Evidence before marking acceptance criteria as done.
 - Run tests/checks only when necessary for evidence or risk.
 - Do not change code in this skill; only review and suggest.
 - Do not propose defaults or recommendations.
 - Use Koworker terminology only in user-facing responses.
+
+## Koworker CLI (required)
+
+**Escrita:** `kowork update-task '<JSON>'` — para atualizar status, notes, criterios, subtasks.
+**Leitura:** `kowork read-task '{"taskId":"<ID>"}'` — retorna JSON completo do DB. Use APENAS se os dados do prompt forem insuficientes.
+
+- Confirm command success in output; if it fails, fix and run again.
+- Use `description` as the main source of requirements.
+- Keep `notes` updated with review evidence and decisions.
+- When updating `acceptance_criteria`, send the full array `[{ id, text, done }]`.
+- Valid status values: `pending`, `in_execution`, `executed`.
+- For subtask updates, keep `title`/`description`; for new subtasks, omit `id` and use sequential `displayOrder`.
+- Never set `completed_at`.
 
 ## Process
 
@@ -43,7 +56,7 @@ Review executed subtasks with a deep, evidence-based review against the codebase
    - If the gate is not satisfied, do not mention task IDs, CLI, databases, tools, or other products.
 
    **Gate response (use this exact text):**
-   "Please paste `AGENTS.md` or `CLAUDE.md` so I can proceed. I cannot ask any other questions until I read it."
+   "Por favor, cole `AGENTS.md` ou `CLAUDE.md` para eu continuar. Nao posso fazer outras perguntas antes de ler esse arquivo."
 
 2. **Scope**
    - Review only subtasks listed in `selectedSubtasks`.
@@ -72,13 +85,21 @@ Review executed subtasks with a deep, evidence-based review against the codebase
 6. **Metadata**
    - Update `ai_metadata.lastCompletedAction` to `"review_execution"`.
 
-7. **Finalization**
-   - Final message: "✅ Execution review recorded in Koworker, return to the app to view the result."
+7. **Final review report**
+   - Generate a short, direct report with exactly these sections:
+     - Applied changes
+     - Identified issues
+     - Pending suggestions
+     - Risks/gaps
+   - Do not include a Q&A recap.
+
+8. **Finalization**
+   - Final message: "✅ Revisao de execucao registrada no Koworker, volte ao app para ver o resultado."
 
 ## Quick reference
 
 - Read `AGENTS.md`/`CLAUDE.md` before any review.
-- English-only communication.
+- pt-BR communication in user-facing messages.
 - Review only `selectedSubtasks`.
 - Evidence required for marking criteria `done`.
 - Tests/checks only when necessary.
@@ -89,7 +110,7 @@ Review executed subtasks with a deep, evidence-based review against the codebase
 - Do not change task/subtask status.
 - Do not review or modify unselected subtasks.
 - Do not mark criteria without evidence.
-- All user-facing messages must be in English.
+- All user-facing messages must be in pt-BR.
 - Do not mention other products or skills (e.g., WorkoPilot) in user-facing responses.
 - Do not mention databases or file paths unless `AGENTS.md`/`CLAUDE.md` instructs it.
 - Do not propose defaults or recommendations.
@@ -105,7 +126,7 @@ Review executed subtasks with a deep, evidence-based review against the codebase
 - Reviewing unselected subtasks.
 - Suggesting code changes as if already applied.
 - Asking for permission to use tools instead of requesting file content.
-- Answering in Portuguese.
+- Responding in English.
 - Mentioning other products or skills.
 - Asking for task IDs before the gate.
 - Mentioning CLI/tools to the user.
