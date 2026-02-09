@@ -39,6 +39,23 @@ Artefatos finais ficam em `src-tauri/target/release/bundle/`.
 
 ## Atualizar e rebuildar do remoto
 
+Comando principal (global e interativo):
+
+```bash
+bun run deploy
+```
+
+Esse comando:
+
+1. Faz `git fetch origin --prune`
+2. Usa `origin/master` (ou fallback para `origin/main`)
+3. Pergunta o tipo de bump de versao (`patch`, `minor`, `major`)
+4. Gera build desktop com a versao nova
+5. Atualiza o app instalado no sistema (via pacote quando disponivel ou via `~/.local/bin/kowork`)
+6. Salva artefatos em `releases/linux/<branch>-<sha>-<versao>-<timestamp>/`
+
+Comando legado de update/build:
+
 ```bash
 bun run desktop:update
 ```
@@ -51,6 +68,11 @@ Esse comando:
 4. Instala dependências e gera o build desktop
 5. Copia os artefatos para `releases/linux/<branch>-<sha>-<timestamp>/`
 6. Atualiza o atalho `releases/linux/latest`
+
+## Atalho global de abrir app
+
+- Desenvolvimento: `Alt+O`
+- Produção: `Alt+P`
 
 ## Inicialização com o desktop
 

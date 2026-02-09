@@ -65,6 +65,15 @@ export function hideWindow(): void {
 	safeInvoke("hide_window");
 }
 
+export async function openDevtools(): Promise<boolean> {
+	if (!isTauri()) {
+		return false;
+	}
+
+	const result = await safeInvoke<boolean>("open_devtools");
+	return result ?? false;
+}
+
 export async function startWindowDrag(e: React.MouseEvent): Promise<void> {
 	// Only drag if left-clicking on nav area (not on links/buttons)
 	if (

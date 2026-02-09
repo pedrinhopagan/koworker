@@ -25,7 +25,17 @@ run(["bun", "x", "@tailwindcss/cli", "-i", "src/index.css", "-o", "dist/index.cs
 
 const sourceIndexPath = join(rootDir, "src/index.html");
 const sourceIndex = await readFile(sourceIndexPath, "utf8");
-const builtIndex = sourceIndex.replace("./main.tsx", "./main.js");
+const packageJson = JSON.parse(await readFile(join(rootDir, "package.json"), "utf8")) as {
+	version?: string;
+};
+const appVersion = packageJson.version || "0.0.0";
+const builtIndex = sourceIndex
+	.replace("./main.tsx", "./main.js")
+	.replace('window.__KOWORK_ENV__ = "development";', 'window.__KOWORK_ENV__ = "production";')
+	.replace(
+		'window.__KOWORK_APP_VERSION__ = "dev";',
+		`window.__KOWORK_APP_VERSION__ = "${appVersion}";`,
+	);
 
 await writeFile(join(distDir, "index.html"), builtIndex);
 await cp(join(rootDir, "static"), join(distDir, "static"), { recursive: true });

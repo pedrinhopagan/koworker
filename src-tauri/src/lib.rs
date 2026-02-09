@@ -22,6 +22,7 @@ pub fn run() {
             commands::toggle_window,
             commands::pick_project_folder,
             commands::open_folder,
+            commands::open_devtools,
             terminal::open_terminal_for_task,
             terminal::open_terminal_for_route,
             terminal::close_project_session,
@@ -32,11 +33,17 @@ pub fn run() {
         .setup(|app| {
             backend::start(app.handle());
             if let Err(error) = autostart::ensure_enabled(app.handle()) {
-                eprintln!("[KOWORK] Falha ao configurar inicializacao automatica: {}", error);
+                eprintln!(
+                    "[KOWORK] Falha ao configurar inicializacao automatica: {}",
+                    error
+                );
             }
             shortcut::register(app.handle())?;
             tray::setup(app)?;
-            eprintln!("[KOWORK] Setup completo. Atalho: Alt+O");
+            eprintln!(
+                "[KOWORK] Setup completo. Atalho: {}",
+                shortcut::toggle_shortcut_label()
+            );
             Ok(())
         })
         .build(tauri::generate_context!())

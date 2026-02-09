@@ -15,7 +15,7 @@ export const router = {
 	auth: {
 		login: publicProcedure
 			.input(EndpointSchemas.authLogin)
-			.handler(({ input, context }) => Auth.login(input, context.resHeaders)),
+			.handler(({ input, context }) => Auth.login(input, context.resHeaders, context.reqHeaders)),
 
 		logout: protectedProcedure.handler(({ context }) => Auth.logout(context.resHeaders)),
 

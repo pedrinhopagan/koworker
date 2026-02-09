@@ -110,7 +110,14 @@ export function SubtaskItem({
 	}
 
 	return (
-		<div className={styles.root()}>
+		<label
+			className={styles.root()}
+			htmlFor={
+				selectionMode
+					? `${subtask.id}child-subtask-multi-select-checkbox`
+					: `${subtask.id}-child-subtask-accordion-expand-button`
+			}
+		>
 			<div className={cn(styles.row(), expanded ? "border-border" : "border-transparent")}>
 				{selectionMode ? (
 					<span className={styles.checkbox()} aria-hidden>
@@ -128,6 +135,7 @@ export function SubtaskItem({
 				)}
 
 				<button
+					id={`${subtask.id}-child-subtask-accordion-expand-button`}
 					type="button"
 					onClick={handleToggleDetails}
 					disabled={disabled}
@@ -143,6 +151,7 @@ export function SubtaskItem({
 				{selectionMode ? (
 					<span className="p-1 shrink-0">
 						<Checkbox
+							id={`${subtask.id}child-subtask-multi-select-checkbox`}
 							size="sm"
 							checked={isSelected}
 							onCheckedChange={handleSelectionChange}
@@ -186,7 +195,7 @@ export function SubtaskItem({
 					</div>
 				</div>
 			)}
-		</div>
+		</label>
 	);
 }
 
@@ -221,7 +230,7 @@ export function ParentTaskSelectionRow({
 	}
 
 	return (
-		<div className={styles.root()}>
+		<label className={styles.root()} htmlFor="parent-subtask-multi-select-checkbox">
 			<div
 				className={cn(
 					styles.row(),
@@ -243,6 +252,7 @@ export function ParentTaskSelectionRow({
 				</div>
 				<span className="p-1 shrink-0">
 					<Checkbox
+						id="parent-subtask-multi-select-checkbox"
 						size="sm"
 						checked={selected}
 						onCheckedChange={handleToggle}
@@ -252,6 +262,6 @@ export function ParentTaskSelectionRow({
 					/>
 				</span>
 			</div>
-		</div>
+		</label>
 	);
 }

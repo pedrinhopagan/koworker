@@ -9,6 +9,7 @@ import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-
 import { RefreshCw, Settings, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { tv } from "tailwind-variants";
+import { getAppEnv } from "@/lib/env";
 import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +64,7 @@ export function TabBar() {
 	const routerState = useRouterState();
 	const currentPath = location.pathname;
 	const [refreshingPageData, setRefreshingPageData] = useState(false);
+	const toggleShortcutLabel = getAppEnv() === "production" ? "Alt+P" : "Alt+O";
 
 	// Keyboard navigation: Alt+1-5 for tabs, Alt+0 for settings
 	useEffect(() => {
@@ -169,7 +171,7 @@ export function TabBar() {
 					type="button"
 					onClick={hideWindow}
 					className={iconButton({ danger: true })}
-					title="Esconder (Alt+O para mostrar)"
+					title={`Esconder (${toggleShortcutLabel} para mostrar)`}
 				>
 					<X size={16} />
 				</button>

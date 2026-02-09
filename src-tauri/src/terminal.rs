@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
@@ -188,20 +189,26 @@ fn send_command_to_tmux(
 }
 
 fn spawn_alacritty_with_tmux(session_name: &str, title: &str) -> Result<u32, String> {
-    let child = Command::new("alacritty")
-        .args([
-            "--title",
-            title,
-            "-e",
-            "tmux",
-            "attach-session",
-            "-t",
-            session_name,
-        ])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|e| format!("Falha ao abrir alacritty: {}", e))?;
+    let child = unsafe {
+        Command::new("alacritty")
+            .args([
+                "--title",
+                title,
+                "-e",
+                "tmux",
+                "attach-session",
+                "-t",
+                session_name,
+            ])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .pre_exec(|| {
+                libc::setsid();
+                Ok(())
+            })
+            .spawn()
+    }
+    .map_err(|e| format!("Falha ao abrir alacritty: {}", e))?;
 
     Ok(child.id())
 }

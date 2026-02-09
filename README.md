@@ -76,6 +76,12 @@ Build desktop Linux:
 bun run desktop:build
 ```
 
+Deploy global (build da master + bump de versao interativo + atualizacao do app instalado):
+
+```bash
+bun run deploy
+```
+
 Atualizar do remoto (`origin/master` com fallback para `origin/main`) e rebuildar executavel:
 
 ```bash

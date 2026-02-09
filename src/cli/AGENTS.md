@@ -2,7 +2,7 @@
 
 ## OBJETIVO
 
-Atualizar tasks/subtasks diretamente no SQLite sem passar pela API. Usado por AI Coding Agents.
+Ler e atualizar tasks/subtasks diretamente no SQLite sem passar pela API. Usado por AI Coding Agents.
 
 ## ESTRUTURA
 
@@ -12,6 +12,7 @@ cli/
 ├── db.ts                # Conexão Kysely direta
 └── commands/
     ├── create-task.ts   # Criação de task/subtasks
+    ├── read-task.ts     # Leitura completa de task (JSON output)
     ├── update-task.ts   # Atualização de task/subtasks
     └── schemas.ts       # Schemas/enums compartilhados
 ```
@@ -58,6 +59,18 @@ Notas:
 - `categoryId` ou `categoryName` é obrigatório
 - `priorityId` ou `priorityName` é obrigatório
 
+### read-task
+
+Recebe JSON com campos:
+
+```typescript
+{
+  taskId: string          // obrigatório
+}
+```
+
+Retorna JSON completo da task com projeto, categoria, prioridade, criterios de aceite e subtasks. Usado quando a IA precisa de dados completos do DB que nao foram enviados no prompt.
+
 ### update-task
 
 Recebe JSON com campos:
@@ -91,6 +104,7 @@ Notas:
 
 ```bash
 kowork create-task '{"title": "Auditoria Kowork", "projectName": "Kowork", "categoryName": "doc", "priorityName": "Media"}'
+kowork read-task '{"taskId": "uuid"}'
 kowork update-task '{"taskId": "uuid", "status": "executed"}'
 ```
 

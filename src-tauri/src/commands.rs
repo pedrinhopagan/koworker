@@ -1,6 +1,6 @@
 use rfd::FileDialog;
 use std::process::Command;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use crate::window;
 
@@ -59,4 +59,14 @@ pub fn pick_project_folder(start_in: Option<String>) -> Option<String> {
     dialog
         .pick_folder()
         .map(|path| path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn open_devtools(app: AppHandle) -> bool {
+    let Some(window) = app.get_webview_window("main") else {
+        return false;
+    };
+
+    window.open_devtools();
+    true
 }
