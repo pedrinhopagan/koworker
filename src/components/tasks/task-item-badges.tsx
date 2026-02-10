@@ -54,7 +54,7 @@ export function TaskItemBadges({
 	const showDotIndicator = statusPresentation.indicator === "dot";
 
 	return (
-		<div className="flex flex-1 self-end justify-end shrink-0 items-center gap-2">
+		<div className="flex shrink-0 justify-end items-center gap-2">
 			{isTauri() && isTerminalOpen && (
 				<span title="Terminal ativo">
 					<Terminal size={14} className="text-green-500" />

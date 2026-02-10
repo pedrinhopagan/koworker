@@ -16,7 +16,7 @@ import type { TaskWithMeta } from "@/types/tasks";
 import { type AgendaTaskItemVariant, TaskItemAgendaVariant } from "./task-item-agenda-variant";
 
 const taskItemVariants = tv({
-	base: "flex items-center justify-between gap-4 border border-transparent bg-card transition-all duration-200 hover:border-border hover:bg-secondary/30 animate-fade-in w-full truncate",
+	base: "flex items-center justify-between gap-4 border border-transparent bg-card transition-all duration-200 hover:border-border hover:bg-secondary/30 animate-fade-in w-full min-w-0 overflow-hidden",
 	variants: {
 		variant: {
 			default: "px-3 py-2",
