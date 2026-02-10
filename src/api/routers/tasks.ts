@@ -16,8 +16,10 @@ import {
 	TaskListByProjectSchema,
 	TaskListByWeekSchema,
 	TaskMetricsSchema,
+	TaskSetVisualStateSchema,
 	TaskUpdateSchema,
 } from "../schemas";
+import type { VisualState } from "../schemas/tasks";
 
 const mapSubtask = (row: subtasks) => ({
 	id: row.id,
@@ -51,6 +53,139 @@ const mapTask = (row: tasks, input?: { subtasks?: subtasks[] }) => ({
 	deletedAt: row.deleted_at ?? undefined,
 	subtasks: input?.subtasks ? input.subtasks.map(mapSubtask) : undefined,
 });
+
+async function applyVisualStateTransition(
+	taskId: string,
+	targetState: VisualState,
+	task: tasks,
+	subtaskRows: subtasks[],
+) {
+	const currentAiMetadata = jsonParse<Record<string, unknown>>(task.ai_metadata) ?? {};
+
+	switch (targetState) {
+		case "idle": {
+			await dbTasks.update({
+				id: taskId,
+				status: "pending",
+				completed_at: null,
+				ai_metadata: jsonStringify({ ...currentAiMetadata, lastCompletedAction: null }),
+				description: undefined,
+			});
+			for (const st of subtaskRows) {
+				await dbSubtasks.delete(st.id);
+			}
+			break;
+		}
+
+		case "started": {
+			await dbTasks.update({
+				id: taskId,
+				status: "pending",
+				completed_at: null,
+				description: task.description || "Tarefa iniciada",
+			});
+			for (const st of subtaskRows) {
+				await dbSubtasks.delete(st.id);
+			}
+			break;
+		}
+
+		case "ready-to-start": {
+			await dbTasks.update({
+				id: taskId,
+				status: "pending",
+				completed_at: null,
+			});
+			if (subtaskRows.length === 0) {
+				await dbSubtasks.create({
+					id: crypto.randomUUID(),
+					task_id: taskId,
+					title: "Subtask pendente",
+					status: "pending",
+				});
+			} else {
+				for (const st of subtaskRows) {
+					await dbSubtasks.update({ id: st.id, status: "pending", completed_at: null });
+				}
+			}
+			break;
+		}
+
+		case "in-execution": {
+			await dbTasks.update({
+				id: taskId,
+				status: "in_execution",
+				completed_at: null,
+			});
+			break;
+		}
+
+		case "ready-to-review": {
+			await dbTasks.update({
+				id: taskId,
+				status: "pending",
+				completed_at: null,
+				ai_metadata: jsonStringify({ ...currentAiMetadata, lastCompletedAction: null }),
+			});
+			if (subtaskRows.length === 0) {
+				await dbSubtasks.create({
+					id: crypto.randomUUID(),
+					task_id: taskId,
+					title: "Subtask executada",
+					status: "executed",
+					completed_at: Date.now(),
+				});
+			} else {
+				for (const st of subtaskRows) {
+					await dbSubtasks.update({
+						id: st.id,
+						status: "executed",
+						completed_at: st.completed_at ?? Date.now(),
+					});
+				}
+			}
+			break;
+		}
+
+		case "ready-to-commit": {
+			await dbTasks.update({
+				id: taskId,
+				status: "pending",
+				completed_at: null,
+				ai_metadata: jsonStringify({
+					...currentAiMetadata,
+					lastCompletedAction: "review_execution",
+				}),
+			});
+			if (subtaskRows.length === 0) {
+				await dbSubtasks.create({
+					id: crypto.randomUUID(),
+					task_id: taskId,
+					title: "Subtask executada",
+					status: "executed",
+					completed_at: Date.now(),
+				});
+			} else {
+				for (const st of subtaskRows) {
+					await dbSubtasks.update({
+						id: st.id,
+						status: "executed",
+						completed_at: st.completed_at ?? Date.now(),
+					});
+				}
+			}
+			break;
+		}
+
+		case "done": {
+			await dbTasks.update({
+				id: taskId,
+				completed_at: Date.now(),
+			});
+			break;
+		}
+	}
+}
 
 export const tasksRouter = {
 	metrics: protectedProcedure.input(TaskMetricsSchema).handler(async ({ input }) => {
@@ -231,6 +366,37 @@ export const tasksRouter = {
 			});
 		}
 		return row ? mapTask(row) : null;
+	}),
+
+	setVisualState: protectedProcedure.input(TaskSetVisualStateSchema).handler(async ({ input }) => {
+		const { id, targetState } = input;
+
+		const row = await dbTasks.getById(id);
+		if (!row) return null;
+
+		const subtaskRows = await dbSubtasks.listByTask(id);
+
+		await applyVisualStateTransition(id, targetState, row, subtaskRows);
+
+		const updatedRow = await dbTasks.getById(id);
+		if (updatedRow) {
+			await PubSub.publish("tasks", updatedRow.project_id, {
+				taskId: updatedRow.id,
+				projectId: updatedRow.project_id,
+				action: "updated",
+				source: "api",
+			});
+			await PubSub.publish("tasks", "global", {
+				taskId: updatedRow.id,
+				projectId: updatedRow.project_id,
+				action: "updated",
+				source: "api",
+			});
+
+			const updatedSubtasks = await dbSubtasks.listByTask(id);
+			return mapTask(updatedRow, { subtasks: updatedSubtasks });
+		}
+		return null;
 	}),
 
 	remove: protectedProcedure.input(TaskIdSchema).handler(async ({ input }) => {

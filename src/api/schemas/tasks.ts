@@ -129,6 +129,24 @@ export const TaskUpdateSchema = z.object({
 	completedAt: z.number().int().nullable().optional(),
 });
 
+export const VisualStateSchema = z.enum([
+	"idle",
+	"started",
+	"ready-to-start",
+	"in-execution",
+	"ready-to-review",
+	"ready-to-commit",
+	"done",
+]);
+
+export const TaskSetVisualStateSchema = z.object({
+	id: z.string().trim().min(1),
+	targetState: VisualStateSchema,
+});
+
+export type TaskSetVisualStateInput = z.infer<typeof TaskSetVisualStateSchema>;
+export type VisualState = z.infer<typeof VisualStateSchema>;
+
 export type TaskCreateInput = z.infer<typeof TaskCreateSchema>;
 export type TaskUpdateInput = z.infer<typeof TaskUpdateSchema>;
 

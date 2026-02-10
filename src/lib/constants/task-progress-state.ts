@@ -40,13 +40,13 @@ export const PROGRESS_STATE_LABELS: Record<TaskProgressState, string> = {
  */
 export const PROGRESS_STATE_PRIORITY: Record<TaskProgressState, number> = {
 	"in-execution": 1,
+	"ai-working": 1,
 	"ready-to-start": 2,
 	"ready-to-review": 3,
 	"ready-to-commit": 4,
-	"ai-working": 5,
-	started: 6,
-	idle: 7,
-	done: 8,
+	started: 5,
+	idle: 6,
+	done: 7,
 };
 
 /**

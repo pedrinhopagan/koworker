@@ -8,10 +8,12 @@ export type {
 export { InlineTaskCreateForm } from "./InlineTaskCreateForm";
 export type { Priority, PriorityChipProps, PrioritySelectProps } from "./PrioritySelect";
 export { PriorityChip, PrioritySelect } from "./PrioritySelect";
-export type { SubtaskItemVariants } from "./SubtaskItem";
-export { SubtaskItem } from "./SubtaskItem";
+export type { StatusSelectProps } from "./StatusSelect";
+export { StatusSelect } from "./StatusSelect";
 export { SubtaskDetailItem } from "./SubtaskDetailItem";
 export { SubtaskDetailList } from "./SubtaskDetailList";
+export type { SubtaskItemVariants } from "./SubtaskItem";
+export { SubtaskItem } from "./SubtaskItem";
 export type { SubtaskListVariants } from "./SubtaskList";
 export { SubtaskList } from "./SubtaskList";
 export type { TaskItemVariant } from "./TaskItem";

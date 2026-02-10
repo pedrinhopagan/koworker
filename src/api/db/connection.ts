@@ -116,6 +116,11 @@ const database = new Database({
 	},
 });
 
+import { sql } from "kysely";
+
+sql`PRAGMA journal_mode = WAL`.execute(database.kysely);
+sql`PRAGMA busy_timeout = 5000`.execute(database.kysely);
+
 export const db = database.kysely;
 
 export type DB = typeof database.infer;

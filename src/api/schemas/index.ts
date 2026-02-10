@@ -45,6 +45,7 @@ export {
 	TaskListByProjectSchema,
 	TaskListByWeekSchema,
 	TaskMetricsSchema,
+	TaskSetVisualStateSchema,
 	TaskStatusSchema,
 	TaskUpdateSchema,
 } from "./tasks";

@@ -31,18 +31,18 @@ export function PageShell({
 	const isGrid = variant === "grid";
 
 	return (
-		<div className="flex flex-col min-h-0 py-2 w-full h-full overflow-hidden">
+		<div className="flex flex-col min-h-0 w-full h-full overflow-hidden">
 			{header && <>{header}</>}
 			{!header && (
 				<div
 					className={cn(
-						"mb-4 px-4 flex flex-wrap items-center justify-between gap-4 border-b border-border pb-3",
+						"mb-4 px-4 flex flex-wrap items-center justify-between gap-4 border-b border-border py-2",
 						headerClassName,
 					)}
 				>
 					<div className="flex items-center gap-3 ">
 						{icon && <Icon icon={icon} color="var(--project-accent, var(--primary))" size="md" />}
-						<div className="space-y-1">
+						<div className="">
 							<Title size="md">{title}</Title>
 							{description && (
 								<Text size="sm" tone="muted">

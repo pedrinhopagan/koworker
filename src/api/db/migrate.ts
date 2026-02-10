@@ -85,6 +85,8 @@ function deduplicateNamedEntities(
 export function ensureDbSchema() {
 	const dbPath = envVariables.DATABASE_URL;
 	const sqlite = new Database(dbPath);
+	sqlite.run("PRAGMA journal_mode = WAL");
+	sqlite.run("PRAGMA busy_timeout = 5000");
 
 	// projects
 	{
