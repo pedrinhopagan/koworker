@@ -30,28 +30,15 @@ fn server_script() -> Option<PathBuf> {
     script.exists().then_some(script)
 }
 
-fn release_backend_binary(app: &AppHandle) -> Option<PathBuf> {
-    let mut candidates = Vec::new();
+fn release_backend_binary() -> Option<(PathBuf, PathBuf)> {
+    let binary = PathBuf::from("/home/pedro/.local/lib/kowork/bin/kowork-backend");
+    let dist_dir = PathBuf::from("/home/pedro/.local/share/com.pedro.kowork/dist");
 
-    if let Ok(path) = app
-        .path()
-        .resolve("bin/kowork-backend", BaseDirectory::Resource)
-    {
-        candidates.push(path);
+    if binary.exists() && dist_dir.exists() {
+        return Some((binary, dist_dir));
     }
 
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        candidates.push(resource_dir.join("bin/kowork-backend"));
-    }
-
-    if let Ok(executable) = std::env::current_exe() {
-        if let Some(parent) = executable.parent() {
-            candidates.push(parent.join("bin/kowork-backend"));
-            candidates.push(parent.join("../lib/kowork/bin/kowork-backend"));
-        }
-    }
-
-    candidates.into_iter().find(|path| path.exists())
+    None
 }
 
 fn runtime_dir(app: &AppHandle) -> Option<PathBuf> {
@@ -129,18 +116,22 @@ fn spawn_dev_backend() -> Option<Child> {
 }
 
 fn spawn_release_backend(app: &AppHandle) -> Option<Child> {
-    let binary = release_backend_binary(app)?;
+    let (binary, dist_dir) = release_backend_binary()?;
+
     ensure_executable(&binary);
 
     let runtime_dir = runtime_dir(app)?;
     let db_path = runtime_dir.join("kowork.db");
     let secret = jwt_secret(&runtime_dir)?;
 
-    let child = Command::new(binary)
-        .current_dir(&runtime_dir)
-        .env("DATABASE_URL", db_path)
-        .env("JWT_SECRET", secret)
+    let dist_dir_str = dist_dir.to_string_lossy().to_string();
+
+    let child = Command::new(&binary)
+        .current_dir(runtime_dir.clone())
+        .env("DATABASE_URL", &db_path)
+        .env("JWT_SECRET", &secret)
         .env("NODE_ENV", "production")
+        .env("KOWORK_DIST_DIR", &dist_dir_str)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit())

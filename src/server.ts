@@ -7,6 +7,31 @@ import { DbUsers } from "./api/db/users";
 import { PubSub, type TerminalEvent, type TerminalEventType } from "./api/pubsub";
 import homepage from "./index.html";
 
+const isProduction = process.env.NODE_ENV === "production";
+const distDir = process.env.KOWORK_DIST_DIR ?? (isProduction ? "./dist" : null);
+
+async function serveStatic(pathname: string) {
+	if (!distDir) return null;
+
+	const cleanPath = pathname.startsWith("/") ? pathname.slice(1) : pathname;
+	const fullPath = `${distDir}/${cleanPath}`.replaceAll(/\/+/g, "/");
+	const filePath = Bun.file(fullPath);
+	const exists = await filePath.exists();
+
+	if (!exists && pathname !== "/") {
+		const indexPath = Bun.file(`${distDir}/index.html`);
+		const indexExists = await indexPath.exists();
+		if (indexExists) {
+			return new Response(indexPath, {
+				headers: { "Content-Type": "text/html" },
+			});
+		}
+		return null;
+	}
+
+	return new Response(filePath);
+}
+
 const port = 3000;
 
 interface WsData {
@@ -82,7 +107,14 @@ Bun.serve<WsData>({
 				return new Response("WebSocket upgrade failed", { status: 500 });
 			}
 		},
-		"/*": homepage,
+		"/*": distDir
+			? async (request) => {
+					const url = new URL(request.url);
+					const staticResponse = await serveStatic(url.pathname);
+					if (staticResponse) return staticResponse;
+					return new Response("Not Found", { status: 404 });
+				}
+			: homepage,
 	},
 	websocket: {
 		message(ws, message) {
