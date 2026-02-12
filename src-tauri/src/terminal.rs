@@ -46,13 +46,23 @@ pub struct TerminalEvent {
     pub window_name: Option<String>,
 }
 
-fn session_name_for_project(project_id: &str) -> String {
-    let short_id = if project_id.len() >= 8 {
-        &project_id[..8]
+fn session_name_for_project(project_name: &str) -> String {
+    let slug: String = project_name
+        .split_whitespace()
+        .next()
+        .unwrap_or("projeto")
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+        .collect::<String>()
+        .to_lowercase();
+
+    let slug = if slug.is_empty() {
+        "projeto".to_string()
     } else {
-        project_id
+        slug
     };
-    format!("kowork_{}", short_id)
+
+    format!("kw_{}", slug)
 }
 
 fn window_name_for_task(task_id: &str, task_title: &str) -> String {
@@ -391,10 +401,15 @@ pub fn open_terminal_for_task(
     task_title: String,
     model: String,
     prompt: Option<String>,
+    force_new: Option<bool>,
+    background: Option<bool>,
 ) -> Result<OpenTerminalResult, String> {
-    let session_name = session_name_for_project(&project_id);
+    let session_name = session_name_for_project(&project_name);
     let window_name = window_name_for_task(&task_id, &task_title);
     let terminal_title = format!("{} - Kowork", project_name);
+
+    let force_new = force_new.unwrap_or(false);
+    let background = background.unwrap_or(false);
 
     let mut is_new_session = false;
     let mut is_new_window = false;
@@ -403,11 +418,13 @@ pub fn open_terminal_for_task(
         // Criar sessão já com o nome correto da window inicial
         create_tmux_session(&session_name, &main_route, &window_name)?;
 
-        spawn_alacritty_with_tmux(&session_name, &terminal_title)?;
+        if !background {
+            spawn_alacritty_with_tmux(&session_name, &terminal_title)?;
+            std::thread::sleep(Duration::from_millis(500));
+        }
+
         is_new_session = true;
         is_new_window = true;
-
-        std::thread::sleep(Duration::from_millis(500));
 
         notify_backend(&TerminalEvent {
             event_type: "session_opened".to_string(),
@@ -425,15 +442,8 @@ pub fn open_terminal_for_task(
             window_name: Some(window_name.clone()),
         });
     } else {
-        if !terminal_process_exists_for_session(&session_name) {
-            spawn_alacritty_with_tmux(&session_name, &terminal_title)?;
-            std::thread::sleep(Duration::from_millis(300));
-        }
-
-        focus_terminal_window(&project_name)?;
-
-        // Se a window da task não existe, criar nova
-        if !tmux_window_exists(&session_name, &window_name) {
+        // Se force_new, sempre criar nova window
+        if force_new || !tmux_window_exists(&session_name, &window_name) {
             create_tmux_window(&session_name, &window_name, &main_route)?;
             is_new_window = true;
 
@@ -445,9 +455,17 @@ pub fn open_terminal_for_task(
                 window_name: Some(window_name.clone()),
             });
         }
-    }
 
-    select_tmux_window(&session_name, &window_name)?;
+        if !background {
+            if !terminal_process_exists_for_session(&session_name) {
+                spawn_alacritty_with_tmux(&session_name, &terminal_title)?;
+                std::thread::sleep(Duration::from_millis(300));
+            }
+
+            focus_terminal_window(&project_name)?;
+            select_tmux_window(&session_name, &window_name)?;
+        }
+    }
 
     if let Some(prompt_text) = prompt {
         let escaped_prompt = prompt_text
@@ -492,10 +510,15 @@ pub fn open_terminal_for_route(
     route_name: String,
     route_path: String,
     command: Option<String>,
+    force_new: Option<bool>,
+    background: Option<bool>,
 ) -> Result<OpenTerminalResult, String> {
-    let session_name = session_name_for_project(&project_id);
+    let session_name = session_name_for_project(&project_name);
     let window_name = sanitize_route_name(&route_name);
     let terminal_title = format!("{} - Kowork", project_name);
+
+    let force_new = force_new.unwrap_or(false);
+    let background = background.unwrap_or(false);
 
     let mut is_new_session = false;
     let mut is_new_window = false;
@@ -503,11 +526,13 @@ pub fn open_terminal_for_route(
     if !tmux_session_exists(&session_name) {
         create_tmux_session(&session_name, &route_path, &window_name)?;
 
-        spawn_alacritty_with_tmux(&session_name, &terminal_title)?;
+        if !background {
+            spawn_alacritty_with_tmux(&session_name, &terminal_title)?;
+            std::thread::sleep(Duration::from_millis(500));
+        }
+
         is_new_session = true;
         is_new_window = true;
-
-        std::thread::sleep(Duration::from_millis(500));
 
         notify_backend(&TerminalEvent {
             event_type: "session_opened".to_string(),
@@ -525,39 +550,41 @@ pub fn open_terminal_for_route(
             window_name: Some(window_name.clone()),
         });
     } else {
-        if !terminal_process_exists_for_session(&session_name) {
-            spawn_alacritty_with_tmux(&session_name, &terminal_title)?;
-            std::thread::sleep(Duration::from_millis(300));
-        }
+        let window_exists = tmux_window_exists(&session_name, &window_name);
 
-        focus_terminal_window(&project_name)?;
+        // Se force_new, sempre criar nova window
+        if force_new || !window_exists {
+            if window_exists && force_new {
+                let target = format!("{}:{}", session_name, window_name);
+                let _ = Command::new("tmux")
+                    .args(["kill-window", "-t", &target])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+            }
 
-        if tmux_window_exists(&session_name, &window_name) {
-            select_tmux_window(&session_name, &window_name)?;
-            update_known_session(&project_id, &session_name, &route_id, &window_name);
-            start_session_monitor();
+            create_tmux_window(&session_name, &window_name, &route_path)?;
+            is_new_window = true;
 
-            return Ok(OpenTerminalResult {
-                session_name,
-                window_name,
-                is_new_session: false,
-                is_new_window: false,
+            notify_backend(&TerminalEvent {
+                event_type: "route_opened".to_string(),
+                project_id: project_id.clone(),
+                task_id: Some(route_id.clone()),
+                session_name: session_name.clone(),
+                window_name: Some(window_name.clone()),
             });
         }
 
-        create_tmux_window(&session_name, &window_name, &route_path)?;
-        is_new_window = true;
+        if !background {
+            if !terminal_process_exists_for_session(&session_name) {
+                spawn_alacritty_with_tmux(&session_name, &terminal_title)?;
+                std::thread::sleep(Duration::from_millis(300));
+            }
 
-        notify_backend(&TerminalEvent {
-            event_type: "route_opened".to_string(),
-            project_id: project_id.clone(),
-            task_id: Some(route_id.clone()),
-            session_name: session_name.clone(),
-            window_name: Some(window_name.clone()),
-        });
+            focus_terminal_window(&project_name)?;
+            select_tmux_window(&session_name, &window_name)?;
+        }
     }
-
-    select_tmux_window(&session_name, &window_name)?;
 
     if let Some(cmd) = command {
         if !cmd.trim().is_empty() {
@@ -577,8 +604,8 @@ pub fn open_terminal_for_route(
 }
 
 #[tauri::command(rename_all = "camelCase")]
-pub fn close_project_session(project_id: String) -> Result<(), String> {
-    let session_name = session_name_for_project(&project_id);
+pub fn close_project_session(project_id: String, project_name: String) -> Result<(), String> {
+    let session_name = session_name_for_project(&project_name);
 
     if tmux_session_exists(&session_name) {
         let status = Command::new("tmux")
@@ -609,10 +636,11 @@ pub fn close_project_session(project_id: String) -> Result<(), String> {
 #[tauri::command(rename_all = "camelCase")]
 pub fn close_task_window(
     project_id: String,
+    project_name: String,
     task_id: String,
     task_title: String,
 ) -> Result<(), String> {
-    let session_name = session_name_for_project(&project_id);
+    let session_name = session_name_for_project(&project_name);
     let window_name = window_name_for_task(&task_id, &task_title);
 
     if tmux_session_exists(&session_name) && tmux_window_exists(&session_name, &window_name) {
@@ -657,8 +685,8 @@ pub fn get_active_sessions() -> Result<Vec<SessionInfo>, String> {
 }
 
 #[tauri::command(rename_all = "camelCase")]
-pub fn check_session_exists(project_id: String) -> bool {
-    let session_name = session_name_for_project(&project_id);
+pub fn check_session_exists(project_name: String) -> bool {
+    let session_name = session_name_for_project(&project_name);
     tmux_session_exists(&session_name)
 }
 

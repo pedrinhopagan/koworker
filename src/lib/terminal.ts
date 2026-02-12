@@ -247,11 +247,188 @@ export async function openProjectRoute(params: {
 	}
 }
 
+export async function runTerminalInBackground(
+	project: ProjectInfo,
+	task: TaskInfo,
+	options: OpenTerminalOptions = {},
+): Promise<TerminalResult> {
+	const { showToast = true } = options;
+
+	if (!isTauri()) {
+		const message = "Terminal disponível apenas no app desktop";
+		if (showToast) toast.warning(message);
+		return { success: false, message };
+	}
+
+	try {
+		const result = await openTerminalForTask({
+			projectId: project.id,
+			projectName: project.name,
+			mainRoute: project.mainRoute,
+			taskId: task.id,
+			taskTitle: task.title,
+			model: DEFAULT_MODEL,
+			background: true,
+		});
+
+		if (!result) {
+			const message = "Falha ao executar em background";
+			if (showToast) toast.error(message);
+			return { success: false, message };
+		}
+
+		const message = `Executando em background: ${task.title}`;
+		if (showToast) toast.success(message);
+		return { success: true, message, result };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "Erro ao executar em background";
+		if (showToast) toast.error(message);
+		return { success: false, message };
+	}
+}
+
+export async function forceNewTerminalTab(
+	project: ProjectInfo,
+	task: TaskInfo,
+	options: OpenTerminalOptions = {},
+): Promise<TerminalResult> {
+	const { showToast = true } = options;
+
+	if (!isTauri()) {
+		const message = "Terminal disponível apenas no app desktop";
+		if (showToast) toast.warning(message);
+		return { success: false, message };
+	}
+
+	try {
+		const result = await openTerminalForTask({
+			projectId: project.id,
+			projectName: project.name,
+			mainRoute: project.mainRoute,
+			taskId: task.id,
+			taskTitle: task.title,
+			model: DEFAULT_MODEL,
+			forceNew: true,
+		});
+
+		if (!result) {
+			const message = "Falha ao abrir nova tab";
+			if (showToast) toast.error(message);
+			return { success: false, message };
+		}
+
+		const message = `Nova tab aberta: ${task.title}`;
+		if (showToast) toast.success(message);
+		return { success: true, message, result };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "Erro ao abrir nova tab";
+		if (showToast) toast.error(message);
+		return { success: false, message };
+	}
+}
+
+export async function runRouteInBackground(
+	projectId: string,
+	projectName: string,
+	route: {
+		id: string;
+		name: string;
+		path: string;
+		command?: string;
+	},
+	options: OpenTerminalOptions = {},
+): Promise<TerminalResult> {
+	const { showToast = true } = options;
+
+	if (!isTauri()) {
+		const message = "Terminal disponível apenas no app desktop";
+		if (showToast) toast.warning(message);
+		return { success: false, message };
+	}
+
+	try {
+		const { invoke } = await import("@tauri-apps/api/core");
+
+		const result = await invoke<OpenTerminalResult>("open_terminal_for_route", {
+			projectId,
+			projectName,
+			routeId: route.id,
+			routeName: route.name,
+			routePath: route.path,
+			command: route.command,
+			background: true,
+		});
+
+		if (!result) {
+			const message = "Falha ao executar em background";
+			if (showToast) toast.error(message);
+			return { success: false, message };
+		}
+
+		const message = `Executando em background: ${route.name}`;
+		if (showToast) toast.success(message);
+		return { success: true, message, result };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "Erro ao executar em background";
+		if (showToast) toast.error(message);
+		return { success: false, message };
+	}
+}
+
+export async function forceNewRouteTab(
+	projectId: string,
+	projectName: string,
+	route: {
+		id: string;
+		name: string;
+		path: string;
+		command?: string;
+	},
+	options: OpenTerminalOptions = {},
+): Promise<TerminalResult> {
+	const { showToast = true } = options;
+
+	if (!isTauri()) {
+		const message = "Terminal disponível apenas no app desktop";
+		if (showToast) toast.warning(message);
+		return { success: false, message };
+	}
+
+	try {
+		const { invoke } = await import("@tauri-apps/api/core");
+
+		const result = await invoke<OpenTerminalResult>("open_terminal_for_route", {
+			projectId,
+			projectName,
+			routeId: route.id,
+			routeName: route.name,
+			routePath: route.path,
+			command: route.command,
+			forceNew: true,
+		});
+
+		if (!result) {
+			const message = "Falha ao abrir nova tab";
+			if (showToast) toast.error(message);
+			return { success: false, message };
+		}
+
+		const message = `Nova tab aberta: ${route.name}`;
+		if (showToast) toast.success(message);
+		return { success: true, message, result };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "Erro ao abrir nova tab";
+		if (showToast) toast.error(message);
+		return { success: false, message };
+	}
+}
+
 /**
  * Fecha o terminal inteiro de um projeto (todas as tabs).
  */
 export async function closeProjectTerminal(
 	projectId: string,
+	projectName: string,
 	options: OpenTerminalOptions = {},
 ): Promise<boolean> {
 	const { showToast = true } = options;
@@ -261,7 +438,7 @@ export async function closeProjectTerminal(
 	}
 
 	try {
-		const success = await tauriCloseProjectSession(projectId);
+		const success = await tauriCloseProjectSession(projectId, projectName);
 		if (showToast) {
 			if (success) {
 				toast.success("Terminal do projeto encerrado");
@@ -281,6 +458,7 @@ export async function closeProjectTerminal(
  */
 export async function closeTaskTerminal(
 	projectId: string,
+	projectName: string,
 	task: TaskInfo,
 	options: OpenTerminalOptions = {},
 ): Promise<boolean> {
@@ -291,7 +469,7 @@ export async function closeTaskTerminal(
 	}
 
 	try {
-		const success = await tauriCloseTaskWindow(projectId, task.id, task.title);
+		const success = await tauriCloseTaskWindow(projectId, projectName, task.id, task.title);
 		if (showToast) {
 			if (success) {
 				toast.success("Tab da tarefa encerrada");
@@ -343,15 +521,22 @@ export function handleOpenTerminal(params: {
 }
 
 /** @deprecated Use closeProjectTerminal */
-export function handleCloseProjectTerminal(projectId: string): Promise<boolean> {
-	return closeProjectTerminal(projectId);
+export function handleCloseProjectTerminal(
+	projectId: string,
+	projectName: string,
+): Promise<boolean> {
+	return closeProjectTerminal(projectId, projectName);
 }
 
 /** @deprecated Use closeTaskTerminal */
 export function handleCloseTaskWindow(
 	projectId: string,
+	projectName: string,
 	taskId: string,
 	taskTitle: string,
 ): Promise<boolean> {
-	return closeTaskTerminal(projectId, { id: taskId, title: taskTitle });
+	return closeTaskTerminal(projectId, projectName, {
+		id: taskId,
+		title: taskTitle,
+	});
 }

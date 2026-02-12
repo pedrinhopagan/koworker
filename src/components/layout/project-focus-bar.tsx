@@ -14,6 +14,7 @@ import { isTauri } from "@/lib/tauri";
 import { openProjectRoute, openProjectTerminal } from "@/lib/terminal";
 import { cn } from "@/lib/utils";
 import { useIsProjectTerminalOpen } from "@/stores/terminal-status";
+import { TerminalShortcutMenu } from "./terminal-shortcut-menu";
 
 const ALL_PROJECTS_ID = "__all_projects__";
 
@@ -68,43 +69,60 @@ function ProjectRouteActions({ projectId, project }: ProjectRouteActionsProps) {
 		<>
 			{isTauri() && (
 				<>
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={handleTerminalClick}
-						disabled={isOpeningTerminal}
-						className={cn(
-							"h-9 px-3 gap-2 transition-all",
-							isTerminalOpen && "text-green-500 hover:text-green-400",
-						)}
-						title={isTerminalOpen ? "Focar terminal do projeto" : "Abrir terminal do projeto"}
+					<TerminalShortcutMenu
+						projectId={projectId}
+						project={{ id: projectId, name: project.name, mainRoute: project.mainRoute }}
+						isTerminal
 					>
-						<Terminal className={cn("size-4", isOpeningTerminal && "animate-pulse")} />
-						<span className="text-xs hidden sm:inline">Terminal</span>
-					</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={handleTerminalClick}
+							disabled={isOpeningTerminal}
+							className={cn(
+								"h-9 px-3 gap-2 transition-all",
+								isTerminalOpen && "text-green-500 hover:text-green-400",
+							)}
+							title={isTerminalOpen ? "Focar terminal do projeto" : "Abrir terminal do projeto"}
+						>
+							<Terminal className={cn("size-4", isOpeningTerminal && "animate-pulse")} />
+							<span className="text-xs hidden sm:inline">Terminal</span>
+						</Button>
+					</TerminalShortcutMenu>
 
 					{project.routes
 						?.sort((a, b) => a.displayOrder - b.displayOrder)
 						.map((route) => (
-							<Button
+							<TerminalShortcutMenu
 								key={route.id}
-								variant="ghost"
-								size="sm"
-								onClick={() => handleRouteClick(route)}
-								disabled={isOpeningRoute}
-								className={cn("h-9 px-3 gap-2 transition-all")}
-								title={
-									route.command
-										? `${route.name}: ${route.command}`
-										: `Abrir terminal em ${route.name}`
-								}
+								projectId={projectId}
+								project={{ id: projectId, name: project.name, mainRoute: project.mainRoute }}
+								route={{
+									id: route.id,
+									name: route.name,
+									route: route.route,
+									command: route.command,
+								}}
 							>
-								<LucideIcon
-									name={route.icon ?? "FolderOpen"}
-									className={cn("size-4", isOpeningRoute && "animate-pulse")}
-								/>
-								<span className="text-xs hidden sm:inline">{route.name}</span>
-							</Button>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={() => handleRouteClick(route)}
+									disabled={isOpeningRoute}
+									className={cn("h-9 px-3 gap-2 transition-all")}
+									title={
+										route.command
+											? `${route.name}: ${route.command}`
+											: `Abrir terminal em ${route.name}`
+									}
+								>
+									<LucideIcon
+										name={route.icon ?? "FolderOpen"}
+										className={cn("size-4", isOpeningRoute && "animate-pulse")}
+									/>
+									<span className="text-xs hidden sm:inline">{route.name}</span>
+								</Button>
+							</TerminalShortcutMenu>
 						))}
 				</>
 			)}

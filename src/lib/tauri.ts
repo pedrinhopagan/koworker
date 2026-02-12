@@ -112,6 +112,8 @@ export type OpenTerminalParams = {
 	taskTitle: string;
 	model: string;
 	prompt?: string;
+	forceNew?: boolean;
+	background?: boolean;
 };
 
 export function openTerminalForTask(
@@ -125,19 +127,24 @@ export function openTerminalForTask(
 	return safeInvoke<OpenTerminalResult>("open_terminal_for_task", params);
 }
 
-export async function closeProjectSession(projectId: string): Promise<boolean> {
+export async function closeProjectSession(
+	projectId: string,
+	projectName: string,
+): Promise<boolean> {
 	if (!isTauri()) {
 		return false;
 	}
 
 	const result = await safeInvoke<null>("close_project_session", {
 		projectId,
+		projectName,
 	});
 	return result !== null;
 }
 
 export async function closeTaskWindow(
 	projectId: string,
+	projectName: string,
 	taskId: string,
 	taskTitle: string,
 ): Promise<boolean> {
@@ -147,6 +154,7 @@ export async function closeTaskWindow(
 
 	const result = await safeInvoke<null>("close_task_window", {
 		projectId,
+		projectName,
 		taskId,
 		taskTitle,
 	});
@@ -171,13 +179,13 @@ export async function getActiveSessions(): Promise<SessionInfo[]> {
 	return result ?? [];
 }
 
-export async function checkSessionExists(projectId: string): Promise<boolean> {
+export async function checkSessionExists(projectName: string): Promise<boolean> {
 	if (!isTauri()) {
 		return false;
 	}
 
 	const result = await safeInvoke<boolean>("check_session_exists", {
-		projectId,
+		projectName,
 	});
 	return result ?? false;
 }

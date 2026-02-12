@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { autoIncrement, Database } from "@lobomfz/db";
 import { type } from "arktype";
 
-const dbPath = process.env.DATABASE_URL ?? join(homedir(), ".local/share/kowork/kowork.db");
+const dbPath =
+	process.env.DATABASE_URL ?? join(homedir(), ".local/share/com.pedro.kowork/kowork.db");
 
 const user_type = type.enumerated("admin", "user");
 const task_status = type.enumerated("pending", "in_execution", "executed");

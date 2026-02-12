@@ -55,20 +55,24 @@ src-tauri/src/
 ### Tipos
 
 ```typescript
-type ProjectInfo = { id: string; name: string; mainRoute: string }
-type TaskInfo = { id: string; title: string }
-type TerminalResult = { success: boolean; message: string; result?: OpenTerminalResult }
+type ProjectInfo = { id: string; name: string; mainRoute: string };
+type TaskInfo = { id: string; title: string };
+type TerminalResult = {
+  success: boolean;
+  message: string;
+  result?: OpenTerminalResult;
+};
 ```
 
 ### Funções Principais
 
-| Função | Descrição |
-|--------|-----------|
-| `openProjectTerminal(project)` | Abre/foca terminal do projeto |
-| `openTaskTerminal(project, task)` | Abre tab para tarefa específica |
-| `executeInTerminal(project, task, prompt, model?)` | Executa comando no terminal |
-| `closeProjectTerminal(projectId)` | Fecha sessão inteira do projeto |
-| `closeTaskTerminal(projectId, task)` | Fecha apenas a tab da tarefa |
+| Função                                             | Descrição                       |
+| -------------------------------------------------- | ------------------------------- |
+| `openProjectTerminal(project)`                     | Abre/foca terminal do projeto   |
+| `openTaskTerminal(project, task)`                  | Abre tab para tarefa específica |
+| `executeInTerminal(project, task, prompt, model?)` | Executa comando no terminal     |
+| `closeProjectTerminal(projectId)`                  | Fecha sessão inteira do projeto |
+| `closeTaskTerminal(projectId, task)`               | Fecha apenas a tab da tarefa    |
 
 ### Uso
 
@@ -76,31 +80,45 @@ type TerminalResult = { success: boolean; message: string; result?: OpenTerminal
 import { openProjectTerminal, executeInTerminal } from "@/lib/terminal";
 
 // Abrir terminal do projeto
-await openProjectTerminal({ id: "uuid", name: "Meu Projeto", mainRoute: "/path" });
+await openProjectTerminal({
+  id: "uuid",
+  name: "Meu Projeto",
+  mainRoute: "/path",
+});
 
 // Executar prompt em tarefa
 await executeInTerminal(
   { id: "proj-uuid", name: "Projeto", mainRoute: "/path" },
   { id: "task-uuid", title: "Implementar feature" },
-  "Implemente a feature X seguindo os critérios de aceite"
+  "Implemente a feature X seguindo os critérios de aceite",
 );
 ```
 
 ## COMANDOS TAURI (RUST)
 
-| Comando | Parâmetros | Descrição |
-|---------|------------|-----------|
+| Comando                  | Parâmetros                                                           | Descrição                 |
+| ------------------------ | -------------------------------------------------------------------- | ------------------------- |
 | `open_terminal_for_task` | projectId, projectName, mainRoute, taskId, taskTitle, model, prompt? | Abre/cria sessão e window |
-| `close_project_session` | projectId | Fecha sessão tmux inteira |
-| `close_task_window` | projectId, taskId, taskTitle | Fecha apenas a window |
-| `get_active_sessions` | - | Lista sessões ativas |
-| `check_session_exists` | projectId | Verifica se sessão existe |
+| `close_project_session`  | projectId, projectName                                               | Fecha sessão tmux inteira |
+| `close_task_window`      | projectId, projectName, taskId, taskTitle                            | Fecha apenas a window     |
+| `get_active_sessions`    | -                                                                    | Lista sessões ativas      |
+| `check_session_exists`   | projectName                                                          | Verifica se sessão existe |
 
 ## NOMENCLATURA TMUX
 
-- **Sessão**: `kowork_{projectId[0:8]}` (ex: `kowork_a1b2c3d4`)
+- **Sessão**: `kw_{primeira_palavra_do_projectName_lowercase}` (ex: `kw_kowork`, `kw_dogama`)
 - **Window**: `{taskId[0:8]}_{sanitized_title}` (ex: `e5f6g7h8_implementar_feature`)
 - **Título do terminal**: `{projectName} - Kowork` (ex: `Meu Projeto - Kowork`)
+
+### Regra de geração do nome da sessão
+
+1. Pega o `projectName` (nome do projeto cadastrado)
+2. Extrai a primeira palavra (split por espaço)
+3. Remove caracteres que não sejam alfanuméricos, `-` ou `_`
+4. Converte para minúsculo
+5. Prefixa com `kw_`
+
+Exemplos: `"Kowork"` -> `kw_kowork`, `"Dogama App"` -> `kw_dogama`, `"Meu Projeto"` -> `kw_meu`
 
 ## EVENTOS
 
@@ -108,12 +126,16 @@ O Rust notifica o backend via HTTP POST para `/api/terminal/notify`:
 
 ```typescript
 type TerminalEvent = {
-  eventType: "session_opened" | "session_closed" | "window_opened" | "window_closed";
+  eventType:
+    | "session_opened"
+    | "session_closed"
+    | "window_opened"
+    | "window_closed";
   projectId: string;
   taskId?: string;
   sessionName: string;
   windowName?: string;
-}
+};
 ```
 
 O backend publica no PubSub, e o frontend consome via WebSocket.
@@ -126,7 +148,7 @@ type TerminalStore = {
   activeSessions: Map<projectId, Set<taskId>>;
   isSessionActive(projectId: string): boolean;
   isTaskActive(projectId: string, taskId: string): boolean;
-}
+};
 ```
 
 ## REGRAS
@@ -154,20 +176,22 @@ type TerminalStore = {
 ## DEPENDÊNCIAS
 
 **Frontend:**
+
 - `@tauri-apps/api` (invoke)
 - `sonner` (toasts)
 - `zustand` (store)
 
 **Backend (Rust):**
+
 - `serde` / `serde_json`
 - `tauri`
 - Comandos externos: `tmux`, `alacritty`, `kdotool`/`xdotool`, `curl`
 
 ## ANTI-PATTERNS
 
-| Proibido | Correto |
-|----------|---------|
-| Chamar Tauri diretamente | Usar funções de `terminal.ts` |
-| `git add .` no prompt | Prompts específicos e seguros |
-| Hardcoded model | Usar constante `DEFAULT_MODEL` |
-| Ignorar erros | Sempre tratar e mostrar toast |
+| Proibido                 | Correto                        |
+| ------------------------ | ------------------------------ |
+| Chamar Tauri diretamente | Usar funções de `terminal.ts`  |
+| `git add .` no prompt    | Prompts específicos e seguros  |
+| Hardcoded model          | Usar constante `DEFAULT_MODEL` |
+| Ignorar erros            | Sempre tratar e mostrar toast  |

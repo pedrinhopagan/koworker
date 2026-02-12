@@ -109,13 +109,16 @@ export function TaskActionPanel({
 	}
 
 	async function onCloseProjectSession() {
-		if (!task.projectId) return;
-		await closeProjectTerminal(task.projectId);
+		if (!task.projectId || !task.project?.name) return;
+		await closeProjectTerminal(task.projectId, task.project.name);
 	}
 
 	async function onCloseTaskWindow() {
-		if (!task.projectId) return;
-		await closeTaskTerminal(task.projectId, { id: task.id, title: task.title });
+		if (!task.projectId || !task.project?.name) return;
+		await closeTaskTerminal(task.projectId, task.project.name, {
+			id: task.id,
+			title: task.title,
+		});
 	}
 
 	return (
