@@ -200,6 +200,24 @@ async function installLocally(worktreeDir: string) {
 	await copyFile(binaryPath, localBinaryPath);
 	await chmod(localBinaryPath, 0o755);
 
+	const appDataDir = join(home, ".local", "share", "com.pedro.kowork");
+	const backendBinDir = join(home, ".local", "lib", "kowork", "bin");
+	const backendSource = join(worktreeDir, "src-tauri", "bin", "kowork-backend");
+	const distSource = join(worktreeDir, "dist");
+
+	if (await pathExists(backendSource)) {
+		await mkdir(backendBinDir, { recursive: true });
+		await copyFile(backendSource, join(backendBinDir, "kowork-backend"));
+		await chmod(join(backendBinDir, "kowork-backend"), 0o755);
+	}
+
+	if (await pathExists(distSource)) {
+		const distTarget = join(appDataDir, "dist");
+		await rm(distTarget, { force: true, recursive: true });
+		await mkdir(appDataDir, { recursive: true });
+		await cp(distSource, distTarget, { recursive: true });
+	}
+
 	await mkdir(appDir, { recursive: true });
 	await mkdir(iconDir, { recursive: true });
 	if (await pathExists(iconSource)) {

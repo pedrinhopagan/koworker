@@ -7,7 +7,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use tauri::{path::BaseDirectory, AppHandle, Manager};
+use tauri::{AppHandle, Manager};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -30,12 +30,30 @@ fn server_script() -> Option<PathBuf> {
     script.exists().then_some(script)
 }
 
-fn release_backend_binary() -> Option<(PathBuf, PathBuf)> {
-    let binary = PathBuf::from("/home/pedro/.local/lib/kowork/bin/kowork-backend");
-    let dist_dir = PathBuf::from("/home/pedro/.local/share/com.pedro.kowork/dist");
+fn release_backend_binary(app: &AppHandle) -> Option<(PathBuf, PathBuf)> {
+    let data_dir = app
+        .path()
+        .app_local_data_dir()
+        .ok()
+        .or_else(|| app.path().app_data_dir().ok())?;
 
-    if binary.exists() && dist_dir.exists() {
-        return Some((binary, dist_dir));
+    let home = std::env::var("HOME").ok()?;
+
+    let candidates: Vec<(PathBuf, PathBuf)> = vec![
+        (
+            data_dir.join("bin").join("kowork-backend"),
+            data_dir.join("dist"),
+        ),
+        (
+            PathBuf::from(&home).join(".local/lib/kowork/bin/kowork-backend"),
+            data_dir.join("dist"),
+        ),
+    ];
+
+    for (binary, dist_dir) in candidates {
+        if binary.exists() && dist_dir.exists() {
+            return Some((binary, dist_dir));
+        }
     }
 
     None
@@ -116,7 +134,7 @@ fn spawn_dev_backend() -> Option<Child> {
 }
 
 fn spawn_release_backend(app: &AppHandle) -> Option<Child> {
-    let (binary, dist_dir) = release_backend_binary()?;
+    let (binary, dist_dir) = release_backend_binary(app)?;
 
     ensure_executable(&binary);
 
