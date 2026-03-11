@@ -24,8 +24,8 @@ O projeto está bem estruturado na parte de **API** (routers, schemas, db, pubsu
 
 ```json
 "build": {
-  "devUrl": "http://localhost:3000",
-  "frontendDist": "http://localhost:3000"  // ❌ Problema
+  "devUrl": "http://localhost:4178",
+  "frontendDist": "http://localhost:4178"  // ❌ Problema
 }
 ```
 
@@ -34,7 +34,7 @@ O projeto está bem estruturado na parte de **API** (routers, schemas, db, pubsu
 **Solução:**
 ```json
 "build": {
-  "devUrl": "http://localhost:3000",
+  "devUrl": "http://localhost:4178",
   "frontendDist": "../dist"
 }
 ```

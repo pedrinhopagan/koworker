@@ -160,7 +160,7 @@ fn spawn_release_backend(app: &AppHandle) -> Option<Child> {
 }
 
 fn server_is_running() -> bool {
-    TcpStream::connect("127.0.0.1:3000").is_ok()
+    TcpStream::connect("127.0.0.1:4178").is_ok()
 }
 
 pub fn start(app: &AppHandle) {

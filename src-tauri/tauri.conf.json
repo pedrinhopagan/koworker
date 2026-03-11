@@ -4,7 +4,7 @@
 	"version": "0.1.0",
 	"identifier": "com.pedro.kowork",
 	"build": {
-		"devUrl": "http://localhost:3000",
+		"devUrl": "http://localhost:4178",
 		"frontendDist": "../dist"
 	},
 	"app": {

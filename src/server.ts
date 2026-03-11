@@ -6,6 +6,7 @@ import { getUser, type User } from "./api/auth/context";
 import { DbUsers } from "./api/db/users";
 import { PubSub, type TerminalEvent, type TerminalEventType } from "./api/pubsub";
 import homepage from "./index.html";
+import { DEFAULT_KOWORK_PORT } from "./lib/runtime-config";
 
 const isProduction = process.env.NODE_ENV === "production";
 const distDir = process.env.KOWORK_DIST_DIR ?? (isProduction ? "./dist" : null);
@@ -32,7 +33,7 @@ async function serveStatic(pathname: string) {
 	return new Response(filePath);
 }
 
-const port = 3000;
+const port = DEFAULT_KOWORK_PORT;
 
 interface WsData {
 	user: User | null;
@@ -108,7 +109,7 @@ Bun.serve<WsData>({
 			}
 		},
 		"/*": distDir
-			? async (request) => {
+			? async (request: Request) => {
 					const url = new URL(request.url);
 					const staticResponse = await serveStatic(url.pathname);
 					if (staticResponse) return staticResponse;

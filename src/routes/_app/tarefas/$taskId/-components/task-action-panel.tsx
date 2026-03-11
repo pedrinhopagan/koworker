@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Plus, Terminal } from "lucide-react";
+import { Check, Copy, Plus, Terminal } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -15,6 +15,7 @@ import type { TaskFull } from "@/types/tasks";
 
 import { copyToClipboard } from "./agent-runner";
 import { buildPrompt } from "./build-prompt";
+import { buildControlPanelClipboardText, shouldDisableControlPanelCopy } from "./control-panel";
 import { SkillCard } from "./skill-card";
 
 type TaskActionPanelProps = {
@@ -41,6 +42,7 @@ export function TaskActionPanel({
 	const navigate = useNavigate();
 	const skillsQuery = useSkillsQuery();
 	const [userInput, setUserInput] = useState("");
+	const [controlPanelCopied, setControlPanelCopied] = useState(false);
 
 	const isProjectTerminalOpen = useIsProjectTerminalOpen(task.projectId);
 	const isTaskWindowOpen = useIsTaskWindowOpen(task.id);
@@ -121,6 +123,20 @@ export function TaskActionPanel({
 		});
 	}
 
+	async function handleCopyControlPanel() {
+		const text = buildControlPanelClipboardText(userInput);
+		const success = await copyToClipboard(text);
+
+		if (!success) {
+			toast.error("Erro ao copiar texto do painel");
+			return;
+		}
+
+		setControlPanelCopied(true);
+		setTimeout(() => setControlPanelCopied(false), 2000);
+		toast.success("Texto do painel copiado");
+	}
+
 	return (
 		<section className="space-y-4 p-2 pr-4 flex h-full flex-col min-h-0">
 			{isTauri() && isProjectTerminalOpen && (
@@ -155,9 +171,23 @@ export function TaskActionPanel({
 			)}
 
 			<div className="space-y-2">
-				<Text size="xs" tone="muted" className="uppercase tracking-wide">
-					Painel de controle
-				</Text>
+				<div className="flex items-center justify-between gap-2">
+					<Text size="xs" tone="muted" className="uppercase tracking-wide">
+						Painel de controle
+					</Text>
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon-sm"
+						onClick={handleCopyControlPanel}
+						disabled={shouldDisableControlPanelCopy({ userInput, disabled })}
+						title="Copiar texto do painel"
+						aria-label="Copiar texto do painel"
+						className="text-muted-foreground hover:text-foreground"
+					>
+						{controlPanelCopied ? <Check size={14} className="text-primary" /> : <Copy size={14} />}
+					</Button>
+				</div>
 				<Textarea
 					value={userInput}
 					onChange={(e) => setUserInput(e.target.value)}
@@ -198,7 +228,6 @@ export function TaskActionPanel({
 											selectionSkillId === skill.id
 										}
 										disabled={disabled}
-										userInput={userInput}
 										onCopyPrompt={handleCopyPrompt}
 										onCancelSelection={onCancelSubtaskSelection}
 									/>
@@ -229,7 +258,6 @@ export function TaskActionPanel({
 													selectionSkillId === skill.id
 												}
 												disabled={disabled}
-												userInput={userInput}
 												onCopyPrompt={handleCopyPrompt}
 												onCancelSelection={onCancelSubtaskSelection}
 											/>

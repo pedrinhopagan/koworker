@@ -346,7 +346,7 @@ fn notify_backend(event: &TerminalEvent) {
             "Content-Type: application/json",
             "-d",
             &event_json,
-            "http://127.0.0.1:3000/api/terminal/notify",
+            "http://127.0.0.1:4178/api/terminal/notify",
         ])
         .stdout(Stdio::null())
         .stderr(Stdio::null())

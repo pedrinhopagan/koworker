@@ -3,6 +3,7 @@ import { RPCLink as FetchLink } from "@orpc/client/fetch";
 import { RPCLink as WsLink } from "@orpc/client/websocket";
 import type { InferRouterInputs, InferRouterOutputs, RouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
+import { DEFAULT_KOWORK_API_ORIGIN, resolveApiOrigin } from "@/lib/runtime-config";
 import { isTauri } from "@/lib/tauri";
 import type { API, WsAPI } from "./server";
 
@@ -14,18 +15,14 @@ declare global {
 
 const apiOrigin = (() => {
 	if (typeof window === "undefined") {
-		return "http://localhost:3000";
+		return DEFAULT_KOWORK_API_ORIGIN;
 	}
 
-	if (window.__KOWORK_API_URL__) {
-		return window.__KOWORK_API_URL__;
-	}
-
-	if (isTauri()) {
-		return "http://localhost:3000";
-	}
-
-	return window.location.origin;
+	return resolveApiOrigin({
+		windowApiUrl: window.__KOWORK_API_URL__,
+		windowOrigin: window.location.origin,
+		isTauriEnvironment: isTauri(),
+	});
 })();
 
 const httpLink = new FetchLink({
