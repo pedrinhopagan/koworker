@@ -25,8 +25,10 @@ export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormPr
 	const canPick = isTauri();
 	const { getValues } = useFormContext<ProjectFormValues>();
 
+	const mainRoute = getValues("mainRoute");
+
 	const [name, setName] = useState("");
-	const [route, setRoute] = useState("");
+	const [route, setRoute] = useState(mainRoute || "");
 	const [icon, setIcon] = useState<string>("FolderOpen");
 	const [command, setCommand] = useState("");
 	const [pickingRoute, setPickingRoute] = useState(false);
@@ -47,7 +49,7 @@ export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormPr
 
 		// Reset form
 		setName("");
-		setRoute("");
+		setRoute(mainRoute || "");
 		setIcon("FolderOpen");
 		setCommand("");
 	}

@@ -15,6 +15,7 @@
 	},
 	"type": "module",
 	"scripts": {
+		"setup": "bun run scripts/setup.ts",
 		"dev": "concurrently -k 'tsr watch' 'bun --watch src/server.ts' 'cargo tauri dev'",
 		"dev:web": "concurrently 'tsr watch' 'bun --watch src/server.ts'",
 		"build:web": "bun run scripts/desktop/build-web.ts",

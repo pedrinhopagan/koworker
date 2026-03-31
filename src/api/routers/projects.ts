@@ -1,5 +1,6 @@
 import { protectedProcedure } from "../auth/context";
 import type { project_routes, projects } from "../db/connection";
+import { dbProjectRoutes } from "../db/project-routes";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
 import {
@@ -72,6 +73,23 @@ export const projectsRouter = {
 			color: input.color,
 			main_route: input.mainRoute,
 		});
+
+		const defaultRoutes = [
+			{ name: "claude", command: "claude --dangerously-skip-permissions" },
+			{ name: "opencode", command: "opencode" },
+			{ name: "codex", command: "codex" },
+		];
+
+		for (const route of defaultRoutes) {
+			await dbProjectRoutes.create({
+				id: crypto.randomUUID(),
+				project_id: id,
+				name: route.name,
+				route: input.mainRoute,
+				icon: "Cpu",
+				command: route.command,
+			});
+		}
 
 		const row = await dbProjects.getById(id);
 		return row ? mapProject(row) : null;
