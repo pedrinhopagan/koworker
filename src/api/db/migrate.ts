@@ -95,6 +95,9 @@ export function ensureDbSchema() {
 			ensureColumn(sqlite, "projects", "display_order INTEGER NOT NULL DEFAULT 0");
 			resequenceDisplayOrder(sqlite, "projects", "deleted_at IS NULL");
 		}
+		if (!hasColumn(cols, "hide_terminal")) {
+			ensureColumn(sqlite, "projects", "hide_terminal INTEGER NOT NULL DEFAULT 0");
+		}
 	}
 
 	// categories
@@ -156,6 +159,9 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 				resequenceDisplayOrder(sqlite, "project_routes", `project_id = '${project.project_id}'`);
 			}
 		}
+
+		// Alinha atalhos antigos do codex ao novo comando default (idempotente).
+		sqlite.exec("UPDATE project_routes SET command = 'codex --yolo' WHERE command = 'codex'");
 	}
 
 	// skills

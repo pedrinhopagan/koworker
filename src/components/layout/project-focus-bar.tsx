@@ -69,26 +69,28 @@ function ProjectRouteActions({ projectId, project }: ProjectRouteActionsProps) {
 		<>
 			{isTauri() && (
 				<>
-					<TerminalShortcutMenu
-						projectId={projectId}
-						project={{ id: projectId, name: project.name, mainRoute: project.mainRoute }}
-						isTerminal
-					>
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={handleTerminalClick}
-							disabled={isOpeningTerminal}
-							className={cn(
-								"h-9 px-3 gap-2 transition-all",
-								isTerminalOpen && "text-green-500 hover:text-green-400",
-							)}
-							title={isTerminalOpen ? "Focar terminal do projeto" : "Abrir terminal do projeto"}
+					{!project.hideTerminal && (
+						<TerminalShortcutMenu
+							projectId={projectId}
+							project={{ id: projectId, name: project.name, mainRoute: project.mainRoute }}
+							isTerminal
 						>
-							<Terminal className={cn("size-4", isOpeningTerminal && "animate-pulse")} />
-							<span className="text-xs hidden sm:inline">Terminal</span>
-						</Button>
-					</TerminalShortcutMenu>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={handleTerminalClick}
+								disabled={isOpeningTerminal}
+								className={cn(
+									"h-9 px-3 gap-2 transition-all",
+									isTerminalOpen && "text-green-500 hover:text-green-400",
+								)}
+								title={isTerminalOpen ? "Focar terminal do projeto" : "Abrir terminal do projeto"}
+							>
+								<Terminal className={cn("size-4", isOpeningTerminal && "animate-pulse")} />
+								<span className="text-xs hidden sm:inline">Terminal</span>
+							</Button>
+						</TerminalShortcutMenu>
+					)}
 
 					{project.routes
 						?.sort((a, b) => a.displayOrder - b.displayOrder)
@@ -199,15 +201,12 @@ export function ProjectFocusBar() {
 				disabled={isEmpty || disableChangeFocus}
 				loading={loading}
 				triggerClassName={cn(
-					"flex items-center gap-3 px-4 py-2 rounded-lg min-w-[220px] transition-all duration-200 border-2 bg-card/80 backdrop-blur",
-					accentColor ? "shadow-sm hover:shadow-md" : "border-border",
+					"flex items-center gap-3 px-3 py-1.5 min-w-[220px] border border-border bg-card/60 transition-colors hover:bg-card",
 				)}
 				triggerStyle={
 					accent
 						? {
-								background: `linear-gradient(135deg, ${accent.soft} 0%, ${accent.muted} 100%)`,
 								borderColor: accent.border,
-								boxShadow: `0 0 0 1px ${accent.border}, 0 10px 24px ${accent.glow}`,
 							}
 						: undefined
 				}
@@ -215,13 +214,7 @@ export function ProjectFocusBar() {
 				renderTrigger={() => (
 					<>
 						{accentColor ? (
-							<span
-								className="size-3 rounded-full shrink-0"
-								style={{
-									backgroundColor: accentColor,
-									boxShadow: `0 0 0 2px ${accent?.ring ?? accentColor}, 0 0 10px ${accent?.glow ?? accentColor}`,
-								}}
-							/>
+							<span className="size-2.5 shrink-0" style={{ backgroundColor: accentColor }} />
 						) : (
 							<FolderKanbanIcon className="size-4 text-muted-foreground shrink-0" />
 						)}
@@ -250,10 +243,7 @@ export function ProjectFocusBar() {
 						style={isSelected ? { color: project.color ?? undefined } : undefined}
 					>
 						{project.color ? (
-							<span
-								className="size-2.5 rounded-full shrink-0"
-								style={{ backgroundColor: project.color }}
-							/>
+							<span className="size-2.5 shrink-0" style={{ backgroundColor: project.color }} />
 						) : (
 							<FolderKanbanIcon className="size-3.5 text-current shrink-0" />
 						)}

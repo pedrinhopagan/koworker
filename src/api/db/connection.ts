@@ -19,6 +19,7 @@ const projectsSchema = type({
 	color: type("string").configure({ default: "#000000" }),
 	display_order: type("number.integer").configure({ default: 0 }),
 	main_route: "string",
+	hide_terminal: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 	"deleted_at?": "number.integer",

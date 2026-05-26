@@ -1,73 +1,251 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { FolderOpen, TerminalSquare } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
+import { orpc } from "@/client";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+	DragHandle,
+	type SortableItemRenderProps,
+	SortableList,
+} from "@/components/ui/sortable-list";
+import { Switch } from "@/components/ui/switch";
+import { LucideIcon } from "@/lib/lucide-icon";
+import { cn } from "@/lib/utils";
 import type { ProjectDetail } from "../-utils/use-projects-data";
+
+type Project = NonNullable<ProjectDetail>;
+type ProjectRoute = Project["routes"][number];
 
 type ProjectSummaryProps = {
 	project: ProjectDetail | undefined | null;
 };
 
-type SummaryItemProps = {
+export function ProjectSummary({ project }: ProjectSummaryProps) {
+	const queryClient = useQueryClient();
+
+	const invalidateProjects = (projectId: string) => {
+		queryClient.invalidateQueries({
+			queryKey: orpc.projects.list.queryOptions().queryKey,
+		});
+		queryClient.invalidateQueries({
+			queryKey: orpc.projects.getById.queryOptions({ input: { id: projectId } }).queryKey,
+		});
+	};
+
+	const updateMutation = useMutation({
+		...orpc.projects.update.mutationOptions(),
+		onSuccess: (_data, variables) => invalidateProjects(variables.id),
+		onError: (error) => toast.error(`Erro ao atualizar projeto: ${error.message}`),
+	});
+
+	const reorderRoutesMutation = useMutation({
+		...orpc.projectRoutes.reorder.mutationOptions(),
+		onSuccess: () => {
+			if (project) invalidateProjects(project.id);
+		},
+		onError: (error) => toast.error(`Erro ao reordenar atalhos: ${error.message}`),
+	});
+
+	if (!project) {
+		return (
+			<div className="border border-border bg-card px-6 py-14 text-center">
+				<Title size="sm" as="div">
+					Selecione um projeto
+				</Title>
+				<Text size="sm" tone="muted" className="mt-1">
+					Escolha um projeto na lista para ver os detalhes.
+				</Text>
+			</div>
+		);
+	}
+
+	const summary = project.tasksSummary;
+	const total = summary?.total ?? 0;
+	const pending = summary?.pending ?? 0;
+	const inProgress = summary?.inProgress ?? 0;
+	const done = summary?.done ?? 0;
+	const progress = summary?.progress ?? 0;
+	const displayPath = project.mainRoute.replace(/^\/home\/[^/]+/, "");
+
+	return (
+		<div className="space-y-6">
+			<div className="flex items-start justify-between gap-4">
+				<div className="flex min-w-0 items-start gap-3">
+					<div className="mt-0.5 size-9 shrink-0" style={{ backgroundColor: project.color }} />
+					<div className="min-w-0">
+						<Title size="lg" className="truncate">
+							{project.name}
+						</Title>
+						{project.description && (
+							<Text size="sm" tone="muted" className="mt-0.5 line-clamp-2">
+								{project.description}
+							</Text>
+						)}
+						<div className="mt-1.5 flex items-center gap-1.5 text-muted-foreground">
+							<FolderOpen className="size-3.5 shrink-0" />
+							<span className="truncate font-mono text-xs">{displayPath}</span>
+						</div>
+					</div>
+				</div>
+				<Button variant="outline" size="sm" asChild>
+					<Link to="/projetos/$projetoId" params={{ projetoId: project.id }}>
+						Editar
+					</Link>
+				</Button>
+			</div>
+
+			<div className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-4">
+				<MetricCell label="Total" value={total} />
+				<MetricCell label="Pendentes" value={pending} />
+				<MetricCell label="Em andamento" value={inProgress} />
+				<MetricCell label="Concluídas" value={done} accentColor={project.color} />
+			</div>
+
+			<div>
+				<div className="mb-2 flex items-center justify-between">
+					<Text size="xs" tone="muted" className="uppercase tracking-[0.18em]">
+						Progresso
+					</Text>
+					<Text size="xs" tone="muted" className="tabular-nums">
+						{progress}%
+					</Text>
+				</div>
+				<div className="h-2 w-full bg-muted">
+					<div
+						className="h-2 transition-all"
+						style={{ width: `${progress}%`, backgroundColor: project.color }}
+					/>
+				</div>
+			</div>
+
+			<label className="flex cursor-pointer items-center justify-between gap-4 border border-border bg-card px-4 py-3">
+				<div className="flex items-center gap-2.5">
+					<TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
+					<div>
+						<Text size="sm" as="div">
+							Mostrar terminal
+						</Text>
+						<Text size="xs" tone="muted">
+							Botão de terminal do projeto na barra de foco.
+						</Text>
+					</div>
+				</div>
+				<Switch
+					checked={!project.hideTerminal}
+					disabled={updateMutation.isPending}
+					onCheckedChange={(checked) =>
+						updateMutation.mutate({ id: project.id, hideTerminal: !checked })
+					}
+				/>
+			</label>
+
+			<SummaryRoutes
+				key={project.id}
+				routes={project.routes}
+				onReorder={(orderedIds) => reorderRoutesMutation.mutate({ orderedIds })}
+			/>
+		</div>
+	);
+}
+
+type MetricCellProps = {
 	label: string;
-	value: string;
+	value: number;
+	accentColor?: string;
 };
 
-function SummaryItem({ label, value }: SummaryItemProps) {
+function MetricCell({ label, value, accentColor }: MetricCellProps) {
 	return (
-		<div className="rounded-md border border-border bg-muted/30 px-3 py-2">
-			<Text size="xs" tone="muted">
+		<div className="bg-card px-4 py-3">
+			<Text size="xs" tone="muted" className="uppercase tracking-[0.12em]">
 				{label}
 			</Text>
-			<Title size="sm" as="div">
+			<Title
+				as="div"
+				className="mt-1 text-2xl font-extrabold leading-none tabular-nums"
+				style={accentColor ? { color: accentColor } : undefined}
+			>
 				{value}
 			</Title>
 		</div>
 	);
 }
 
-export function ProjectSummary({ project }: ProjectSummaryProps) {
-	const total = project?.tasksSummary?.total ?? 0;
-	const done = project?.tasksSummary?.done ?? 0;
-	const progress = project?.tasksSummary?.progress ?? 0;
-	const showValues = Boolean(project?.tasksSummary);
+type SummaryRoutesProps = {
+	routes: ProjectRoute[];
+	onReorder: (orderedIds: string[]) => void;
+};
+
+function SummaryRoutes({ routes, onReorder }: SummaryRoutesProps) {
+	const sorted = useMemo(
+		() => [...routes].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)),
+		[routes],
+	);
+	const [ordered, setOrdered] = useState<ProjectRoute[]>(sorted);
+
+	useEffect(() => {
+		setOrdered((prev) => {
+			if (prev.length === sorted.length && prev.every((r, i) => r.id === sorted[i]?.id)) {
+				return prev;
+			}
+			return sorted;
+		});
+	}, [sorted]);
+
+	function renderItem(route: ProjectRoute, props: SortableItemRenderProps) {
+		return (
+			<div
+				className={cn(
+					"flex items-center gap-2.5 border border-border bg-card px-3 py-2",
+					props.isDragging && "opacity-60",
+				)}
+			>
+				<DragHandle
+					attributes={props.dragHandleProps.attributes}
+					listeners={props.dragHandleProps.listeners}
+				/>
+				<LucideIcon
+					name={route.icon ?? "FolderOpen"}
+					className="size-4 shrink-0 text-muted-foreground"
+				/>
+				<span className="shrink-0 text-sm font-medium">{route.name}</span>
+				{route.command && (
+					<span className="ml-auto truncate font-mono text-xs text-muted-foreground">
+						{route.command}
+					</span>
+				)}
+			</div>
+		);
+	}
 
 	return (
-		<Card>
-			<CardHeader className="space-y-1">
-				<div className="flex items-center justify-between gap-3">
-					<Title size="sm">Resumo do projeto</Title>
-					{project && (
-						<Button variant="outline" size="sm" asChild>
-							<Link to="/projetos/$projetoId" params={{ projetoId: project.id }}>
-								Editar
-							</Link>
-						</Button>
-					)}
-				</div>
-				<Text size="sm" tone="muted">
-					{project ? project.name : "Selecione um projeto"}
+		<div className="space-y-2">
+			<Text size="xs" tone="muted" className="uppercase tracking-[0.18em]">
+				Atalhos ({ordered.length})
+			</Text>
+
+			{ordered.length === 0 ? (
+				<Text size="sm" tone="muted" className="py-3">
+					Nenhum atalho cadastrado.
 				</Text>
-			</CardHeader>
-			<CardContent className="space-y-3">
-				<div className="grid grid-cols-3 gap-2">
-					<SummaryItem label="Total" value={showValues ? String(total) : "--"} />
-					<SummaryItem label="Progresso" value={showValues ? `${progress}%` : "--"} />
-					<SummaryItem label="Concluídas" value={showValues ? String(done) : "--"} />
-				</div>
-				<div>
-					<Text size="xs" tone="muted" className="mb-2">
-						Progresso geral
-					</Text>
-					<div className="h-2 w-full rounded-full bg-muted">
-						<div
-							className="h-2 rounded-full bg-primary transition-all"
-							style={{ width: showValues ? `${progress}%` : "0%" }}
-						/>
-					</div>
-				</div>
-			</CardContent>
-		</Card>
+			) : (
+				<SortableList
+					items={ordered}
+					onReorder={(items) => {
+						setOrdered(items);
+						onReorder(items.map((i) => i.id));
+					}}
+					renderItem={renderItem}
+				/>
+			)}
+
+			<Text size="xs" tone="muted">
+				Arraste para reordenar. Edite ou crie atalhos em “Editar”.
+			</Text>
+		</div>
 	);
 }

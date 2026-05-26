@@ -28,6 +28,7 @@ const mapProject = (row: projects & { routes?: project_routes[] }) => ({
 	description: row.description ?? undefined,
 	color: row.color,
 	mainRoute: row.main_route,
+	hideTerminal: row.hide_terminal === 1,
 	displayOrder: row.display_order,
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,
@@ -77,7 +78,7 @@ export const projectsRouter = {
 		const defaultRoutes = [
 			{ name: "claude", command: "claude --dangerously-skip-permissions" },
 			{ name: "opencode", command: "opencode" },
-			{ name: "codex", command: "codex" },
+			{ name: "codex", command: "codex --yolo" },
 		];
 
 		for (const route of defaultRoutes) {
@@ -102,6 +103,7 @@ export const projectsRouter = {
 			description: input.description,
 			color: input.color,
 			main_route: input.mainRoute,
+			hide_terminal: input.hideTerminal === undefined ? undefined : input.hideTerminal ? 1 : 0,
 		});
 
 		const row = await dbProjects.getById(input.id);

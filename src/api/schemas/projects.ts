@@ -23,6 +23,7 @@ export const ProjectUpdateSchema = z.object({
 		.regex(/^#[0-9a-fA-F]{6}$/)
 		.optional(),
 	mainRoute: z.string().min(1).optional(),
+	hideTerminal: z.boolean().optional(),
 });
 
 export const ProjectReorderSchema = z.object({
@@ -39,6 +40,7 @@ export const ProjectDbCreateSchema = z.object({
 	color: z.string().optional(),
 	display_order: z.number().int().optional(),
 	main_route: z.string().min(1),
+	hide_terminal: z.number().int().optional(),
 	created_at: z.number().int().optional(),
 	updated_at: z.number().int().optional(),
 	deleted_at: z.number().int().optional(),

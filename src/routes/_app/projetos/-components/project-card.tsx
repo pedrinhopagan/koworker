@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { tv } from "tailwind-variants";
 
 import { Text, Title } from "@/components/typography";
 import { useTaskMetrics } from "@/hooks";
@@ -10,16 +9,6 @@ type ProjectCardProps = {
 	project: Project;
 	isSelected: boolean;
 };
-
-const cardVariants = tv({
-	base: "rounded-md border border-border bg-card px-4 py-3 transition",
-	variants: {
-		active: {
-			true: "border-primary/60 bg-muted/60",
-			false: "hover:border-muted-foreground/40",
-		},
-	},
-});
 
 export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 	const { pendingCount, metrics } = useTaskMetrics(project.id);
@@ -37,30 +26,25 @@ export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 		<Link
 			to="/projetos"
 			search={{ projetoId: project.id }}
-			className={cn(cardVariants({ active: isSelected }), "block w-full")}
+			className={cn(
+				"block w-full border border-border px-4 py-3 transition-colors",
+				isSelected ? "bg-muted/50" : "bg-card hover:bg-muted/25",
+			)}
+			style={isSelected ? { boxShadow: `inset 3px 0 0 ${project.color}` } : undefined}
 		>
-			<div className="flex items-start gap-3">
-				<div
-					className="mt-1 size-9 rounded-md shrink-0"
-					style={{ backgroundColor: project.color }}
-				/>
-				<div className="flex-1">
-					<Title size="sm" as="div">
+			<div className="flex items-center gap-3">
+				<div className="size-8 shrink-0" style={{ backgroundColor: project.color }} />
+				<div className="min-w-0 flex-1">
+					<Title size="sm" as="div" className="truncate">
 						{project.name}
 					</Title>
-					<Text size="sm" tone="muted" className="truncate line-clamp-1">
+					<Text size="xs" tone="muted" className="truncate font-mono">
 						{displayPath}
 					</Text>
-					<div className="mt-2 flex flex-wrap items-center gap-3">
-						<Text size="xs" tone="muted">
-							{taskLabel}
-						</Text>
-					</div>
 				</div>
-				<div
-					className="mt-1 size-2 rounded-full shrink-0"
-					style={{ backgroundColor: project.color }}
-				/>
+				<Text size="xs" tone="muted" className="shrink-0 whitespace-nowrap tabular-nums">
+					{taskLabel}
+				</Text>
 			</div>
 		</Link>
 	);
