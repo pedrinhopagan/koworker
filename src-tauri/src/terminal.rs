@@ -337,6 +337,11 @@ fn notify_backend(event: &TerminalEvent) {
         Err(_) => return,
     };
 
+    let notify_url = format!(
+        "http://127.0.0.1:{}/api/terminal/notify",
+        crate::backend::backend_port()
+    );
+
     let _ = Command::new("curl")
         .args([
             "-s",
@@ -346,7 +351,7 @@ fn notify_backend(event: &TerminalEvent) {
             "Content-Type: application/json",
             "-d",
             &event_json,
-            "http://127.0.0.1:4178/api/terminal/notify",
+            &notify_url,
         ])
         .stdout(Stdio::null())
         .stderr(Stdio::null())

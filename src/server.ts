@@ -33,7 +33,7 @@ async function serveStatic(pathname: string) {
 	return new Response(filePath);
 }
 
-const port = DEFAULT_KOWORK_PORT;
+const port = Number(process.env.KOWORK_PORT) || DEFAULT_KOWORK_PORT;
 
 interface WsData {
 	user: User | null;

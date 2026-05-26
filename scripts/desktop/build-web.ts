@@ -2,6 +2,8 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { KOWORK_PROD_API_ORIGIN } from "../../src/lib/runtime-config";
+
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(scriptDir, "../..");
 const distDir = join(rootDir, "dist");
@@ -31,7 +33,10 @@ const packageJson = JSON.parse(await readFile(join(rootDir, "package.json"), "ut
 const appVersion = packageJson.version || "0.0.0";
 const builtIndex = sourceIndex
 	.replace("./main.tsx", "./main.js")
-	.replace('window.__KOWORK_ENV__ = "development";', 'window.__KOWORK_ENV__ = "production";')
+	.replace(
+		'window.__KOWORK_ENV__ = "development";',
+		`window.__KOWORK_ENV__ = "production";\n      window.__KOWORK_API_URL__ = "${KOWORK_PROD_API_ORIGIN}";`,
+	)
 	.replace(
 		'window.__KOWORK_APP_VERSION__ = "dev";',
 		`window.__KOWORK_APP_VERSION__ = "${appVersion}";`,

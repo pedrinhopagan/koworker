@@ -15,6 +15,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 
+import { KOWORK_PROD_API_ORIGIN } from "../../src/lib/runtime-config";
+
 type BumpType = "patch" | "minor" | "major";
 
 const rootDir = process.cwd();
@@ -246,7 +248,12 @@ async function fallbackPrepare(worktreeDir: string) {
 	);
 
 	const sourceIndex = await readFile(join(worktreeDir, "src", "index.html"), "utf8");
-	const builtIndex = sourceIndex.replace("./main.tsx", "./main.js");
+	const builtIndex = sourceIndex
+		.replace("./main.tsx", "./main.js")
+		.replace(
+			'window.__KOWORK_ENV__ = "development";',
+			`window.__KOWORK_ENV__ = "production";\n      window.__KOWORK_API_URL__ = "${KOWORK_PROD_API_ORIGIN}";`,
+		);
 	await writeFile(join(distDir, "index.html"), builtIndex);
 
 	const staticDir = join(worktreeDir, "static");
@@ -254,26 +261,17 @@ async function fallbackPrepare(worktreeDir: string) {
 		await cp(staticDir, join(distDir, "static"), { recursive: true });
 	}
 
-	const tauriConfigPath = join(worktreeDir, "src-tauri", "tauri.conf.json");
-	const tauriConfig = JSON.parse(await readFile(tauriConfigPath, "utf8")) as {
-		bundle?: { resources?: string[] };
-	};
-	const needsBackendResource =
-		tauriConfig.bundle?.resources?.some((resource) => resource.includes("kowork-backend")) ?? false;
-
-	if (needsBackendResource) {
-		await mkdir(join(worktreeDir, "src-tauri", "bin"), { recursive: true });
-		run(
-			["bun", "build", "src/server.ts", "--compile", "--outfile", "src-tauri/bin/kowork-backend"],
-			worktreeDir,
-			{
-				DATABASE_URL: "/tmp/kowork-build.db",
-				JWT_SECRET: "kowork-build-secret",
-				NODE_ENV: "production",
-			},
-		);
-		await chmod(join(worktreeDir, "src-tauri", "bin", "kowork-backend"), 0o755);
-	}
+	await mkdir(join(worktreeDir, "src-tauri", "bin"), { recursive: true });
+	run(
+		["bun", "build", "src/server.ts", "--compile", "--outfile", "src-tauri/bin/kowork-backend"],
+		worktreeDir,
+		{
+			DATABASE_URL: "/tmp/kowork-build.db",
+			JWT_SECRET: "kowork-build-secret",
+			NODE_ENV: "production",
+		},
+	);
+	await chmod(join(worktreeDir, "src-tauri", "bin", "kowork-backend"), 0o755);
 }
 
 async function main() {

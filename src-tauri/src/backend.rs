@@ -12,6 +12,18 @@ use tauri::{AppHandle, Manager};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
+// keep in sync with src/lib/runtime-config.ts
+const DEV_PORT: u16 = 2841;
+const PROD_PORT: u16 = 2842;
+
+pub fn backend_port() -> u16 {
+    if cfg!(debug_assertions) {
+        DEV_PORT
+    } else {
+        PROD_PORT
+    }
+}
+
 static BACKEND: OnceLock<Mutex<Option<Child>>> = OnceLock::new();
 
 fn state() -> &'static Mutex<Option<Child>> {
@@ -139,7 +151,9 @@ fn spawn_release_backend(app: &AppHandle) -> Option<Child> {
     ensure_executable(&binary);
 
     let runtime_dir = runtime_dir(app)?;
+
     let db_path = runtime_dir.join("kowork.db");
+
     let secret = jwt_secret(&runtime_dir)?;
 
     let dist_dir_str = dist_dir.to_string_lossy().to_string();
@@ -149,6 +163,7 @@ fn spawn_release_backend(app: &AppHandle) -> Option<Child> {
         .env("DATABASE_URL", &db_path)
         .env("JWT_SECRET", &secret)
         .env("NODE_ENV", "production")
+        .env("KOWORK_PORT", PROD_PORT.to_string())
         .env("KOWORK_DIST_DIR", &dist_dir_str)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -160,7 +175,7 @@ fn spawn_release_backend(app: &AppHandle) -> Option<Child> {
 }
 
 fn server_is_running() -> bool {
-    TcpStream::connect("127.0.0.1:4178").is_ok()
+    TcpStream::connect(format!("127.0.0.1:{}", backend_port())).is_ok()
 }
 
 pub fn start(app: &AppHandle) {

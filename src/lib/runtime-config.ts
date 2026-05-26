@@ -1,5 +1,7 @@
-export const DEFAULT_KOWORK_PORT = 4178;
+export const DEFAULT_KOWORK_PORT = 2841;
+export const KOWORK_PROD_PORT = 2842;
 export const DEFAULT_KOWORK_API_ORIGIN = `http://localhost:${DEFAULT_KOWORK_PORT}`;
+export const KOWORK_PROD_API_ORIGIN = `http://localhost:${KOWORK_PROD_PORT}`;
 
 type ResolveApiOriginParams = {
 	windowApiUrl?: string;
