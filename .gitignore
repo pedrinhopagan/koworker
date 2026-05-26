@@ -9,6 +9,7 @@ dist
 # Tauri
 src-tauri/target
 src-tauri/bin
+src-tauri/gen/schemas
 
 # desktop artifacts
 releases
