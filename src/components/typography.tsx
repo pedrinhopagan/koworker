@@ -4,7 +4,7 @@ import { tv, type VariantProps } from "tailwind-variants";
 import { cn } from "@/lib/utils";
 
 const titleVariants = tv({
-	base: "text-foreground font-semibold tracking-tight",
+	base: "font-display text-foreground font-semibold tracking-tight",
 	variants: {
 		size: {
 			xs: "text-xs",

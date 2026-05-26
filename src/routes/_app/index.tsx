@@ -8,7 +8,6 @@ import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { useSelectedProjectStore } from "@/stores/selected-project";
 import { HomeProjectShowcase } from "./-components/home-project-showcase";
-import { useCreateTask } from "./tarefas/-utils/use-create-task";
 
 export const Route = createFileRoute("/_app/")({
 	component: HomePage,
@@ -32,10 +31,6 @@ function HomePage() {
 			input: { id: resolvedProjectId ?? "" },
 		}),
 		enabled: Boolean(resolvedProjectId),
-	});
-
-	const { createTask, loading: creatingTask } = useCreateTask(() => {
-		void projectQuery.refetch();
 	});
 
 	if (selectedProjectId && projectsQuery.isLoading) {
@@ -117,11 +112,7 @@ function HomePage() {
 			description="Vitrine visual do projeto selecionado"
 			icon={LayoutDashboardIcon}
 		>
-			<HomeProjectShowcase
-				project={project}
-				onCreateTask={createTask}
-				creatingTask={creatingTask}
-			/>
+			<HomeProjectShowcase project={project} />
 		</PageShell>
 	);
 }

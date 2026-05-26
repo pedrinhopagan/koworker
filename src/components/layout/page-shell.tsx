@@ -36,16 +36,18 @@ export function PageShell({
 			{!header && (
 				<div
 					className={cn(
-						"mb-4 px-4 flex flex-wrap items-center justify-between gap-4 border-b border-border py-2",
+						"mb-6 px-4 flex flex-wrap items-center justify-between gap-4 border-b border-border py-3",
 						headerClassName,
 					)}
 				>
 					<div className="flex items-center gap-3 ">
 						{icon && <Icon icon={icon} color="var(--project-accent, var(--primary))" size="md" />}
 						<div className="">
-							<Title size="md">{title}</Title>
+							<Title size="lg" className="uppercase tracking-[0.12em]">
+								{title}
+							</Title>
 							{description && (
-								<Text size="sm" tone="muted">
+								<Text size="xs" tone="muted">
 									{description}
 								</Text>
 							)}

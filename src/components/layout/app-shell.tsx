@@ -33,16 +33,7 @@ export function AppShell({ children }: AppShellProps) {
 
 	const focusBarStyle = accent
 		? {
-				backgroundImage: `linear-gradient(90deg, ${accent.soft} 0%, transparent 70%)`,
-				// borderBottomColor: accent.border,
-				boxShadow: `inset 0 -1px 0 ${accent.border}`,
-			}
-		: undefined;
-
-	const mainStyle = accent
-		? {
-				boxShadow: `inset 0 0 0px ${accent.glow}`,
-				backgroundImage: `linear-gradient(120deg, ${accent.soft} 0%, transparent 100%)`,
+				boxShadow: `inset 2px 0 0 ${accent.color}, inset 0 -1px 0 var(--border)`,
 			}
 		: undefined;
 
@@ -57,16 +48,13 @@ export function AppShell({ children }: AppShellProps) {
 				<TabBar />
 
 				<div
-					className="flex items-center justify-start border-b border-border px-3 py-2 bg-muted/30"
+					className="flex items-center justify-start border-b border-border px-3 py-2 bg-background"
 					style={focusBarStyle}
 				>
 					<ProjectFocusBar />
 				</div>
 
-				<main
-					className="flex-1 flex flex-col overflow-hidden min-h-0 bg-background"
-					style={mainStyle}
-				>
+				<main className="flex-1 flex flex-col overflow-hidden min-h-0 bg-background">
 					{children}
 				</main>
 

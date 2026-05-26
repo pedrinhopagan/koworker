@@ -26,11 +26,11 @@ const tabs: Tab[] = [
 
 // Tab item styles
 const tabItem = tv({
-	base: "px-4 py-2 text-sm transition-colors cursor-pointer",
+	base: "px-4 py-2.5 text-sm transition-colors cursor-pointer shadow-[inset_0_-2px_0_transparent]",
 	variants: {
 		active: {
-			true: "bg-primary text-primary-foreground font-medium",
-			false: "text-muted-foreground hover:text-foreground hover:bg-secondary",
+			true: "text-foreground font-medium shadow-[inset_0_-2px_0_var(--project-accent,var(--primary))]",
+			false: "text-muted-foreground hover:text-foreground",
 		},
 	},
 });
