@@ -203,5 +203,37 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		}
 	}
 
+	// tasks.title: era NOT NULL (título obrigatório, em sync com o H1 do index.md). Agora é
+	// nullable — a task pode existir sem nome e cai no fallback do primeiro .md. SQLite não
+	// solta o NOT NULL via ALTER, então rebuild da tabela preservando dados e definição (FKs,
+	// defaults), derivando o CREATE do próprio sqlite_master pra não duplicar o schema.
+	// Idempotente: só roda enquanto a coluna ainda estiver NOT NULL.
+	{
+		const titleCol = tableInfo(sqlite, "tasks").find((c) => c.name === "title");
+		const createSql = sqlite
+			.query<{ sql: string }, []>(
+				"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tasks'",
+			)
+			.get()?.sql;
+
+		if (titleCol?.notnull === 1 && createSql) {
+			const newCreateSql = createSql
+				.replace(/CREATE TABLE "?tasks"?/, 'CREATE TABLE "tasks_new"')
+				.replace(/("title"\s+TEXT)\s+NOT NULL/, "$1");
+			const cols = tableInfo(sqlite, "tasks")
+				.map((c) => `"${c.name}"`)
+				.join(", ");
+
+			sqlite.exec("PRAGMA foreign_keys=OFF");
+			sqlite.transaction(() => {
+				sqlite.exec(newCreateSql);
+				sqlite.exec(`INSERT INTO tasks_new (${cols}) SELECT ${cols} FROM tasks`);
+				sqlite.exec("DROP TABLE tasks");
+				sqlite.exec("ALTER TABLE tasks_new RENAME TO tasks");
+			})();
+			sqlite.exec("PRAGMA foreign_keys=ON");
+		}
+	}
+
 	sqlite.close();
 }

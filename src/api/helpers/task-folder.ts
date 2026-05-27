@@ -25,30 +25,78 @@ export type TaskFile = {
 const KOWORKER_DIR = ".koworker";
 export const PRIMARY_FILE = "index.md";
 
-// O título canônico da task vive na primeira linha H1 do index.md (`# Título`).
-// Retorna null se não houver H1 — aí o título do banco não é tocado.
-export function extractTitleFromMarkdown(content: string): string | null {
-	const match = content.match(/^#\s+(.+?)\s*$/m);
-	return match ? match[1].trim() : null;
+// Conteúdo inicial do index.md quando a task nasce sem nada escrito. Não é título: serve de
+// rascunho e também alimenta o fallback de exibição enquanto a task não tem título no banco.
+export const EMPTY_TASK_PLACEHOLDER = "Nova tarefa — descreva aqui...";
+
+const DISPLAY_TITLE_FALLBACK = "Sem título";
+const DISPLAY_TITLE_MAX_LENGTH = 80;
+
+// Ordena os .md da pasta: index.md primeiro, o resto alfabético.
+function compareMarkdownNames(a: string, b: string): number {
+	if (a === PRIMARY_FILE) return -1;
+	if (b === PRIMARY_FILE) return 1;
+	return a.localeCompare(b);
+}
+
+// Primeira linha não-vazia do conteúdo, com markup de heading removido e truncada.
+function firstMeaningfulLine(content: string): string | null {
+	for (const line of content.split("\n")) {
+		const stripped = line.replace(/^#{1,6}\s+/, "").trim();
+		if (stripped) return stripped.slice(0, DISPLAY_TITLE_MAX_LENGTH);
+	}
+	return null;
+}
+
+// O nome exibido da task: o título do banco quando há, senão o começo do primeiro .md,
+// senão um placeholder. É a única fonte do que a UI renderiza como nome da task.
+export function resolveDisplayTitle(params: { title?: string; firstContent?: string }): string {
+	const title = params.title?.trim();
+	if (title) return title;
+
+	const fromContent = params.firstContent ? firstMeaningfulLine(params.firstContent) : null;
+	return fromContent ?? DISPLAY_TITLE_FALLBACK;
 }
 
 // Pasta da task relativa ao project.main_route, ex: ".koworker/3f2a8b1c". S\u00F3 o id curto,
-// sem slug do t\u00EDtulo \u2014 o t\u00EDtulo vive no banco e no H1 do index.md, n\u00E3o no nome da pasta.
+// sem slug do t\u00EDtulo \u2014 o t\u00EDtulo vive no banco, n\u00E3o no nome da pasta nem no H1 do index.md.
 export function buildFolderPath(id: string): string {
 	return join(KOWORKER_DIR, id.slice(0, 8));
 }
 
-// Cria a pasta da task com um index.md inicial contendo o título como H1.
+// Cria a pasta da task com um index.md inicial de conteúdo neutro. O título vive só no banco.
 export async function createTaskFolder(params: {
 	projectRoute: string;
 	folderPath: string;
-	title: string;
 }): Promise<void> {
 	await ensureKoworkerGitignored(params.projectRoute);
 
 	const dir = join(params.projectRoute, params.folderPath);
 	await mkdir(dir, { recursive: true });
-	await Bun.write(join(dir, PRIMARY_FILE), `# ${params.title}\n`);
+	await Bun.write(join(dir, PRIMARY_FILE), `${EMPTY_TASK_PLACEHOLDER}\n`);
+}
+
+// Conteúdo do primeiro .md da pasta (mesma ordem de readTaskFiles), para o fallback de
+// exibição das tasks sem título. Lê só um arquivo, não a pasta inteira.
+export async function readFirstMarkdownContent(params: {
+	projectRoute: string;
+	folderPath: string;
+}): Promise<string | undefined> {
+	const dir = join(params.projectRoute, params.folderPath);
+
+	let entries: string[];
+	try {
+		entries = (await readdir(dir, { withFileTypes: true }))
+			.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+			.map((entry) => entry.name);
+	} catch {
+		return undefined;
+	}
+
+	const first = entries.sort(compareMarkdownNames).at(0);
+	if (!first) return undefined;
+
+	return Bun.file(join(dir, first)).text();
 }
 
 // Lê todos os .md da pasta. index.md vem primeiro; o resto em ordem alfabética.
@@ -67,11 +115,7 @@ export async function readTaskFiles(params: {
 		return { files: [], primaryFile: null };
 	}
 
-	entries.sort((a, b) => {
-		if (a === PRIMARY_FILE) return -1;
-		if (b === PRIMARY_FILE) return 1;
-		return a.localeCompare(b);
-	});
+	entries.sort(compareMarkdownNames);
 
 	const files = await Promise.all(
 		entries.map(async (name) => ({ name, content: await Bun.file(join(dir, name)).text() })),

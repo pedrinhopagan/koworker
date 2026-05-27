@@ -34,5 +34,5 @@ export async function runDone(args: string[]): Promise<void> {
 	}
 
 	await dbTasks.update({ id: row.id, done: 1, completed_at: Date.now() });
-	console.log(`✅ Tarefa "${row.title}" marcada como concluída.`);
+	console.log(`✅ Tarefa "${row.title ?? folderPath}" marcada como concluída.`);
 }

@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, PencilLine } from "lucide-react";
+import { useRef, useState } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 import { orpc } from "@/client";
 import { Title } from "@/components/typography";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { DeleteConfirmButton } from "@/components/ui/delete-confirm-button";
@@ -85,6 +87,44 @@ function MetaSelect({
 	);
 }
 
+function TaskTitleInput({
+	initialValue,
+	placeholder,
+	onSave,
+	onCancel,
+}: {
+	initialValue: string;
+	placeholder: string;
+	onSave: (value: string) => void;
+	onCancel: () => void;
+}) {
+	const [value, setValue] = useState(initialValue);
+	const cancelled = useRef(false);
+
+	return (
+		<input
+			// biome-ignore lint/a11y/noAutofocus: o input só monta sob ação explícita do pencil.
+			autoFocus
+			value={value}
+			placeholder={placeholder}
+			onChange={(event) => setValue(event.target.value)}
+			onFocus={(event) => event.currentTarget.select()}
+			onBlur={() => (cancelled.current ? onCancel() : onSave(value))}
+			onKeyDown={(event) => {
+				if (event.key === "Enter") {
+					event.preventDefault();
+					event.currentTarget.blur();
+				} else if (event.key === "Escape") {
+					event.preventDefault();
+					cancelled.current = true;
+					event.currentTarget.blur();
+				}
+			}}
+			className="w-full min-w-0 flex-1 border-b border-border bg-transparent text-base font-normal tracking-wide outline-none focus:border-ring"
+		/>
+	);
+}
+
 function TaskItemDefault({
 	task,
 	variant,
@@ -94,6 +134,7 @@ function TaskItemDefault({
 }) {
 	const queryClient = useQueryClient();
 	const isDone = task.done;
+	const [editing, setEditing] = useState(false);
 
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
@@ -119,7 +160,15 @@ function TaskItemDefault({
 		onSuccess: invalidateTasks,
 	});
 
-	const isMutating = setDoneMutation.isPending || removeTaskMutation.isPending;
+	const isMutating =
+		setDoneMutation.isPending || removeTaskMutation.isPending || updateMutation.isPending;
+
+	function saveTitle(value: string) {
+		setEditing(false);
+		const next = value.trim();
+		if (next === (task.title ?? "")) return;
+		updateMutation.mutate({ id: task.id, title: next });
+	}
 
 	return (
 		<div
@@ -135,18 +184,27 @@ function TaskItemDefault({
 					disabled={isMutating}
 					aria-label={isDone ? "Marcar como não concluída" : "Marcar como concluída"}
 				/>
-				<Link to="/tarefas/$taskId" params={{ taskId: task.id }} className="min-w-0 flex-1">
-					<Title
-						as="span"
-						size="sm"
-						className={cn(
-							"block truncate text-base font-normal tracking-wide",
-							isDone && "text-muted-foreground line-through",
-						)}
-					>
-						{task.title}
-					</Title>
-				</Link>
+				{editing ? (
+					<TaskTitleInput
+						initialValue={task.title ?? ""}
+						placeholder={task.displayTitle}
+						onSave={saveTitle}
+						onCancel={() => setEditing(false)}
+					/>
+				) : (
+					<Link to="/tarefas/$taskId" params={{ taskId: task.id }} className="min-w-0 flex-1">
+						<Title
+							as="span"
+							size="sm"
+							className={cn(
+								"block truncate text-base font-normal tracking-wide",
+								isDone && "text-muted-foreground line-through",
+							)}
+						>
+							{task.displayTitle}
+						</Title>
+					</Link>
+				)}
 			</div>
 
 			<div className="flex shrink-0 items-center gap-2">
@@ -162,6 +220,18 @@ function TaskItemDefault({
 					placeholder="Prioridade"
 					onValueChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
 				/>
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon-sm"
+					onClick={() => setEditing(true)}
+					disabled={isMutating}
+					title="Renomear tarefa"
+					aria-label="Renomear tarefa"
+					className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+				>
+					<PencilLine className="h-3 w-3" />
+				</Button>
 				<DeleteConfirmButton
 					onDelete={() => removeTaskMutation.mutate({ id: task.id })}
 					disabled={isMutating}

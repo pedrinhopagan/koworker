@@ -56,7 +56,7 @@ export function TaskItemAgendaVariant({
 						size="sm"
 						className="whitespace-pre-wrap break-words leading-5 font-medium"
 					>
-						{task.title}
+						{task.displayTitle}
 					</Title>
 					<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
 						<div className="inline-flex items-center gap-1">

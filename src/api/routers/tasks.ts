@@ -7,10 +7,10 @@ import { dbTasks } from "../db/tasks";
 import {
 	buildFolderPath,
 	createTaskFolder,
-	extractTitleFromMarkdown,
-	PRIMARY_FILE,
+	readFirstMarkdownContent,
 	readTaskFiles,
 	removeTaskFolder,
+	resolveDisplayTitle,
 	writeTaskFile,
 } from "../helpers/task-folder";
 import { restartTasksWatcher } from "../helpers/tasks-watcher";
@@ -29,11 +29,12 @@ import {
 	TaskWriteFileSchema,
 } from "../schemas";
 
-const mapTask = (row: tasks) => ({
+const mapTask = (row: tasks, displayTitle: string) => ({
 	id: row.id,
 	projectId: row.project_id,
 	folderPath: row.folder_path,
-	title: row.title,
+	title: row.title ?? undefined,
+	displayTitle,
 	priorityId: row.priority_id,
 	categoryId: row.category_id,
 	scheduledDate: row.scheduled_date ?? undefined,
@@ -44,6 +45,55 @@ const mapTask = (row: tasks) => ({
 	updatedAt: row.updated_at ?? undefined,
 	deletedAt: row.deleted_at ?? undefined,
 });
+
+// Resolve o displayTitle de uma única row. Só lê o disco quando a task não tem título.
+async function mapTaskWithDisplay(row: tasks) {
+	const title = row.title?.trim();
+	if (title) return mapTask(row, title);
+
+	const project = await dbProjects.getById(row.project_id);
+	const firstContent = project
+		? await readFirstMarkdownContent({
+				projectRoute: project.main_route,
+				folderPath: row.folder_path,
+			})
+		: undefined;
+	return mapTask(row, resolveDisplayTitle({ firstContent }));
+}
+
+// Resolve o displayTitle de várias rows de uma vez: carrega os projetos das tasks sem título
+// uma vez e lê o 1º .md de cada. Rows com título não tocam o disco.
+async function mapTasks(rows: tasks[]) {
+	const untitled = rows.filter((row) => !row.title?.trim());
+
+	const projectIds = [...new Set(untitled.map((row) => row.project_id))];
+	const projects = new Map(
+		(await Promise.all(projectIds.map((id) => dbProjects.getById(id))))
+			.filter((project) => project !== null)
+			.map((project) => [project.id, project] as const),
+	);
+
+	const firstContentByTask = new Map(
+		await Promise.all(
+			untitled.map(async (row) => {
+				const project = projects.get(row.project_id);
+				const content = project
+					? await readFirstMarkdownContent({
+							projectRoute: project.main_route,
+							folderPath: row.folder_path,
+						})
+					: undefined;
+				return [row.id, content] as const;
+			}),
+		),
+	);
+
+	return rows.map((row) => {
+		const title = row.title?.trim();
+		if (title) return mapTask(row, title);
+		return mapTask(row, resolveDisplayTitle({ firstContent: firstContentByTask.get(row.id) }));
+	});
+}
 
 async function publishTaskEvent(
 	taskId: string,
@@ -67,7 +117,7 @@ export const tasksRouter = {
 	focus: protectedProcedure.input(TaskFocusSchema).handler(async ({ input }) => {
 		const row = await dbTasks.getFocusTask(input.projectId ?? null);
 		if (!row) return null;
-		return mapTask(row);
+		return mapTaskWithDisplay(row);
 	}),
 
 	getAll: protectedProcedure.input(TaskGetAllSchema).handler(async ({ input }) => {
@@ -83,27 +133,27 @@ export const tasksRouter = {
 			q: input.q,
 		});
 
-		return rows.map(mapTask);
+		return mapTasks(rows);
 	}),
 
 	listByProject: protectedProcedure.input(TaskListByProjectSchema).handler(async ({ input }) => {
 		const rows = await dbTasks.listByProject(input);
-		return rows.map(mapTask);
+		return mapTasks(rows);
 	}),
 
 	listByDate: protectedProcedure.input(TaskListByDateSchema).handler(async ({ input }) => {
 		const rows = await dbTasks.listByDate(input.date, input);
-		return rows.map(mapTask);
+		return mapTasks(rows);
 	}),
 
 	listByWeek: protectedProcedure.input(TaskListByWeekSchema).handler(async ({ input }) => {
 		const rows = await dbTasks.listByDateRange(input.startDate, input.endDate, input);
-		return rows.map(mapTask);
+		return mapTasks(rows);
 	}),
 
 	getById: protectedProcedure.input(TaskIdSchema).handler(async ({ input }) => {
 		const row = await dbTasks.getById(input.id);
-		return row ? mapTask(row) : null;
+		return row ? mapTaskWithDisplay(row) : null;
 	}),
 
 	getFull: protectedProcedure.input(TaskIdSchema).handler(async ({ input }) => {
@@ -120,8 +170,13 @@ export const tasksRouter = {
 			? await readTaskFiles({ projectRoute: project.main_route, folderPath: row.folder_path })
 			: { files: [], primaryFile: null };
 
+		const displayTitle = resolveDisplayTitle({
+			title: row.title ?? undefined,
+			firstContent: files.at(0)?.content,
+		});
+
 		return {
-			...mapTask(row),
+			...mapTask(row, displayTitle),
 			files,
 			primaryFile,
 			category: category ? { id: category.id, name: category.name, color: category.color } : null,
@@ -149,7 +204,6 @@ export const tasksRouter = {
 		await createTaskFolder({
 			projectRoute: project.main_route,
 			folderPath,
-			title: input.title,
 		});
 
 		await dbTasks.create({
@@ -168,7 +222,7 @@ export const tasksRouter = {
 		restartTasksWatcher();
 
 		const row = await dbTasks.getById(id);
-		return row ? mapTask(row) : null;
+		return row ? mapTaskWithDisplay(row) : null;
 	}),
 
 	update: protectedProcedure.input(TaskUpdateSchema).handler(async ({ input }) => {
@@ -187,7 +241,7 @@ export const tasksRouter = {
 		if (row) {
 			await publishTaskEvent(row.id, row.project_id, "updated");
 		}
-		return row ? mapTask(row) : null;
+		return row ? mapTaskWithDisplay(row) : null;
 	}),
 
 	setDone: protectedProcedure.input(TaskSetDoneSchema).handler(async ({ input }) => {
@@ -201,7 +255,7 @@ export const tasksRouter = {
 		if (row) {
 			await publishTaskEvent(row.id, row.project_id, "updated");
 		}
-		return row ? mapTask(row) : null;
+		return row ? mapTaskWithDisplay(row) : null;
 	}),
 
 	writeFile: protectedProcedure.input(TaskWriteFileSchema).handler(async ({ input }) => {
@@ -217,14 +271,6 @@ export const tasksRouter = {
 			name: input.name,
 			content: input.content,
 		});
-
-		// O H1 do index.md é a fonte de verdade do título: mantém o banco em sync.
-		if (input.name === PRIMARY_FILE) {
-			const title = extractTitleFromMarkdown(input.content);
-			if (title && title !== row.title) {
-				await dbTasks.update({ id: row.id, title });
-			}
-		}
 
 		await publishTaskEvent(row.id, row.project_id, "updated");
 		return { id: row.id, name: input.name };

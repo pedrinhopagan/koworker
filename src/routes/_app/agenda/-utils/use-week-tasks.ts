@@ -37,7 +37,7 @@ export function useWeekTasks(startDate: string, endDate: string) {
 						b.scheduledTime ?? "00:00",
 					);
 					if (timeCompare !== 0) return timeCompare;
-					return a.title.localeCompare(b.title);
+					return a.displayTitle.localeCompare(b.displayTitle);
 				}),
 			);
 		}

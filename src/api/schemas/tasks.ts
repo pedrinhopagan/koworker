@@ -74,7 +74,7 @@ export const TaskGetAllSchema = z
 
 export const TaskCreateSchema = z.object({
 	projectId: z.string().trim().min(1),
-	title: z.string().trim().min(1),
+	title: z.string().trim().min(1).optional(),
 	priorityId: z.string().trim().min(1),
 	categoryId: z.string().trim().min(1),
 	scheduledDate: z
@@ -91,7 +91,13 @@ export const TaskCreateSchema = z.object({
 
 export const TaskUpdateSchema = z.object({
 	id: z.string().trim().min(1),
-	title: z.string().trim().min(1).optional(),
+	// Limpar o título (input vazio) volta a task pro fallback: o boundary normaliza "" → null.
+	title: z
+		.string()
+		.trim()
+		.nullable()
+		.optional()
+		.transform((v) => (v === "" ? null : v)),
 	priorityId: z.string().trim().min(1).optional(),
 	categoryId: z.string().trim().min(1).optional(),
 	scheduledDate: z
@@ -152,7 +158,7 @@ export const TaskDbCreateSchema = z.object({
 	id: z.string().min(1),
 	project_id: z.string().min(1),
 	folder_path: z.string().min(1),
-	title: z.string().min(1),
+	title: z.string().min(1).optional(),
 	priority_id: z.string().min(1),
 	category_id: z.string().min(1),
 	scheduled_date: z.string().nullable().optional(),
@@ -167,7 +173,10 @@ export const TaskDbCreateSchema = z.object({
 export const TaskDbUpdateSchema = TaskDbCreateSchema.omit({
 	id: true,
 	created_at: true,
-}).partial();
+})
+	.partial()
+	// title nullable no update: gravar null limpa o título e devolve a task pro fallback.
+	.extend({ title: z.string().min(1).nullable().optional() });
 
 export type TaskDbCreateInput = z.infer<typeof TaskDbCreateSchema>;
 export type TaskDbUpdateInput = z.infer<typeof TaskDbUpdateSchema>;

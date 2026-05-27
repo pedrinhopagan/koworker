@@ -38,7 +38,7 @@ export function WeekTaskChip({ task, compact = false }: WeekTaskChipProps) {
 				compact && "px-2",
 				isDragging && "z-50 cursor-grabbing opacity-60 shadow-lg",
 			)}
-			title={`${task.title} ${task.scheduledTime ?? "00:00"}`}
+			title={`${task.displayTitle} ${task.scheduledTime ?? "00:00"}`}
 		>
 			<TaskItem task={task} variant="agendaMini" />
 		</div>

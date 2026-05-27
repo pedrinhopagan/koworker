@@ -28,11 +28,8 @@ async function resolveProjectByCwd() {
 }
 
 export async function runCreate(args: string[]): Promise<void> {
-	const title = args.join(" ").trim();
-	if (!title) {
-		console.error('Uso: kowork create "<título da tarefa>"');
-		process.exit(1);
-	}
+	// Título é opcional: sem args a task nasce sem nome e exibe o fallback do primeiro .md.
+	const title = args.join(" ").trim() || undefined;
 
 	const project = await resolveProjectByCwd();
 	if (!project) {
@@ -56,7 +53,7 @@ export async function runCreate(args: string[]): Promise<void> {
 	const id = crypto.randomUUID();
 	const folderPath = buildFolderPath(id);
 
-	await createTaskFolder({ projectRoute: project.main_route, folderPath, title });
+	await createTaskFolder({ projectRoute: project.main_route, folderPath });
 	await dbTasks.create({
 		id,
 		project_id: project.id,
@@ -66,6 +63,6 @@ export async function runCreate(args: string[]): Promise<void> {
 		category_id: category.id,
 	});
 
-	console.log(`✅ Tarefa "${title}" criada.`);
+	console.log(title ? `✅ Tarefa "${title}" criada.` : "✅ Tarefa criada.");
 	console.log(folderPath);
 }

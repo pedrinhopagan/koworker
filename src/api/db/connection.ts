@@ -42,7 +42,9 @@ const tasksSchema = type({
 	// Pasta da task relativa ao project.main_route, ex: ".koworker/<id>-<slug>".
 	// O conteúdo canônico vive nos .md dessa pasta; esta linha é só o índice.
 	folder_path: "string",
-	title: "string",
+	// Título editável da task. Nullable: a task pode nascer sem nome e cair no fallback
+	// do primeiro .md (resolveDisplayTitle). O H1 do index.md não é mais o título.
+	"title?": "string",
 	priority_id: type("string").configure({ references: "priorities.id", onDelete: "restrict" }),
 	category_id: type("string").configure({ references: "categories.id", onDelete: "restrict" }),
 	// YYYY-MM-DD format

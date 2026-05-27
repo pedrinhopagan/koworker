@@ -12,7 +12,7 @@ export function useDayTasks(date: string | null) {
 		.sort((a, b) => {
 			const timeCompare = (a.scheduledTime ?? "00:00").localeCompare(b.scheduledTime ?? "00:00");
 			if (timeCompare !== 0) return timeCompare;
-			return a.title.localeCompare(b.title);
+			return a.displayTitle.localeCompare(b.displayTitle);
 		});
 
 	const refetch = () => {
