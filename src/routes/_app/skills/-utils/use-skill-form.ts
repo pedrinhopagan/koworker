@@ -3,7 +3,7 @@ import { useCallback, useEffect } from "react";
 import { useController, useForm } from "react-hook-form";
 import { z } from "zod";
 
-import type { TaskSkill } from "@/types/skills";
+import type { SkillRecord, TaskSkill } from "@/types/skills";
 
 const skillFormSchema = z.object({
 	slug: z
@@ -19,29 +19,18 @@ const skillFormSchema = z.object({
 
 export type SkillFormData = z.infer<typeof skillFormSchema>;
 
-export interface EditableSkill {
-	id: string;
-	slug: string;
-	name: string;
-	description: string;
-	content?: string;
-	metadata?: Record<string, unknown>;
-	source: "builtin" | "custom";
-}
+export type EditableSkill = SkillRecord;
 
 export function useSkillForm(skill?: EditableSkill) {
 	const baseMetadata = skill?.metadata ?? {};
 	const defaultIcon = typeof baseMetadata.icon === "string" ? baseMetadata.icon : "FolderOpen";
 	const defaultColor = typeof baseMetadata.color === "string" ? baseMetadata.color : "#94a3b8";
-	const defaultTitle =
-		typeof baseMetadata.title === "string" && baseMetadata.title.trim()
-			? baseMetadata.title
-			: (skill?.name ?? "");
+	const defaultTitle = skill?.name ?? "";
 
 	const buildValues = useCallback(
 		(currentSkill?: EditableSkill): SkillFormData => ({
 			slug: currentSkill?.slug ?? "",
-			title: defaultTitle,
+			title: currentSkill?.name ?? defaultTitle,
 			description: currentSkill?.description ?? "",
 			content: currentSkill?.content ?? "",
 			icon:
@@ -89,7 +78,9 @@ export function useSkillForm(skill?: EditableSkill) {
 		instructions: previewInstructions || "",
 		icon: previewIcon || defaultIcon,
 		color: previewColor || defaultColor,
-		source: skill?.source ?? "custom",
+		source: skill?.sources.some((source) => source.tool === "koworker") ? "builtin" : "custom",
+		sources: skill?.sources ?? [],
+		primaryPath: skill?.primaryPath ?? "",
 		requiresSubtaskSelection: previewRequiresSubtaskSelection,
 	};
 
@@ -117,10 +108,7 @@ export function useSkillForm(skill?: EditableSkill) {
 		return metadata;
 	}
 
-	const displayTitle =
-		skill && typeof skill.metadata?.title === "string" && skill.metadata.title.trim()
-			? skill.metadata.title
-			: (skill?.name ?? "");
+	const displayTitle = skill?.name ?? "";
 
 	return {
 		register,

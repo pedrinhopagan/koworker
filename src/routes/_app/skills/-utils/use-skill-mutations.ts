@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
@@ -13,13 +13,15 @@ type UseSkillMutationsOptions = {
 export function useSkillMutations({ skill, onSave }: UseSkillMutationsOptions) {
 	const queryClient = useQueryClient();
 	const isEditing = Boolean(skill);
-	const skillsQuery = useQuery(orpc.skills.list.queryOptions());
+	const skillsKey = orpc.skills.list.key();
+
+	const invalidate = () => queryClient.invalidateQueries({ queryKey: skillsKey });
 
 	const createMutation = useMutation({
 		...orpc.skills.create.mutationOptions(),
 		onSuccess: () => {
 			toast.success("Skill criada com sucesso");
-			skillsQuery.refetch();
+			invalidate();
 			onSave();
 		},
 		onError: (error: Error) => {
@@ -31,7 +33,7 @@ export function useSkillMutations({ skill, onSave }: UseSkillMutationsOptions) {
 		...orpc.skills.update.mutationOptions(),
 		onSuccess: () => {
 			toast.success("Skill atualizada com sucesso");
-			skillsQuery.refetch();
+			invalidate();
 			onSave();
 		},
 		onError: (error: Error) => {
@@ -43,7 +45,7 @@ export function useSkillMutations({ skill, onSave }: UseSkillMutationsOptions) {
 		...orpc.skills.delete.mutationOptions(),
 		onSuccess: () => {
 			toast.success("Skill removida com sucesso");
-			queryClient.invalidateQueries();
+			invalidate();
 			onSave();
 		},
 		onError: (error: Error) => {
@@ -52,15 +54,11 @@ export function useSkillMutations({ skill, onSave }: UseSkillMutationsOptions) {
 	});
 
 	function saveSkill(data: SkillFormData, metadata: Record<string, unknown>) {
-		const updatePayload = {
-			description: data.description,
-			content: data.content,
-		};
-
 		if (isEditing && skill) {
 			updateMutation.mutate({
-				id: skill.id,
-				...updatePayload,
+				path: skill.primaryPath,
+				description: data.description,
+				content: data.content,
 				metadata,
 			});
 			return;
@@ -70,9 +68,7 @@ export function useSkillMutations({ skill, onSave }: UseSkillMutationsOptions) {
 			slug: data.slug,
 			description: data.description,
 			content: data.content,
-			name: data.slug,
 			metadata,
-			source: "custom",
 		});
 	}
 
@@ -80,7 +76,7 @@ export function useSkillMutations({ skill, onSave }: UseSkillMutationsOptions) {
 		if (!skill) {
 			return;
 		}
-		deleteMutation.mutate({ id: skill.id });
+		deleteMutation.mutate({ path: skill.primaryPath });
 	}
 
 	return {
