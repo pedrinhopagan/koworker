@@ -66,7 +66,7 @@ export function TaskSearch({ value, categories, priorities, onChange }: TaskSear
 			title={"Pesquisa e filtros"}
 			onOpenChange={() => setOpen(!open)}
 			variant="compact"
-			className="rounded-md border border-dotted bg-muted/20 space-y-3 px-2"
+			className="rounded-md border border-dotted bg-muted/20 space-y-3"
 		>
 			<div className="flex flex-wrap gap-3 px-2 pb-4">
 				<div className="flex-1 min-w-60 space-y-1">
