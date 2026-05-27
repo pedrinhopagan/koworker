@@ -1,4 +1,4 @@
-// Prompt enviado ao agente: `/koworker` + o caminho do `.md` em foco, relativo à raiz do
+// Prompt enviado ao agente: `/kw` + o caminho do `.md` em foco, relativo à raiz do
 // projeto (sem o caminho da máquina). O agente resolve dentro do projeto atual e lê a pasta
 // inteira; o conteúdo dos `.md` não vai no prompt.
 export function buildKoworkerPrompt(params: {
@@ -6,10 +6,8 @@ export function buildKoworkerPrompt(params: {
 	fileName?: string;
 	userInput?: string;
 }): string {
-	const target = params.fileName
-		? `/${params.folderPath}/${params.fileName}`
-		: `/${params.folderPath}`;
-	const lines = ["/koworker", target];
+	const target = params.fileName ? `${params.folderPath}/${params.fileName}` : params.folderPath;
+	const lines = [`/kw ${target}`];
 
 	const extra = params.userInput?.trim();
 	if (extra) {
