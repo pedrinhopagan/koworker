@@ -3,7 +3,6 @@ import { type } from "arktype";
 import { envVariables } from "@/api/config/env";
 
 const user_type = type.enumerated("admin", "user");
-const task_status = type.enumerated("pending", "in_execution", "executed");
 
 const usersSchema = type({
 	id: autoIncrement(),
@@ -40,33 +39,20 @@ const projectRoutesSchema = type({
 const tasksSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	project_id: type("string").configure({ references: "projects.id", onDelete: "restrict" }),
+	// Pasta da task relativa ao project.main_route, ex: ".koworker/<id>-<slug>".
+	// O conteúdo canônico vive nos .md dessa pasta; esta linha é só o índice.
+	folder_path: "string",
 	title: "string",
-	"description?": "string",
-	"notes?": "string",
-	"ai_metadata?": "string",
 	priority_id: type("string").configure({ references: "priorities.id", onDelete: "restrict" }),
 	category_id: type("string").configure({ references: "categories.id", onDelete: "restrict" }),
-	status: task_status.configure({ default: "pending" }),
-	"acceptance_criteria?": "string",
 	// YYYY-MM-DD format
 	"scheduled_date?": "string",
 	"scheduled_time?": "string",
+	done: type("number.integer").configure({ default: 0 }),
 	"completed_at?": "number.integer",
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 	"deleted_at?": "number.integer",
-});
-
-const subtasksSchema = type({
-	id: type("string").configure({ primaryKey: true }),
-	task_id: type("string").configure({ references: "tasks.id", onDelete: "restrict" }),
-	title: "string",
-	"description?": "string",
-	status: task_status.configure({ default: "pending" }),
-	display_order: type("number.integer").configure({ default: 0 }),
-	"completed_at?": "number.integer",
-	created_at: type("number.integer").configure({ default: "now" }),
-	"updated_at?": "number.integer",
 });
 
 const categoriesSchema = type({
@@ -88,17 +74,14 @@ const prioritiesSchema = type({
 	"updated_at?": "number.integer",
 });
 
-const skill_source = type.enumerated("builtin", "custom");
-
-const skillsSchema = type({
-	id: type("string").configure({ primaryKey: true }),
-	slug: type("string").configure({ unique: true }),
-	name: "string",
-	description: "string",
-	"content?": "string",
-	"metadata?": "string",
-	source: skill_source.configure({ default: "custom" }),
-	display_order: type("number.integer").configure({ default: 0 }),
+// Metadados internos do koworker para skills do disco. A chave é o slug da skill
+// (nome da pasta), que é o que une as várias fontes num único registro. Nada aqui
+// toca o SKILL.md: são apenas overrides de apresentação (nome, ícone, cor).
+const skillSettingsSchema = type({
+	slug: type("string").configure({ primaryKey: true }),
+	"label?": "string",
+	"icon?": "string",
+	"color?": "string",
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 });
@@ -112,8 +95,7 @@ const database = new Database({
 		priorities: prioritiesSchema,
 		project_routes: projectRoutesSchema,
 		tasks: tasksSchema,
-		subtasks: subtasksSchema,
-		skills: skillsSchema,
+		skill_settings: skillSettingsSchema,
 	},
 });
 
@@ -130,21 +112,17 @@ export type users = DB["users"];
 export type projects = DB["projects"];
 export type project_routes = DB["project_routes"];
 export type tasks = DB["tasks"];
-export type subtasks = DB["subtasks"];
 export type categories = DB["categories"];
 export type priorities = DB["priorities"];
-export type skills = DB["skills"];
+export type skill_settings = DB["skill_settings"];
 
 export {
 	user_type,
-	task_status,
-	skill_source,
 	usersSchema,
 	projectsSchema,
 	projectRoutesSchema,
 	tasksSchema,
-	subtasksSchema,
 	categoriesSchema,
 	prioritiesSchema,
-	skillsSchema,
+	skillSettingsSchema,
 };

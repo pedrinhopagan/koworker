@@ -12,7 +12,6 @@ const numberFmt = new Intl.NumberFormat("pt-BR");
 export function HomeProjectShowcase({ project }: HomeProjectShowcaseProps) {
 	const accentColor = project.color ?? "var(--primary)";
 	const pending = project.tasksSummary.pending ?? 0;
-	const inProgress = project.tasksSummary.inProgress ?? 0;
 	const done = project.tasksSummary.done ?? 0;
 
 	return (
@@ -34,9 +33,8 @@ export function HomeProjectShowcase({ project }: HomeProjectShowcaseProps) {
 				style={{ backgroundColor: `color-mix(in oklab, ${accentColor} 45%, var(--border))` }}
 			/>
 
-			<div className="mt-10 grid gap-px border border-border bg-border sm:grid-cols-3">
+			<div className="mt-10 grid gap-px border border-border bg-border sm:grid-cols-2">
 				<Metric label="Pendentes" value={pending} accentColor={accentColor} />
-				<Metric label="Em andamento" value={inProgress} accentColor={accentColor} />
 				<Metric label="Concluídas" value={done} accentColor={accentColor} />
 			</div>
 		</div>

@@ -1,19 +1,18 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Copy, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { orpc } from "@/client";
+import { MarkdownEditor } from "@/components/markdown-doc";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { TaskAcceptanceCriteria } from "./-components/task-acceptance-criteria";
-import { TaskActionPanel } from "./-components/task-action-panel";
-import { TaskDescription } from "./-components/task-description";
-import { TaskDetails } from "./-components/task-details";
-import { TaskHeader } from "./-components/task-header";
-import { TaskMetadata } from "./-components/task-metadata";
-import { TaskPageLayout } from "./-components/task-page-layout";
-import { TaskSubtasks } from "./-components/task-subtasks";
+import { Textarea } from "@/components/ui/textarea";
+import { useDebouncedWrite } from "@/hooks/use-debounced-write";
+import { cn } from "@/lib/utils";
+
+import { buildKoworkerPrompt, copyToClipboard } from "./-components/build-prompt";
 
 export const Route = createFileRoute("/_app/tarefas/$taskId/")({
 	component: TaskDetailPage,
@@ -21,47 +20,30 @@ export const Route = createFileRoute("/_app/tarefas/$taskId/")({
 
 function TaskDetailPage() {
 	const { taskId } = Route.useParams();
-
-	const [selectionSkillId, setSelectionSkillId] = useState<string | null>(null);
-	const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<string[]>([]);
-	const [selectedParentTask, setSelectedParentTask] = useState(false);
-	const selectingSubtasks = Boolean(selectionSkillId);
+	const queryClient = useQueryClient();
 
 	const taskQuery = useQuery(orpc.tasks.getFull.queryOptions({ input: { id: taskId } }));
 	const task = taskQuery.data ?? null;
 
-	function handleStartSubtaskSelection(skillId: string) {
-		setSelectionSkillId(skillId);
-		setSelectedSubtaskIds([]);
-		setSelectedParentTask(false);
-	}
+	const writeFileMutation = useMutation({
+		...orpc.tasks.writeFile.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries(orpc.tasks.getFull.queryOptions({ input: { id: taskId } }));
+		},
+	});
 
-	function handleCancelSubtaskSelection() {
-		setSelectionSkillId(null);
-		setSelectedSubtaskIds([]);
-		setSelectedParentTask(false);
-	}
+	const { schedule, flush } = useDebouncedWrite((payload: { name: string; content: string }) =>
+		writeFileMutation.mutateAsync({ id: taskId, ...payload }),
+	);
 
-	function handleToggleSubtaskSelection(id: string) {
-		setSelectedSubtaskIds((prev) =>
-			prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
-		);
-	}
+	const [activeFile, setActiveFile] = useState<string | null>(null);
+	const [userInput, setUserInput] = useState("");
 
-	function handleToggleParentTaskSelection() {
-		setSelectedParentTask((prev) => !prev);
-	}
-
-	function handleSelectAllSubtasks() {
-		const allIds = task?.subtasks?.map((subtask) => subtask.id) ?? [];
-		setSelectedSubtaskIds(allIds);
-		setSelectedParentTask(true);
-	}
-
-	function handleClearSelection() {
-		setSelectedSubtaskIds([]);
-		setSelectedParentTask(false);
-	}
+	useEffect(() => {
+		if (task && (!activeFile || !task.files.some((f) => f.name === activeFile))) {
+			setActiveFile(task.primaryFile ?? task.files[0]?.name ?? null);
+		}
+	}, [task, activeFile]);
 
 	if (taskQuery.isLoading) {
 		return (
@@ -89,38 +71,85 @@ function TaskDetailPage() {
 		);
 	}
 
+	const current = task.files.find((f) => f.name === activeFile) ?? null;
+	const folderPath = task.folderPath;
+
+	async function selectFile(name: string) {
+		await flush();
+		setActiveFile(name);
+	}
+
+	async function handleSendPrompt() {
+		await flush();
+
+		const prompt = buildKoworkerPrompt({
+			folderPath,
+			fileName: activeFile ?? undefined,
+			userInput,
+		});
+		const copied = await copyToClipboard(prompt);
+		if (copied) {
+			toast.success("Prompt copiado para a área de transferência");
+		} else {
+			toast.error("Não foi possível copiar o prompt");
+		}
+	}
+
 	return (
-		<TaskPageLayout
-			header={<TaskHeader task={task} />}
-			sidebar={
-				<TaskActionPanel
-					task={task}
-					selectingSubtasks={selectingSubtasks}
-					selectionSkillId={selectionSkillId}
-					selectedSubtaskIds={selectedSubtaskIds}
-					selectedParentTask={selectedParentTask}
-					onStartSubtaskSelection={handleStartSubtaskSelection}
-					onCancelSubtaskSelection={handleCancelSubtaskSelection}
-				/>
-			}
-			content={
-				<div className="space-y-4">
-					<TaskDetails task={task} />
-					<TaskSubtasks
-						task={task}
-						selectionMode={selectingSubtasks}
-						selectedIds={selectedSubtaskIds}
-						selectedParentTask={selectedParentTask}
-						onToggleSelection={handleToggleSubtaskSelection}
-						onToggleParentTask={handleToggleParentTaskSelection}
-						onSelectAll={handleSelectAllSubtasks}
-						onClearSelection={handleClearSelection}
+		<div className="relative flex h-full w-full flex-col">
+			<div className="flex h-8 w-full items-stretch border-b border-border">
+				<Link
+					to="/tarefas"
+					className="flex items-center px-4 text-muted-foreground transition-colors hover:text-foreground"
+					aria-label="Voltar para tarefas"
+				>
+					<ArrowLeft size={16} />
+				</Link>
+				{task.files.map((file) => (
+					<button
+						key={file.name}
+						type="button"
+						onClick={() => void selectFile(file.name)}
+						className={cn(
+							"min-w-0 flex-1 truncate border-l border-border px-3 text-center text-xs leading-8 transition-colors",
+							file.name === activeFile
+								? "bg-secondary text-foreground"
+								: "text-muted-foreground hover:bg-secondary/50",
+						)}
+					>
+						{file.name}
+					</button>
+				))}
+			</div>
+
+			<main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 overflow-y-auto px-4 pt-6 pb-6">
+				{current ? (
+					<MarkdownEditor
+						key={current.name}
+						initialContent={current.content}
+						onChange={(content) => schedule({ name: current.name, content })}
 					/>
-					<TaskAcceptanceCriteria task={task} />
-					<TaskDescription task={task} />
-					<TaskMetadata task={task} />
-				</div>
-			}
-		/>
+				) : (
+					<Text size="sm" tone="muted">
+						Nenhum arquivo markdown nesta tarefa.
+					</Text>
+				)}
+			</main>
+
+			<div className="border-t border-border" />
+
+			<footer className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 py-4">
+				<Textarea
+					value={userInput}
+					onChange={(event) => setUserInput(event.target.value)}
+					placeholder="Instrução opcional para o agente (vai junto do prompt)"
+					className="min-h-16 resize-none"
+				/>
+				<Button onClick={() => void handleSendPrompt()} className="self-end">
+					<Copy size={14} />
+					Copiar prompt
+				</Button>
+			</footer>
+		</div>
 	);
 }

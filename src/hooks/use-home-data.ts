@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { orpc, type RouterOutputs } from "@/client";
-import { getStatusLabel } from "@/domain/tasks/status";
 import { useProjectFocus } from "@/hooks";
 import type { TaskWithMeta } from "@/types/tasks";
 
@@ -38,7 +37,6 @@ export function useHomeData() {
 				name: priority?.name ?? "Sem prioridade",
 				color: priority?.color ?? "#666",
 			},
-			statusLabel: getStatusLabel(task.status),
 		});
 	});
 

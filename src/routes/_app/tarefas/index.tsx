@@ -1,15 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
+import { useState } from "react";
 import { z } from "zod";
 
 import { PageShell } from "@/components/layout/page-shell";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { TaskForm } from "./-components/task-form";
 import { TaskList } from "./-components/task-list";
 import { TaskSearch } from "./-components/task-search";
+import { VaultPanel } from "./-components/vault-panel";
 import { useCreateTask } from "./-utils/use-create-task";
 import { useTasksData } from "./-utils/use-tasks-data";
-
-const searchArraySchema = z.union([z.string(), z.array(z.string())]).optional();
 
 const rawSearchSchema = z.object({
 	q: z.string().optional(),
@@ -18,14 +20,12 @@ const rawSearchSchema = z.object({
 	projectId: z.string().optional(),
 	taskTypeId: z.string().optional(),
 	priorityId: z.string().optional(),
-	statusIds: searchArraySchema,
 	includeCompleted: z.coerce.boolean().optional(),
 
 	// Legacy (PT-BR) — kept for backwards compatibility
 	projetoId: z.string().optional(),
 	categoriaId: z.string().optional(),
 	prioridadeId: z.string().optional(),
-	status: searchArraySchema,
 });
 
 const searchSchema = z.object({
@@ -33,20 +33,8 @@ const searchSchema = z.object({
 	projectId: z.string().optional(),
 	taskTypeId: z.string().optional(),
 	priorityId: z.string().optional(),
-	statusIds: z.array(z.string()).optional(),
 	includeCompleted: z.boolean().optional(),
 });
-
-function normalizeSearchArray(value: string | string[] | undefined) {
-	if (!value) return;
-
-	const parsed = (Array.isArray(value) ? value : value.split(","))
-		.map((item) => item.trim())
-		.filter(Boolean)
-		.filter((item, index, array) => array.indexOf(item) === index);
-
-	return parsed.length > 0 ? parsed : undefined;
-}
 
 export const Route = createFileRoute("/_app/tarefas/")({
 	validateSearch: (search) => {
@@ -56,7 +44,6 @@ export const Route = createFileRoute("/_app/tarefas/")({
 			projectId: raw.projectId ?? raw.projetoId,
 			taskTypeId: raw.taskTypeId ?? raw.categoriaId,
 			priorityId: raw.priorityId ?? raw.prioridadeId,
-			statusIds: normalizeSearchArray(raw.statusIds ?? raw.status),
 			includeCompleted: raw.includeCompleted,
 		});
 	},
@@ -68,12 +55,12 @@ function TarefasPage() {
 	const navigate = Route.useNavigate();
 	const { data, loading } = useTasksData(search);
 	const { createTask, loading: createLoading } = useCreateTask();
+	const [view, setView] = useState<"tasks" | "vault">("tasks");
 
 	function handleSearchChange(next: {
 		q?: string;
 		taskTypeId?: string;
 		priorityId?: string;
-		statusIds?: string[];
 		includeCompleted?: boolean;
 	}) {
 		navigate({
@@ -82,7 +69,6 @@ function TarefasPage() {
 				q: next.q,
 				taskTypeId: next.taskTypeId,
 				priorityId: next.priorityId,
-				statusIds: next.statusIds,
 				includeCompleted: next.includeCompleted,
 			}),
 			replace: true,
@@ -96,24 +82,44 @@ function TarefasPage() {
 			icon={CheckCircle2}
 		>
 			<div className="flex h-full min-h-0 flex-col gap-4">
-				<TaskForm onSubmit={createTask} loading={createLoading} />
-				<TaskSearch
-					value={{
-						q: search.q,
-						taskTypeId: search.taskTypeId,
-						priorityId: search.priorityId,
-						statusIds: search.statusIds,
-						includeCompleted: search.includeCompleted,
-					}}
-					categories={data.categories}
-					priorities={data.priorities}
-					statuses={data.statuses}
-					onChange={handleSearchChange}
-				/>
-
-				<div className="min-h-0 flex-1 overflow-y-auto pr-2 pb-6">
-					<TaskList tasks={data.tasks} loading={loading} />
+				<div className="flex gap-1">
+					{(["tasks", "vault"] as const).map((option) => (
+						<Button
+							key={option}
+							variant={view === option ? "secondary" : "ghost"}
+							size="sm"
+							onClick={() => setView(option)}
+							className={cn(view !== option && "text-muted-foreground")}
+						>
+							{option === "tasks" ? "Tarefas" : "Vault"}
+						</Button>
+					))}
 				</div>
+
+				{view === "tasks" ? (
+					<>
+						<TaskForm onSubmit={createTask} loading={createLoading} />
+						<TaskSearch
+							value={{
+								q: search.q,
+								taskTypeId: search.taskTypeId,
+								priorityId: search.priorityId,
+								includeCompleted: search.includeCompleted,
+							}}
+							categories={data.categories}
+							priorities={data.priorities}
+							onChange={handleSearchChange}
+						/>
+
+						<div className="min-h-0 flex-1 overflow-y-auto pr-2 pb-6">
+							<TaskList tasks={data.tasks} loading={loading} />
+						</div>
+					</>
+				) : (
+					<div className="min-h-0 flex-1 overflow-y-auto pr-2 pb-6">
+						<VaultPanel />
+					</div>
+				)}
 			</div>
 		</PageShell>
 	);

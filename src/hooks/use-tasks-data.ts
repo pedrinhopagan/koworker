@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { orpc } from "@/client";
-import { getStatusLabel, getTaskStatusOptions, type TaskStatus } from "@/domain/tasks/status";
 import type { TaskWithMeta } from "@/types/tasks";
 import { useProjectFocus } from "./use-project-focus";
 
@@ -9,7 +8,6 @@ export type TasksSearchFilters = {
 	projectId?: string;
 	taskTypeId?: string;
 	priorityId?: string;
-	statusIds?: string[];
 	q?: string;
 	includeCompleted?: boolean;
 };
@@ -27,15 +25,6 @@ export function useTasksData(filters: TasksSearchFilters) {
 	});
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
-	const statusOptions = getTaskStatusOptions();
-	const allowedStatusIds = new Set(statusOptions.map((status) => status.id));
-	const selectedStatusIds =
-		filters.statusIds
-			?.filter((statusId): statusId is TaskStatus => allowedStatusIds.has(statusId as TaskStatus))
-			.filter((statusId, index, array) => array.indexOf(statusId) === index) ?? [];
-	const hasStatusFilter =
-		selectedStatusIds.length > 0 && selectedStatusIds.length < statusOptions.length;
-	const selectedStatusSet = new Set(selectedStatusIds);
 
 	const searchQuery = filters.q?.trim();
 	const projectIdForQuery = filters.projectId ?? selectedProjectId ?? null;
@@ -55,14 +44,11 @@ export function useTasksData(filters: TasksSearchFilters) {
 	const categories = categoriesQuery.data ?? [];
 	const priorities = prioritiesQuery.data ?? [];
 	const rawTasks = tasksQuery.data ?? [];
-	const filteredTasks = hasStatusFilter
-		? rawTasks.filter((task) => selectedStatusSet.has(task.status as TaskStatus))
-		: rawTasks;
 
 	const categoryMap = new Map(categories.map((category) => [category.id, category]));
 	const priorityMap = new Map(priorities.map((priority) => [priority.id, priority]));
 
-	const tasksWithMeta: TaskWithMeta[] = filteredTasks.map((task) => {
+	const tasksWithMeta: TaskWithMeta[] = rawTasks.map((task) => {
 		const category = categoryMap.get(task.categoryId);
 		const priority = priorityMap.get(task.priorityId);
 		return Object.assign(task, {
@@ -76,12 +62,11 @@ export function useTasksData(filters: TasksSearchFilters) {
 				name: priority?.name ?? "Sem prioridade",
 				color: priority?.color ?? "#666",
 			},
-			statusLabel: getStatusLabel(task.status),
 		});
 	});
 
-	const pendingCount = tasksWithMeta.filter((task) => !task.completedAt).length;
-	const executedCount = tasksWithMeta.filter((task) => task.completedAt).length;
+	const pendingCount = tasksWithMeta.filter((task) => !task.done).length;
+	const executedCount = tasksWithMeta.filter((task) => task.done).length;
 
 	const loading =
 		projectsLoading ||
@@ -95,7 +80,6 @@ export function useTasksData(filters: TasksSearchFilters) {
 			projects,
 			categories,
 			priorities,
-			statuses: statusOptions,
 			selectedProjectId,
 			pendingCount,
 			executedCount,

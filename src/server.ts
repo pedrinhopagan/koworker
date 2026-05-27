@@ -51,6 +51,10 @@ await DbUsers.ensureDefaultUser();
 const { ensureDbSchema } = await import("./api/db/migrate");
 ensureDbSchema();
 
+// Observa as pastas `.koworker/` dos projetos pra refletir edições do agente na UI.
+const { startTasksWatcher } = await import("./api/helpers/tasks-watcher");
+await startTasksWatcher();
+
 Bun.serve<WsData>({
 	port,
 	development: {

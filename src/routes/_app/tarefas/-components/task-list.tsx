@@ -2,7 +2,6 @@ import { useMemo } from "react";
 
 import { TaskItem } from "@/components/tasks";
 import { Text } from "@/components/typography";
-import { sortTasksByAttention } from "@/domain/tasks/sort";
 import type { TaskWithMeta } from "@/types/tasks";
 
 type TaskListProps = {
@@ -11,7 +10,14 @@ type TaskListProps = {
 };
 
 export function TaskList({ tasks, loading }: TaskListProps) {
-	const orderedTasks = useMemo(() => sortTasksByAttention(tasks), [tasks]);
+	const orderedTasks = useMemo(
+		() =>
+			[...tasks].sort((a, b) => {
+				if (a.done !== b.done) return a.done ? 1 : -1;
+				return b.createdAt - a.createdAt;
+			}),
+		[tasks],
+	);
 
 	if (loading) {
 		return (

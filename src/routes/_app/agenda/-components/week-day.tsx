@@ -28,7 +28,7 @@ export function WeekDay({ day, tasks, onDayClick }: WeekDayProps) {
 	const isSelected = selectedDate === day.date;
 	const visibleTasks = tasks.slice(0, 5);
 	const overflowCount = Math.max(0, tasks.length - 5);
-	const doneCount = tasks.filter((task) => task.status === "executed").length;
+	const doneCount = tasks.filter((task) => task.done).length;
 	const pendingCount = tasks.length - doneCount;
 	const pastLabel = `(${doneCount}/${tasks.length})`;
 

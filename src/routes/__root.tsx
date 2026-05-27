@@ -1,7 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import { ErrorBoundary } from "@/components/error-boundary";
+import { FONTS } from "@/lib/constants/fonts";
+import { useFontStore } from "@/stores/fonts";
 import { useThemeStore } from "@/stores/theme";
 
 interface RouterContext {
@@ -14,6 +17,15 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function RootComponent() {
 	const { theme } = useThemeStore();
+	const { uiFont, readingFont } = useFontStore();
+
+	// Em <html> para a cascata alcançar o <body> (que está acima do root React)
+	// e os portais montados em document.body (toasts, popovers).
+	useEffect(() => {
+		const root = document.documentElement;
+		root.style.setProperty("--app-font", FONTS[uiFont].family);
+		root.style.setProperty("--reading-font", FONTS[readingFont].family);
+	}, [uiFont, readingFont]);
 
 	return (
 		<div className={theme} data-theme-root>

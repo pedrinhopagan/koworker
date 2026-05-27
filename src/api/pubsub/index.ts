@@ -8,10 +8,11 @@ type PubSubChannels = {
 		message: string;
 	};
 	tasks: {
-		taskId: string;
+		// Ausente quando o evento vem do watcher de FS (não sabe qual task mudou).
+		taskId?: string;
 		projectId: string;
 		action: "created" | "updated" | "deleted";
-		source: "api" | "cli";
+		source: "api" | "cli" | "fs";
 	};
 };
 

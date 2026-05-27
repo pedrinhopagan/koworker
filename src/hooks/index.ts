@@ -1,14 +1,11 @@
-export { deriveProgressState } from "@/domain/tasks/attention";
-export { type FocusSubtask, type FocusTask, useFocusTask } from "./use-focus-task";
+export { type FocusTask, useFocusTask } from "./use-focus-task";
 export { MAX_VISIBLE_TASKS, useHomeData } from "./use-home-data";
 export { useLogin } from "./use-login";
 export { useLogout } from "./use-logout";
 export { usePrimaryColor } from "./use-primary-color";
 export { type UseProjectFocusReturn, useProjectFocus } from "./use-project-focus";
 export { useSkillsQuery } from "./use-skills";
-export { type Subtask, useSubtasks } from "./use-subtasks";
 export { type TaskMetrics, useTaskMetrics } from "./use-task-metrics";
-export { type UseTaskProgressResult, useTaskProgress } from "./use-task-progress";
 export { type TasksSearchFilters, useTasksData } from "./use-tasks-data";
 export { useTodayTasks } from "./use-today-tasks";
 export { useUser } from "./use-user";

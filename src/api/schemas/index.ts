@@ -27,16 +27,14 @@ export {
 	ProjectReorderSchema,
 	ProjectUpdateSchema,
 } from "./projects";
-export { SkillCreateSchema, SkillIdSchema, SkillReorderSchema, SkillUpdateSchema } from "./skills";
 export {
-	SubtaskCreateSchema,
-	SubtaskIdSchema,
-	SubtaskListByTaskSchema,
-	SubtaskReorderSchema,
-	SubtaskUpdateSchema,
-} from "./subtasks";
+	SkillCreateSchema,
+	SkillDeleteSchema,
+	SkillListSchema,
+	SkillSettingsSchema,
+	SkillUpdateSchema,
+} from "./skills";
 export {
-	AcceptanceCriteriaItemSchema,
 	TaskCreateSchema,
 	TaskFocusSchema,
 	TaskGetAllSchema,
@@ -45,9 +43,12 @@ export {
 	TaskListByProjectSchema,
 	TaskListByWeekSchema,
 	TaskMetricsSchema,
-	TaskSetVisualStateSchema,
-	TaskStatusSchema,
+	TaskPromoteSchema,
+	TaskSetDoneSchema,
 	TaskUpdateSchema,
+	TaskWriteFileSchema,
+	VaultListSchema,
+	VaultWriteFileSchema,
 } from "./tasks";
 
 export const EndpointSchemas = {

@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { orpc } from "@/client";
 import { AppShell } from "@/components/layout/app-shell";
+import { useTasksRealtime } from "@/hooks/use-tasks-realtime";
 import { useTerminalEvents } from "@/hooks/use-terminal-events";
 
 export const Route = createFileRoute("/_app")({
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/_app")({
 
 function AppLayout() {
 	useTerminalEvents();
+	useTasksRealtime();
 
 	return (
 		<AppShell>

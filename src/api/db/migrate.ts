@@ -1,7 +1,11 @@
+import { existsSync, renameSync } from "node:fs";
+import { join } from "node:path";
 import Database from "bun:sqlite";
 
 import { envVariables } from "@/api/config/env";
 import { normalizeEntityName } from "./entity-name";
+
+const KOWORKER_DIR = ".koworker";
 
 type ColumnInfo = {
 	cid: number;
@@ -164,33 +168,38 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		sqlite.exec("UPDATE project_routes SET command = 'codex --yolo' WHERE command = 'codex'");
 	}
 
-	// skills
+	// tasks: a pasta da task agora é só o id curto (".koworker/<id8>"), sem slug do título.
+	// Canoniza o folder_path antigo (".koworker/<id8>-<slug>") e renomeia a pasta no disco
+	// quando ela ainda estiver no nome antigo. Idempotente e tolerante a pastas já renomeadas
+	// à mão (aí só o folder_path do banco é atualizado).
 	{
-		const cols = tableInfo(sqlite, "skills");
-		if (!hasColumn(cols, "display_order")) {
-			ensureColumn(sqlite, "skills", "display_order INTEGER NOT NULL DEFAULT 0");
-			resequenceDisplayOrder(sqlite, "skills", "source = 'builtin'");
-			resequenceDisplayOrder(sqlite, "skills", "source = 'custom'");
-		}
-	}
+		const tasks = sqlite
+			.query<{ id: string; project_id: string; folder_path: string }, []>(
+				"SELECT id, project_id, folder_path FROM tasks",
+			)
+			.all();
+		const mainRouteByProject = new Map(
+			sqlite
+				.query<{ id: string; main_route: string }, []>("SELECT id, main_route FROM projects")
+				.all()
+				.map((project) => [project.id, project.main_route] as const),
+		);
+		const updateFolderPath = sqlite.query("UPDATE tasks SET folder_path = ? WHERE id = ?");
 
-	// subtasks
-	{
-		const cols = tableInfo(sqlite, "subtasks");
-		if (!hasColumn(cols, "display_order")) {
-			ensureColumn(sqlite, "subtasks", "display_order INTEGER NOT NULL DEFAULT 0");
-			const tasks = sqlite.query("SELECT DISTINCT task_id FROM subtasks").all();
-			for (const task of tasks as { task_id: string }[]) {
-				resequenceDisplayOrder(sqlite, "subtasks", `task_id = '${task.task_id}'`);
+		for (const task of tasks) {
+			const canonical = join(KOWORKER_DIR, task.id.slice(0, 8));
+			if (task.folder_path === canonical) continue;
+
+			const mainRoute = mainRouteByProject.get(task.project_id);
+			if (mainRoute) {
+				const oldDir = join(mainRoute, task.folder_path);
+				const newDir = join(mainRoute, canonical);
+				if (existsSync(oldDir) && !existsSync(newDir)) {
+					renameSync(oldDir, newDir);
+				}
 			}
-		}
-	}
 
-	// tasks
-	{
-		const cols = tableInfo(sqlite, "tasks");
-		if (!hasColumn(cols, "scheduled_time")) {
-			ensureColumn(sqlite, "tasks", "scheduled_time TEXT");
+			updateFolderPath.run(canonical, task.id);
 		}
 	}
 

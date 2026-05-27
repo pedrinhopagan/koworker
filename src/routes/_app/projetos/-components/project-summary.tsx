@@ -66,7 +66,6 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 	const summary = project.tasksSummary;
 	const total = summary?.total ?? 0;
 	const pending = summary?.pending ?? 0;
-	const inProgress = summary?.inProgress ?? 0;
 	const done = summary?.done ?? 0;
 	const progress = summary?.progress ?? 0;
 	const displayPath = project.mainRoute.replace(/^\/home\/[^/]+/, "");
@@ -98,10 +97,9 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 				</Button>
 			</div>
 
-			<div className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-4">
+			<div className="grid grid-cols-3 gap-px border border-border bg-border">
 				<MetricCell label="Total" value={total} />
 				<MetricCell label="Pendentes" value={pending} />
-				<MetricCell label="Em andamento" value={inProgress} />
 				<MetricCell label="Concluídas" value={done} accentColor={project.color} />
 			</div>
 

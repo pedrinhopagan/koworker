@@ -1,13 +1,5 @@
 import { z } from "zod";
 
-export const TaskStatusSchema = z.enum(["pending", "in_execution", "executed"]);
-
-export const AcceptanceCriteriaItemSchema = z.object({
-	id: z.string().min(1),
-	text: z.string().min(1),
-	done: z.boolean(),
-});
-
 export const TaskIdSchema = z.object({
 	id: z.string().min(1),
 });
@@ -28,8 +20,6 @@ export const TaskListFiltersSchema = z.object({
 	 */
 	priorityId: z.string().min(1).optional(),
 	priority: z.string().min(1).optional(),
-
-	status: TaskStatusSchema.optional(),
 });
 
 export const TaskListByProjectSchema = z
@@ -54,7 +44,6 @@ export const TaskListByWeekSchema = z
 	.merge(TaskListFiltersSchema);
 
 // Centralized listing endpoint.
-// Keep the filtering surface minimal for now; more complex filters can be added in phase-5-tarefa-2.
 export const TaskGetAllSchema = z
 	.object({
 		projectId: z.string().min(1).nullable().optional(),
@@ -77,7 +66,6 @@ export const TaskGetAllSchema = z
 	.merge(TaskListFiltersSchema)
 	.refine(
 		(v) => {
-			// Either a specific date OR a range; if both provided, date wins at handler level.
 			if (v.startDate || v.endDate) return Boolean(v.startDate && v.endDate);
 			return true;
 		},
@@ -87,13 +75,8 @@ export const TaskGetAllSchema = z
 export const TaskCreateSchema = z.object({
 	projectId: z.string().trim().min(1),
 	title: z.string().trim().min(1),
-	description: z.string().optional(),
-	notes: z.string().optional(),
-	aiMetadata: z.unknown().optional(),
 	priorityId: z.string().trim().min(1),
 	categoryId: z.string().trim().min(1),
-	status: TaskStatusSchema.optional(),
-	acceptanceCriteria: z.array(AcceptanceCriteriaItemSchema).optional(),
 	scheduledDate: z
 		.string()
 		.regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -109,13 +92,8 @@ export const TaskCreateSchema = z.object({
 export const TaskUpdateSchema = z.object({
 	id: z.string().trim().min(1),
 	title: z.string().trim().min(1).optional(),
-	description: z.string().optional(),
-	notes: z.string().optional(),
-	aiMetadata: z.unknown().optional(),
 	priorityId: z.string().trim().min(1).optional(),
 	categoryId: z.string().trim().min(1).optional(),
-	status: TaskStatusSchema.optional(),
-	acceptanceCriteria: z.array(AcceptanceCriteriaItemSchema).optional(),
 	scheduledDate: z
 		.string()
 		.regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -126,45 +104,60 @@ export const TaskUpdateSchema = z.object({
 		.regex(/^([01]\d|2[0-3]):[0-5]\d$/)
 		.nullable()
 		.optional(),
-	completedAt: z.number().int().nullable().optional(),
+	done: z.boolean().optional(),
 });
 
-export const VisualStateSchema = z.enum([
-	"idle",
-	"started",
-	"ready-to-start",
-	"in-execution",
-	"ready-to-review",
-	"ready-to-commit",
-	"done",
-]);
-
-export const TaskSetVisualStateSchema = z.object({
+export const TaskSetDoneSchema = z.object({
 	id: z.string().trim().min(1),
-	targetState: VisualStateSchema,
+	done: z.boolean(),
 });
 
-export type TaskSetVisualStateInput = z.infer<typeof TaskSetVisualStateSchema>;
-export type VisualState = z.infer<typeof VisualStateSchema>;
+export const TaskWriteFileSchema = z.object({
+	id: z.string().trim().min(1),
+	// Nome do arquivo dentro da pasta da task, ex: "index.md". Sem separadores de caminho.
+	name: z
+		.string()
+		.trim()
+		.regex(/^[^/\\]+\.md$/, "File name must be a .md without path separators"),
+	content: z.string(),
+});
+
+const mdFileName = z
+	.string()
+	.trim()
+	.regex(/^[^/\\]+\.md$/, "File name must be a .md without path separators");
+
+export const VaultListSchema = z.object({
+	projectId: z.string().trim().min(1),
+});
+
+export const VaultWriteFileSchema = z.object({
+	projectId: z.string().trim().min(1),
+	name: mdFileName,
+	content: z.string(),
+});
+
+export const TaskPromoteSchema = z.object({
+	projectId: z.string().trim().min(1),
+	name: mdFileName,
+});
 
 export type TaskCreateInput = z.infer<typeof TaskCreateSchema>;
 export type TaskUpdateInput = z.infer<typeof TaskUpdateSchema>;
-
+export type TaskSetDoneInput = z.infer<typeof TaskSetDoneSchema>;
+export type TaskWriteFileInput = z.infer<typeof TaskWriteFileSchema>;
 export type TaskListFiltersInput = z.infer<typeof TaskListFiltersSchema>;
 
 export const TaskDbCreateSchema = z.object({
 	id: z.string().min(1),
 	project_id: z.string().min(1),
+	folder_path: z.string().min(1),
 	title: z.string().min(1),
-	description: z.string().optional(),
-	notes: z.string().optional(),
-	ai_metadata: z.string().optional(),
 	priority_id: z.string().min(1),
 	category_id: z.string().min(1),
-	status: TaskStatusSchema.optional(),
-	acceptance_criteria: z.string().optional(),
 	scheduled_date: z.string().nullable().optional(),
 	scheduled_time: z.string().nullable().optional(),
+	done: z.number().int().optional(),
 	completed_at: z.number().int().nullable().optional(),
 	created_at: z.number().int().optional(),
 	updated_at: z.number().int().optional(),

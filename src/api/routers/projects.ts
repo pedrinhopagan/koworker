@@ -3,6 +3,7 @@ import type { project_routes, projects } from "../db/connection";
 import { dbProjectRoutes } from "../db/project-routes";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
+import { restartTasksWatcher } from "../helpers/tasks-watcher";
 import {
 	ProjectCreateSchema,
 	ProjectIdSchema,
@@ -49,7 +50,6 @@ export const projectsRouter = {
 		const total = Number(row.tasks_total ?? 0);
 		const done = Number(row.tasks_done ?? 0);
 		const pending = Number(row.tasks_pending ?? 0);
-		const inProgress = Number(row.tasks_in_execution ?? 0);
 		const progress = total === 0 ? 0 : Math.round((done / total) * 100);
 
 		return {
@@ -57,7 +57,6 @@ export const projectsRouter = {
 			tasksSummary: {
 				total,
 				pending,
-				inProgress,
 				done,
 				progress,
 			},
@@ -93,6 +92,7 @@ export const projectsRouter = {
 		}
 
 		const row = await dbProjects.getById(id);
+		restartTasksWatcher();
 		return row ? mapProject(row) : null;
 	}),
 
@@ -107,11 +107,13 @@ export const projectsRouter = {
 		});
 
 		const row = await dbProjects.getById(input.id);
+		restartTasksWatcher();
 		return row ? mapProject(row) : null;
 	}),
 
 	remove: protectedProcedure.input(ProjectIdSchema).handler(async ({ input }) => {
 		await dbProjects.softDelete(input.id);
+		restartTasksWatcher();
 		return { id: input.id };
 	}),
 
@@ -126,7 +128,6 @@ export const projectsRouter = {
 			projectId: row.project_id,
 			total: Number(row.total) || 0,
 			pending: Number(row.pending) || 0,
-			inProgress: Number(row.in_progress) || 0,
 			done: Number(row.done) || 0,
 			lastUpdated: row.last_updated ?? undefined,
 		}));

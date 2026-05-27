@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppFontesRouteImport } from './routes/_app/fontes'
 import { Route as AppConfiguracoesRouteImport } from './routes/_app/configuracoes'
 import { Route as AppTarefasIndexRouteImport } from './routes/_app/tarefas/index'
 import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
@@ -33,6 +34,11 @@ const AppRoute = AppRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFontesRoute = AppFontesRouteImport.update({
+  id: '/fontes',
+  path: '/fontes',
   getParentRoute: () => AppRoute,
 } as any)
 const AppConfiguracoesRoute = AppConfiguracoesRouteImport.update({
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
+  '/fontes': typeof AppFontesRoute
   '/agenda/': typeof AppAgendaIndexRoute
   '/projetos/': typeof AppProjetosIndexRoute
   '/skills/': typeof AppSkillsIndexRoute
@@ -92,6 +99,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
+  '/fontes': typeof AppFontesRoute
   '/': typeof AppIndexRoute
   '/agenda': typeof AppAgendaIndexRoute
   '/projetos': typeof AppProjetosIndexRoute
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/_app/configuracoes': typeof AppConfiguracoesRoute
+  '/_app/fontes': typeof AppFontesRoute
   '/_app/': typeof AppIndexRoute
   '/_app/agenda/': typeof AppAgendaIndexRoute
   '/_app/projetos/': typeof AppProjetosIndexRoute
@@ -121,6 +130,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/configuracoes'
+    | '/fontes'
     | '/agenda/'
     | '/projetos/'
     | '/skills/'
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/configuracoes'
+    | '/fontes'
     | '/'
     | '/agenda'
     | '/projetos'
@@ -145,6 +156,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/login'
     | '/_app/configuracoes'
+    | '/_app/fontes'
     | '/_app/'
     | '/_app/agenda/'
     | '/_app/projetos/'
@@ -181,6 +193,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/fontes': {
+      id: '/_app/fontes'
+      path: '/fontes'
+      fullPath: '/fontes'
+      preLoaderRoute: typeof AppFontesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/configuracoes': {
@@ -244,6 +263,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppConfiguracoesRoute: typeof AppConfiguracoesRoute
+  AppFontesRoute: typeof AppFontesRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAgendaIndexRoute: typeof AppAgendaIndexRoute
   AppProjetosIndexRoute: typeof AppProjetosIndexRoute
@@ -256,6 +276,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppConfiguracoesRoute: AppConfiguracoesRoute,
+  AppFontesRoute: AppFontesRoute,
   AppIndexRoute: AppIndexRoute,
   AppAgendaIndexRoute: AppAgendaIndexRoute,
   AppProjetosIndexRoute: AppProjetosIndexRoute,

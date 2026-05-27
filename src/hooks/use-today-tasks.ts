@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
 import { orpc } from "@/client";
-import { getStatusLabel } from "@/domain/tasks/status";
 import type { TaskWithMeta } from "@/types/tasks";
 import { useProjectFocus } from "./use-project-focus";
 
@@ -53,7 +52,6 @@ export function useTodayTasks() {
 						name: pri?.name ?? "Sem prioridade",
 						color: pri?.color ?? "#666",
 					},
-					statusLabel: getStatusLabel(task.status),
 				};
 			}),
 		[rawTasks, categoryMap, priorityMap],
@@ -62,30 +60,29 @@ export function useTodayTasks() {
 	const count = useMemo(
 		() => ({
 			total: tasks.length,
-			done: tasks.filter((t) => t.status === "executed").length,
+			done: tasks.filter((t) => t.done).length,
 		}),
 		[tasks],
 	);
 
-	const updateStatusMutation = useMutation({
-		...orpc.tasks.update.mutationOptions(),
+	const setDoneMutation = useMutation({
+		...orpc.tasks.setDone.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["tasks"] });
 		},
 	});
 
-	const toggleStatus = useCallback(
+	const toggleDone = useCallback(
 		(taskId: string) => {
 			const task = tasks.find((t) => t.id === taskId);
 			if (!task) return;
 
-			const newStatus = task.status === "executed" ? "pending" : "executed";
-			updateStatusMutation.mutate(
-				{ id: taskId, status: newStatus as "pending" | "in_execution" | "executed" },
-				{ onError: (e) => console.error("Failed to toggle task status:", e) },
+			setDoneMutation.mutate(
+				{ id: taskId, done: !task.done },
+				{ onError: (e) => console.error("Failed to toggle task done:", e) },
 			);
 		},
-		[tasks, updateStatusMutation],
+		[tasks, setDoneMutation],
 	);
 
 	const isLoading = categoriesQuery.isLoading || prioritiesQuery.isLoading || tasksQuery.isLoading;
@@ -93,7 +90,7 @@ export function useTodayTasks() {
 	return {
 		tasks,
 		isLoading,
-		toggleStatus,
+		toggleDone,
 		count,
 	};
 }

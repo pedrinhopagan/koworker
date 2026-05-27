@@ -4,13 +4,6 @@ import type { ProjectDbCreateInput, ProjectDbUpdateInput } from "../schemas/proj
 import { db, type projects } from "./connection";
 import { cleanUpdate } from "./helpers";
 
-type ProjectSummaryRow = projects & {
-	tasks_total: number | null;
-	tasks_done: number | null;
-	tasks_pending: number | null;
-	tasks_in_execution: number | null;
-};
-
 export const dbProjects = {
 	getAll: async () => {
 		const projects = await db
@@ -57,7 +50,7 @@ export const dbProjects = {
 	},
 
 	getByIdWithSummary: async (id: string) => {
-		const project = (await db
+		const project = await db
 			.selectFrom("projects")
 			.leftJoin("tasks", (join) =>
 				join.onRef("tasks.project_id", "=", "projects.id").on("tasks.deleted_at", "is", null),
@@ -65,20 +58,13 @@ export const dbProjects = {
 			.selectAll("projects")
 			.select([
 				sql<number>`count(tasks.id)`.as("tasks_total"),
-				sql<number>`sum(case when tasks.completed_at is not null then 1 else 0 end)`.as(
-					"tasks_done",
-				),
-				sql<number>`sum(case when tasks.completed_at is null and tasks.status = 'pending' then 1 else 0 end)`.as(
-					"tasks_pending",
-				),
-				sql<number>`sum(case when tasks.completed_at is null and tasks.status in ('in_execution', 'in_progress') then 1 else 0 end)`.as(
-					"tasks_in_execution",
-				),
+				sql<number>`sum(case when tasks.done = 1 then 1 else 0 end)`.as("tasks_done"),
+				sql<number>`sum(case when tasks.done = 0 then 1 else 0 end)`.as("tasks_pending"),
 			])
 			.where("projects.id", "=", id)
 			.where("projects.deleted_at", "is", null)
 			.groupBy("projects.id")
-			.executeTakeFirst()) as Promise<ProjectSummaryRow | undefined>;
+			.executeTakeFirst();
 
 		if (!project) return null;
 

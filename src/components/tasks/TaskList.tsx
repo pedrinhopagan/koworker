@@ -2,10 +2,17 @@ import { Loader2 } from "lucide-react";
 import { memo, useMemo } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
-import { sortTasksByAttention } from "@/domain/tasks/sort";
 import { cn } from "@/lib/utils";
 import type { TaskWithMeta } from "@/types/tasks";
 import { TaskItem, type TaskItemVariant } from "./TaskItem";
+
+// Pendentes antes de concluídas; dentro de cada grupo, mais recentes primeiro.
+function sortTasks(tasks: TaskWithMeta[]): TaskWithMeta[] {
+	return [...tasks].sort((a, b) => {
+		if (a.done !== b.done) return a.done ? 1 : -1;
+		return b.createdAt - a.createdAt;
+	});
+}
 
 const taskListVariants = tv({
 	slots: {
@@ -53,7 +60,7 @@ export const TaskList = memo(function TaskList({
 }: TaskListProps) {
 	const styles = taskListVariants({ variant });
 	const itemVariant: TaskItemVariant = variant;
-	const orderedTasks = useMemo(() => sortTasksByAttention(tasks), [tasks]);
+	const orderedTasks = useMemo(() => sortTasks(tasks), [tasks]);
 
 	if (isLoading) {
 		return (
@@ -91,8 +98,8 @@ export const TaskList = memo(function TaskList({
 	);
 
 	if (separateDone) {
-		const pendingTasks = orderedTasks.filter((t) => !t.completedAt);
-		const doneTasks = orderedTasks.filter((t) => t.completedAt);
+		const pendingTasks = orderedTasks.filter((t) => !t.done);
+		const doneTasks = orderedTasks.filter((t) => t.done);
 
 		return (
 			<div className={styles.root()}>

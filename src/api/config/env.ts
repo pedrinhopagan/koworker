@@ -4,6 +4,7 @@ export const envSchema = type({
 	DATABASE_URL: "string",
 	JWT_SECRET: "string",
 	"NODE_ENV?": "'development' | 'production'",
+	"PROJECTS_BASE_PATH?": "string",
 });
 
 const result = envSchema(process.env);

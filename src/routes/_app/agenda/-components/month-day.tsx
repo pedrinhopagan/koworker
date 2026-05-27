@@ -27,7 +27,7 @@ export function MonthDay({ day, tasks, isLastColumn = false }: MonthDayProps) {
 
 	const visibleTasks = tasks.slice(0, 2);
 	const overflowCount = Math.max(0, tasks.length - visibleTasks.length);
-	const doneCount = tasks.filter((task) => task.status === "executed").length;
+	const doneCount = tasks.filter((task) => task.done).length;
 	const pendingCount = tasks.length - doneCount;
 	const pastLabel = `(${doneCount}/${tasks.length})`;
 

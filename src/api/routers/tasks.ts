@@ -1,11 +1,19 @@
 import { protectedProcedure } from "../auth/context";
 import { dbCategories } from "../db/categories";
-import type { subtasks, tasks } from "../db/connection";
+import type { tasks } from "../db/connection";
 import { dbPriorities } from "../db/priorities";
 import { dbProjects } from "../db/projects";
-import { dbSubtasks } from "../db/subtasks";
 import { dbTasks } from "../db/tasks";
-import { jsonParse, jsonStringify } from "../helpers/json";
+import {
+	buildFolderPath,
+	createTaskFolder,
+	extractTitleFromMarkdown,
+	PRIMARY_FILE,
+	readTaskFiles,
+	removeTaskFolder,
+	writeTaskFile,
+} from "../helpers/task-folder";
+import { restartTasksWatcher } from "../helpers/tasks-watcher";
 import { PubSub } from "../pubsub";
 import {
 	TaskCreateSchema,
@@ -16,175 +24,34 @@ import {
 	TaskListByProjectSchema,
 	TaskListByWeekSchema,
 	TaskMetricsSchema,
-	TaskSetVisualStateSchema,
+	TaskSetDoneSchema,
 	TaskUpdateSchema,
+	TaskWriteFileSchema,
 } from "../schemas";
-import type { VisualState } from "../schemas/tasks";
 
-const mapSubtask = (row: subtasks) => ({
-	id: row.id,
-	taskId: row.task_id,
-	title: row.title,
-	description: row.description ?? undefined,
-	status: row.status,
-	completedAt: row.completed_at ?? undefined,
-	createdAt: row.created_at,
-	updatedAt: row.updated_at ?? undefined,
-	displayOrder: row.display_order,
-});
-
-const mapTask = (row: tasks, input?: { subtasks?: subtasks[] }) => ({
+const mapTask = (row: tasks) => ({
 	id: row.id,
 	projectId: row.project_id,
+	folderPath: row.folder_path,
 	title: row.title,
-	description: row.description ?? undefined,
-	notes: row.notes ?? undefined,
-	aiMetadata: jsonParse<unknown>(row.ai_metadata),
 	priorityId: row.priority_id,
 	categoryId: row.category_id,
-	status: row.status,
-	acceptanceCriteria:
-		jsonParse<{ id: string; text: string; done: boolean }[]>(row.acceptance_criteria) ?? [],
 	scheduledDate: row.scheduled_date ?? undefined,
 	scheduledTime: row.scheduled_time ?? undefined,
+	done: Boolean(row.done),
 	completedAt: row.completed_at ?? undefined,
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,
 	deletedAt: row.deleted_at ?? undefined,
-	subtasks: input?.subtasks ? input.subtasks.map(mapSubtask) : undefined,
 });
 
-async function applyVisualStateTransition(
+async function publishTaskEvent(
 	taskId: string,
-	targetState: VisualState,
-	task: tasks,
-	subtaskRows: subtasks[],
+	projectId: string,
+	action: "created" | "updated" | "deleted",
 ) {
-	const currentAiMetadata = jsonParse<Record<string, unknown>>(task.ai_metadata) ?? {};
-
-	switch (targetState) {
-		case "idle": {
-			await dbTasks.update({
-				id: taskId,
-				status: "pending",
-				completed_at: null,
-				ai_metadata: jsonStringify({ ...currentAiMetadata, lastCompletedAction: null }),
-				description: undefined,
-			});
-			for (const st of subtaskRows) {
-				await dbSubtasks.delete(st.id);
-			}
-			break;
-		}
-
-		case "started": {
-			await dbTasks.update({
-				id: taskId,
-				status: "pending",
-				completed_at: null,
-				description: task.description || "Tarefa iniciada",
-			});
-			for (const st of subtaskRows) {
-				await dbSubtasks.delete(st.id);
-			}
-			break;
-		}
-
-		case "ready-to-start": {
-			await dbTasks.update({
-				id: taskId,
-				status: "pending",
-				completed_at: null,
-			});
-			if (subtaskRows.length === 0) {
-				await dbSubtasks.create({
-					id: crypto.randomUUID(),
-					task_id: taskId,
-					title: "Subtask pendente",
-					status: "pending",
-				});
-			} else {
-				for (const st of subtaskRows) {
-					await dbSubtasks.update({ id: st.id, status: "pending", completed_at: null });
-				}
-			}
-			break;
-		}
-
-		case "in-execution": {
-			await dbTasks.update({
-				id: taskId,
-				status: "in_execution",
-				completed_at: null,
-			});
-			break;
-		}
-
-		case "ready-to-review": {
-			await dbTasks.update({
-				id: taskId,
-				status: "pending",
-				completed_at: null,
-				ai_metadata: jsonStringify({ ...currentAiMetadata, lastCompletedAction: null }),
-			});
-			if (subtaskRows.length === 0) {
-				await dbSubtasks.create({
-					id: crypto.randomUUID(),
-					task_id: taskId,
-					title: "Subtask executada",
-					status: "executed",
-					completed_at: Date.now(),
-				});
-			} else {
-				for (const st of subtaskRows) {
-					await dbSubtasks.update({
-						id: st.id,
-						status: "executed",
-						completed_at: st.completed_at ?? Date.now(),
-					});
-				}
-			}
-			break;
-		}
-
-		case "ready-to-commit": {
-			await dbTasks.update({
-				id: taskId,
-				status: "pending",
-				completed_at: null,
-				ai_metadata: jsonStringify({
-					...currentAiMetadata,
-					lastCompletedAction: "review_execution",
-				}),
-			});
-			if (subtaskRows.length === 0) {
-				await dbSubtasks.create({
-					id: crypto.randomUUID(),
-					task_id: taskId,
-					title: "Subtask executada",
-					status: "executed",
-					completed_at: Date.now(),
-				});
-			} else {
-				for (const st of subtaskRows) {
-					await dbSubtasks.update({
-						id: st.id,
-						status: "executed",
-						completed_at: st.completed_at ?? Date.now(),
-					});
-				}
-			}
-			break;
-		}
-
-		case "done": {
-			await dbTasks.update({
-				id: taskId,
-				completed_at: Date.now(),
-			});
-			break;
-		}
-	}
+	await PubSub.publish("tasks", projectId, { taskId, projectId, action, source: "api" });
+	await PubSub.publish("tasks", "global", { taskId, projectId, action, source: "api" });
 }
 
 export const tasksRouter = {
@@ -193,7 +60,6 @@ export const tasksRouter = {
 		return {
 			total: result?.total ?? 0,
 			pending: result?.pending ?? 0,
-			inProgress: result?.in_progress ?? 0,
 			done: result?.done ?? 0,
 		};
 	}),
@@ -201,9 +67,7 @@ export const tasksRouter = {
 	focus: protectedProcedure.input(TaskFocusSchema).handler(async ({ input }) => {
 		const row = await dbTasks.getFocusTask(input.projectId ?? null);
 		if (!row) return null;
-
-		const subtaskRows = await dbSubtasks.listByTask(row.id);
-		return mapTask(row, { subtasks: subtaskRows });
+		return mapTask(row);
 	}),
 
 	getAll: protectedProcedure.input(TaskGetAllSchema).handler(async ({ input }) => {
@@ -216,75 +80,53 @@ export const tasksRouter = {
 			taskTypeId: input.taskTypeId,
 			priorityId: input.priorityId,
 			priority: input.priority,
-			status: input.status,
 			q: input.q,
 		});
 
-		// Include subtasks to allow the UI to derive status/attention and identify
-		// the first non-completed subtask (using the ordering from dbSubtasks).
-		const taskIds = rows.map((r) => r.id);
-		const subtaskRows = await dbSubtasks.listByTaskIds(taskIds);
-		const subtasksByTaskId = new Map<string, subtasks[]>();
-		for (const st of subtaskRows) {
-			const list = subtasksByTaskId.get(st.task_id);
-			if (list) list.push(st);
-			else subtasksByTaskId.set(st.task_id, [st]);
-		}
-
-		return rows.map((row) => mapTask(row, { subtasks: subtasksByTaskId.get(row.id) ?? [] }));
+		return rows.map(mapTask);
 	}),
 
-	// Legacy endpoints (kept for compatibility; prefer tasks.getAll)
 	listByProject: protectedProcedure.input(TaskListByProjectSchema).handler(async ({ input }) => {
 		const rows = await dbTasks.listByProject(input);
-		return rows.map((row) => mapTask(row));
+		return rows.map(mapTask);
 	}),
 
 	listByDate: protectedProcedure.input(TaskListByDateSchema).handler(async ({ input }) => {
 		const rows = await dbTasks.listByDate(input.date, input);
-		return rows.map((row) => mapTask(row));
+		return rows.map(mapTask);
 	}),
 
 	listByWeek: protectedProcedure.input(TaskListByWeekSchema).handler(async ({ input }) => {
 		const rows = await dbTasks.listByDateRange(input.startDate, input.endDate, input);
-		return rows.map((row) => mapTask(row));
+		return rows.map(mapTask);
 	}),
 
 	getById: protectedProcedure.input(TaskIdSchema).handler(async ({ input }) => {
 		const row = await dbTasks.getById(input.id);
-		if (!row) return null;
-
-		const subtaskRows = await dbSubtasks.listByTask(input.id);
-		return mapTask(row, { subtasks: subtaskRows });
+		return row ? mapTask(row) : null;
 	}),
 
 	getFull: protectedProcedure.input(TaskIdSchema).handler(async ({ input }) => {
 		const row = await dbTasks.getById(input.id);
 		if (!row) return null;
 
-		const [subtaskRows, category, priority, project] = await Promise.all([
-			dbSubtasks.listByTask(input.id),
+		const [category, priority, project] = await Promise.all([
 			dbCategories.getById(row.category_id),
 			dbPriorities.getById(row.priority_id),
 			dbProjects.getById(row.project_id),
 		]);
 
+		const { files, primaryFile } = project
+			? await readTaskFiles({ projectRoute: project.main_route, folderPath: row.folder_path })
+			: { files: [], primaryFile: null };
+
 		return {
-			...mapTask(row, { subtasks: subtaskRows }),
-			category: category
-				? {
-						id: category.id,
-						name: category.name,
-						color: category.color,
-					}
-				: null,
+			...mapTask(row),
+			files,
+			primaryFile,
+			category: category ? { id: category.id, name: category.name, color: category.color } : null,
 			priority: priority
-				? {
-						id: priority.id,
-						name: priority.name,
-						color: priority.color,
-						level: priority.level,
-					}
+				? { id: priority.id, name: priority.name, color: priority.color, level: priority.level }
 				: null,
 			project: project
 				? {
@@ -298,36 +140,32 @@ export const tasksRouter = {
 	}),
 
 	create: protectedProcedure.input(TaskCreateSchema).handler(async ({ input }) => {
+		const project = await dbProjects.getById(input.projectId);
+		if (!project) throw new Error("Projeto não encontrado");
+
 		const id = crypto.randomUUID();
+		const folderPath = buildFolderPath(id);
+
+		await createTaskFolder({
+			projectRoute: project.main_route,
+			folderPath,
+			title: input.title,
+		});
 
 		await dbTasks.create({
 			id,
 			project_id: input.projectId,
+			folder_path: folderPath,
 			title: input.title,
-			description: input.description,
-			notes: input.notes,
-			ai_metadata: jsonStringify(input.aiMetadata),
 			priority_id: input.priorityId,
 			category_id: input.categoryId,
-			status: input.status,
-			acceptance_criteria: jsonStringify(input.acceptanceCriteria),
 			scheduled_date: input.scheduledDate,
 			scheduled_time: input.scheduledTime,
 		});
 
-		await PubSub.publish("tasks", input.projectId, {
-			taskId: id,
-			projectId: input.projectId,
-			action: "created",
-			source: "api",
-		});
-
-		await PubSub.publish("tasks", "global", {
-			taskId: id,
-			projectId: input.projectId,
-			action: "created",
-			source: "api",
-		});
+		await publishTaskEvent(id, input.projectId, "created");
+		// A pasta `.koworker/` do projeto pode ter acabado de nascer; ressintoniza o watcher.
+		restartTasksWatcher();
 
 		const row = await dbTasks.getById(id);
 		return row ? mapTask(row) : null;
@@ -337,85 +175,74 @@ export const tasksRouter = {
 		await dbTasks.update({
 			id: input.id,
 			title: input.title,
-			description: input.description,
-			notes: input.notes,
-			ai_metadata: jsonStringify(input.aiMetadata),
 			priority_id: input.priorityId,
 			category_id: input.categoryId,
-			status: input.status,
-			acceptance_criteria: jsonStringify(input.acceptanceCriteria),
 			scheduled_date: input.scheduledDate,
 			scheduled_time: input.scheduledTime,
-			completed_at: input.completedAt,
+			done: input.done === undefined ? undefined : input.done ? 1 : 0,
+			completed_at: input.done === undefined ? undefined : input.done ? Date.now() : null,
 		});
 
 		const row = await dbTasks.getById(input.id);
 		if (row) {
-			await PubSub.publish("tasks", row.project_id, {
-				taskId: row.id,
-				projectId: row.project_id,
-				action: "updated",
-				source: "api",
-			});
-
-			await PubSub.publish("tasks", "global", {
-				taskId: row.id,
-				projectId: row.project_id,
-				action: "updated",
-				source: "api",
-			});
+			await publishTaskEvent(row.id, row.project_id, "updated");
 		}
 		return row ? mapTask(row) : null;
 	}),
 
-	setVisualState: protectedProcedure.input(TaskSetVisualStateSchema).handler(async ({ input }) => {
-		const { id, targetState } = input;
+	setDone: protectedProcedure.input(TaskSetDoneSchema).handler(async ({ input }) => {
+		await dbTasks.update({
+			id: input.id,
+			done: input.done ? 1 : 0,
+			completed_at: input.done ? Date.now() : null,
+		});
 
-		const row = await dbTasks.getById(id);
-		if (!row) return null;
-
-		const subtaskRows = await dbSubtasks.listByTask(id);
-
-		await applyVisualStateTransition(id, targetState, row, subtaskRows);
-
-		const updatedRow = await dbTasks.getById(id);
-		if (updatedRow) {
-			await PubSub.publish("tasks", updatedRow.project_id, {
-				taskId: updatedRow.id,
-				projectId: updatedRow.project_id,
-				action: "updated",
-				source: "api",
-			});
-			await PubSub.publish("tasks", "global", {
-				taskId: updatedRow.id,
-				projectId: updatedRow.project_id,
-				action: "updated",
-				source: "api",
-			});
-
-			const updatedSubtasks = await dbSubtasks.listByTask(id);
-			return mapTask(updatedRow, { subtasks: updatedSubtasks });
+		const row = await dbTasks.getById(input.id);
+		if (row) {
+			await publishTaskEvent(row.id, row.project_id, "updated");
 		}
-		return null;
+		return row ? mapTask(row) : null;
+	}),
+
+	writeFile: protectedProcedure.input(TaskWriteFileSchema).handler(async ({ input }) => {
+		const row = await dbTasks.getById(input.id);
+		if (!row) throw new Error("Tarefa não encontrada");
+
+		const project = await dbProjects.getById(row.project_id);
+		if (!project) throw new Error("Projeto não encontrado");
+
+		await writeTaskFile({
+			projectRoute: project.main_route,
+			folderPath: row.folder_path,
+			name: input.name,
+			content: input.content,
+		});
+
+		// O H1 do index.md é a fonte de verdade do título: mantém o banco em sync.
+		if (input.name === PRIMARY_FILE) {
+			const title = extractTitleFromMarkdown(input.content);
+			if (title && title !== row.title) {
+				await dbTasks.update({ id: row.id, title });
+			}
+		}
+
+		await publishTaskEvent(row.id, row.project_id, "updated");
+		return { id: row.id, name: input.name };
 	}),
 
 	remove: protectedProcedure.input(TaskIdSchema).handler(async ({ input }) => {
 		const row = await dbTasks.getById(input.id);
 		await dbTasks.softDelete(input.id);
-		if (row) {
-			await PubSub.publish("tasks", row.project_id, {
-				taskId: row.id,
-				projectId: row.project_id,
-				action: "deleted",
-				source: "api",
-			});
 
-			await PubSub.publish("tasks", "global", {
-				taskId: row.id,
-				projectId: row.project_id,
-				action: "deleted",
-				source: "api",
-			});
+		if (row) {
+			const project = await dbProjects.getById(row.project_id);
+			if (project) {
+				await removeTaskFolder({
+					projectRoute: project.main_route,
+					folderPath: row.folder_path,
+				});
+			}
+			await publishTaskEvent(row.id, row.project_id, "deleted");
 		}
 		return { id: input.id };
 	}),

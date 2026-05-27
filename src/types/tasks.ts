@@ -1,13 +1,10 @@
 import type { RouterOutputs } from "@/client";
 
-export type Task = RouterOutputs["tasks"]["listByProject"][number];
+export type Task = RouterOutputs["tasks"]["getAll"][number];
 export type TaskFull = RouterOutputs["tasks"]["getFull"];
-export type SubtaskFull = NonNullable<NonNullable<TaskFull>["subtasks"]>[number];
+export type TaskFile = NonNullable<TaskFull>["files"][number];
 
-export type TaskWithMeta = Omit<Task, "categoryId" | "priorityId"> & {
-	categoryId: string;
-	priorityId: string;
+export type TaskWithMeta = Task & {
 	category: { id: string; name: string; color: string };
 	priority: { id: string; name: string; color: string };
-	statusLabel: string;
 };
