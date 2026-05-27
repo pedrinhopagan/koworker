@@ -53,7 +53,7 @@ export async function runCreate(args: string[]): Promise<void> {
 	const id = crypto.randomUUID();
 	const folderPath = buildFolderPath(id);
 
-	await createTaskFolder({ projectRoute: project.main_route, folderPath });
+	await createTaskFolder({ projectRoute: project.main_route, folderPath, title });
 	await dbTasks.create({
 		id,
 		project_id: project.id,

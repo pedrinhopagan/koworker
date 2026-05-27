@@ -25,10 +25,6 @@ export type TaskFile = {
 const KOWORKER_DIR = ".koworker";
 export const PRIMARY_FILE = "index.md";
 
-// Conteúdo inicial do index.md quando a task nasce sem nada escrito. Não é título: serve de
-// rascunho e também alimenta o fallback de exibição enquanto a task não tem título no banco.
-export const EMPTY_TASK_PLACEHOLDER = "Nova tarefa — descreva aqui...";
-
 const DISPLAY_TITLE_FALLBACK = "Sem título";
 const DISPLAY_TITLE_MAX_LENGTH = 80;
 
@@ -64,16 +60,19 @@ export function buildFolderPath(id: string): string {
 	return join(KOWORKER_DIR, id.slice(0, 8));
 }
 
-// Cria a pasta da task com um index.md inicial de conteúdo neutro. O título vive só no banco.
+// Cria a pasta da task com o index.md semeado pelo título (H1), pra que o prompt copiado
+// referencie um arquivo com conteúdo já na criação. Sem título, o arquivo nasce vazio e a
+// UI mostra o placeholder de escrita.
 export async function createTaskFolder(params: {
 	projectRoute: string;
 	folderPath: string;
+	title?: string;
 }): Promise<void> {
 	await ensureKoworkerGitignored(params.projectRoute);
 
 	const dir = join(params.projectRoute, params.folderPath);
 	await mkdir(dir, { recursive: true });
-	await Bun.write(join(dir, PRIMARY_FILE), `${EMPTY_TASK_PLACEHOLDER}\n`);
+	await Bun.write(join(dir, PRIMARY_FILE), params.title ? `# ${params.title}\n` : "");
 }
 
 // Conteúdo do primeiro .md da pasta (mesma ordem de readTaskFiles), para o fallback de
