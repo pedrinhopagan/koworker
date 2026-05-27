@@ -1,48 +1,33 @@
 #!/usr/bin/env bun
-import { parseArgs } from "node:util";
-import { createTask } from "./commands/create-task";
-import { readTask } from "./commands/read-task";
-import { updateTask } from "./commands/update-task";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
-const { positionals } = parseArgs({
-	args: Bun.argv.slice(2),
-	allowPositionals: true,
-});
+// A CLI roda no diretório de outro projeto. O Bun auto-carrega o `.env` desse projeto,
+// então NÃO confiamos em `DATABASE_URL` herdado — forçamos o DB do koworker (app data
+// dir do Tauri, mesmo path que `backend.rs` injeta em produção). `KOWORK_DATABASE_URL`
+// permite override explícito. JWT_SECRET é exigido pelo schema mas a CLI não autentica.
+process.env.DATABASE_URL =
+	process.env.KOWORK_DATABASE_URL ?? join(homedir(), ".local/share/com.pedro.kowork/kowork.db");
+process.env.JWT_SECRET ??= "kowork-cli";
 
-const [command, ...args] = positionals;
+const [command, ...args] = process.argv.slice(2);
 
-const commands: Record<string, (args: string[]) => Promise<void>> = {
-	"create-task": createTask,
-	"read-task": readTask,
-	"update-task": updateTask,
-};
-
-if (!command || command === "help") {
-	console.log(`kowork - CLI para atualização de tasks
-
-Comandos:
-  create-task <json>    Cria task com JSON completo
-  read-task <json>      Le task completa do DB (JSON output)
-  update-task <json>    Atualiza task com JSON completo
-  help                  Mostra esta mensagem
-
-Uso:
-  kowork create-task '{"title": "...", "projectName": "Kowork", "categoryName": "feature", "priorityName": "Media"}'
-  kowork read-task '{"taskId": "..."}'
-  kowork update-task '{"taskId": "...", "status": "executed"}'
-`);
+if (command === "create") {
+	const { runCreate } = await import("./commands/create");
+	await runCreate(args);
 	process.exit(0);
 }
 
-const handler = commands[command];
-if (!handler) {
-	console.error(`Erro: comando "${command}" não encontrado`);
-	process.exit(1);
+if (command === "done") {
+	const { runDone } = await import("./commands/done");
+	await runDone(args);
+	process.exit(0);
 }
 
-try {
-	await handler(args);
-} catch (err) {
-	console.error(`Erro: ${err instanceof Error ? err.message : String(err)}`);
-	process.exit(1);
-}
+console.log(`kowork - CLI
+
+Comandos:
+  create "<título>"   Cria uma tarefa no projeto do cwd e imprime a pasta (.koworker/<id>)
+  done <caminho>      Marca a tarefa (pasta .koworker/...) como concluída
+`);
+process.exit(command ? 1 : 0);
