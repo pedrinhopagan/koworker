@@ -50,3 +50,6 @@ example_**.png
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+
+# koworker task vault (conteúdo local, fora do git)
+.koworker
