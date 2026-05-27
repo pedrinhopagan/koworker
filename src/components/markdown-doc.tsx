@@ -1,6 +1,6 @@
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { EditorView } from "@codemirror/view";
+import { EditorView, placeholder } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import CodeMirror from "@uiw/react-codemirror";
 import { useState } from "react";
@@ -21,25 +21,42 @@ const highlightStyle = HighlightStyle.define([
 
 const editorTheme = EditorView.theme(
 	{
+		// Trilho esquerdo sempre presente (transparente em repouso → muted no hover →
+		// primary no foco). É a única borda: combina com o caret (também barra vertical
+		// primary), lê como prompt de terminal e não causa reflow ao trocar de estado.
 		"&": {
 			backgroundColor: "transparent",
 			color: "var(--foreground)",
 			fontSize: "0.95rem",
 			fontFamily: "var(--font-reading)",
+			borderLeft: "2px solid transparent",
+			paddingLeft: "0.875rem",
+			transition: "border-color 0.15s ease, background-color 0.15s ease",
 		},
-		"&.cm-focused": { outline: "none" },
+		"&:hover:not(.cm-focused)": { borderLeftColor: "var(--border)" },
+		"&.cm-focused": {
+			outline: "none",
+			borderLeftColor: "var(--primary)",
+			backgroundColor: "color-mix(in oklab, var(--primary) 4%, transparent)",
+		},
 		".cm-content": {
 			fontFamily: "inherit",
 			lineHeight: "1.7",
 			padding: "0",
-			caretColor: "var(--foreground)",
+			// Esconde o caret nativo: quem desenha é `.cm-cursor` (barra primary com glow).
+			caretColor: "transparent",
 		},
 		".cm-line": { padding: "0" },
-		".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--foreground)" },
+		".cm-cursor, .cm-dropCursor": {
+			borderLeftColor: "var(--primary)",
+			borderLeftWidth: "2px",
+			boxShadow: "0 0 6px -1px var(--primary)",
+		},
 		"&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
 			backgroundColor: "color-mix(in oklab, var(--primary) 28%, transparent)",
 		},
 		".cm-scroller": { fontFamily: "inherit" },
+		".cm-placeholder": { color: "var(--muted-foreground)", fontStyle: "italic" },
 	},
 	{ dark: true },
 );
@@ -50,6 +67,7 @@ const extensions = [
 	markdownLivePreview,
 	editorTheme,
 	EditorView.lineWrapping,
+	placeholder("Comece a escrever…"),
 ];
 
 const basicSetup = {
@@ -77,6 +95,12 @@ export function MarkdownEditor({
 		<CodeMirror
 			value={draft}
 			theme="none"
+			// Preenche a altura do pai (que é flex) para que toda a janela seja área
+			// clicável: clicar abaixo do texto leva o caret ao fim do doc. Em pais sem
+			// altura definida (ex.: preview de fontes), `flex-1` é ignorado e `100%`
+			// resolve para `auto`, mantendo o tamanho do conteúdo.
+			height="100%"
+			className="min-h-0 flex-1"
 			basicSetup={basicSetup}
 			extensions={extensions}
 			// Cursor inicia no fim do doc: assim a primeira linha (o H1/título) não fica
