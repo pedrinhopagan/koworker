@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import { ArrowLeft, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Text, Title } from "@/components/typography";
@@ -15,6 +15,7 @@ type PageShellProps = {
 	header?: ReactNode;
 	contentClassName?: string;
 	headerClassName?: string;
+	onBack?: () => void;
 };
 
 export function PageShell({
@@ -27,6 +28,7 @@ export function PageShell({
 	header,
 	contentClassName,
 	headerClassName,
+	onBack,
 }: PageShellProps) {
 	const isGrid = variant === "grid";
 
@@ -41,6 +43,16 @@ export function PageShell({
 					)}
 				>
 					<div className="flex items-center gap-3 ">
+						{onBack && (
+							<button
+								type="button"
+								onClick={onBack}
+								aria-label="Voltar"
+								className="flex size-8 items-center justify-center border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+							>
+								<ArrowLeft className="size-4" />
+							</button>
+						)}
 						{icon && <Icon icon={icon} color="var(--project-accent, var(--primary))" size="md" />}
 						<div className="">
 							<Title size="lg" className="uppercase tracking-[0.12em]">

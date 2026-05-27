@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Bell, Flag, Keyboard, Palette, Settings, Shield, Tags } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Bell, Flag, Keyboard, Palette, Settings, Shield, Tags, Type } from "lucide-react";
 import { toast } from "sonner";
 
 import { ConfigCard } from "@/components/settings/config-card";
@@ -17,7 +17,15 @@ export const Route = createFileRoute("/_app/configuracoes")({
 
 function ConfiguracoesPage() {
 	const openManageDrawer = useManageDrawerStore((s) => s.open);
+	const navigate = useNavigate();
 	const cards = [
+		{
+			id: "tipografia",
+			icon: Type,
+			title: "Tipografia",
+			description: "Escolha a fonte da interface e a fonte de leitura de .md.",
+			onClick: () => navigate({ to: "/fontes" }),
+		},
 		{
 			id: "categorias",
 			icon: Tags,

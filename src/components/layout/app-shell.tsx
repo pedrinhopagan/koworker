@@ -33,7 +33,7 @@ export function AppShell({ children }: AppShellProps) {
 
 	const focusBarStyle = accent
 		? {
-				boxShadow: `inset 2px 0 0 ${accent.color}, inset 0 -1px 0 var(--border)`,
+				boxShadow: `inset 2px 0 0 ${accent.color}`,
 			}
 		: undefined;
 

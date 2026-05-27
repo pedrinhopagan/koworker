@@ -5,6 +5,12 @@
 
 :root {
 	--radius: 0rem;
+
+	/* Fontes trocáveis em runtime (a store sobrescreve estas vars no root).
+	   Precisam ficar fora de `@theme inline`, que inlineia o valor literal e
+	   mataria a reatividade — mesmo motivo das cores indiretarem por var(). */
+	--app-font: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+	--reading-font: "Inter", system-ui, sans-serif;
 }
 
 .light {
@@ -92,7 +98,8 @@
 }
 
 @theme inline {
-	--font-mono: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+	--font-mono: var(--app-font);
+	--font-reading: var(--reading-font);
 	--font-display: "Archivo", "JetBrains Mono", sans-serif;
 
 	--color-background: var(--background);
@@ -149,8 +156,8 @@
 		margin: 0;
 		padding: 0;
 		height: 100%;
-		font-size: 13px;
-		line-height: 1.4;
+		font-size: 14px;
+		line-height: 1.45;
 		@apply bg-background text-foreground;
 	}
 }
