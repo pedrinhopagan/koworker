@@ -20,6 +20,8 @@ async function ensureKoworkerGitignored(projectRoute: string): Promise<void> {
 export type TaskFile = {
 	name: string;
 	content: string;
+	// mtime do arquivo em disco; base do destaque do arquivo editado por último na rota da task.
+	editedAt: number;
 };
 
 const KOWORKER_DIR = ".koworker";
@@ -94,6 +96,38 @@ export async function listTaskMarkdownNames(params: {
 	}
 }
 
+// Nomes dos .md + o instante da última edição (maior mtime entre eles), numa só leitura de
+// pasta. lastEditedAt fica undefined quando a pasta não tem .md. Pega edições feitas direto no
+// disco (ex.: pelo agente), não só pela UI.
+export async function readTaskFolderMeta(params: {
+	projectRoute: string;
+	folderPath: string;
+}): Promise<{ fileNames: string[]; lastEditedAt?: number }> {
+	const dir = join(params.projectRoute, params.folderPath);
+
+	let names: string[];
+	try {
+		names = (await readdir(dir, { withFileTypes: true }))
+			.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+			.map((entry) => entry.name);
+	} catch {
+		return { fileNames: [] };
+	}
+
+	names.sort(compareMarkdownNames);
+	if (names.length === 0) return { fileNames: [] };
+
+	const mtimes = await Promise.all(
+		names.map((name) =>
+			stat(join(dir, name))
+				.then((s) => s.mtimeMs)
+				.catch(() => 0),
+		),
+	);
+
+	return { fileNames: names, lastEditedAt: Math.max(...mtimes) };
+}
+
 // Conteúdo do primeiro .md da pasta (mesma ordem de readTaskFiles), para o fallback de
 // exibição das tasks sem título. Lê só um arquivo, não a pasta inteira.
 export async function readFirstMarkdownContent(params: {
@@ -136,7 +170,16 @@ export async function readTaskFiles(params: {
 	entries.sort(compareMarkdownNames);
 
 	const files = await Promise.all(
-		entries.map(async (name) => ({ name, content: await Bun.file(join(dir, name)).text() })),
+		entries.map(async (name) => {
+			const path = join(dir, name);
+			const [content, editedAt] = await Promise.all([
+				Bun.file(path).text(),
+				stat(path)
+					.then((s) => s.mtimeMs)
+					.catch(() => 0),
+			]);
+			return { name, content, editedAt };
+		}),
 	);
 
 	const primaryFile =

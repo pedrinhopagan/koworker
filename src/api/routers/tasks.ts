@@ -7,9 +7,9 @@ import { dbTasks } from "../db/tasks";
 import {
 	buildFolderPath,
 	createTaskFolder,
-	listTaskMarkdownNames,
 	readFirstMarkdownContent,
 	readTaskFiles,
+	readTaskFolderMeta,
 	removeTaskFolder,
 	renameTaskFile,
 	resolveDisplayTitle,
@@ -32,7 +32,11 @@ import {
 	TaskWriteFileSchema,
 } from "../schemas";
 
-const mapTask = (row: tasks, displayTitle: string, fileNames: string[] = []) => ({
+const mapTask = (
+	row: tasks,
+	displayTitle: string,
+	meta: { fileNames?: string[]; lastEditedAt?: number } = {},
+) => ({
 	id: row.id,
 	projectId: row.project_id,
 	folderPath: row.folder_path,
@@ -40,6 +44,8 @@ const mapTask = (row: tasks, displayTitle: string, fileNames: string[] = []) => 
 	displayTitle,
 	priorityId: row.priority_id,
 	categoryId: row.category_id,
+	groupId: row.group_id ?? undefined,
+	displayOrder: row.display_order,
 	scheduledDate: row.scheduled_date ?? undefined,
 	scheduledTime: row.scheduled_time ?? undefined,
 	done: Boolean(row.done),
@@ -47,21 +53,24 @@ const mapTask = (row: tasks, displayTitle: string, fileNames: string[] = []) => 
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,
 	deletedAt: row.deleted_at ?? undefined,
-	fileNames,
+	// Última edição em disco dos .md da task; base do destaque de recência na lista. Sem .md,
+	// cai no created_at (não no updated_at: mexer em metadados não é "editar o arquivo").
+	lastEditedAt: meta.lastEditedAt ?? row.created_at,
+	fileNames: meta.fileNames ?? [],
 });
 
 // Resolve o displayTitle e os nomes dos .md de uma única row.
 async function mapTaskWithDisplay(row: tasks) {
 	const project = await dbProjects.getById(row.project_id);
-	const fileNames = project
-		? await listTaskMarkdownNames({
+	const meta = project
+		? await readTaskFolderMeta({
 				projectRoute: project.main_route,
 				folderPath: row.folder_path,
 			})
-		: [];
+		: { fileNames: [] };
 
 	const title = row.title?.trim();
-	if (title) return mapTask(row, title, fileNames);
+	if (title) return mapTask(row, title, meta);
 
 	const firstContent = project
 		? await readFirstMarkdownContent({
@@ -69,7 +78,7 @@ async function mapTaskWithDisplay(row: tasks) {
 				folderPath: row.folder_path,
 			})
 		: undefined;
-	return mapTask(row, resolveDisplayTitle({ firstContent }), fileNames);
+	return mapTask(row, resolveDisplayTitle({ firstContent }), meta);
 }
 
 // Resolve o displayTitle de várias rows de uma vez: carrega os projetos das tasks sem título
@@ -82,17 +91,17 @@ async function mapTasks(rows: tasks[]) {
 			.map((project) => [project.id, project] as const),
 	);
 
-	const fileNamesByTask = new Map(
+	const metaByTask = new Map(
 		await Promise.all(
 			rows.map(async (row) => {
 				const project = projects.get(row.project_id);
-				const names = project
-					? await listTaskMarkdownNames({
+				const meta = project
+					? await readTaskFolderMeta({
 							projectRoute: project.main_route,
 							folderPath: row.folder_path,
 						})
-					: [];
-				return [row.id, names] as const;
+					: { fileNames: [] };
+				return [row.id, meta] as const;
 			}),
 		),
 	);
@@ -114,13 +123,13 @@ async function mapTasks(rows: tasks[]) {
 	);
 
 	return rows.map((row) => {
-		const fileNames = fileNamesByTask.get(row.id) ?? [];
+		const meta = metaByTask.get(row.id) ?? { fileNames: [] };
 		const title = row.title?.trim();
-		if (title) return mapTask(row, title, fileNames);
+		if (title) return mapTask(row, title, meta);
 		return mapTask(
 			row,
 			resolveDisplayTitle({ firstContent: firstContentByTask.get(row.id) }),
-			fileNames,
+			meta,
 		);
 	});
 }
@@ -206,11 +215,7 @@ export const tasksRouter = {
 		});
 
 		return {
-			...mapTask(
-				row,
-				displayTitle,
-				files.map((file) => file.name),
-			),
+			...mapTask(row, displayTitle, { fileNames: files.map((file) => file.name) }),
 			files,
 			primaryFile,
 			category: category ? { id: category.id, name: category.name, color: category.color } : null,

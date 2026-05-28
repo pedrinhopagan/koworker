@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { FileText } from "lucide-react";
+import { Clock, FileText } from "lucide-react";
 import { useRef, useState } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
@@ -9,6 +9,7 @@ import { Title } from "@/components/typography";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useClickOutside } from "@/hooks/use-click-outside";
+import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import type { TaskWithMeta } from "@/types/tasks";
 import { type AgendaTaskItemVariant, TaskItemAgendaVariant } from "./task-item-agenda-variant";
@@ -39,14 +40,26 @@ type TaskItemProps = {
 	task: TaskWithMeta;
 	variant?: TaskItemVariant;
 	showScheduledDate?: boolean;
+	// Destaque de recência: 1 = última editada (mais forte), 2/3 = anteriores (mais sutil).
+	highlight?: number;
 };
+
+// Barra lateral decrescente das tarefas editadas por último: canal próprio (esquerda, espessa,
+// sólida) — distinto da borda fina de prioridade, pra não confundir um com o outro.
+function highlightBarClass(level: number) {
+	if (level === 1) return "bg-primary";
+	if (level === 2) return "bg-primary/55";
+	return "bg-primary/30";
+}
 
 function TaskItemDefault({
 	task,
 	variant,
+	highlight,
 }: {
 	task: TaskWithMeta;
 	variant: "default" | "compact";
+	highlight?: number;
 }) {
 	const queryClient = useQueryClient();
 	const isDone = task.done;
@@ -102,9 +115,20 @@ function TaskItemDefault({
 				"relative border",
 				!editing && "cursor-pointer",
 				isDone && "opacity-60",
+				!isDone && highlight === 1 && "bg-primary/[0.04]",
 			)}
 			style={{ borderColor: `${task.priority.color}30` }}
 		>
+			{!isDone && highlight ? (
+				<span
+					aria-hidden
+					className={cn(
+						"pointer-events-none absolute inset-y-0 left-0 z-10 w-1 rounded-r-sm",
+						highlightBarClass(highlight),
+					)}
+				/>
+			) : null}
+
 			{!editing && (
 				<Link
 					to="/tarefas/$taskId"
@@ -164,6 +188,19 @@ function TaskItemDefault({
 				)}
 			</div>
 
+			{!isDone && highlight ? (
+				<span
+					className={cn(
+						"pointer-events-none relative z-10 hidden shrink-0 items-center gap-1 text-xs tabular-nums sm:flex",
+						highlight === 1 ? "text-primary" : "text-muted-foreground",
+					)}
+					title="Último arquivo editado"
+				>
+					<Clock className="size-3" />
+					{relativeTimeFrom(task.lastEditedAt)}
+				</span>
+			) : null}
+
 			<TaskMetaControls
 				categoryId={task.category.id}
 				priorityId={task.priority.id}
@@ -178,12 +215,17 @@ function TaskItemDefault({
 	);
 }
 
-export function TaskItem({ task, variant = "default", showScheduledDate = false }: TaskItemProps) {
+export function TaskItem({
+	task,
+	variant = "default",
+	showScheduledDate = false,
+	highlight,
+}: TaskItemProps) {
 	if (variant === "agendaBacklog" || variant === "agendaMini") {
 		return (
 			<TaskItemAgendaVariant task={task} variant={variant} showScheduledDate={showScheduledDate} />
 		);
 	}
 
-	return <TaskItemDefault task={task} variant={variant} />;
+	return <TaskItemDefault task={task} variant={variant} highlight={highlight} />;
 }

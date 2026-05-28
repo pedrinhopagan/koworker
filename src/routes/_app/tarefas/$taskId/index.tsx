@@ -16,6 +16,7 @@ import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useClickOutside } from "@/hooks/use-click-outside";
+import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/tarefas/$taskId/")({
@@ -120,6 +121,13 @@ function TaskDetailPage() {
 	}
 
 	const current = task.files.find((f) => f.name === activeFile) ?? null;
+
+	// Arquivo editado por último (maior mtime): ganha um ponto de destaque na aba, no mesmo
+	// idioma visual da lista de tarefas.
+	const lastEditedFile = task.files.reduce<{ name: string; editedAt: number } | null>(
+		(latest, file) => (!latest || file.editedAt > latest.editedAt ? file : latest),
+		null,
+	)?.name;
 
 	async function selectFile(name: string) {
 		await paneRef.current?.flush();
@@ -244,12 +252,19 @@ function TaskDetailPage() {
 									onClick={() => void selectFile(file.name)}
 									onDoubleClick={() => startRename(file.name)}
 									className={cn(
-										"h-full w-full truncate px-3 text-center text-xs transition-colors",
+										"flex h-full w-full items-center justify-center gap-1.5 px-3 text-center text-xs transition-colors",
 										file.name !== activeFile && "hover:bg-secondary/50",
 									)}
-									title="Duplo clique para renomear"
+									title={
+										task.files.length > 1 && file.name === lastEditedFile
+											? `Editado por último · ${relativeTimeFrom(file.editedAt)}`
+											: "Duplo clique para renomear"
+									}
 								>
-									{file.name}
+									{task.files.length > 1 && file.name === lastEditedFile ? (
+										<span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
+									) : null}
+									<span className="truncate">{file.name}</span>
 								</button>
 							)}
 						</div>
