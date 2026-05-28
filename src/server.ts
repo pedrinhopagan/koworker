@@ -3,13 +3,14 @@ import type { Server } from "bun";
 import "./api/arktype";
 import { rpcHandler, wsRpcHandler } from "./api/app";
 import { getUser, type User } from "./api/auth/context";
+import { envVariables } from "./api/config/env";
 import { DbUsers } from "./api/db/users";
 import { PubSub, type TerminalEvent, type TerminalEventType } from "./api/pubsub";
 import homepage from "./index.html";
 import { DEFAULT_KOWORK_PORT } from "./lib/runtime-config";
 
-const isProduction = process.env.NODE_ENV === "production";
-const distDir = process.env.KOWORK_DIST_DIR ?? (isProduction ? "./dist" : null);
+const isProduction = envVariables.NODE_ENV === "production";
+const distDir = envVariables.KOWORK_DIST_DIR ?? (isProduction ? "./dist" : null);
 
 async function serveStatic(pathname: string) {
 	if (!distDir) return null;
@@ -33,7 +34,7 @@ async function serveStatic(pathname: string) {
 	return new Response(filePath);
 }
 
-const port = Number(process.env.KOWORK_PORT) || DEFAULT_KOWORK_PORT;
+const port = Number(envVariables.KOWORK_PORT) || DEFAULT_KOWORK_PORT;
 
 interface WsData {
 	user: User | null;
