@@ -14,10 +14,12 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppFontesRouteImport } from './routes/_app/fontes'
 import { Route as AppConfiguracoesRouteImport } from './routes/_app/configuracoes'
+import { Route as AppVaultIndexRouteImport } from './routes/_app/vault/index'
 import { Route as AppTarefasIndexRouteImport } from './routes/_app/tarefas/index'
 import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
 import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/index'
 import { Route as AppAgendaIndexRouteImport } from './routes/_app/agenda/index'
+import { Route as AppVaultFileNameIndexRouteImport } from './routes/_app/vault/$fileName/index'
 import { Route as AppTarefasTaskIdIndexRouteImport } from './routes/_app/tarefas/$taskId/index'
 import { Route as AppProjetosNovoIndexRouteImport } from './routes/_app/projetos/novo/index'
 import { Route as AppProjetosProjetoIdIndexRouteImport } from './routes/_app/projetos/$projetoId/index'
@@ -46,6 +48,11 @@ const AppConfiguracoesRoute = AppConfiguracoesRouteImport.update({
   path: '/configuracoes',
   getParentRoute: () => AppRoute,
 } as any)
+const AppVaultIndexRoute = AppVaultIndexRouteImport.update({
+  id: '/vault/',
+  path: '/vault/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTarefasIndexRoute = AppTarefasIndexRouteImport.update({
   id: '/tarefas/',
   path: '/tarefas/',
@@ -64,6 +71,11 @@ const AppProjetosIndexRoute = AppProjetosIndexRouteImport.update({
 const AppAgendaIndexRoute = AppAgendaIndexRouteImport.update({
   id: '/agenda/',
   path: '/agenda/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppVaultFileNameIndexRoute = AppVaultFileNameIndexRouteImport.update({
+  id: '/vault/$fileName/',
+  path: '/vault/$fileName/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTarefasTaskIdIndexRoute = AppTarefasTaskIdIndexRouteImport.update({
@@ -92,9 +104,11 @@ export interface FileRoutesByFullPath {
   '/projetos/': typeof AppProjetosIndexRoute
   '/skills/': typeof AppSkillsIndexRoute
   '/tarefas/': typeof AppTarefasIndexRoute
+  '/vault/': typeof AppVaultIndexRoute
   '/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo/': typeof AppProjetosNovoIndexRoute
   '/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
+  '/vault/$fileName/': typeof AppVaultFileNameIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -105,9 +119,11 @@ export interface FileRoutesByTo {
   '/projetos': typeof AppProjetosIndexRoute
   '/skills': typeof AppSkillsIndexRoute
   '/tarefas': typeof AppTarefasIndexRoute
+  '/vault': typeof AppVaultIndexRoute
   '/projetos/$projetoId': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo': typeof AppProjetosNovoIndexRoute
   '/tarefas/$taskId': typeof AppTarefasTaskIdIndexRoute
+  '/vault/$fileName': typeof AppVaultFileNameIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -120,9 +136,11 @@ export interface FileRoutesById {
   '/_app/projetos/': typeof AppProjetosIndexRoute
   '/_app/skills/': typeof AppSkillsIndexRoute
   '/_app/tarefas/': typeof AppTarefasIndexRoute
+  '/_app/vault/': typeof AppVaultIndexRoute
   '/_app/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/_app/projetos/novo/': typeof AppProjetosNovoIndexRoute
   '/_app/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
+  '/_app/vault/$fileName/': typeof AppVaultFileNameIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -135,9 +153,11 @@ export interface FileRouteTypes {
     | '/projetos/'
     | '/skills/'
     | '/tarefas/'
+    | '/vault/'
     | '/projetos/$projetoId/'
     | '/projetos/novo/'
     | '/tarefas/$taskId/'
+    | '/vault/$fileName/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -148,9 +168,11 @@ export interface FileRouteTypes {
     | '/projetos'
     | '/skills'
     | '/tarefas'
+    | '/vault'
     | '/projetos/$projetoId'
     | '/projetos/novo'
     | '/tarefas/$taskId'
+    | '/vault/$fileName'
   id:
     | '__root__'
     | '/_app'
@@ -162,9 +184,11 @@ export interface FileRouteTypes {
     | '/_app/projetos/'
     | '/_app/skills/'
     | '/_app/tarefas/'
+    | '/_app/vault/'
     | '/_app/projetos/$projetoId/'
     | '/_app/projetos/novo/'
     | '/_app/tarefas/$taskId/'
+    | '/_app/vault/$fileName/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -209,6 +233,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppConfiguracoesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/vault/': {
+      id: '/_app/vault/'
+      path: '/vault'
+      fullPath: '/vault/'
+      preLoaderRoute: typeof AppVaultIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/tarefas/': {
       id: '/_app/tarefas/'
       path: '/tarefas'
@@ -235,6 +266,13 @@ declare module '@tanstack/react-router' {
       path: '/agenda'
       fullPath: '/agenda/'
       preLoaderRoute: typeof AppAgendaIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/vault/$fileName/': {
+      id: '/_app/vault/$fileName/'
+      path: '/vault/$fileName'
+      fullPath: '/vault/$fileName/'
+      preLoaderRoute: typeof AppVaultFileNameIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/tarefas/$taskId/': {
@@ -269,9 +307,11 @@ interface AppRouteChildren {
   AppProjetosIndexRoute: typeof AppProjetosIndexRoute
   AppSkillsIndexRoute: typeof AppSkillsIndexRoute
   AppTarefasIndexRoute: typeof AppTarefasIndexRoute
+  AppVaultIndexRoute: typeof AppVaultIndexRoute
   AppProjetosProjetoIdIndexRoute: typeof AppProjetosProjetoIdIndexRoute
   AppProjetosNovoIndexRoute: typeof AppProjetosNovoIndexRoute
   AppTarefasTaskIdIndexRoute: typeof AppTarefasTaskIdIndexRoute
+  AppVaultFileNameIndexRoute: typeof AppVaultFileNameIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -282,9 +322,11 @@ const AppRouteChildren: AppRouteChildren = {
   AppProjetosIndexRoute: AppProjetosIndexRoute,
   AppSkillsIndexRoute: AppSkillsIndexRoute,
   AppTarefasIndexRoute: AppTarefasIndexRoute,
+  AppVaultIndexRoute: AppVaultIndexRoute,
   AppProjetosProjetoIdIndexRoute: AppProjetosProjetoIdIndexRoute,
   AppProjetosNovoIndexRoute: AppProjetosNovoIndexRoute,
   AppTarefasTaskIdIndexRoute: AppTarefasTaskIdIndexRoute,
+  AppVaultFileNameIndexRoute: AppVaultFileNameIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

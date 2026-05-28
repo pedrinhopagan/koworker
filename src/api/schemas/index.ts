@@ -44,9 +44,11 @@ export {
 	TaskListByWeekSchema,
 	TaskMetricsSchema,
 	TaskPromoteSchema,
+	TaskRenameFileSchema,
 	TaskSetDoneSchema,
 	TaskUpdateSchema,
 	TaskWriteFileSchema,
+	VaultLinkFilesToTaskSchema,
 	VaultListSchema,
 	VaultWriteFileSchema,
 } from "./tasks";

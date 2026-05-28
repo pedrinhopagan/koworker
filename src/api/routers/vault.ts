@@ -4,9 +4,19 @@ import { dbPriorities } from "../db/priorities";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
 import { restartTasksWatcher } from "../helpers/tasks-watcher";
-import { listVaultFiles, promoteVaultFile, writeVaultFile } from "../helpers/vault-folder";
+import {
+	linkVaultFilesToTask,
+	listVaultFiles,
+	promoteVaultFile,
+	writeVaultFile,
+} from "../helpers/vault-folder";
 import { PubSub } from "../pubsub";
-import { TaskPromoteSchema, VaultListSchema, VaultWriteFileSchema } from "../schemas";
+import {
+	TaskPromoteSchema,
+	VaultLinkFilesToTaskSchema,
+	VaultListSchema,
+	VaultWriteFileSchema,
+} from "../schemas";
 
 export const vaultRouter = {
 	list: protectedProcedure.input(VaultListSchema).handler(async ({ input }) => {
@@ -74,5 +84,31 @@ export const vaultRouter = {
 		restartTasksWatcher();
 
 		return { id, folderPath, title };
+	}),
+
+	linkToTask: protectedProcedure.input(VaultLinkFilesToTaskSchema).handler(async ({ input }) => {
+		const project = await dbProjects.getById(input.projectId);
+		if (!project) throw new Error("Projeto não encontrado");
+
+		const task = await dbTasks.getById(input.taskId);
+		if (!task) throw new Error("Tarefa não encontrada");
+
+		await linkVaultFilesToTask({
+			projectRoute: project.main_route,
+			taskFolderPath: task.folder_path,
+			files: input.files.map((file) => ({
+				name: file.name,
+				targetName: file.targetName ?? file.name,
+			})),
+		});
+
+		await PubSub.publish("tasks", project.id, {
+			taskId: task.id,
+			projectId: project.id,
+			action: "updated",
+			source: "api",
+		});
+
+		return { taskId: task.id, count: input.files.length };
 	}),
 };

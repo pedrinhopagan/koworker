@@ -4,7 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 
 type TooltipProps = {
-	label: string;
+	label: ReactNode;
 	children: ReactNode;
 	side?: "top" | "right" | "bottom" | "left";
 	align?: "start" | "center" | "end";

@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm } from "node:fs/promises";
+import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 // Garante que `.koworker/` está no `.gitignore` do projeto. O conteúdo das tasks é
@@ -75,6 +75,25 @@ export async function createTaskFolder(params: {
 	await Bun.write(join(dir, PRIMARY_FILE), params.title ? `# ${params.title}\n` : "");
 }
 
+// Lista só os nomes dos .md da pasta, na ordem canônica (index.md primeiro, depois alfabético).
+// Usado pela listagem de tasks pra mostrar quantos arquivos a task tem sem ler o conteúdo.
+export async function listTaskMarkdownNames(params: {
+	projectRoute: string;
+	folderPath: string;
+}): Promise<string[]> {
+	const dir = join(params.projectRoute, params.folderPath);
+
+	try {
+		const entries = (await readdir(dir, { withFileTypes: true }))
+			.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+			.map((entry) => entry.name);
+		entries.sort(compareMarkdownNames);
+		return entries;
+	} catch {
+		return [];
+	}
+}
+
 // Conteúdo do primeiro .md da pasta (mesma ordem de readTaskFiles), para o fallback de
 // exibição das tasks sem título. Lê só um arquivo, não a pasta inteira.
 export async function readFirstMarkdownContent(params: {
@@ -134,6 +153,23 @@ export async function writeTaskFile(params: {
 	const dir = join(params.projectRoute, params.folderPath);
 	await mkdir(dir, { recursive: true });
 	await Bun.write(join(dir, params.name), params.content);
+}
+
+export async function renameTaskFile(params: {
+	projectRoute: string;
+	folderPath: string;
+	oldName: string;
+	newName: string;
+}): Promise<void> {
+	const dir = join(params.projectRoute, params.folderPath);
+	const destPath = join(dir, params.newName);
+
+	const exists = await stat(destPath)
+		.then(() => true)
+		.catch(() => false);
+	if (exists) throw new Error(`Arquivo "${params.newName}" já existe nesta tarefa`);
+
+	await rename(join(dir, params.oldName), destPath);
 }
 
 export async function removeTaskFolder(params: {

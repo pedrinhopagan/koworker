@@ -1,11 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { FileText } from "lucide-react";
 import { useRef, useState } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 import { orpc } from "@/client";
 import { Title } from "@/components/typography";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { cn } from "@/lib/utils";
 import type { TaskWithMeta } from "@/types/tasks";
@@ -122,6 +124,23 @@ function TaskItemDefault({
 					disabled={isMutating}
 					aria-label={isDone ? "Marcar como não concluída" : "Marcar como concluída"}
 				/>
+				{task.fileNames.length > 0 && (
+					<Tooltip
+						label={
+							<div className="flex flex-col gap-0.5">
+								<span className="font-medium text-muted-foreground">Arquivos</span>
+								{task.fileNames.map((name) => (
+									<span key={name}>- {name.replace(/\.md$/, "")}</span>
+								))}
+							</div>
+						}
+					>
+						<span className="pointer-events-auto inline-flex items-center gap-1 rounded-md border border-border bg-secondary/40 px-1.5 py-0.5 text-muted-foreground text-xs">
+							<FileText className="size-3" />
+							{task.fileNames.length}
+						</span>
+					</Tooltip>
+				)}
 				{editing ? (
 					<div className="pointer-events-auto min-w-0 flex-1">
 						<TaskTitleInput

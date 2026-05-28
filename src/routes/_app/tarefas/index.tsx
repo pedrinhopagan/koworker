@@ -1,15 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
-import { useState } from "react";
 import { z } from "zod";
 
 import { PageShell } from "@/components/layout/page-shell";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { TaskForm } from "./-components/task-form";
 import { TaskList } from "./-components/task-list";
 import { TaskSearch } from "./-components/task-search";
-import { VaultPanel } from "./-components/vault-panel";
 import { useCreateTask } from "./-utils/use-create-task";
 import { useTasksData } from "./-utils/use-tasks-data";
 
@@ -55,7 +51,6 @@ function TarefasPage() {
 	const navigate = Route.useNavigate();
 	const { data, loading } = useTasksData(search);
 	const { createTask, loading: createLoading } = useCreateTask();
-	const [view, setView] = useState<"tasks" | "vault">("tasks");
 
 	function handleSearchChange(next: {
 		q?: string;
@@ -82,44 +77,22 @@ function TarefasPage() {
 			icon={CheckCircle2}
 		>
 			<div className="flex h-full min-h-0 flex-col gap-4">
-				<div className="flex gap-1">
-					{(["tasks", "vault"] as const).map((option) => (
-						<Button
-							key={option}
-							variant={view === option ? "secondary" : "ghost"}
-							size="sm"
-							onClick={() => setView(option)}
-							className={cn(view !== option && "text-muted-foreground")}
-						>
-							{option === "tasks" ? "Tarefas" : "Vault"}
-						</Button>
-					))}
+				<TaskForm onSubmit={createTask} loading={createLoading} />
+				<TaskSearch
+					value={{
+						q: search.q,
+						taskTypeId: search.taskTypeId,
+						priorityId: search.priorityId,
+						includeCompleted: search.includeCompleted,
+					}}
+					categories={data.categories}
+					priorities={data.priorities}
+					onChange={handleSearchChange}
+				/>
+
+				<div className="min-h-0 flex-1 overflow-y-auto pr-2 pb-6">
+					<TaskList tasks={data.tasks} loading={loading} />
 				</div>
-
-				{view === "tasks" ? (
-					<>
-						<TaskForm onSubmit={createTask} loading={createLoading} />
-						<TaskSearch
-							value={{
-								q: search.q,
-								taskTypeId: search.taskTypeId,
-								priorityId: search.priorityId,
-								includeCompleted: search.includeCompleted,
-							}}
-							categories={data.categories}
-							priorities={data.priorities}
-							onChange={handleSearchChange}
-						/>
-
-						<div className="min-h-0 flex-1 overflow-y-auto pr-2 pb-6">
-							<TaskList tasks={data.tasks} loading={loading} />
-						</div>
-					</>
-				) : (
-					<div className="min-h-0 flex-1 overflow-y-auto pr-2 pb-6">
-						<VaultPanel />
-					</div>
-				)}
 			</div>
 		</PageShell>
 	);

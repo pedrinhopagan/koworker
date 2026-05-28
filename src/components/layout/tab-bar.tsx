@@ -13,15 +13,16 @@ import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 
 // Navigation tabs configuration
-type TabPath = "/" | "/projetos" | "/tarefas" | "/agenda" | "/skills";
+type TabPath = "/" | "/projetos" | "/tarefas" | "/vault" | "/agenda" | "/skills";
 type Tab = { path: TabPath; label: string; altKey: string };
 
 const tabs: Tab[] = [
 	{ path: "/", label: "Home", altKey: "1" },
 	{ path: "/projetos", label: "Projetos", altKey: "2" },
 	{ path: "/tarefas", label: "Tarefas", altKey: "3" },
-	{ path: "/agenda", label: "Agenda", altKey: "4" },
-	{ path: "/skills", label: "Skills", altKey: "5" },
+	{ path: "/vault", label: "Vault", altKey: "4" },
+	{ path: "/agenda", label: "Agenda", altKey: "5" },
+	{ path: "/skills", label: "Skills", altKey: "6" },
 ];
 
 // Tab item styles
@@ -63,7 +64,7 @@ export function TabBar() {
 	const currentPath = location.pathname;
 	const toggleShortcutLabel = getAppEnv() === "production" ? "Alt+P" : "Alt+O";
 
-	// Keyboard navigation: Alt+1-5 for tabs, Alt+0 for settings
+	// Keyboard navigation: Alt+1-6 for tabs, Alt+0 for settings
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
 			if (!e.altKey || e.key < "0" || e.key > "9") {

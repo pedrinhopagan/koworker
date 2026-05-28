@@ -1,5 +1,5 @@
 import { Copy } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useSkillsQuery } from "@/hooks/use-skills";
@@ -46,7 +46,14 @@ type PromptInputProps = {
 	projectName?: string;
 };
 
-export function PromptInput({ value, onChange, onSend, projectName }: PromptInputProps) {
+export type PromptInputHandle = {
+	mention: (text: string) => void;
+};
+
+export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(function PromptInput(
+	{ value, onChange, onSend, projectName },
+	ref,
+) {
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const { taskSkills } = useSkillsQuery(projectName);
 
@@ -59,6 +66,28 @@ export function PromptInput({ value, onChange, onSend, projectName }: PromptInpu
 	);
 
 	const menuOpen = trigger !== null && matches.length > 0;
+
+	useImperativeHandle(ref, () => ({
+		mention(text: string) {
+			const trimmed = text.trim();
+			if (!trimmed) return;
+			const node = textareaRef.current;
+			const caret = node?.selectionStart ?? value.length;
+			const prefix = value.slice(0, caret);
+			const suffix = value.slice(caret);
+			const needsBreakBefore = prefix.length > 0 && !prefix.endsWith("\n");
+			const insertion = `${needsBreakBefore ? "\n" : ""}${trimmed}\n`;
+			const next = prefix + insertion + suffix;
+			const nextCaret = (prefix + insertion).length;
+			onChange(next);
+			requestAnimationFrame(() => {
+				const el = textareaRef.current;
+				if (!el) return;
+				el.focus();
+				el.setSelectionRange(nextCaret, nextCaret);
+			});
+		},
+	}));
 
 	useEffect(() => {
 		setActiveIndex(0);
@@ -174,4 +203,4 @@ export function PromptInput({ value, onChange, onSend, projectName }: PromptInpu
 			</Button>
 		</footer>
 	);
-}
+});

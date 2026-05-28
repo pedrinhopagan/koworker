@@ -1,4 +1,4 @@
-import { mkdir, readdir, rename } from "node:fs/promises";
+import { mkdir, readdir, rename, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { buildFolderPath } from "./task-folder";
 
@@ -69,4 +69,26 @@ export async function promoteVaultFile(params: {
 	await rename(sourcePath, join(params.projectRoute, folderPath, PRIMARY_FILE));
 
 	return { folderPath, title };
+}
+
+// Move um ou mais `.md` soltos do vault para a pasta de uma tarefa (rename atômico dentro
+// do mesmo `.koworker/`). Confere todos os destinos antes de mover qualquer um pra não deixar
+// metade arquivada se um nome colidir.
+export async function linkVaultFilesToTask(params: {
+	projectRoute: string;
+	taskFolderPath: string;
+	files: { name: string; targetName: string }[];
+}): Promise<void> {
+	const taskDir = join(params.projectRoute, params.taskFolderPath);
+
+	for (const { targetName } of params.files) {
+		const exists = await stat(join(taskDir, targetName))
+			.then(() => true)
+			.catch(() => false);
+		if (exists) throw new Error(`Arquivo "${targetName}" já existe nesta tarefa`);
+	}
+
+	for (const { name, targetName } of params.files) {
+		await rename(join(params.projectRoute, KOWORKER_DIR, name), join(taskDir, targetName));
+	}
 }

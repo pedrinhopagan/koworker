@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
-import { MarkdownEditor } from "@/components/markdown-doc";
+import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
+import { DocToolbar } from "@/components/doc-toolbar";
 import {
 	TASK_SELECT_CONTENT_SELECTOR,
 	TaskMetaControls,
@@ -15,11 +16,7 @@ import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useClickOutside } from "@/hooks/use-click-outside";
-import { useDebouncedWrite } from "@/hooks/use-debounced-write";
 import { cn } from "@/lib/utils";
-
-import { buildKoworkerPrompt, copyToClipboard } from "./-components/build-prompt";
-import { PromptInput } from "./-components/prompt-input";
 
 export const Route = createFileRoute("/_app/tarefas/$taskId/")({
 	component: TaskDetailPage,
@@ -46,6 +43,16 @@ function TaskDetailPage() {
 		},
 	});
 
+	const renameFileMutation = useMutation({
+		...orpc.tasks.renameFile.mutationOptions(),
+		onSuccess: (result) => {
+			queryClient.invalidateQueries(orpc.tasks.getFull.queryOptions({ input: { id: taskId } }));
+			setActiveFile(result.newName);
+			toast.success("Arquivo renomeado");
+		},
+		onError: (err) => toast.error(err instanceof Error ? err.message : "Falha ao renomear arquivo"),
+	});
+
 	const setDoneMutation = useMutation({
 		...orpc.tasks.setDone.mutationOptions(),
 		onSuccess: invalidateTasks,
@@ -67,14 +74,13 @@ function TaskDetailPage() {
 	const isMutating =
 		setDoneMutation.isPending || updateMutation.isPending || removeTaskMutation.isPending;
 
-	const { schedule, flush } = useDebouncedWrite((payload: { name: string; content: string }) =>
-		writeFileMutation.mutateAsync({ id: taskId, ...payload }),
-	);
-
 	const [activeFile, setActiveFile] = useState<string | null>(null);
-	const [userInput, setUserInput] = useState("");
 	const [editing, setEditing] = useState(false);
+	const [renamingFile, setRenamingFile] = useState<string | null>(null);
+	const [renameValue, setRenameValue] = useState("");
+	const renameInputRef = useRef<HTMLInputElement>(null);
 	const headerRef = useRef<HTMLDivElement>(null);
+	const paneRef = useRef<DocEditorPaneHandle>(null);
 
 	useClickOutside(headerRef, () => setEditing(false), {
 		enabled: editing,
@@ -114,11 +120,35 @@ function TaskDetailPage() {
 	}
 
 	const current = task.files.find((f) => f.name === activeFile) ?? null;
-	const folderPath = task.folderPath;
 
 	async function selectFile(name: string) {
-		await flush();
+		await paneRef.current?.flush();
 		setActiveFile(name);
+	}
+
+	function startRename(name: string) {
+		setRenamingFile(name);
+		setRenameValue(name);
+		setTimeout(() => renameInputRef.current?.select(), 0);
+	}
+
+	function cancelRename() {
+		setRenamingFile(null);
+		setRenameValue("");
+	}
+
+	function confirmRename() {
+		const newName = renameValue.trim();
+		if (!newName || !renamingFile || newName === renamingFile) {
+			cancelRename();
+			return;
+		}
+		if (!newName.endsWith(".md")) {
+			toast.error("O nome deve terminar em .md");
+			return;
+		}
+		renameFileMutation.mutate({ id: taskId, oldName: renamingFile, newName });
+		cancelRename();
 	}
 
 	const saveTitle = (value: string) => {
@@ -126,22 +156,6 @@ function TaskDetailPage() {
 		if (next === (task.title ?? "")) return;
 		updateMutation.mutate({ id: task.id, title: next });
 	};
-
-	async function handleSendPrompt() {
-		await flush();
-
-		const prompt = buildKoworkerPrompt({
-			folderPath,
-			fileName: activeFile ?? undefined,
-			userInput,
-		});
-		const copied = await copyToClipboard(prompt);
-		if (copied) {
-			toast.success("Prompt copiado para a área de transferência");
-		} else {
-			toast.error("Não foi possível copiar o prompt");
-		}
-	}
 
 	return (
 		<div className="relative flex h-full w-full flex-col">
@@ -192,50 +206,65 @@ function TaskDetailPage() {
 						onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
 						onDelete={() => removeTaskMutation.mutate({ id: task.id })}
 					/>
+					<div className="h-5 w-px bg-border" aria-hidden="true" />
+					<DocToolbar
+						onCollapse={() => paneRef.current?.collapseAll()}
+						onExpand={() => paneRef.current?.expandAll()}
+						onCopyContent={() => void paneRef.current?.copyContent()}
+						onCopyPath={() => void paneRef.current?.copyPath()}
+					/>
 				</div>
 			</div>
 
 			<div className="w-full border-b border-border">
 				<div className="mx-auto flex h-8 w-full max-w-6xl items-stretch">
 					{task.files.map((file) => (
-						<button
+						<div
 							key={file.name}
-							type="button"
-							onClick={() => void selectFile(file.name)}
 							className={cn(
-								"min-w-0 flex-1 truncate border-l border-border px-3 text-center text-xs leading-8 transition-colors",
-								file.name === activeFile
-									? "bg-secondary text-foreground"
-									: "text-muted-foreground hover:bg-secondary/50",
+								"min-w-0 flex-1 border-l border-border",
+								file.name === activeFile ? "bg-secondary text-foreground" : "text-muted-foreground",
 							)}
 						>
-							{file.name}
-						</button>
+							{renamingFile === file.name ? (
+								<input
+									ref={renameInputRef}
+									value={renameValue}
+									onChange={(e) => setRenameValue(e.target.value)}
+									onBlur={confirmRename}
+									onKeyDown={(e) => {
+										if (e.key === "Enter") confirmRename();
+										else if (e.key === "Escape") cancelRename();
+									}}
+									className="h-full w-full bg-transparent px-3 text-center text-xs outline-none"
+								/>
+							) : (
+								<button
+									type="button"
+									onClick={() => void selectFile(file.name)}
+									onDoubleClick={() => startRename(file.name)}
+									className={cn(
+										"h-full w-full truncate px-3 text-center text-xs transition-colors",
+										file.name !== activeFile && "hover:bg-secondary/50",
+									)}
+									title="Duplo clique para renomear"
+								>
+									{file.name}
+								</button>
+							)}
+						</div>
 					))}
 				</div>
 			</div>
 
-			<main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 overflow-y-auto px-4 pt-6 pb-6">
-				{current ? (
-					<MarkdownEditor
-						key={current.name}
-						initialContent={current.content}
-						onChange={(content) => schedule({ name: current.name, content })}
-					/>
-				) : (
-					<Text size="sm" tone="muted">
-						Nenhum arquivo markdown nesta tarefa.
-					</Text>
-				)}
-			</main>
-
-			<div className="border-t border-border" />
-
-			<PromptInput
-				value={userInput}
-				onChange={setUserInput}
-				onSend={() => void handleSendPrompt()}
+			<DocEditorPane
+				ref={paneRef}
+				fileName={activeFile}
+				content={current?.content ?? ""}
+				folderPath={task.folderPath}
 				projectName={task.project?.name}
+				writeFile={(payload) => writeFileMutation.mutateAsync({ id: taskId, ...payload })}
+				emptyState="Nenhum arquivo markdown nesta tarefa."
 			/>
 		</div>
 	);

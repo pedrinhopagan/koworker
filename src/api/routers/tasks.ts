@@ -7,9 +7,11 @@ import { dbTasks } from "../db/tasks";
 import {
 	buildFolderPath,
 	createTaskFolder,
+	listTaskMarkdownNames,
 	readFirstMarkdownContent,
 	readTaskFiles,
 	removeTaskFolder,
+	renameTaskFile,
 	resolveDisplayTitle,
 	writeTaskFile,
 } from "../helpers/task-folder";
@@ -24,12 +26,13 @@ import {
 	TaskListByProjectSchema,
 	TaskListByWeekSchema,
 	TaskMetricsSchema,
+	TaskRenameFileSchema,
 	TaskSetDoneSchema,
 	TaskUpdateSchema,
 	TaskWriteFileSchema,
 } from "../schemas";
 
-const mapTask = (row: tasks, displayTitle: string) => ({
+const mapTask = (row: tasks, displayTitle: string, fileNames: string[] = []) => ({
 	id: row.id,
 	projectId: row.project_id,
 	folderPath: row.folder_path,
@@ -44,35 +47,57 @@ const mapTask = (row: tasks, displayTitle: string) => ({
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,
 	deletedAt: row.deleted_at ?? undefined,
+	fileNames,
 });
 
-// Resolve o displayTitle de uma única row. Só lê o disco quando a task não tem título.
+// Resolve o displayTitle e os nomes dos .md de uma única row.
 async function mapTaskWithDisplay(row: tasks) {
-	const title = row.title?.trim();
-	if (title) return mapTask(row, title);
-
 	const project = await dbProjects.getById(row.project_id);
+	const fileNames = project
+		? await listTaskMarkdownNames({
+				projectRoute: project.main_route,
+				folderPath: row.folder_path,
+			})
+		: [];
+
+	const title = row.title?.trim();
+	if (title) return mapTask(row, title, fileNames);
+
 	const firstContent = project
 		? await readFirstMarkdownContent({
 				projectRoute: project.main_route,
 				folderPath: row.folder_path,
 			})
 		: undefined;
-	return mapTask(row, resolveDisplayTitle({ firstContent }));
+	return mapTask(row, resolveDisplayTitle({ firstContent }), fileNames);
 }
 
 // Resolve o displayTitle de várias rows de uma vez: carrega os projetos das tasks sem título
 // uma vez e lê o 1º .md de cada. Rows com título não tocam o disco.
 async function mapTasks(rows: tasks[]) {
-	const untitled = rows.filter((row) => !row.title?.trim());
-
-	const projectIds = [...new Set(untitled.map((row) => row.project_id))];
+	const projectIds = [...new Set(rows.map((row) => row.project_id))];
 	const projects = new Map(
 		(await Promise.all(projectIds.map((id) => dbProjects.getById(id))))
 			.filter((project) => project !== null)
 			.map((project) => [project.id, project] as const),
 	);
 
+	const fileNamesByTask = new Map(
+		await Promise.all(
+			rows.map(async (row) => {
+				const project = projects.get(row.project_id);
+				const names = project
+					? await listTaskMarkdownNames({
+							projectRoute: project.main_route,
+							folderPath: row.folder_path,
+						})
+					: [];
+				return [row.id, names] as const;
+			}),
+		),
+	);
+
+	const untitled = rows.filter((row) => !row.title?.trim());
 	const firstContentByTask = new Map(
 		await Promise.all(
 			untitled.map(async (row) => {
@@ -89,9 +114,14 @@ async function mapTasks(rows: tasks[]) {
 	);
 
 	return rows.map((row) => {
+		const fileNames = fileNamesByTask.get(row.id) ?? [];
 		const title = row.title?.trim();
-		if (title) return mapTask(row, title);
-		return mapTask(row, resolveDisplayTitle({ firstContent: firstContentByTask.get(row.id) }));
+		if (title) return mapTask(row, title, fileNames);
+		return mapTask(
+			row,
+			resolveDisplayTitle({ firstContent: firstContentByTask.get(row.id) }),
+			fileNames,
+		);
 	});
 }
 
@@ -176,7 +206,11 @@ export const tasksRouter = {
 		});
 
 		return {
-			...mapTask(row, displayTitle),
+			...mapTask(
+				row,
+				displayTitle,
+				files.map((file) => file.name),
+			),
 			files,
 			primaryFile,
 			category: category ? { id: category.id, name: category.name, color: category.color } : null,
@@ -275,6 +309,24 @@ export const tasksRouter = {
 
 		await publishTaskEvent(row.id, row.project_id, "updated");
 		return { id: row.id, name: input.name };
+	}),
+
+	renameFile: protectedProcedure.input(TaskRenameFileSchema).handler(async ({ input }) => {
+		const row = await dbTasks.getById(input.id);
+		if (!row) throw new Error("Tarefa não encontrada");
+
+		const project = await dbProjects.getById(row.project_id);
+		if (!project) throw new Error("Projeto não encontrado");
+
+		await renameTaskFile({
+			projectRoute: project.main_route,
+			folderPath: row.folder_path,
+			oldName: input.oldName,
+			newName: input.newName,
+		});
+
+		await publishTaskEvent(row.id, row.project_id, "updated");
+		return { id: row.id, oldName: input.oldName, newName: input.newName };
 	}),
 
 	remove: protectedProcedure.input(TaskIdSchema).handler(async ({ input }) => {

@@ -28,6 +28,8 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
 | `src/routes/_app/index.tsx` | `/_app/` | `/` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/tarefas/index.tsx` | `/_app/tarefas/` | `/tarefas` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/tarefas/$taskId/index.tsx` | `/_app/tarefas/$taskId/` | `/tarefas/$taskId` | `__root` + `AppShell` + `TaskPageLayout` |
+| `src/routes/_app/vault/index.tsx` | `/_app/vault/` | `/vault` | `__root` + `AppShell` + `PageShell` |
+| `src/routes/_app/vault/$fileName/index.tsx` | `/_app/vault/$fileName/` | `/vault/$fileName` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
 | `src/routes/_app/projetos/index.tsx` | `/_app/projetos/` | `/projetos` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/projetos/novo/index.tsx` | `/_app/projetos/novo/` | `/projetos/novo` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/projetos/$projetoId/index.tsx` | `/_app/projetos/$projetoId/` | `/projetos/$projetoId` | `__root` + `AppShell` + `PageShell` |
@@ -42,6 +44,7 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
 - Rotas dinâmicas atuais:
   - `/projetos/$projetoId`
   - `/tarefas/$taskId`
+  - `/vault/$fileName` (`$fileName` é o nome do `.md` solto, ex. `notas.md` — não é uma task)
 
 ## Evidências verificadas
 

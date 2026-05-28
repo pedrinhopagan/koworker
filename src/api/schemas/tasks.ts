@@ -148,6 +148,27 @@ export const TaskPromoteSchema = z.object({
 	name: mdFileName,
 });
 
+// Move um ou mais `.md` soltos do vault para a pasta de uma tarefa. targetName só faz
+// sentido quando há um único arquivo (renomear ao arquivar); com vários, cada um mantém o nome.
+export const VaultLinkFilesToTaskSchema = z.object({
+	projectId: z.string().trim().min(1),
+	taskId: z.string().trim().min(1),
+	files: z
+		.array(
+			z.object({
+				name: mdFileName,
+				targetName: mdFileName.optional(),
+			}),
+		)
+		.min(1),
+});
+
+export const TaskRenameFileSchema = z.object({
+	id: z.string().trim().min(1),
+	oldName: mdFileName,
+	newName: mdFileName,
+});
+
 export type TaskCreateInput = z.infer<typeof TaskCreateSchema>;
 export type TaskUpdateInput = z.infer<typeof TaskUpdateSchema>;
 export type TaskSetDoneInput = z.infer<typeof TaskSetDoneSchema>;
