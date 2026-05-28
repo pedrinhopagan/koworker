@@ -54,6 +54,7 @@ export {
 	TaskRenameFileSchema,
 	TaskReorderSchema,
 	TaskSetDoneSchema,
+	TaskSetFileDateSchema,
 	TaskUpdateSchema,
 	TaskWriteFileSchema,
 	VaultLinkFilesToTaskSchema,

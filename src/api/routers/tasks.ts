@@ -13,6 +13,7 @@ import {
 	removeTaskFolder,
 	renameTaskFile,
 	resolveDisplayTitle,
+	setTaskFileEditedAt,
 	writeTaskFile,
 } from "../helpers/task-folder";
 import { restartTasksWatcher } from "../helpers/tasks-watcher";
@@ -27,7 +28,9 @@ import {
 	TaskListByWeekSchema,
 	TaskMetricsSchema,
 	TaskRenameFileSchema,
+	TaskReorderSchema,
 	TaskSetDoneSchema,
+	TaskSetFileDateSchema,
 	TaskUpdateSchema,
 	TaskWriteFileSchema,
 } from "../schemas";
@@ -328,6 +331,24 @@ export const tasksRouter = {
 
 		await publishTaskEvent(row.id, row.project_id, "updated");
 		return { id: row.id, name: input.name };
+	}),
+
+	setFileDate: protectedProcedure.input(TaskSetFileDateSchema).handler(async ({ input }) => {
+		const row = await dbTasks.getById(input.id);
+		if (!row) throw new Error("Tarefa não encontrada");
+
+		const project = await dbProjects.getById(row.project_id);
+		if (!project) throw new Error("Projeto não encontrado");
+
+		await setTaskFileEditedAt({
+			projectRoute: project.main_route,
+			folderPath: row.folder_path,
+			name: input.name,
+			editedAt: input.editedAt,
+		});
+
+		await publishTaskEvent(row.id, row.project_id, "updated");
+		return { id: row.id, name: input.name, editedAt: input.editedAt };
 	}),
 
 	renameFile: protectedProcedure.input(TaskRenameFileSchema).handler(async ({ input }) => {

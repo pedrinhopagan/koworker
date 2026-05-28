@@ -25,6 +25,7 @@ import { useMemo, useState } from "react";
 import { orpc } from "@/client";
 import { TaskItem } from "@/components/tasks";
 import { Text } from "@/components/typography";
+import { RECENCY_FRESH_WINDOW_MS, RECENCY_HIGHLIGHT_DEPTH } from "@/constants/tasks";
 import type { TaskGroup, TaskWithMeta } from "@/types/tasks";
 import {
 	type SortMode,
@@ -36,8 +37,6 @@ import {
 const NO_GROUP = "__none__";
 // Categoria sentinela dos buckets "achatados" (modos que não clusterizam por categoria).
 const FLAT_CAT = "__all__";
-// Quantas tarefas recentes ganham destaque (intensidade decrescente).
-const HIGHLIGHT_DEPTH = 3;
 
 function bucketKey(groupId: string | null, categoryId: string) {
 	return `${groupId ?? NO_GROUP}::${categoryId}`;
@@ -98,11 +97,14 @@ function buildBuckets(tasks: TaskWithMeta[], ctx: SortContext) {
 
 // Top-N tarefas pendentes por última edição → nível de destaque (1 = mais recente). O ranking é
 // por projeto (a visão "Todos os projetos" não deixa uma task de um projeto roubar o destaque de
-// outro): cada projeto tem seus próprios top-N.
+// outro): cada projeto tem seus próprios top-N. Só entram tarefas editadas dentro da janela de
+// frescor — destacar uma parada há meses seria chamar de "recente" o que não é.
 function buildHighlightLevels(tasks: TaskWithMeta[]) {
+	const freshFloor = Date.now() - RECENCY_FRESH_WINDOW_MS;
+
 	const byProject = new Map<string, TaskWithMeta[]>();
 	for (const task of tasks) {
-		if (task.done) continue;
+		if (task.done || task.lastEditedAt < freshFloor) continue;
 		const projectTasks = byProject.get(task.projectId);
 		if (projectTasks) {
 			projectTasks.push(task);
@@ -115,7 +117,7 @@ function buildHighlightLevels(tasks: TaskWithMeta[]) {
 	for (const projectTasks of byProject.values()) {
 		projectTasks
 			.sort((a, b) => b.lastEditedAt - a.lastEditedAt)
-			.slice(0, HIGHLIGHT_DEPTH)
+			.slice(0, RECENCY_HIGHLIGHT_DEPTH)
 			.forEach((task, index) => levels.set(task.id, index + 1));
 	}
 	return levels;

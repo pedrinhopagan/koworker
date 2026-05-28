@@ -179,6 +179,14 @@ export const TaskRenameFileSchema = z.object({
 	newName: mdFileName,
 });
 
+// Sobrescreve a data de atualização (mtime) de um .md. editedAt em ms desde a epoch — instante
+// escolhido pelo usuário pra reordenar a recência sem editar o conteúdo.
+export const TaskSetFileDateSchema = z.object({
+	id: z.string().trim().min(1),
+	name: mdFileName,
+	editedAt: z.number().int().positive(),
+});
+
 export type TaskCreateInput = z.infer<typeof TaskCreateSchema>;
 export type TaskUpdateInput = z.infer<typeof TaskUpdateSchema>;
 export type TaskSetDoneInput = z.infer<typeof TaskSetDoneSchema>;

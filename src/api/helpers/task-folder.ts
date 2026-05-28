@@ -1,4 +1,4 @@
-import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, rename, rm, stat, utimes } from "node:fs/promises";
 import { join } from "node:path";
 
 // Garante que `.koworker/` está no `.gitignore` do projeto. O conteúdo das tasks é
@@ -20,7 +20,9 @@ async function ensureKoworkerGitignored(projectRoute: string): Promise<void> {
 export type TaskFile = {
 	name: string;
 	content: string;
-	// mtime do arquivo em disco; base do destaque do arquivo editado por último na rota da task.
+	// birthtime do arquivo em disco: instante de criação, estável entre edições.
+	createdAt: number;
+	// mtime do arquivo em disco; base do ranking de recência dos arquivos na rota da task.
 	editedAt: number;
 };
 
@@ -172,13 +174,16 @@ export async function readTaskFiles(params: {
 	const files = await Promise.all(
 		entries.map(async (name) => {
 			const path = join(dir, name);
-			const [content, editedAt] = await Promise.all([
+			const [content, stats] = await Promise.all([
 				Bun.file(path).text(),
-				stat(path)
-					.then((s) => s.mtimeMs)
-					.catch(() => 0),
+				stat(path).catch(() => null),
 			]);
-			return { name, content, editedAt };
+			return {
+				name,
+				content,
+				createdAt: stats?.birthtimeMs ?? 0,
+				editedAt: stats?.mtimeMs ?? 0,
+			};
 		}),
 	);
 
@@ -196,6 +201,19 @@ export async function writeTaskFile(params: {
 	const dir = join(params.projectRoute, params.folderPath);
 	await mkdir(dir, { recursive: true });
 	await Bun.write(join(dir, params.name), params.content);
+}
+
+// Sobrescreve o mtime de um .md — a "data de atualização" que baseia toda a recência (lista,
+// abas da task, watcher). O birthtime (criação) não muda: utimes no Linux não mexe nele. Permite
+// jogar pra trás tarefas/arquivos que não interessam sem editar o conteúdo.
+export async function setTaskFileEditedAt(params: {
+	projectRoute: string;
+	folderPath: string;
+	name: string;
+	editedAt: number;
+}): Promise<void> {
+	const when = new Date(params.editedAt);
+	await utimes(join(params.projectRoute, params.folderPath, params.name), when, when);
 }
 
 export async function renameTaskFile(params: {

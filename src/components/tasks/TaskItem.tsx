@@ -8,6 +8,7 @@ import { orpc } from "@/client";
 import { Title } from "@/components/typography";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip } from "@/components/ui/tooltip";
+import { recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
@@ -43,14 +44,6 @@ type TaskItemProps = {
 	// Destaque de recência: 1 = última editada (mais forte), 2/3 = anteriores (mais sutil).
 	highlight?: number;
 };
-
-// Barra lateral decrescente das tarefas editadas por último: canal próprio (esquerda, espessa,
-// sólida) — distinto da borda fina de prioridade, pra não confundir um com o outro.
-function highlightBarClass(level: number) {
-	if (level === 1) return "bg-primary";
-	if (level === 2) return "bg-primary/55";
-	return "bg-primary/30";
-}
 
 function TaskItemDefault({
 	task,
@@ -124,7 +117,7 @@ function TaskItemDefault({
 					aria-hidden
 					className={cn(
 						"pointer-events-none absolute inset-y-0 left-0 z-10 w-1 rounded-r-sm",
-						highlightBarClass(highlight),
+						recencyLevelClass(highlight),
 					)}
 				/>
 			) : null}
