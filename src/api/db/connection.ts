@@ -47,6 +47,11 @@ const tasksSchema = type({
 	"title?": "string",
 	priority_id: type("string").configure({ references: "priorities.id", onDelete: "restrict" }),
 	category_id: type("string").configure({ references: "categories.id", onDelete: "restrict" }),
+	// Grupo (opcional) ao qual a task pertence. Nulo = pseudo-grupo "Sem grupo". SET NULL para
+	// que deletar um grupo apenas solte as tasks de volta pro "Sem grupo".
+	"group_id?": type("string").configure({ references: "task_groups.id", onDelete: "set null" }),
+	// Ordem manual da task dentro do bucket (group_id + category_id).
+	display_order: type("number.integer").configure({ default: 0 }),
 	// YYYY-MM-DD format
 	"scheduled_date?": "string",
 	"scheduled_time?": "string",
@@ -55,6 +60,16 @@ const tasksSchema = type({
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 	"deleted_at?": "number.integer",
+});
+
+const taskGroupsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	project_id: type("string").configure({ references: "projects.id", onDelete: "cascade" }),
+	name: "string",
+	color: type("string").configure({ default: "#000000" }),
+	display_order: type("number.integer").configure({ default: 0 }),
+	created_at: type("number.integer").configure({ default: "now" }),
+	"updated_at?": "number.integer",
 });
 
 const categoriesSchema = type({
@@ -96,6 +111,7 @@ const database = new Database({
 		categories: categoriesSchema,
 		priorities: prioritiesSchema,
 		project_routes: projectRoutesSchema,
+		task_groups: taskGroupsSchema,
 		tasks: tasksSchema,
 		skill_settings: skillSettingsSchema,
 	},
@@ -114,6 +130,7 @@ export type users = DB["users"];
 export type projects = DB["projects"];
 export type project_routes = DB["project_routes"];
 export type tasks = DB["tasks"];
+export type task_groups = DB["task_groups"];
 export type categories = DB["categories"];
 export type priorities = DB["priorities"];
 export type skill_settings = DB["skill_settings"];
@@ -123,6 +140,7 @@ export {
 	usersSchema,
 	projectsSchema,
 	projectRoutesSchema,
+	taskGroupsSchema,
 	tasksSchema,
 	categoriesSchema,
 	prioritiesSchema,

@@ -35,6 +35,13 @@ export {
 	SkillUpdateSchema,
 } from "./skills";
 export {
+	TaskGroupCreateSchema,
+	TaskGroupIdSchema,
+	TaskGroupListSchema,
+	TaskGroupReorderSchema,
+	TaskGroupUpdateSchema,
+} from "./task-groups";
+export {
 	TaskCreateSchema,
 	TaskFocusSchema,
 	TaskGetAllSchema,
@@ -45,6 +52,7 @@ export {
 	TaskMetricsSchema,
 	TaskPromoteSchema,
 	TaskRenameFileSchema,
+	TaskReorderSchema,
 	TaskSetDoneSchema,
 	TaskUpdateSchema,
 	TaskWriteFileSchema,

@@ -116,7 +116,9 @@ export const dbTasks = {
 		}
 
 		query = applyTaskListFilters(query, input);
-		query = query.orderBy("created_at", "desc");
+		// Ordem-base estável; o agrupamento final (grupo → categoria → display_order) é
+		// resolvido no frontend, que tem o display_order de grupos e categorias.
+		query = query.orderBy("display_order", "asc").orderBy("created_at", "desc");
 		return query.execute();
 	},
 
@@ -140,6 +142,27 @@ export const dbTasks = {
 			.where("id", "=", id)
 			.where("deleted_at", "is", null)
 			.executeTakeFirst();
+	},
+
+	// Recoloca um bucket (grupo + categoria): grava a ordem das ids e fixa group_id/category_id.
+	// Uma transação só para a lista chegar consistente quando a task muda de grupo/categoria.
+	reorder: async (input: { groupId: string | null; categoryId?: string; orderedIds: string[] }) => {
+		await db.transaction().execute(async (trx) => {
+			for (const [index, id] of input.orderedIds.entries()) {
+				await trx
+					.updateTable("tasks")
+					.set({
+						display_order: index,
+						group_id: input.groupId,
+						// Só recategoriza quando o destino é um cluster de categoria.
+						...(input.categoryId ? { category_id: input.categoryId } : {}),
+						updated_at: Date.now(),
+					})
+					.where("id", "=", id)
+					.where("deleted_at", "is", null)
+					.executeTakeFirst();
+			}
+		});
 	},
 
 	softDelete: (id: string) =>

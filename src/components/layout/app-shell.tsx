@@ -44,7 +44,7 @@ export function AppShell({ children }: AppShellProps) {
 		>
 			{/*<AccentStripe />*/}
 
-			<div className="flex flex-col flex-1 min-h-0">
+			<div className="flex flex-col flex-1 min-h-0 min-w-0">
 				<TabBar />
 
 				<div

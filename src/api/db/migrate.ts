@@ -168,6 +168,20 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		sqlite.exec("UPDATE project_routes SET command = 'codex --yolo' WHERE command = 'codex'");
 	}
 
+	// tasks: agrupamento e ordem manual. A tabela task_groups é criada pelo constructor do
+	// @lobomfz/db (CREATE TABLE IF NOT EXISTS); aqui só garantimos as colunas novas em tasks
+	// nos bancos já existentes. ALTER do SQLite não anexa a FK, mas a referência só é exigida
+	// em bancos novos (via CREATE TABLE) — o comportamento "SET NULL" cobre só os recém-criados.
+	{
+		const cols = tableInfo(sqlite, "tasks");
+		if (!hasColumn(cols, "group_id")) {
+			ensureColumn(sqlite, "tasks", "group_id TEXT");
+		}
+		if (!hasColumn(cols, "display_order")) {
+			ensureColumn(sqlite, "tasks", "display_order INTEGER NOT NULL DEFAULT 0");
+		}
+	}
+
 	// tasks: a pasta da task agora é só o id curto (".koworker/<id8>"), sem slug do título.
 	// Canoniza o folder_path antigo (".koworker/<id8>-<slug>") e renomeia a pasta no disco
 	// quando ela ainda estiver no nome antigo. Idempotente e tolerante a pastas já renomeadas

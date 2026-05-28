@@ -298,6 +298,20 @@ export const tasksRouter = {
 		return row ? mapTaskWithDisplay(row) : null;
 	}),
 
+	reorder: protectedProcedure.input(TaskReorderSchema).handler(async ({ input }) => {
+		await dbTasks.reorder({
+			groupId: input.groupId,
+			categoryId: input.categoryId,
+			orderedIds: input.orderedIds,
+		});
+
+		const first = await dbTasks.getById(input.orderedIds[0]);
+		if (first) {
+			await publishTaskEvent(first.id, first.project_id, "updated");
+		}
+		return { success: true };
+	}),
+
 	writeFile: protectedProcedure.input(TaskWriteFileSchema).handler(async ({ input }) => {
 		const row = await dbTasks.getById(input.id);
 		if (!row) throw new Error("Tarefa não encontrada");

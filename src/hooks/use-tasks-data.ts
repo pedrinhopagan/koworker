@@ -25,6 +25,11 @@ export function useTasksData(filters: TasksSearchFilters) {
 	});
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
+	const projectIdForGroups = filters.projectId ?? selectedProjectId ?? null;
+	const groupsQuery = useQuery({
+		...orpc.taskGroups.list.queryOptions({ input: { projectId: projectIdForGroups ?? "" } }),
+		enabled: Boolean(projectIdForGroups),
+	});
 
 	const searchQuery = filters.q?.trim();
 	const projectIdForQuery = filters.projectId ?? selectedProjectId ?? null;
@@ -43,6 +48,7 @@ export function useTasksData(filters: TasksSearchFilters) {
 
 	const categories = categoriesQuery.data ?? [];
 	const priorities = prioritiesQuery.data ?? [];
+	const groups = groupsQuery.data ?? [];
 	const rawTasks = tasksQuery.data ?? [];
 
 	const categoryMap = new Map(categories.map((category) => [category.id, category]));
@@ -80,6 +86,7 @@ export function useTasksData(filters: TasksSearchFilters) {
 			projects,
 			categories,
 			priorities,
+			groups,
 			selectedProjectId,
 			pendingCount,
 			executedCount,

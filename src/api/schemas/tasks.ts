@@ -118,6 +118,16 @@ export const TaskSetDoneSchema = z.object({
 	done: z.boolean(),
 });
 
+// Reordena/recoloca um bucket inteiro. As ids vêm na ordem final desejada; o handler grava
+// display_order = índice e fixa group_id nelas. categoryId só é enviado quando o destino é um
+// cluster de categoria (modo Categoria); nos modos achatados é omitido para preservar a
+// categoria de cada task. groupId nulo é o pseudo-grupo "Sem grupo".
+export const TaskReorderSchema = z.object({
+	groupId: z.string().trim().min(1).nullable(),
+	categoryId: z.string().trim().min(1).optional(),
+	orderedIds: z.array(z.string().min(1)).min(1),
+});
+
 export const TaskWriteFileSchema = z.object({
 	id: z.string().trim().min(1),
 	// Nome do arquivo dentro da pasta da task, ex: "index.md". Sem separadores de caminho.
@@ -182,6 +192,8 @@ export const TaskDbCreateSchema = z.object({
 	title: z.string().min(1).optional(),
 	priority_id: z.string().min(1),
 	category_id: z.string().min(1),
+	group_id: z.string().min(1).nullable().optional(),
+	display_order: z.number().int().optional(),
 	scheduled_date: z.string().nullable().optional(),
 	scheduled_time: z.string().nullable().optional(),
 	done: z.number().int().optional(),

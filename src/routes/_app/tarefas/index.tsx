@@ -3,8 +3,8 @@ import { CheckCircle2 } from "lucide-react";
 import { z } from "zod";
 
 import { PageShell } from "@/components/layout/page-shell";
+import { GroupedTaskList } from "./-components/grouped-task-list";
 import { TaskForm } from "./-components/task-form";
-import { TaskList } from "./-components/task-list";
 import { TaskSearch } from "./-components/task-search";
 import { useCreateTask } from "./-utils/use-create-task";
 import { useTasksData } from "./-utils/use-tasks-data";
@@ -76,7 +76,7 @@ function TarefasPage() {
 			description={`${data.pendingCount} pendentes, ${data.executedCount} concluídas`}
 			icon={CheckCircle2}
 		>
-			<div className="flex h-full min-h-0 flex-col gap-4">
+			<div className="flex h-full min-h-0 min-w-0 flex-col gap-4">
 				<TaskForm onSubmit={createTask} loading={createLoading} />
 				<TaskSearch
 					value={{
@@ -90,8 +90,15 @@ function TarefasPage() {
 					onChange={handleSearchChange}
 				/>
 
-				<div className="min-h-0 flex-1 overflow-y-auto pr-2 pb-6">
-					<TaskList tasks={data.tasks} loading={loading} />
+				<div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2 pb-6">
+					<GroupedTaskList
+						tasks={data.tasks}
+						groups={data.groups}
+						categories={data.categories}
+						priorities={data.priorities}
+						projectId={data.selectedProjectId ?? null}
+						loading={loading}
+					/>
 				</div>
 			</div>
 		</PageShell>

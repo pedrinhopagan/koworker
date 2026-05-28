@@ -6,6 +6,7 @@ import { prioritiesRouter } from "./routers/priorities";
 import { projectRoutesRouter } from "./routers/project-routes";
 import { projectsRouter } from "./routers/projects";
 import { skillsRouter } from "./routers/skills";
+import { taskGroupsRouter } from "./routers/task-groups";
 import { tasksRouter } from "./routers/tasks";
 import { terminalRouter, terminalWsRouter } from "./routers/terminal";
 import { vaultRouter } from "./routers/vault";
@@ -24,6 +25,7 @@ export const router = {
 	projects: projectsRouter,
 	projectRoutes: projectRoutesRouter,
 	tasks: tasksRouter,
+	taskGroups: taskGroupsRouter,
 	categories: categoriesRouter,
 	priorities: prioritiesRouter,
 	skills: skillsRouter,
