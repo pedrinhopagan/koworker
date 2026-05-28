@@ -52,6 +52,9 @@ const tasksSchema = type({
 	"group_id?": type("string").configure({ references: "task_groups.id", onDelete: "set null" }),
 	// Ordem manual da task dentro do bucket (group_id + category_id).
 	display_order: type("number.integer").configure({ default: 0 }),
+	// Ordem manual das abas (.md) na rota da task, como array JSON de nomes. Arquivos fora
+	// dessa lista (novos, criados no disco pelo agente) entram à direita por birthtime.
+	"file_order?": "string",
 	// YYYY-MM-DD format
 	"scheduled_date?": "string",
 	"scheduled_time?": "string",

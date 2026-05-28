@@ -1,3 +1,18 @@
+import {
+	closestCenter,
+	DndContext,
+	type DragEndEvent,
+	PointerSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	arrayMove,
+	horizontalListSortingStrategy,
+	SortableContext,
+	useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -15,9 +30,11 @@ import {
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RECENCY_HIGHLIGHT_DEPTH, recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
+import { FileDateFooter } from "./-components/file-date-footer";
 
 export const Route = createFileRoute("/_app/tarefas/$taskId/")({
 	component: TaskDetailPage,
@@ -53,6 +70,35 @@ function TaskDetailPage() {
 		},
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Falha ao renomear arquivo"),
 	});
+
+	const reorderFilesMutation = useMutation({
+		...orpc.tasks.reorderFiles.mutationOptions(),
+		onMutate: async ({ orderedNames }) => {
+			const { queryKey } = orpc.tasks.getFull.queryOptions({ input: { id: taskId } });
+			await queryClient.cancelQueries({ queryKey });
+			const previous = queryClient.getQueryData(queryKey);
+			const orderIndex = new Map(orderedNames.map((name, index) => [name, index] as const));
+
+			queryClient.setQueryData(queryKey, (old?: typeof task) => {
+				if (!old) return old;
+				const files = [...old.files].sort(
+					(a, b) => (orderIndex.get(a.name) ?? 0) - (orderIndex.get(b.name) ?? 0),
+				);
+				return { ...old, files };
+			});
+			return { previous, queryKey };
+		},
+		onError: (_error, _input, context) => {
+			if (context) queryClient.setQueryData(context.queryKey, context.previous);
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries(orpc.tasks.getFull.queryOptions({ input: { id: taskId } }));
+		},
+	});
+
+	const fileSensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+	);
 
 	const setDoneMutation = useMutation({
 		...orpc.tasks.setDone.mutationOptions(),
@@ -122,12 +168,15 @@ function TaskDetailPage() {
 
 	const current = task.files.find((f) => f.name === activeFile) ?? null;
 
-	// Arquivo editado por último (maior mtime): ganha um ponto de destaque na aba, no mesmo
-	// idioma visual da lista de tarefas.
-	const lastEditedFile = task.files.reduce<{ name: string; editedAt: number } | null>(
-		(latest, file) => (!latest || file.editedAt > latest.editedAt ? file : latest),
-		null,
-	)?.name;
+	// Ranking de recência dos .md por mtime (1 = editado por último, mais forte), mesmo idioma
+	// visual da lista de tarefas. Sem corte de janela: o tempo relativo no tooltip é o que mantém
+	// o sinal honesto quando o "mais recente" é, ainda assim, antigo.
+	const recencyLevels = new Map(
+		[...task.files]
+			.sort((a, b) => b.editedAt - a.editedAt)
+			.slice(0, RECENCY_HIGHLIGHT_DEPTH)
+			.map((file, index) => [file.name, index + 1] as const),
+	);
 
 	async function selectFile(name: string) {
 		await paneRef.current?.flush();
@@ -164,6 +213,18 @@ function TaskDetailPage() {
 		if (next === (task.title ?? "")) return;
 		updateMutation.mutate({ id: task.id, title: next });
 	};
+
+	function handleFileDragEnd(event: DragEndEvent) {
+		const { active, over } = event;
+		if (!task || !over || active.id === over.id) return;
+
+		const names = task.files.map((file) => file.name);
+		const oldIndex = names.indexOf(String(active.id));
+		const newIndex = names.indexOf(String(over.id));
+		if (oldIndex < 0 || newIndex < 0) return;
+
+		reorderFilesMutation.mutate({ id: taskId, orderedNames: arrayMove(names, oldIndex, newIndex) });
+	}
 
 	return (
 		<div className="relative flex h-full w-full flex-col">
@@ -225,51 +286,36 @@ function TaskDetailPage() {
 			</div>
 
 			<div className="w-full border-b border-border">
-				<div className="mx-auto flex h-8 w-full max-w-6xl items-stretch">
-					{task.files.map((file) => (
-						<div
-							key={file.name}
-							className={cn(
-								"min-w-0 flex-1 border-l border-border",
-								file.name === activeFile ? "bg-secondary text-foreground" : "text-muted-foreground",
-							)}
-						>
-							{renamingFile === file.name ? (
-								<input
-									ref={renameInputRef}
-									value={renameValue}
-									onChange={(e) => setRenameValue(e.target.value)}
-									onBlur={confirmRename}
-									onKeyDown={(e) => {
-										if (e.key === "Enter") confirmRename();
-										else if (e.key === "Escape") cancelRename();
-									}}
-									className="h-full w-full bg-transparent px-3 text-center text-xs outline-none"
+				<DndContext
+					sensors={fileSensors}
+					collisionDetection={closestCenter}
+					onDragEnd={handleFileDragEnd}
+				>
+					<SortableContext
+						items={task.files.map((file) => file.name)}
+						strategy={horizontalListSortingStrategy}
+					>
+						<div className="mx-auto flex h-8 w-full max-w-6xl items-stretch">
+							{task.files.map((file) => (
+								<SortableFileTab
+									key={file.name}
+									file={file}
+									isActive={file.name === activeFile}
+									// Ponto só quando há mais de um arquivo: com um só, "o mais recente" é trivial.
+									level={task.files.length > 1 ? recencyLevels.get(file.name) : undefined}
+									isRenaming={renamingFile === file.name}
+									renameValue={renameValue}
+									renameInputRef={renameInputRef}
+									onSelect={() => void selectFile(file.name)}
+									onStartRename={() => startRename(file.name)}
+									onRenameChange={setRenameValue}
+									onRenameConfirm={confirmRename}
+									onRenameCancel={cancelRename}
 								/>
-							) : (
-								<button
-									type="button"
-									onClick={() => void selectFile(file.name)}
-									onDoubleClick={() => startRename(file.name)}
-									className={cn(
-										"flex h-full w-full items-center justify-center gap-1.5 px-3 text-center text-xs transition-colors",
-										file.name !== activeFile && "hover:bg-secondary/50",
-									)}
-									title={
-										task.files.length > 1 && file.name === lastEditedFile
-											? `Editado por último · ${relativeTimeFrom(file.editedAt)}`
-											: "Duplo clique para renomear"
-									}
-								>
-									{task.files.length > 1 && file.name === lastEditedFile ? (
-										<span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
-									) : null}
-									<span className="truncate">{file.name}</span>
-								</button>
-							)}
+							))}
 						</div>
-					))}
-				</div>
+					</SortableContext>
+				</DndContext>
 			</div>
 
 			<DocEditorPane
@@ -281,6 +327,105 @@ function TaskDetailPage() {
 				writeFile={(payload) => writeFileMutation.mutateAsync({ id: taskId, ...payload })}
 				emptyState="Nenhum arquivo markdown nesta tarefa."
 			/>
+
+			{current ? (
+				<FileDateFooter
+					taskId={taskId}
+					file={current}
+					onChanged={() =>
+						queryClient.invalidateQueries(
+							orpc.tasks.getFull.queryOptions({ input: { id: taskId } }),
+						)
+					}
+				/>
+			) : null}
+		</div>
+	);
+}
+
+type SortableFileTabProps = {
+	file: { name: string; createdAt: number; editedAt: number };
+	isActive: boolean;
+	level: number | undefined;
+	isRenaming: boolean;
+	renameValue: string;
+	renameInputRef: React.RefObject<HTMLInputElement | null>;
+	onSelect: () => void;
+	onStartRename: () => void;
+	onRenameChange: (value: string) => void;
+	onRenameConfirm: () => void;
+	onRenameCancel: () => void;
+};
+
+function SortableFileTab({
+	file,
+	isActive,
+	level,
+	isRenaming,
+	renameValue,
+	renameInputRef,
+	onSelect,
+	onStartRename,
+	onRenameChange,
+	onRenameConfirm,
+	onRenameCancel,
+}: SortableFileTabProps) {
+	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+		id: file.name,
+		// Renomeando não arrasta: o input precisa do gesto de seleção/teclado livre.
+		disabled: isRenaming,
+	});
+
+	const style: React.CSSProperties = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+		zIndex: isDragging ? 1 : undefined,
+	};
+
+	return (
+		<div
+			ref={setNodeRef}
+			style={style}
+			className={cn(
+				"min-w-0 flex-1 border-l border-border",
+				isActive ? "bg-secondary text-foreground" : "text-muted-foreground",
+				isDragging && "opacity-60",
+			)}
+		>
+			{isRenaming ? (
+				<input
+					ref={renameInputRef}
+					value={renameValue}
+					onChange={(e) => onRenameChange(e.target.value)}
+					onBlur={onRenameConfirm}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") onRenameConfirm();
+						else if (e.key === "Escape") onRenameCancel();
+					}}
+					className="h-full w-full bg-transparent px-3 text-center text-xs outline-none"
+				/>
+			) : (
+				<button
+					type="button"
+					onClick={onSelect}
+					onDoubleClick={onStartRename}
+					className={cn(
+						"flex h-full w-full touch-none items-center justify-center gap-1.5 px-3 text-center text-xs transition-colors",
+						!isActive && "hover:bg-secondary/50",
+					)}
+					title={`Criado ${relativeTimeFrom(file.createdAt)} · editado ${relativeTimeFrom(file.editedAt)} — arraste para reordenar · duplo clique para renomear`}
+					{...attributes}
+					{...(listeners as React.HTMLAttributes<HTMLButtonElement>)}
+				>
+					{level === undefined ? null : (
+						<span
+							className={cn("size-1.5 shrink-0 rounded-full", recencyLevelClass(level))}
+							aria-hidden
+						/>
+					)}
+					<span className="truncate">{file.name}</span>
+				</button>
+			)}
 		</div>
 	);
 }

@@ -28,6 +28,7 @@ import {
 	TaskListByWeekSchema,
 	TaskMetricsSchema,
 	TaskRenameFileSchema,
+	TaskReorderFilesSchema,
 	TaskReorderSchema,
 	TaskSetDoneSchema,
 	TaskSetFileDateSchema,
@@ -137,6 +138,18 @@ async function mapTasks(rows: tasks[]) {
 	});
 }
 
+// file_order é JSON livre vindo do banco (boundary): só vira ordem se for array de strings.
+function parseFileOrder(raw: string | null | undefined): string[] {
+	if (!raw) return [];
+	try {
+		const parsed = JSON.parse(raw);
+		if (Array.isArray(parsed) && parsed.every((name) => typeof name === "string")) return parsed;
+	} catch {
+		// JSON corrompido cai na ordem-base por birthtime.
+	}
+	return [];
+}
+
 async function publishTaskEvent(
 	taskId: string,
 	projectId: string,
@@ -209,7 +222,11 @@ export const tasksRouter = {
 		]);
 
 		const { files, primaryFile } = project
-			? await readTaskFiles({ projectRoute: project.main_route, folderPath: row.folder_path })
+			? await readTaskFiles({
+					projectRoute: project.main_route,
+					folderPath: row.folder_path,
+					order: parseFileOrder(row.file_order),
+				})
 			: { files: [], primaryFile: null };
 
 		const displayTitle = resolveDisplayTitle({
@@ -365,8 +382,27 @@ export const tasksRouter = {
 			newName: input.newName,
 		});
 
+		// Renomear preserva a posição na aba: troca o nome no file_order in-place. Sem isso o
+		// arquivo cairia como leftover e pularia pra direita.
+		const order = parseFileOrder(row.file_order);
+		const at = order.indexOf(input.oldName);
+		if (at >= 0) {
+			order[at] = input.newName;
+			await dbTasks.update({ id: row.id, file_order: JSON.stringify(order) });
+		}
+
 		await publishTaskEvent(row.id, row.project_id, "updated");
 		return { id: row.id, oldName: input.oldName, newName: input.newName };
+	}),
+
+	reorderFiles: protectedProcedure.input(TaskReorderFilesSchema).handler(async ({ input }) => {
+		const row = await dbTasks.getById(input.id);
+		if (!row) throw new Error("Tarefa não encontrada");
+
+		await dbTasks.update({ id: input.id, file_order: JSON.stringify(input.orderedNames) });
+
+		await publishTaskEvent(row.id, row.project_id, "updated");
+		return { id: row.id, orderedNames: input.orderedNames };
 	}),
 
 	remove: protectedProcedure.input(TaskIdSchema).handler(async ({ input }) => {

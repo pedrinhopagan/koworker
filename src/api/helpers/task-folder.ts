@@ -39,6 +39,22 @@ function compareMarkdownNames(a: string, b: string): number {
 	return a.localeCompare(b);
 }
 
+// Aplica a ordem manual das abas: os nomes em `order` vêm primeiro, na ordem gravada; os de fora
+// (arquivos novos, criados no disco pelo agente ou ainda sem reorder) entram depois por birthtime
+// crescente — o mais recente sempre à direita. Com `order` vazio, cai inteiramente no birthtime,
+// que mantém index.md à esquerda (semeado primeiro) sem caso especial.
+function orderTaskFiles(files: TaskFile[], order: string[]): TaskFile[] {
+	const index = new Map(order.map((name, i) => [name, i] as const));
+	return [...files].sort((a, b) => {
+		const ia = index.get(a.name);
+		const ib = index.get(b.name);
+		if (ia !== undefined && ib !== undefined) return ia - ib;
+		if (ia !== undefined) return -1;
+		if (ib !== undefined) return 1;
+		return a.createdAt - b.createdAt || compareMarkdownNames(a.name, b.name);
+	});
+}
+
 // Primeira linha não-vazia do conteúdo, com markup de heading removido e truncada.
 function firstMeaningfulLine(content: string): string | null {
 	for (const line of content.split("\n")) {
@@ -153,10 +169,12 @@ export async function readFirstMarkdownContent(params: {
 	return Bun.file(join(dir, first)).text();
 }
 
-// Lê todos os .md da pasta. index.md vem primeiro; o resto em ordem alfabética.
+// Lê todos os .md da pasta na ordem manual das abas (`order`): os nomes gravados primeiro, os de
+// fora à direita por birthtime. Sem `order`, cai no birthtime — index.md à esquerda por padrão.
 export async function readTaskFiles(params: {
 	projectRoute: string;
 	folderPath: string;
+	order?: string[];
 }): Promise<{ files: TaskFile[]; primaryFile: string | null }> {
 	const dir = join(params.projectRoute, params.folderPath);
 
@@ -168,8 +186,6 @@ export async function readTaskFiles(params: {
 	} catch {
 		return { files: [], primaryFile: null };
 	}
-
-	entries.sort(compareMarkdownNames);
 
 	const files = await Promise.all(
 		entries.map(async (name) => {
@@ -187,9 +203,11 @@ export async function readTaskFiles(params: {
 		}),
 	);
 
+	const ordered = orderTaskFiles(files, params.order ?? []);
+
 	const primaryFile =
-		files.find((file) => file.name === PRIMARY_FILE)?.name ?? files[0]?.name ?? null;
-	return { files, primaryFile };
+		ordered.find((file) => file.name === PRIMARY_FILE)?.name ?? ordered[0]?.name ?? null;
+	return { files: ordered, primaryFile };
 }
 
 export async function writeTaskFile(params: {

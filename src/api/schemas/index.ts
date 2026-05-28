@@ -52,6 +52,7 @@ export {
 	TaskMetricsSchema,
 	TaskPromoteSchema,
 	TaskRenameFileSchema,
+	TaskReorderFilesSchema,
 	TaskReorderSchema,
 	TaskSetDoneSchema,
 	TaskSetFileDateSchema,

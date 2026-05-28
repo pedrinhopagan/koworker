@@ -128,6 +128,21 @@ export const TaskReorderSchema = z.object({
 	orderedIds: z.array(z.string().min(1)).min(1),
 });
 
+// Ordem manual das abas (.md) de uma task. orderedNames vem na ordem final desejada; o handler
+// grava como JSON em tasks.file_order. Nomes que não existem mais na pasta são tolerados na
+// leitura (a ordenação só os ignora), então não exigimos correspondência exata aqui.
+export const TaskReorderFilesSchema = z.object({
+	id: z.string().trim().min(1),
+	orderedNames: z
+		.array(
+			z
+				.string()
+				.trim()
+				.regex(/^[^/\\]+\.md$/, "File name must be a .md without path separators"),
+		)
+		.min(1),
+});
+
 export const TaskWriteFileSchema = z.object({
 	id: z.string().trim().min(1),
 	// Nome do arquivo dentro da pasta da task, ex: "index.md". Sem separadores de caminho.
@@ -202,6 +217,7 @@ export const TaskDbCreateSchema = z.object({
 	category_id: z.string().min(1),
 	group_id: z.string().min(1).nullable().optional(),
 	display_order: z.number().int().optional(),
+	file_order: z.string().nullable().optional(),
 	scheduled_date: z.string().nullable().optional(),
 	scheduled_time: z.string().nullable().optional(),
 	done: z.number().int().optional(),

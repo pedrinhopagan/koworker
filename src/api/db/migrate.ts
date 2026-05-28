@@ -180,6 +180,9 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		if (!hasColumn(cols, "display_order")) {
 			ensureColumn(sqlite, "tasks", "display_order INTEGER NOT NULL DEFAULT 0");
 		}
+		if (!hasColumn(cols, "file_order")) {
+			ensureColumn(sqlite, "tasks", "file_order TEXT");
+		}
 	}
 
 	// tasks: a pasta da task agora é só o id curto (".koworker/<id8>"), sem slug do título.
