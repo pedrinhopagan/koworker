@@ -51,6 +51,16 @@ function commandExists(commandName: string): boolean {
 	return result.exitCode === 0;
 }
 
+// Encerra qualquer kowork-backend em execução. O app só sobe um backend novo quando a porta
+// está livre (backend::start desiste se algo já escuta nela); sem isso, um backend antigo de
+// um deploy anterior continua respondendo e o app passa a falar com código defasado.
+function stopRunningBackend(): boolean {
+	const result = Bun.spawnSync(["pkill", "-f", "kowork-backend"], {
+		stdio: ["ignore", "ignore", "ignore"],
+	});
+	return result.exitCode === 0;
+}
+
 function resolveTargetRef() {
 	const hasMaster =
 		Bun.spawnSync(["git", "show-ref", "--verify", "--quiet", "refs/remotes/origin/master"], {
@@ -353,11 +363,18 @@ async function main() {
 		await rm(latestLink, { force: true, recursive: true });
 		await symlink(releaseDir, latestLink);
 
+		const backendStopped = stopRunningBackend();
+
 		console.log(`\nDeploy concluido com sucesso.`);
 		console.log(`Branch base: ${target.ref}`);
 		console.log(`Versao anterior: ${currentVersion}`);
 		console.log(`Nova versao: ${nextVersion}`);
 		console.log(`Instalacao: ${installMessage}`);
+		console.log(
+			backendStopped
+				? "Backend antigo encerrado: reabra o app para subir a nova versao."
+				: "Nenhum backend antigo em execucao.",
+		);
 		console.log(`Artefatos em: ${releaseDir}`);
 	} finally {
 		run(["git", "-C", rootDir, "worktree", "remove", "--force", worktreeDir]);
