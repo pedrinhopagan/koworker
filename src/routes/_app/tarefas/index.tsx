@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
+import { useState } from "react";
 import { z } from "zod";
 
 import { PageShell } from "@/components/layout/page-shell";
-import { GroupedTaskList } from "./-components/grouped-task-list";
+import { GroupedTaskList, NO_GROUP } from "./-components/grouped-task-list";
 import { TaskForm } from "./-components/task-form";
-import { TaskSearch } from "./-components/task-search";
+import { TaskListControls, useSortMode } from "./-components/task-groups-controls";
 import { useCreateTask } from "./-utils/use-create-task";
 import { useTasksData } from "./-utils/use-tasks-data";
 
@@ -51,6 +52,10 @@ function TarefasPage() {
 	const navigate = Route.useNavigate();
 	const { data, loading } = useTasksData(search);
 	const { createTask, loading: createLoading } = useCreateTask();
+	const [sortMode, setSortMode] = useSortMode();
+	// Colapso por grupo, chaveado por `id ?? NO_GROUP`. Vive na sessão e é compartilhado entre a
+	// barra de controles (atalhos globais) e a lista (toggle por cabeçalho).
+	const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set());
 
 	function handleSearchChange(next: {
 		q?: string;
@@ -70,6 +75,18 @@ function TarefasPage() {
 		});
 	}
 
+	function toggleCollapse(key: string) {
+		setCollapsedKeys((prev) => {
+			const next = new Set(prev);
+			if (next.has(key)) {
+				next.delete(key);
+			} else {
+				next.add(key);
+			}
+			return next;
+		});
+	}
+
 	return (
 		<PageShell
 			title="Tarefas"
@@ -78,16 +95,25 @@ function TarefasPage() {
 		>
 			<div className="flex h-full min-h-0 min-w-0 flex-col gap-4">
 				<TaskForm onSubmit={createTask} loading={createLoading} />
-				<TaskSearch
-					value={{
-						q: search.q,
-						taskTypeId: search.taskTypeId,
-						priorityId: search.priorityId,
-						includeCompleted: search.includeCompleted,
+				<TaskListControls
+					projectId={data.selectedProjectId ?? null}
+					search={{
+						value: {
+							q: search.q,
+							taskTypeId: search.taskTypeId,
+							priorityId: search.priorityId,
+							includeCompleted: search.includeCompleted,
+						},
+						onChange: handleSearchChange,
 					}}
 					categories={data.categories}
 					priorities={data.priorities}
-					onChange={handleSearchChange}
+					sortMode={sortMode}
+					onSortModeChange={setSortMode}
+					onCollapseAll={() =>
+						setCollapsedKeys(new Set([...data.groups.map((group) => group.id), NO_GROUP]))
+					}
+					onExpandAll={() => setCollapsedKeys(new Set())}
 				/>
 
 				<div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2 pb-6">
@@ -96,8 +122,10 @@ function TarefasPage() {
 						groups={data.groups}
 						categories={data.categories}
 						priorities={data.priorities}
-						projectId={data.selectedProjectId ?? null}
 						loading={loading}
+						sortMode={sortMode}
+						collapsedKeys={collapsedKeys}
+						onToggleCollapse={toggleCollapse}
 					/>
 				</div>
 			</div>

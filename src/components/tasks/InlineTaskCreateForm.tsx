@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useSelectedProjectStore } from "@/stores/selected-project";
 
@@ -154,7 +155,7 @@ export function InlineTaskCreateForm({
 					aria-invalid={!!errors.title}
 					{...inputProps}
 					{...register("title")}
-					className={cn("h-10 w-full", inputProps?.className)}
+					className={cn("h-9 w-full", inputProps?.className)}
 				/>
 				{errors.title?.message && (
 					<Text size="xs" tone="destructive" className="mt-1">
@@ -277,10 +278,24 @@ export function InlineTaskCreateForm({
 			)}
 
 			<div className={cn("grid gap-1", isHomeVariant && "w-full")}>
-				<Button type="submit" disabled={submitDisabled} className={cn(isHomeVariant && "w-full")}>
-					<Plus className="mr-1 size-4" />
-					{isHomeVariant ? "Submit" : "Adicionar"}
-				</Button>
+				{isHomeVariant ? (
+					<Button type="submit" disabled={submitDisabled} className="w-full">
+						<Plus className="mr-1 size-4" />
+						Submit
+					</Button>
+				) : (
+					<Tooltip label="Adicionar tarefa">
+						<Button
+							type="submit"
+							size="icon-sm"
+							aria-label="Adicionar tarefa"
+							disabled={submitDisabled}
+							className="size-9"
+						>
+							<Plus className="size-4" />
+						</Button>
+					</Tooltip>
+				)}
 			</div>
 		</form>
 	);

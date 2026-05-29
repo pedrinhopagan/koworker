@@ -27,14 +27,9 @@ import { TaskItem } from "@/components/tasks";
 import { Text } from "@/components/typography";
 import { RECENCY_FRESH_WINDOW_MS, RECENCY_HIGHLIGHT_DEPTH } from "@/constants/tasks";
 import type { TaskGroup, TaskWithMeta } from "@/types/tasks";
-import {
-	type SortMode,
-	TaskGroupHeader,
-	TaskGroupsToolbar,
-	useSortMode,
-} from "./task-groups-controls";
+import { type SortMode, TaskGroupHeader } from "./task-groups-controls";
 
-const NO_GROUP = "__none__";
+export const NO_GROUP = "__none__";
 // Categoria sentinela dos buckets "achatados" (modos que não clusterizam por categoria).
 const FLAT_CAT = "__all__";
 
@@ -47,8 +42,18 @@ function parseBucketKey(key: string): { groupId: string | null; categoryId: stri
 	return { groupId: group === NO_GROUP ? null : group, categoryId };
 }
 
+// Id sortable/droppable de uma seção de grupo. Reaproveita o prefixo "group::" que
+// resolveTargetBucket já entende para drop de tarefas sobre um cabeçalho.
+function groupDropId(groupId: string | null) {
+	return `group::${groupId ?? NO_GROUP}`;
+}
+
 function isTasksQueryKey(queryKey: QueryKey) {
 	return Array.isArray(queryKey) && Array.isArray(queryKey[0]) && queryKey[0][0] === "tasks";
+}
+
+function isTaskGroupsQueryKey(queryKey: QueryKey) {
+	return Array.isArray(queryKey) && Array.isArray(queryKey[0]) && queryKey[0][0] === "taskGroups";
 }
 
 type SortContext = {
@@ -128,8 +133,10 @@ type GroupedTaskListProps = {
 	groups: TaskGroup[];
 	categories: { id: string; displayOrder: number }[];
 	priorities: { id: string; level: number }[];
-	projectId: string | null;
 	loading: boolean;
+	sortMode: SortMode;
+	collapsedKeys: Set<string>;
+	onToggleCollapse: (key: string) => void;
 };
 
 export function GroupedTaskList({
@@ -137,12 +144,13 @@ export function GroupedTaskList({
 	groups,
 	categories,
 	priorities,
-	projectId,
 	loading,
+	sortMode,
+	collapsedKeys,
+	onToggleCollapse,
 }: GroupedTaskListProps) {
 	const queryClient = useQueryClient();
 	const [activeId, setActiveId] = useState<string | null>(null);
-	const [sortMode, setSortMode] = useSortMode();
 
 	const sortCtx = useMemo<SortContext>(
 		() => ({
@@ -199,6 +207,38 @@ export function GroupedTaskList({
 		},
 	});
 
+	const groupReorderMutation = useMutation({
+		...orpc.taskGroups.reorder.mutationOptions(),
+		onMutate: async (input) => {
+			await queryClient.cancelQueries({ predicate: (q) => isTaskGroupsQueryKey(q.queryKey) });
+			const previous = queryClient.getQueriesData({
+				predicate: (q) => isTaskGroupsQueryKey(q.queryKey),
+			});
+			// A ordem de render dos grupos vem da ordem do array; reordenar o array já reflete o
+			// arraste. O display_order correto chega no refetch do onSettled.
+			const rank = new Map(input.orderedIds.map((id, index) => [id, index]));
+
+			queryClient.setQueriesData<TaskGroup[]>(
+				{ predicate: (q) => isTaskGroupsQueryKey(q.queryKey) },
+				(old) => {
+					if (!Array.isArray(old)) return old;
+					return [...old].sort(
+						(a, b) => (rank.get(a.id) ?? old.length) - (rank.get(b.id) ?? old.length),
+					);
+				},
+			);
+			return { previous };
+		},
+		onError: (_error, _input, context) => {
+			for (const [key, data] of context?.previous ?? []) {
+				queryClient.setQueryData(key, data);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ predicate: (q) => isTaskGroupsQueryKey(q.queryKey) });
+		},
+	});
+
 	// Resolve, para um `over.id`, o bucket de destino conforme o modo. Sobre um cabeçalho de
 	// grupo, mantém a categoria da task ativa; sobre uma task, usa o bucket dela.
 	function resolveTargetBucket(overId: string, active: TaskWithMeta): string | null {
@@ -225,6 +265,28 @@ export function GroupedTaskList({
 		});
 	}
 
+	// Sobre qual grupo está o `over.id`: cabeçalho de grupo resolve direto; sobre uma task usa o
+	// grupo dela. "Sem grupo" (null) não entra na reordenação — é virtual e fica fixo ao final.
+	function resolveOverGroupId(overId: string): string | null {
+		if (overId.startsWith("group::")) {
+			const raw = overId.slice("group::".length);
+			return raw === NO_GROUP ? null : raw;
+		}
+		return taskMap.get(overId)?.groupId ?? null;
+	}
+
+	function handleGroupDragEnd(activeGroupId: string, overId: string) {
+		const overGroupId = resolveOverGroupId(overId);
+		if (!overGroupId || overGroupId === activeGroupId) return;
+
+		const orderedIds = groups.map((group) => group.id);
+		const oldIndex = orderedIds.indexOf(activeGroupId);
+		const newIndex = orderedIds.indexOf(overGroupId);
+		if (oldIndex < 0 || newIndex < 0) return;
+
+		groupReorderMutation.mutate({ orderedIds: arrayMove(orderedIds, oldIndex, newIndex) });
+	}
+
 	function handleDragStart(event: DragStartEvent) {
 		setActiveId(String(event.active.id));
 	}
@@ -235,8 +297,15 @@ export function GroupedTaskList({
 		const { active, over } = event;
 		setActiveId(null);
 
+		if (!over || String(over.id) === String(active.id)) return;
+
+		if (active.data.current?.type === "group") {
+			handleGroupDragEnd(String(active.id).slice("group::".length), String(over.id));
+			return;
+		}
+
 		const activeTask = taskMap.get(String(active.id));
-		if (!activeTask || !over || String(over.id) === String(active.id)) return;
+		if (!activeTask) return;
 
 		const fromKey = taskBucketKey(activeTask, sortMode);
 		const targetKey = resolveTargetBucket(String(over.id), activeTask);
@@ -272,18 +341,31 @@ export function GroupedTaskList({
 		...groups.map((group) => ({ id: group.id, group })),
 		{ id: null },
 	];
+	const sortableGroupIds = groups.map((group) => groupDropId(group.id));
+	const activeGroup =
+		activeId?.startsWith("group::") &&
+		groups.find((group) => group.id === activeId.slice("group::".length));
 
 	return (
-		<div className="flex flex-col gap-4">
-			<TaskGroupsToolbar projectId={projectId} sortMode={sortMode} onSortModeChange={setSortMode} />
-
-			<DndContext
-				sensors={sensors}
-				collisionDetection={closestCorners}
-				onDragStart={handleDragStart}
-				onDragEnd={handleDragEnd}
-				onDragCancel={() => setActiveId(null)}
-			>
+		<DndContext
+			sensors={sensors}
+			// Arraste de grupo só colide com seções de grupo; senão o ponteiro cairia numa task
+			// alta do grupo de destino e o arraste ficaria grudento, sem feedback de onde encaixa.
+			collisionDetection={(args) =>
+				args.active.data.current?.type === "group"
+					? closestCorners({
+							...args,
+							droppableContainers: args.droppableContainers.filter((c) =>
+								String(c.id).startsWith("group::"),
+							),
+						})
+					: closestCorners(args)
+			}
+			onDragStart={handleDragStart}
+			onDragEnd={handleDragEnd}
+			onDragCancel={() => setActiveId(null)}
+		>
+			<SortableContext items={sortableGroupIds} strategy={verticalListSortingStrategy}>
 				<div className="flex flex-col gap-5">
 					{groupOrder.map(({ id, group }) => {
 						const groupBucketKeys = Object.keys(buckets)
@@ -301,17 +383,24 @@ export function GroupedTaskList({
 						// "Sem grupo" só aparece quando tem task; grupos nomeados sempre aparecem.
 						if (id === null && groupTaskCount === 0) return null;
 
-						return (
-							<GroupSection
-								key={id ?? NO_GROUP}
-								groupId={id}
-								group={group}
-								count={groupTaskCount}
-								bucketKeys={groupBucketKeys}
-								buckets={buckets}
-								taskMap={taskMap}
-								highlightLevels={highlightLevels}
-							/>
+						const key = id ?? NO_GROUP;
+						const sectionProps = {
+							groupId: id,
+							group,
+							count: groupTaskCount,
+							bucketKeys: groupBucketKeys,
+							buckets,
+							taskMap,
+							highlightLevels,
+							collapsed: collapsedKeys.has(key),
+							onToggleCollapse: () => onToggleCollapse(key),
+						};
+
+						// "Sem grupo" recebe tasks mas não reordena; grupos nomeados arrastam.
+						return id === null ? (
+							<DroppableGroupSection key={key} {...sectionProps} />
+						) : (
+							<SortableGroupSection key={key} {...sectionProps} />
 						);
 					})}
 
@@ -321,16 +410,28 @@ export function GroupedTaskList({
 						</Text>
 					)}
 				</div>
+			</SortableContext>
 
-				<DragOverlay dropAnimation={null}>
-					{activeId && taskMap.get(activeId) ? (
-						<div className="shadow-lg">
-							<TaskItem task={taskMap.get(activeId)!} variant="default" />
+			<DragOverlay dropAnimation={null}>
+				{activeGroup ? (
+					<div className="rounded-md border border-border/60 bg-background px-3 py-1.5 shadow-lg">
+						<div className="flex items-center gap-2">
+							<span
+								className="size-2.5 shrink-0 rounded-full"
+								style={{ backgroundColor: activeGroup.color }}
+							/>
+							<Text size="sm" className="truncate font-medium">
+								{activeGroup.name}
+							</Text>
 						</div>
-					) : null}
-				</DragOverlay>
-			</DndContext>
-		</div>
+					</div>
+				) : activeId && taskMap.get(activeId) ? (
+					<div className="shadow-lg">
+						<TaskItem task={taskMap.get(activeId)!} variant="default" />
+					</div>
+				) : null}
+			</DragOverlay>
+		</DndContext>
 	);
 }
 
@@ -342,29 +443,74 @@ type GroupSectionProps = {
 	buckets: Record<string, string[]>;
 	taskMap: Map<string, TaskWithMeta>;
 	highlightLevels: Map<string, number>;
+	collapsed: boolean;
+	onToggleCollapse: () => void;
 };
 
-function GroupSection({
-	groupId,
+// Grupo nomeado: arrasta (handle no cabeçalho) para reordenar e recebe tasks (o ref do sortable
+// já é droppable). O id "group::<id>" casa com a resolução de drop de tasks sobre o cabeçalho.
+function SortableGroupSection({ groupId, ...rest }: GroupSectionProps) {
+	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+		id: groupDropId(groupId),
+		data: { type: "group" },
+	});
+
+	const style: React.CSSProperties = {
+		transform: CSS.Transform.toString(transform),
+		transition: isDragging ? undefined : transition,
+		opacity: isDragging ? 0.4 : 1,
+	};
+
+	const dragHandle = (
+		<button
+			type="button"
+			aria-label="Arrastar grupo"
+			className="cursor-grab touch-none p-0.5 text-muted-foreground/40 opacity-0 transition-opacity hover:text-foreground group-hover/header:opacity-100"
+			{...attributes}
+			{...(listeners as React.HTMLAttributes<HTMLButtonElement>)}
+		>
+			<GripVertical className="size-4" />
+		</button>
+	);
+
+	return (
+		<GroupSectionBody {...rest} setNodeRef={setNodeRef} style={style} dragHandle={dragHandle} />
+	);
+}
+
+// "Sem grupo": recebe tasks mas não reordena.
+function DroppableGroupSection({ groupId, ...rest }: GroupSectionProps) {
+	const { setNodeRef } = useDroppable({ id: groupDropId(groupId) });
+	return <GroupSectionBody {...rest} setNodeRef={setNodeRef} />;
+}
+
+function GroupSectionBody({
 	group,
 	count,
 	bucketKeys,
 	buckets,
 	taskMap,
 	highlightLevels,
-}: GroupSectionProps) {
-	const [collapsed, setCollapsed] = useState(false);
-	const { setNodeRef } = useDroppable({ id: `group::${groupId ?? NO_GROUP}` });
-
+	collapsed,
+	onToggleCollapse,
+	setNodeRef,
+	style,
+	dragHandle,
+}: Omit<GroupSectionProps, "groupId"> & {
+	setNodeRef: (node: HTMLElement | null) => void;
+	style?: React.CSSProperties;
+	dragHandle?: React.ReactNode;
+}) {
 	const allIds = bucketKeys.flatMap((key) => buckets[key]);
 
 	return (
-		<section ref={setNodeRef} className="flex flex-col gap-2">
+		<section ref={setNodeRef} style={style} className="flex flex-col gap-2">
 			<TaskGroupHeader
 				group={group}
 				count={count}
 				collapsed={collapsed}
-				onToggleCollapse={() => setCollapsed((value) => !value)}
+				onToggleCollapse={onToggleCollapse}
+				dragHandle={dragHandle}
 			/>
 
 			{!collapsed && (

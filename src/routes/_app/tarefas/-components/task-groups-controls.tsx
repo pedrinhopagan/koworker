@@ -1,28 +1,42 @@
-import { type QueryKey, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type QueryKey, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
 	ArrowDownAZ,
 	ChevronDown,
 	ChevronRight,
+	ChevronsDownUp,
+	ChevronsUpDown,
 	Clock,
 	Flame,
 	LayoutGrid,
 	Pencil,
 	Plus,
+	Search,
+	SlidersHorizontal,
 	Trash2,
 	X,
 } from "lucide-react";
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useCallback, useMemo, useState, useSyncExternalStore } from "react";
 
-import { orpc } from "@/client";
+import { orpc, type RouterOutputs } from "@/client";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { TaskGroup } from "@/types/tasks";
 
 // Paleta sóbria pros grupos novos; cicla pela quantidade já existente.
 const GROUP_PALETTE = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#a855f7"];
+
+const TASK_TYPE_ALL_ID = "__all_task_type__";
+const PRIORITY_ALL_ID = "__all_priority__";
+
+type Category = RouterOutputs["categories"]["list"][number];
+type Priority = RouterOutputs["priorities"]["list"][number];
 
 // Modo de ordenação dentro dos grupos. "categoria" clusteriza por categoria (padrão); os demais
 // achatam o grupo e ordenam pela chave. É preferência de UI — vive no localStorage, não no banco.
@@ -61,32 +75,6 @@ export function useSortMode(): [SortMode, (mode: SortMode) => void] {
 	return [mode, setMode];
 }
 
-function SortModeControl({
-	value,
-	onChange,
-}: {
-	value: SortMode;
-	onChange: (mode: SortMode) => void;
-}) {
-	return (
-		<div className="flex items-center gap-0.5 rounded-md border border-border/60 p-0.5">
-			{SORT_MODES.map(({ mode, label, icon: Icon }) => (
-				<Button
-					key={mode}
-					type="button"
-					variant={value === mode ? "secondary" : "ghost"}
-					size="sm"
-					className={cn("h-7 gap-1.5 px-2", value !== mode && "text-muted-foreground")}
-					onClick={() => onChange(mode)}
-				>
-					<Icon className="size-3.5" />
-					{label}
-				</Button>
-			))}
-		</div>
-	);
-}
-
 function invalidateGroups(queryClient: ReturnType<typeof useQueryClient>) {
 	queryClient.invalidateQueries({
 		predicate: (q: { queryKey: QueryKey }) =>
@@ -94,26 +82,192 @@ function invalidateGroups(queryClient: ReturnType<typeof useQueryClient>) {
 	});
 }
 
-type TaskGroupsToolbarProps = {
-	projectId: string | null;
-	sortMode: SortMode;
-	onSortModeChange: (mode: SortMode) => void;
+type TaskSearchValue = {
+	q?: string;
+	taskTypeId?: string;
+	priorityId?: string;
+	includeCompleted?: boolean;
 };
 
-export function TaskGroupsToolbar({
+// Select de filtro com contraste: fundo mais escuro (bg-background) que o popover (bg-card) para
+// não se dissolver na superfície.
+function FilterSelect<T extends { id: string; name: string; color: string; level?: number }>({
+	items,
+	value,
+	allId,
+	placeholder,
+	onValueChange,
+}: {
+	items: T[];
+	value: string;
+	allId: string;
+	placeholder: string;
+	onValueChange: (next: string | undefined) => void;
+}) {
+	const selected = items.find((item) => item.id === value && item.id !== allId) ?? null;
+
+	return (
+		<CustomSelect
+			items={items}
+			value={value}
+			onValueChange={(newValue) => onValueChange(newValue === allId ? undefined : newValue)}
+			renderTrigger={() => (
+				<>
+					<span className="flex min-w-0 items-center gap-2">
+						<span
+							className="size-2 shrink-0 rounded-full"
+							style={{ backgroundColor: selected?.color ?? "#6b7280" }}
+						/>
+						<span className="truncate">{selected?.name ?? placeholder}</span>
+					</span>
+					<ChevronDown className="ml-1 size-4 text-muted-foreground" />
+				</>
+			)}
+			renderItem={(item, isSelected) => (
+				<div
+					className={cn("flex w-full items-center gap-2 px-3 py-2", isSelected && "font-medium")}
+				>
+					<span
+						className="size-2 shrink-0 rounded-full"
+						style={{ backgroundColor: item.color ?? "#6b7280" }}
+					/>
+					<span className="truncate">{item.name}</span>
+					{typeof item.level === "number" && item.level > 0 && (
+						<span className="text-muted-foreground text-xs">{item.level}</span>
+					)}
+				</div>
+			)}
+			label={placeholder}
+			triggerClassName="w-full bg-background"
+		/>
+	);
+}
+
+function FiltersPopover({
+	value,
+	categories,
+	priorities,
+	onChange,
+}: {
+	value: TaskSearchValue;
+	categories: Category[];
+	priorities: Priority[];
+	onChange: (next: TaskSearchValue) => void;
+}) {
+	const taskTypeItems = useMemo(
+		() => [
+			{ id: TASK_TYPE_ALL_ID, name: "Todos os tipos", color: "#6b7280" },
+			...categories.map((c) => ({ id: c.id, name: c.name, color: c.color })),
+		],
+		[categories],
+	);
+
+	const priorityItems = useMemo(
+		() => [
+			{ id: PRIORITY_ALL_ID, name: "Todas as prioridades", color: "#6b7280", level: 0 },
+			...priorities.map((p) => ({ id: p.id, name: p.name, color: p.color, level: p.level })),
+		],
+		[priorities],
+	);
+
+	const activeFilters = [
+		value.taskTypeId,
+		value.priorityId,
+		value.includeCompleted ? "done" : undefined,
+	].filter(Boolean).length;
+
+	return (
+		<Popover>
+			<PopoverTrigger asChild>
+				<Button
+					type="button"
+					variant={activeFilters > 0 ? "secondary" : "ghost"}
+					size="icon-sm"
+					aria-label="Filtros"
+					className="relative"
+				>
+					<SlidersHorizontal className="size-4" />
+					{activeFilters > 0 && (
+						<span className="-right-1 -top-1 absolute flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+							{activeFilters}
+						</span>
+					)}
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent align="end" className="w-64 space-y-3 p-3">
+				<div className="space-y-1">
+					<Text size="xs" tone="muted">
+						Tipo
+					</Text>
+					<FilterSelect
+						items={taskTypeItems}
+						value={value.taskTypeId ?? TASK_TYPE_ALL_ID}
+						allId={TASK_TYPE_ALL_ID}
+						placeholder="Todos os tipos"
+						onValueChange={(taskTypeId) => onChange({ ...value, taskTypeId })}
+					/>
+				</div>
+
+				<div className="space-y-1">
+					<Text size="xs" tone="muted">
+						Prioridade
+					</Text>
+					<FilterSelect
+						items={priorityItems}
+						value={value.priorityId ?? PRIORITY_ALL_ID}
+						allId={PRIORITY_ALL_ID}
+						placeholder="Todas as prioridades"
+						onValueChange={(priorityId) => onChange({ ...value, priorityId })}
+					/>
+				</div>
+
+				<label className="flex cursor-pointer items-center justify-between gap-2">
+					<Text size="xs" tone="muted">
+						Ver concluídas
+					</Text>
+					<Switch
+						checked={Boolean(value.includeCompleted)}
+						onCheckedChange={(checked) =>
+							onChange({ ...value, includeCompleted: checked || undefined })
+						}
+						size="default"
+					/>
+				</label>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
+function Divider() {
+	return <div className="mx-1 h-5 w-px shrink-0 bg-border" />;
+}
+
+type TaskListControlsProps = {
+	projectId: string | null;
+	search: { value: TaskSearchValue; onChange: (next: TaskSearchValue) => void };
+	categories: Category[];
+	priorities: Priority[];
+	sortMode: SortMode;
+	onSortModeChange: (mode: SortMode) => void;
+	onCollapseAll: () => void;
+	onExpandAll: () => void;
+};
+
+export function TaskListControls({
 	projectId,
+	search,
+	categories,
+	priorities,
 	sortMode,
 	onSortModeChange,
-}: TaskGroupsToolbarProps) {
+	onCollapseAll,
+	onExpandAll,
+}: TaskListControlsProps) {
 	const queryClient = useQueryClient();
 	const [creating, setCreating] = useState(false);
 	const [name, setName] = useState("");
 
-	const groupsQuery = useQuery({
-		...orpc.taskGroups.list.queryOptions({ input: { projectId: projectId ?? "" } }),
-		enabled: Boolean(projectId),
-	});
-
+	const groupsQuery = orpc.taskGroups.list.queryOptions({ input: { projectId: projectId ?? "" } });
 	const createMutation = useMutation({
 		...orpc.taskGroups.create.mutationOptions(),
 		onSuccess: () => {
@@ -123,45 +277,107 @@ export function TaskGroupsToolbar({
 		},
 	});
 
-	if (!projectId) return null;
-
 	function submit() {
 		const trimmed = name.trim();
-		if (!trimmed) return;
-		const color = GROUP_PALETTE[(groupsQuery.data?.length ?? 0) % GROUP_PALETTE.length];
-		createMutation.mutate({ projectId: projectId!, name: trimmed, color });
+		if (!trimmed || !projectId) return;
+		const existing = queryClient.getQueryData<TaskGroup[]>(groupsQuery.queryKey) ?? [];
+		const color = GROUP_PALETTE[existing.length % GROUP_PALETTE.length];
+		createMutation.mutate({ projectId, name: trimmed, color });
 	}
 
 	return (
-		<div className="flex flex-wrap items-center justify-between gap-2">
-			<SortModeControl value={sortMode} onChange={onSortModeChange} />
+		<div className="flex items-center gap-1">
+			<div className="relative flex-1">
+				<Search className="-translate-y-1/2 absolute top-1/2 left-2.5 size-4 text-muted-foreground" />
+				<Input
+					placeholder="Buscar tarefas..."
+					value={search.value.q ?? ""}
+					onChange={(event) => {
+						const next = event.target.value;
+						search.onChange({ ...search.value, q: next.trim().length > 0 ? next : undefined });
+					}}
+					className="h-9 pl-8"
+				/>
+			</div>
 
-			{creating ? (
-				<div className="flex items-center gap-2">
-					<Input
-						autoFocus
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key === "Enter") submit();
-							if (e.key === "Escape") setCreating(false);
-						}}
-						placeholder="Nome do grupo"
-						className="h-8 w-48"
-					/>
-					<Button size="sm" onClick={submit} disabled={createMutation.isPending}>
-						Criar
+			<FiltersPopover
+				value={search.value}
+				categories={categories}
+				priorities={priorities}
+				onChange={search.onChange}
+			/>
+
+			<Divider />
+
+			{SORT_MODES.map(({ mode, label, icon: Icon }) => (
+				<Tooltip key={mode} label={label}>
+					<Button
+						type="button"
+						variant={sortMode === mode ? "secondary" : "ghost"}
+						size="icon-sm"
+						aria-label={label}
+						className={cn(sortMode !== mode && "text-muted-foreground")}
+						onClick={() => onSortModeChange(mode)}
+					>
+						<Icon className="size-4" />
 					</Button>
-					<Button variant="ghost" size="icon-sm" onClick={() => setCreating(false)}>
-						<X className="size-4" />
-					</Button>
-				</div>
-			) : (
-				<Button variant="ghost" size="sm" onClick={() => setCreating(true)}>
-					<Plus className="size-4" />
-					Novo grupo
+				</Tooltip>
+			))}
+
+			<Tooltip label="Colapsar tudo">
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon-sm"
+					aria-label="Colapsar tudo"
+					className="text-muted-foreground"
+					onClick={onCollapseAll}
+				>
+					<ChevronsDownUp className="size-4" />
 				</Button>
-			)}
+			</Tooltip>
+			<Tooltip label="Expandir tudo">
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon-sm"
+					aria-label="Expandir tudo"
+					className="text-muted-foreground"
+					onClick={onExpandAll}
+				>
+					<ChevronsUpDown className="size-4" />
+				</Button>
+			</Tooltip>
+
+			{projectId && <Divider />}
+
+			{projectId &&
+				(creating ? (
+					<div className="flex items-center gap-1">
+						<Input
+							autoFocus
+							value={name}
+							onChange={(e) => setName(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") submit();
+								if (e.key === "Escape") setCreating(false);
+							}}
+							placeholder="Nome do grupo"
+							className="h-8 w-40"
+						/>
+						<Button size="sm" className="h-8" onClick={submit} disabled={createMutation.isPending}>
+							Criar
+						</Button>
+						<Button variant="ghost" size="icon-sm" onClick={() => setCreating(false)}>
+							<X className="size-4" />
+						</Button>
+					</div>
+				) : (
+					<Button variant="outline" size="sm" className="h-8" onClick={() => setCreating(true)}>
+						<Plus className="size-4" />
+						Novo grupo
+					</Button>
+				))}
 		</div>
 	);
 }
@@ -171,6 +387,7 @@ type TaskGroupHeaderProps = {
 	count: number;
 	collapsed: boolean;
 	onToggleCollapse: () => void;
+	dragHandle?: ReactNode;
 };
 
 export function TaskGroupHeader({
@@ -178,6 +395,7 @@ export function TaskGroupHeader({
 	count,
 	collapsed,
 	onToggleCollapse,
+	dragHandle,
 }: TaskGroupHeaderProps) {
 	const queryClient = useQueryClient();
 	const [editing, setEditing] = useState(false);
@@ -206,6 +424,7 @@ export function TaskGroupHeader({
 
 	return (
 		<div className="group/header flex items-center gap-2 border-border/60 border-b pb-1">
+			{dragHandle}
 			<button
 				type="button"
 				onClick={onToggleCollapse}
