@@ -7,6 +7,7 @@ import { dbTasks } from "../db/tasks";
 import {
 	buildFolderPath,
 	createTaskFolder,
+	deleteTaskFile,
 	readFirstMarkdownContent,
 	readTaskFiles,
 	readTaskFolderMeta,
@@ -20,6 +21,7 @@ import { restartTasksWatcher } from "../helpers/tasks-watcher";
 import { PubSub } from "../pubsub";
 import {
 	TaskCreateSchema,
+	TaskDeleteFileSchema,
 	TaskFocusSchema,
 	TaskGetAllSchema,
 	TaskIdSchema,
@@ -393,6 +395,29 @@ export const tasksRouter = {
 
 		await publishTaskEvent(row.id, row.project_id, "updated");
 		return { id: row.id, oldName: input.oldName, newName: input.newName };
+	}),
+
+	deleteFile: protectedProcedure.input(TaskDeleteFileSchema).handler(async ({ input }) => {
+		const row = await dbTasks.getById(input.id);
+		if (!row) throw new Error("Tarefa não encontrada");
+
+		const project = await dbProjects.getById(row.project_id);
+		if (!project) throw new Error("Projeto não encontrado");
+
+		await deleteTaskFile({
+			projectRoute: project.main_route,
+			folderPath: row.folder_path,
+			name: input.name,
+		});
+
+		const order = parseFileOrder(row.file_order);
+		const next = order.filter((name) => name !== input.name);
+		if (next.length !== order.length) {
+			await dbTasks.update({ id: row.id, file_order: JSON.stringify(next) });
+		}
+
+		await publishTaskEvent(row.id, row.project_id, "updated");
+		return { id: row.id, name: input.name };
 	}),
 
 	reorderFiles: protectedProcedure.input(TaskReorderFilesSchema).handler(async ({ input }) => {

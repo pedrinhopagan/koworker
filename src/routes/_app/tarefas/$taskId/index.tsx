@@ -22,6 +22,8 @@ import { toast } from "sonner";
 import { orpc } from "@/client";
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
 import { DocToolbar } from "@/components/doc-toolbar";
+import { FileContextMenu } from "@/components/file-context-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
 	TASK_SELECT_CONTENT_SELECTOR,
 	TaskMetaControls,
@@ -69,6 +71,16 @@ function TaskDetailPage() {
 			toast.success("Arquivo renomeado");
 		},
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Falha ao renomear arquivo"),
+	});
+
+	const deleteFileMutation = useMutation({
+		...orpc.tasks.deleteFile.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries(orpc.tasks.getFull.queryOptions({ input: { id: taskId } }));
+			setDeletingFile(null);
+			toast.success("Arquivo deletado");
+		},
+		onError: (err) => toast.error(err instanceof Error ? err.message : "Falha ao deletar arquivo"),
 	});
 
 	const reorderFilesMutation = useMutation({
@@ -124,6 +136,7 @@ function TaskDetailPage() {
 	const [activeFile, setActiveFile] = useState<string | null>(null);
 	const [editing, setEditing] = useState(false);
 	const [renamingFile, setRenamingFile] = useState<string | null>(null);
+	const [deletingFile, setDeletingFile] = useState<string | null>(null);
 	const [renameValue, setRenameValue] = useState("");
 	const renameInputRef = useRef<HTMLInputElement>(null);
 	const headerRef = useRef<HTMLDivElement>(null);
@@ -308,6 +321,7 @@ function TaskDetailPage() {
 									renameInputRef={renameInputRef}
 									onSelect={() => void selectFile(file.name)}
 									onStartRename={() => startRename(file.name)}
+									onRequestDelete={() => setDeletingFile(file.name)}
 									onRenameChange={setRenameValue}
 									onRenameConfirm={confirmRename}
 									onRenameCancel={cancelRename}
@@ -339,6 +353,21 @@ function TaskDetailPage() {
 					}
 				/>
 			) : null}
+
+			<ConfirmDialog
+				open={deletingFile !== null}
+				onClose={() => setDeletingFile(null)}
+				onConfirm={() =>
+					deletingFile && deleteFileMutation.mutate({ id: taskId, name: deletingFile })
+				}
+				title="Deletar arquivo"
+				description={
+					deletingFile ? `“${deletingFile}” será apagado permanentemente do disco.` : undefined
+				}
+				confirmLabel="Deletar"
+				variant="danger"
+				loading={deleteFileMutation.isPending}
+			/>
 		</div>
 	);
 }
@@ -352,6 +381,7 @@ type SortableFileTabProps = {
 	renameInputRef: React.RefObject<HTMLInputElement | null>;
 	onSelect: () => void;
 	onStartRename: () => void;
+	onRequestDelete: () => void;
 	onRenameChange: (value: string) => void;
 	onRenameConfirm: () => void;
 	onRenameCancel: () => void;
@@ -366,6 +396,7 @@ function SortableFileTab({
 	renameInputRef,
 	onSelect,
 	onStartRename,
+	onRequestDelete,
 	onRenameChange,
 	onRenameConfirm,
 	onRenameCancel,
@@ -405,26 +436,28 @@ function SortableFileTab({
 					className="h-full w-full bg-transparent px-3 text-center text-xs outline-none"
 				/>
 			) : (
-				<button
-					type="button"
-					onClick={onSelect}
-					onDoubleClick={onStartRename}
-					className={cn(
-						"flex h-full w-full touch-none items-center justify-center gap-1.5 px-3 text-center text-xs transition-colors",
-						!isActive && "hover:bg-secondary/50",
-					)}
-					title={`Criado ${relativeTimeFrom(file.createdAt)} · editado ${relativeTimeFrom(file.editedAt)} — arraste para reordenar · duplo clique para renomear`}
-					{...attributes}
-					{...(listeners as React.HTMLAttributes<HTMLButtonElement>)}
-				>
-					{level === undefined ? null : (
-						<span
-							className={cn("size-1.5 shrink-0 rounded-full", recencyLevelClass(level))}
-							aria-hidden
-						/>
-					)}
-					<span className="truncate">{file.name}</span>
-				</button>
+				<FileContextMenu name={file.name} onRename={onStartRename} onDelete={onRequestDelete}>
+					<button
+						type="button"
+						onClick={onSelect}
+						onDoubleClick={onStartRename}
+						className={cn(
+							"flex h-full w-full touch-none items-center justify-center gap-1.5 px-3 text-center text-xs transition-colors",
+							!isActive && "hover:bg-secondary/50",
+						)}
+						title={`Criado ${relativeTimeFrom(file.createdAt)} · editado ${relativeTimeFrom(file.editedAt)} — arraste para reordenar · duplo clique ou botão direito para renomear`}
+						{...attributes}
+						{...(listeners as React.HTMLAttributes<HTMLButtonElement>)}
+					>
+						{level === undefined ? null : (
+							<span
+								className={cn("size-1.5 shrink-0 rounded-full", recencyLevelClass(level))}
+								aria-hidden
+							/>
+						)}
+						<span className="truncate">{file.name}</span>
+					</button>
+				</FileContextMenu>
 			)}
 		</div>
 	);

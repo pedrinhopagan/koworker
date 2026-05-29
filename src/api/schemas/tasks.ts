@@ -168,6 +168,17 @@ export const VaultWriteFileSchema = z.object({
 	content: z.string(),
 });
 
+export const VaultRenameFileSchema = z.object({
+	projectId: z.string().trim().min(1),
+	oldName: mdFileName,
+	newName: mdFileName,
+});
+
+export const VaultDeleteFileSchema = z.object({
+	projectId: z.string().trim().min(1),
+	name: mdFileName,
+});
+
 export const TaskPromoteSchema = z.object({
 	projectId: z.string().trim().min(1),
 	name: mdFileName,
@@ -188,10 +199,35 @@ export const VaultLinkFilesToTaskSchema = z.object({
 		.min(1),
 });
 
+// Arquivos já vinculados a tarefas são identificados por (taskId, name): o mesmo nome
+// (ex: index.md) se repete entre tarefas, então o nome sozinho não basta.
+const linkedFileRef = z.object({
+	taskId: z.string().trim().min(1),
+	name: mdFileName,
+});
+
+// Move arquivos vinculados de uma ou mais tarefas para a pasta de outra tarefa.
+export const VaultMoveFilesToTaskSchema = z.object({
+	projectId: z.string().trim().min(1),
+	targetTaskId: z.string().trim().min(1),
+	files: z.array(linkedFileRef).min(1),
+});
+
+// Solta arquivos vinculados de volta pra raiz do vault, fora de qualquer tarefa.
+export const VaultUnlinkFilesSchema = z.object({
+	projectId: z.string().trim().min(1),
+	files: z.array(linkedFileRef).min(1),
+});
+
 export const TaskRenameFileSchema = z.object({
 	id: z.string().trim().min(1),
 	oldName: mdFileName,
 	newName: mdFileName,
+});
+
+export const TaskDeleteFileSchema = z.object({
+	id: z.string().trim().min(1),
+	name: mdFileName,
 });
 
 // Sobrescreve a data de atualização (mtime) de um .md. editedAt em ms desde a epoch — instante

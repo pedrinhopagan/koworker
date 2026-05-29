@@ -43,6 +43,7 @@ export {
 } from "./task-groups";
 export {
 	TaskCreateSchema,
+	TaskDeleteFileSchema,
 	TaskFocusSchema,
 	TaskGetAllSchema,
 	TaskIdSchema,
@@ -58,8 +59,12 @@ export {
 	TaskSetFileDateSchema,
 	TaskUpdateSchema,
 	TaskWriteFileSchema,
+	VaultDeleteFileSchema,
 	VaultLinkFilesToTaskSchema,
 	VaultListSchema,
+	VaultMoveFilesToTaskSchema,
+	VaultRenameFileSchema,
+	VaultUnlinkFilesSchema,
 	VaultWriteFileSchema,
 } from "./tasks";
 

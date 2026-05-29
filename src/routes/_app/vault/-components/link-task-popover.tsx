@@ -19,6 +19,8 @@ export function LinkTaskPopover({
 	loading,
 	fileNames,
 	pending,
+	allowRename = true,
+	verb = "arquivar",
 	onConfirm,
 	children,
 }: {
@@ -26,12 +28,14 @@ export function LinkTaskPopover({
 	loading: boolean;
 	fileNames: string[];
 	pending: boolean;
+	allowRename?: boolean;
+	verb?: string;
 	onConfirm: (taskId: string, targetName?: string) => void;
 	children: ReactNode;
 }) {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
-	const single = fileNames.length === 1 ? fileNames[0] : null;
+	const single = allowRename && fileNames.length === 1 ? fileNames[0] : null;
 	const [renameTo, setRenameTo] = useState(single ?? "");
 
 	const filtered = useMemo(() => {
@@ -117,8 +121,8 @@ export function LinkTaskPopover({
 				<div className="border-t border-border px-3 py-1.5">
 					<Text size="xs" tone="muted" className="font-mono">
 						{fileNames.length === 1
-							? `arquivar “${fileNames[0]}”`
-							: `arquivar ${fileNames.length} arquivos`}
+							? `${verb} “${fileNames[0]}”`
+							: `${verb} ${fileNames.length} arquivos`}
 					</Text>
 				</div>
 			</PopoverContent>

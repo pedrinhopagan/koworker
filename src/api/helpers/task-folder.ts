@@ -251,6 +251,15 @@ export async function renameTaskFile(params: {
 	await rename(join(dir, params.oldName), destPath);
 }
 
+// Apaga um `.md` da pasta da task. `force` evita estourar se o arquivo já não existir.
+export async function deleteTaskFile(params: {
+	projectRoute: string;
+	folderPath: string;
+	name: string;
+}): Promise<void> {
+	await rm(join(params.projectRoute, params.folderPath, params.name), { force: true });
+}
+
 export async function removeTaskFolder(params: {
 	projectRoute: string;
 	folderPath: string;

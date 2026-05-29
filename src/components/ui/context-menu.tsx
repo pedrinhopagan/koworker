@@ -50,14 +50,37 @@ const contextMenuSubContentVariants = tv({
 const ContextMenuSubContent = React.forwardRef<
 	React.ElementRef<typeof ContextMenuPrimitive.SubContent>,
 	React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.SubContent>
->(({ className, ...props }, ref) => (
-	<ContextMenuPrimitive.SubContent
-		ref={ref}
-		className={cn(contextMenuSubContentVariants(), className)}
-		{...props}
-	/>
-));
+>(({ className, style, ...props }, ref) => {
+	const contentStyle: React.CSSProperties = {
+		backgroundColor: "var(--card)",
+		color: "var(--card-foreground)",
+		...style,
+	};
+
+	return (
+		<ContextMenuPrimitive.SubContent
+			ref={ref}
+			className={cn(contextMenuSubContentVariants(), className)}
+			style={contentStyle}
+			{...props}
+		/>
+	);
+});
 ContextMenuSubContent.displayName = ContextMenuPrimitive.SubContent.displayName;
+
+// Portal para dentro do [data-theme-root]: o conteúdo do menu vive fora da árvore por padrão,
+// onde as variáveis de tema não resolvem (bg transparente, texto preto). Portar pra raiz do tema
+// + fixar bg/cor inline garante o mesmo visual dos outros menus em qualquer lugar.
+function useThemeRootContainer(): HTMLElement | null {
+	const [container, setContainer] = React.useState<HTMLElement | null>(null);
+
+	React.useEffect(() => {
+		if (container) return;
+		setContainer(document.querySelector<HTMLElement>("[data-theme-root]"));
+	}, [container]);
+
+	return container;
+}
 
 const contextMenuContentVariants = tv({
 	base: "z-[100] min-w-[160px] overflow-hidden rounded-md border border-border bg-card py-1 text-foreground shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
@@ -66,15 +89,26 @@ const contextMenuContentVariants = tv({
 const ContextMenuContent = React.forwardRef<
 	React.ElementRef<typeof ContextMenuPrimitive.Content>,
 	React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Content>
->(({ className, ...props }, ref) => (
-	<ContextMenuPrimitive.Portal>
-		<ContextMenuPrimitive.Content
-			ref={ref}
-			className={cn(contextMenuContentVariants(), className)}
-			{...props}
-		/>
-	</ContextMenuPrimitive.Portal>
-));
+>(({ className, style, ...props }, ref) => {
+	const portalContainer = useThemeRootContainer();
+
+	const contentStyle: React.CSSProperties = {
+		backgroundColor: "var(--card)",
+		color: "var(--card-foreground)",
+		...style,
+	};
+
+	return (
+		<ContextMenuPrimitive.Portal container={portalContainer ?? undefined}>
+			<ContextMenuPrimitive.Content
+				ref={ref}
+				className={cn(contextMenuContentVariants(), className)}
+				style={contentStyle}
+				{...props}
+			/>
+		</ContextMenuPrimitive.Portal>
+	);
+});
 ContextMenuContent.displayName = ContextMenuPrimitive.Content.displayName;
 
 const contextMenuItemVariants = tv({
