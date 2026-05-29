@@ -1,6 +1,6 @@
 // oxlint-disable max-classes-per-file -- vários WidgetType coesos do mesmo plugin CodeMirror
 import { syntaxTree } from "@codemirror/language";
-import { type Range, StateEffect, StateField } from "@codemirror/state";
+import { type EditorState, type Range, StateEffect, StateField } from "@codemirror/state";
 import {
 	Decoration,
 	type DecorationSet,
@@ -9,6 +9,10 @@ import {
 	type ViewUpdate,
 	WidgetType,
 } from "@codemirror/view";
+import { createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Persistência dos headings recolhidos: guarda as posições (line.from) marcadas
 // como collapsed; o conjunto é remapeado nas edições para acompanhar o doc.
@@ -66,6 +70,75 @@ const collapsedHeadingsField = StateField.define<Set<number>>({
 
 const hiddenLine = Decoration.line({ class: "cm-md-collapsed" });
 
+// Célula da tabela em edição: a tabela é identificada pela posição inicial (`from`) e a
+// célula por linha (índice em `rows`, com a 0 = header) e coluna. Trocada via StateEffect
+// e remapeada quando o doc muda.
+type ActiveCell = { from: number; row: number; col: number };
+const setActiveCell = StateEffect.define<ActiveCell | null>();
+
+const activeCellField = StateField.define<ActiveCell | null>({
+	create() {
+		return null;
+	},
+	update(value, tr) {
+		for (const effect of tr.effects) {
+			if (effect.is(setActiveCell)) return effect.value;
+		}
+		if (value && tr.docChanged) {
+			return { ...value, from: tr.changes.mapPos(value.from, -1) };
+		}
+		return value;
+	},
+});
+
+// Tabelas viram block widgets (que o CodeMirror só aceita vindos de um StateField: um
+// ViewPlugin não pode prover decorations que substituem quebras de linha). A tabela fica
+// sempre renderizada; a célula ativa vira um <input> editável no lugar. Recalcula quando o
+// doc muda, quando a célula ativa muda e quando o parser avança um tick depois da edição.
+function buildTableDecorations(state: EditorState): DecorationSet {
+	const { doc } = state;
+	const active = state.field(activeCellField);
+	const ranges: Range<Decoration>[] = [];
+	syntaxTree(state).iterate({
+		enter: (node) => {
+			if (node.name !== "Table") return;
+			const firstLine = doc.lineAt(node.from);
+			const lastLine = doc.lineAt(node.to);
+			const rows: { from: number; text: string }[] = [];
+			for (let n = firstLine.number; n <= lastLine.number; n++) {
+				const line = doc.line(n);
+				rows.push({ from: line.from, text: line.text });
+			}
+			if (rows.length >= 2) {
+				const cell = active && active.from === node.from ? active : null;
+				ranges.push(
+					Decoration.replace({
+						widget: new TableWidget(node.from, rows, cell),
+						block: true,
+					}).range(firstLine.from, lastLine.to),
+				);
+			}
+			return false;
+		},
+	});
+	return Decoration.set(ranges, true);
+}
+
+const tableDecorationsField = StateField.define<DecorationSet>({
+	create(state) {
+		return buildTableDecorations(state);
+	},
+	update(value, tr) {
+		const activeChanged = tr.startState.field(activeCellField) !== tr.state.field(activeCellField);
+		const treeChanged = syntaxTree(tr.startState) !== syntaxTree(tr.state);
+		if (tr.docChanged || activeChanged || treeChanged) {
+			return buildTableDecorations(tr.state);
+		}
+		return value;
+	},
+	provide: (f) => EditorView.decorations.from(f),
+});
+
 // Marcadores de sintaxe que somem quando o cursor não está na linha (estilo "live preview" do Obsidian).
 // `ListMark` fica de fora de propósito: esconder `- ` apagaria o marcador da lista.
 const HIDDEN_MARKS = new Set([
@@ -102,42 +175,13 @@ const headingLineCollapsed: Record<string, Decoration> = {
 
 const hidden = Decoration.replace({});
 
+// Estilo de pill para `inline code`: só decora, mantendo o texto totalmente editável.
+const inlineCodeMark = Decoration.mark({ class: "cm-md-inline-code" });
+
 type Callbacks = {
 	onInlineCodeClick?: (text: string) => void;
 	onHeadingMention?: (text: string) => void;
 };
-
-// Pill clicável para um trecho `inline code` — vira um mini-codeblock que copia ao clique.
-// Reaparece como markup `\`...\`` quando o cursor está na linha (live-preview pattern).
-class InlineCodeWidget extends WidgetType {
-	constructor(
-		readonly text: string,
-		readonly onClick?: (text: string) => void,
-	) {
-		super();
-	}
-
-	eq(other: InlineCodeWidget) {
-		return other.text === this.text;
-	}
-
-	toDOM() {
-		const el = document.createElement("span");
-		el.className = "cm-md-inline-code";
-		el.textContent = this.text;
-		el.title = "Clique para copiar";
-		el.addEventListener("mousedown", (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			this.onClick?.(this.text);
-		});
-		return el;
-	}
-
-	ignoreEvent() {
-		return true;
-	}
-}
 
 // Chevron à esquerda do heading: dispara o toggle de collapse. Aparece rotacionado
 // quando o heading está recolhido para indicar o estado.
@@ -247,6 +291,290 @@ class CodeBlockCopyWidget extends WidgetType {
 	}
 }
 
+// Checkbox real e clicável no lugar do `[ ]`/`[x]` de uma task list GFM, usando o
+// `<Checkbox>` padrão do projeto montado num root React. O clique alterna o caractere
+// interno no doc (` ` ↔ `x`), mantendo o `.md` cru como fonte da verdade.
+class TaskCheckboxWidget extends WidgetType {
+	root?: Root;
+
+	constructor(
+		readonly from: number,
+		readonly checked: boolean,
+	) {
+		super();
+	}
+
+	eq(other: TaskCheckboxWidget) {
+		return other.from === this.from && other.checked === this.checked;
+	}
+
+	toDOM(view: EditorView) {
+		const el = document.createElement("span");
+		el.className = "cm-md-task-checkbox";
+		el.addEventListener("mousedown", (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			view.dispatch({
+				changes: { from: this.from + 1, to: this.from + 2, insert: this.checked ? " " : "x" },
+			});
+		});
+		this.root = createRoot(el);
+		this.root.render(createElement(Checkbox, { checked: this.checked, size: "em", tabIndex: -1 }));
+		return el;
+	}
+
+	destroy() {
+		const root = this.root;
+		// Desmonta fora do ciclo de update do CodeMirror para evitar o warning do React.
+		if (root) queueMicrotask(() => root.unmount());
+	}
+
+	ignoreEvent() {
+		return true;
+	}
+}
+
+// Divide uma linha de tabela GFM nas células, descartando as bordas `|` externas e
+// tratando o escape `\|`. Trim de cada célula.
+function splitTableCells(line: string): string[] {
+	const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+	const cells: string[] = [];
+	let buf = "";
+	for (let i = 0; i < trimmed.length; i++) {
+		const ch = trimmed[i];
+		if (ch === "\\" && trimmed[i + 1] === "|") {
+			buf += "|";
+			i++;
+			continue;
+		}
+		if (ch === "|") {
+			cells.push(buf.trim());
+			buf = "";
+			continue;
+		}
+		buf += ch;
+	}
+	cells.push(buf.trim());
+	return cells;
+}
+
+type CellAlign = "left" | "center" | "right" | null;
+
+// Alinhamento de cada coluna a partir da linha delimitadora (`:---`, `:--:`, `---:`).
+function cellAlign(spec: string): CellAlign {
+	const s = spec.trim();
+	const left = s.startsWith(":");
+	const right = s.endsWith(":");
+	if (left && right) return "center";
+	if (right) return "right";
+	if (left) return "left";
+	return null;
+}
+
+// Render inline mínimo dentro das células: `code` vira pill e `**bold**` vira <strong>.
+// Constrói nós de texto (sem innerHTML) para não injetar HTML do conteúdo do arquivo.
+function appendBold(parent: HTMLElement, text: string) {
+	const parts = text.split(/\*\*([^*]+?)\*\*/);
+	for (let i = 0; i < parts.length; i++) {
+		if (!parts[i]) continue;
+		if (i % 2 === 1) {
+			const strong = document.createElement("strong");
+			strong.textContent = parts[i];
+			parent.append(strong);
+		} else {
+			parent.append(parts[i]);
+		}
+	}
+}
+
+function renderCellInline(parent: HTMLElement, text: string) {
+	const parts = text.split("`");
+	for (let i = 0; i < parts.length; i++) {
+		// Índice ímpar entre dois backticks → trecho de código.
+		if (i % 2 === 1 && i !== parts.length - 1) {
+			const code = document.createElement("code");
+			code.textContent = parts[i];
+			parent.append(code);
+		} else {
+			appendBold(parent, parts[i]);
+		}
+	}
+}
+
+// Reescreve a linha `rowIndex` da tabela (que começa em `tableFrom`) trocando a célula
+// `colIndex` pelo valor editado. Normaliza espaçamento, junta com `|` e reescapa `|`
+// literais. Retorna null quando nada muda. Recalcula do doc atual para resistir a edições.
+function commitCellChange(
+	view: EditorView,
+	tableFrom: number,
+	rowIndex: number,
+	colIndex: number,
+	value: string,
+) {
+	const { doc } = view.state;
+	const lineNum = doc.lineAt(tableFrom).number + rowIndex;
+	if (lineNum > doc.lines) return null;
+	const line = doc.line(lineNum);
+	const cells = splitTableCells(line.text);
+	if (colIndex >= cells.length) return null;
+	cells[colIndex] = value.replaceAll(/\s*\n\s*/g, " ").trim();
+	const rebuilt = `| ${cells.map((c) => c.replaceAll("|", "\\|")).join(" | ")} |`;
+	if (rebuilt === line.text) return null;
+	return { from: line.from, to: line.to, insert: rebuilt };
+}
+
+// Próxima célula editável na ordem de leitura, pulando a linha delimitadora (índice 1).
+function stepCell(rowsLen: number, cols: number, row: number, col: number, forward: boolean) {
+	const seq: { row: number; col: number }[] = [];
+	for (let r = 0; r < rowsLen; r++) {
+		if (r === 1) continue;
+		for (let c = 0; c < cols; c++) seq.push({ row: r, col: c });
+	}
+	const idx = seq.findIndex((s) => s.row === row && s.col === col);
+	const next = idx + (forward ? 1 : -1);
+	if (idx < 0 || next < 0 || next >= seq.length) return null;
+	return seq[next];
+}
+
+// Tabela GFM sempre renderizada como <table> de verdade. A célula ativa (estado em
+// `activeCellField`) vira um <input> editável no lugar; as demais ficam com os pills. A
+// edição commita ao sair da célula (Enter, Tab, clique em outra célula ou foco pra fora),
+// reescrevendo a linha no `.md` cru. Estilo "live preview" do Obsidian.
+class TableWidget extends WidgetType {
+	readonly key: string;
+
+	constructor(
+		readonly from: number,
+		readonly rows: { from: number; text: string }[],
+		readonly active: ActiveCell | null,
+	) {
+		super();
+		this.key = rows.map((r) => r.text).join("\n");
+	}
+
+	eq(other: TableWidget) {
+		return (
+			other.from === this.from &&
+			other.key === this.key &&
+			other.active?.row === this.active?.row &&
+			other.active?.col === this.active?.col
+		);
+	}
+
+	toDOM(view: EditorView) {
+		const [header, delimiter, ...body] = this.rows;
+		const aligns = splitTableCells(delimiter.text).map(cellAlign);
+		const cols = splitTableCells(header.text).length;
+		const active = this.active;
+		let activeInput: HTMLTextAreaElement | null = null;
+
+		// Commita a célula ativa (se houver valor pendente) e move o foco para `target`.
+		const dispatchCell = (target: ActiveCell | null, commit: boolean) => {
+			const change =
+				commit && active && activeInput
+					? commitCellChange(view, this.from, active.row, active.col, activeInput.value)
+					: null;
+			view.dispatch({ changes: change ?? undefined, effects: setActiveCell.of(target) });
+		};
+
+		const renderCell = (
+			el: HTMLTableCellElement,
+			rowIndex: number,
+			colIndex: number,
+			text: string,
+		) => {
+			if (aligns[colIndex]) el.style.textAlign = aligns[colIndex] as string;
+
+			if (active && active.row === rowIndex && active.col === colIndex) {
+				// Textarea (não input) pra manter o wrap da célula durante a edição; cresce em
+				// altura conforme o conteúdo. A célula segue sendo uma linha do .md: Enter
+				// commita em vez de inserir quebra, e `\n` colado é normalizado no commit.
+				const textarea = document.createElement("textarea");
+				textarea.className = "cm-md-table-input";
+				textarea.rows = 1;
+				textarea.value = text;
+				const autoGrow = () => {
+					textarea.style.height = "auto";
+					textarea.style.height = `${textarea.scrollHeight}px`;
+				};
+				textarea.addEventListener("input", autoGrow);
+				textarea.addEventListener("mousedown", (event) => event.stopPropagation());
+				textarea.addEventListener("keydown", (event) => {
+					if (event.key === "Enter") {
+						event.preventDefault();
+						dispatchCell(null, true);
+					} else if (event.key === "Escape") {
+						event.preventDefault();
+						dispatchCell(null, false);
+					} else if (event.key === "Tab") {
+						event.preventDefault();
+						const step = stepCell(this.rows.length, cols, rowIndex, colIndex, !event.shiftKey);
+						dispatchCell(step ? { from: this.from, row: step.row, col: step.col } : null, true);
+					}
+				});
+				textarea.addEventListener("blur", () => {
+					// Microtask: se o textarea ainda estiver no DOM o blur foi para fora da tabela
+					// (commita e fecha); se sumiu, foi um rebuild que já cuidou da troca.
+					queueMicrotask(() => {
+						if (textarea.isConnected) dispatchCell(null, true);
+					});
+				});
+				activeInput = textarea;
+				el.append(textarea);
+				// Foco e altura só depois do DOM montado (medir scrollHeight antes não pega).
+				requestAnimationFrame(() => {
+					textarea.focus();
+					textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+					autoGrow();
+				});
+				return;
+			}
+
+			renderCellInline(el, text);
+			el.addEventListener("mousedown", (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				dispatchCell({ from: this.from, row: rowIndex, col: colIndex }, true);
+			});
+		};
+
+		const wrapper = document.createElement("div");
+		wrapper.className = "cm-md-table-wrapper";
+
+		const table = document.createElement("table");
+		table.className = "cm-md-table";
+
+		const thead = document.createElement("thead");
+		const headerRow = document.createElement("tr");
+		splitTableCells(header.text).forEach((cell, i) => {
+			const th = document.createElement("th");
+			renderCell(th, 0, i, cell);
+			headerRow.append(th);
+		});
+		thead.append(headerRow);
+		table.append(thead);
+
+		const tbody = document.createElement("tbody");
+		body.forEach((row, k) => {
+			const tr = document.createElement("tr");
+			splitTableCells(row.text).forEach((cell, i) => {
+				const td = document.createElement("td");
+				renderCell(td, k + 2, i, cell);
+				tr.append(td);
+			});
+			tbody.append(tr);
+		});
+		table.append(tbody);
+		wrapper.append(table);
+
+		return wrapper;
+	}
+
+	ignoreEvent() {
+		return true;
+	}
+}
+
 type HeadingInfo = {
 	pos: number;
 	lineNum: number;
@@ -343,32 +671,56 @@ function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet
 			from,
 			to,
 			enter: (node) => {
+				// Tabelas são tratadas pelo tableDecorationsField (block widget). Não descemos
+				// nas células pra não sobrepor marks inline ao block replace do field.
+				if (node.name === "Table") return false;
+
 				if (node.name === "FencedCode") {
 					const firstLine = doc.lineAt(node.from);
 					const lastLine = doc.lineAt(node.to);
-					for (let n = firstLine.number; n <= lastLine.number; n++) {
+					const single = firstLine.number === lastLine.number;
+					// Cada cerca (```lang / ```) só reaparece quando o cursor está naquela linha;
+					// fora disso ela some, então o visual do bloco se mantém mesmo editando o
+					// conteúdo. As bordas arredondadas ficam nas pontas atualmente visíveis.
+					const firstActive = firstLine.from <= activeTo && firstLine.to >= activeFrom;
+					const lastActive = lastLine.from <= activeTo && lastLine.to >= activeFrom;
+
+					const styleStart = firstActive ? firstLine.number : firstLine.number + 1;
+					const styleEnd = single || lastActive ? lastLine.number : lastLine.number - 1;
+
+					if (!firstActive) ranges.push(hiddenLine.range(firstLine.from));
+					if (!single && !lastActive) ranges.push(hiddenLine.range(lastLine.from));
+
+					for (let n = styleStart; n <= styleEnd; n++) {
 						const line = doc.line(n);
 						const decoration =
-							n === firstLine.number
-								? codeBlockFirst
-								: n === lastLine.number
-									? codeBlockLast
-									: codeBlockLine;
+							n === styleStart ? codeBlockFirst : n === styleEnd ? codeBlockLast : codeBlockLine;
 						ranges.push(decoration.range(line.from));
 					}
+
 					// Conteúdo do bloco sem as linhas de cerca (```lang … ```).
 					const inner = doc
 						.sliceString(firstLine.to, lastLine.from)
 						.replace(/^\n/, "")
 						.replace(/\n$/, "");
-					if (inner) {
+					if (inner && styleEnd >= styleStart) {
 						ranges.push(
 							Decoration.widget({
 								widget: new CodeBlockCopyWidget(inner, callbacks.onInlineCodeClick),
 								side: -1,
-							}).range(firstLine.from),
+							}).range(doc.line(styleStart).from),
 						);
 					}
+					return false;
+				}
+
+				if (node.name === "TaskMarker") {
+					const checked = doc.sliceString(node.from + 1, node.to - 1).toLowerCase() === "x";
+					ranges.push(
+						Decoration.replace({
+							widget: new TaskCheckboxWidget(node.from, checked),
+						}).range(node.from, node.to),
+					);
 					return;
 				}
 
@@ -376,15 +728,16 @@ function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet
 				if (node.name in headingLine) return;
 
 				if (node.name === "InlineCode") {
-					const onLine = node.to >= activeFrom && node.from <= activeTo;
-					if (onLine) return;
-					const text = doc.sliceString(node.from + 1, node.to - 1);
-					ranges.push(
-						Decoration.replace({
-							widget: new InlineCodeWidget(text, callbacks.onInlineCodeClick),
-						}).range(node.from, node.to),
-					);
-					return;
+					// Pill sempre presente com os backticks escondidos, mesmo com o cursor dentro:
+					// edita-se o conteúdo mantendo o visual. O conteúdo segue como texto comum.
+					const innerFrom = node.from + 1;
+					const innerTo = node.to - 1;
+					if (innerTo > innerFrom) {
+						ranges.push(inlineCodeMark.range(innerFrom, innerTo));
+					}
+					ranges.push(hidden.range(node.from, innerFrom));
+					ranges.push(hidden.range(innerTo, node.to));
+					return false;
 				}
 
 				if (!HIDDEN_MARKS.has(node.name)) return;
@@ -443,12 +796,12 @@ const baseTheme = EditorView.baseTheme({
 	".cm-md-collapsed": { display: "none" },
 	// Headings recolhidos ganham margem inferior maior conforme o nível (h1 > h2 > h3…),
 	// pra criar respiro proporcional onde antes havia o conteúdo escondido.
-	".cm-md-h1.cm-md-heading-collapsed": { marginBottom: "1.2em" },
-	".cm-md-h2.cm-md-heading-collapsed": { marginBottom: "0.9em" },
-	".cm-md-h3.cm-md-heading-collapsed": { marginBottom: "0.65em" },
-	".cm-md-h4.cm-md-heading-collapsed": { marginBottom: "0.45em" },
-	".cm-md-h5.cm-md-heading-collapsed": { marginBottom: "0.3em" },
-	".cm-md-h6.cm-md-heading-collapsed": { marginBottom: "0.25em" },
+	".cm-md-h1.cm-md-heading-collapsed": { paddingBottom: "1.2em" },
+	".cm-md-h2.cm-md-heading-collapsed": { paddingBottom: "0.9em" },
+	".cm-md-h3.cm-md-heading-collapsed": { paddingBottom: "0.65em" },
+	".cm-md-h4.cm-md-heading-collapsed": { paddingBottom: "0.45em" },
+	".cm-md-h5.cm-md-heading-collapsed": { paddingBottom: "0.3em" },
+	".cm-md-h6.cm-md-heading-collapsed": { paddingBottom: "0.25em" },
 	".cm-md-heading-chevron": {
 		display: "inline-flex",
 		alignItems: "center",
@@ -495,6 +848,7 @@ const baseTheme = EditorView.baseTheme({
 		borderRight: "1px solid var(--border)",
 		paddingLeft: "0.9em !important",
 		paddingRight: "0.9em !important",
+		marginRight: "0.5rem",
 		color: "var(--foreground)",
 	},
 	".cm-md-code-block-first": {
@@ -502,8 +856,7 @@ const baseTheme = EditorView.baseTheme({
 		borderTop: "1px solid var(--border)",
 		borderTopLeftRadius: "6px",
 		borderTopRightRadius: "6px",
-		paddingTop: "0.55em !important",
-		marginTop: "0.35em",
+		paddingTop: "0.9em !important",
 	},
 	".cm-md-code-copy": {
 		position: "absolute",
@@ -532,8 +885,7 @@ const baseTheme = EditorView.baseTheme({
 		borderBottom: "1px solid var(--border)",
 		borderBottomLeftRadius: "6px",
 		borderBottomRightRadius: "6px",
-		paddingBottom: "0.55em !important",
-		marginBottom: "0.35em",
+		paddingBottom: "0.9em !important",
 	},
 	".cm-md-inline-code": {
 		display: "inline-block",
@@ -546,7 +898,7 @@ const baseTheme = EditorView.baseTheme({
 		background: "color-mix(in oklab, var(--muted) 70%, transparent)",
 		border: "1px solid var(--border)",
 		borderRadius: "4px",
-		cursor: "pointer",
+		cursor: "text",
 		transition: "background-color 0.15s ease, border-color 0.15s ease",
 		verticalAlign: "baseline",
 	},
@@ -554,8 +906,77 @@ const baseTheme = EditorView.baseTheme({
 		background: "color-mix(in oklab, var(--primary) 14%, var(--muted))",
 		borderColor: "var(--primary)",
 	},
+	".cm-md-task-checkbox": {
+		display: "inline-flex",
+		alignItems: "center",
+		justifyContent: "center",
+		height: "1em",
+		marginRight: "0.4em",
+		verticalAlign: "middle",
+	},
+	".cm-md-table-wrapper": {
+		margin: "0.4em 0.5rem 0.7em 0",
+		overflowX: "auto",
+		border: "1px solid var(--border)",
+		borderRadius: "6px",
+		cursor: "text",
+	},
+	".cm-md-table": {
+		borderCollapse: "collapse",
+		width: "100%",
+		fontSize: "0.92em",
+		lineHeight: "1.5",
+	},
+	".cm-md-table th, .cm-md-table td": {
+		padding: "0.4em 0.75em",
+		textAlign: "left",
+		verticalAlign: "top",
+		borderRight: "1px solid var(--border)",
+		borderBottom: "1px solid var(--border)",
+	},
+	".cm-md-table th:last-child, .cm-md-table td:last-child": { borderRight: "none" },
+	".cm-md-table tbody tr:last-child td": { borderBottom: "none" },
+	".cm-md-table th": {
+		fontWeight: "600",
+		background: "color-mix(in oklab, var(--muted) 60%, transparent)",
+	},
+	".cm-md-table tbody tr:hover": {
+		background: "color-mix(in oklab, var(--muted) 35%, transparent)",
+	},
+	".cm-md-table code": {
+		padding: "0.05em 0.35em",
+		fontFamily: "var(--font-mono)",
+		fontSize: "0.9em",
+		background: "color-mix(in oklab, var(--muted) 70%, transparent)",
+		border: "1px solid var(--border)",
+		borderRadius: "4px",
+	},
+	".cm-md-table-input": {
+		display: "block",
+		boxSizing: "border-box",
+		width: "100%",
+		margin: "0",
+		padding: "0",
+		font: "inherit",
+		lineHeight: "inherit",
+		color: "inherit",
+		textAlign: "inherit",
+		background: "transparent",
+		border: "none",
+		outline: "none",
+		resize: "none",
+		overflow: "hidden",
+		whiteSpace: "pre-wrap",
+		overflowWrap: "anywhere",
+	},
 });
 
 export function markdownLivePreview(callbacks: Callbacks = {}) {
-	return [collapsedHeadingsField, livePreviewPlugin(callbacks), baseTheme];
+	return [
+		collapsedHeadingsField,
+		activeCellField,
+		tableDecorationsField,
+		livePreviewPlugin(callbacks),
+		baseTheme,
+	];
 }

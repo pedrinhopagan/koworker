@@ -12,6 +12,8 @@ const checkboxVariants = tv({
 			default: "size-4",
 			sm: "size-3.5",
 			lg: "size-5",
+			// Acompanha o font-size da linha (em): encaixa em qualquer tamanho de texto.
+			em: "size-[0.95em] rounded-[0.12em]",
 		},
 	},
 	defaultVariants: {
@@ -26,6 +28,7 @@ const indicatorVariants = tv({
 			default: "[&>svg]:size-3",
 			sm: "[&>svg]:size-2.5",
 			lg: "[&>svg]:size-3.5",
+			em: "[&>svg]:size-[0.7em]",
 		},
 	},
 	defaultVariants: {
