@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 // e seus controles ficam com a página; aqui mora só o que as duas telas têm igual.
 export type DocEditorPaneHandle = {
 	flush: () => Promise<void>;
+	getContent: () => string;
 	collapseAll: () => void;
 	expandAll: () => void;
 	copyContent: () => Promise<void>;
@@ -27,6 +28,9 @@ type DocEditorPaneProps = {
 	projectName?: string;
 	writeFile: (payload: { name: string; content: string }) => Promise<unknown>;
 	emptyState?: string;
+	// Rodapé com o `/kw …` é específico de tarefa/vault; a página de skill passa `false`
+	// (o conteúdo da skill não vira prompt e a borda separadora some junto).
+	showPrompt?: boolean;
 	// Modo leitura é controlado pela página (que decide o que dimmer/esconder no entorno);
 	// aqui ele só amplia a fonte/largura, esconde o input e atende o Esc pra sair.
 	reading: boolean;
@@ -35,7 +39,17 @@ type DocEditorPaneProps = {
 
 export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>(
 	function DocEditorPane(
-		{ fileName, content, folderPath, projectName, writeFile, emptyState, reading, onExitReading },
+		{
+			fileName,
+			content,
+			folderPath,
+			projectName,
+			writeFile,
+			emptyState,
+			showPrompt = true,
+			reading,
+			onExitReading,
+		},
 		ref,
 	) {
 		const editorRef = useRef<MarkdownEditorHandle>(null);
@@ -55,6 +69,7 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 
 		useImperativeHandle(ref, () => ({
 			flush,
+			getContent: () => editorRef.current?.getContent() ?? "",
 			collapseAll: () => editorRef.current?.collapseAll(),
 			expandAll: () => editorRef.current?.expandAll(),
 			async copyContent() {
@@ -119,7 +134,7 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 					)}
 				</main>
 
-				{reading ? null : (
+				{reading || !showPrompt ? null : (
 					<>
 						<div className="border-t border-border" />
 

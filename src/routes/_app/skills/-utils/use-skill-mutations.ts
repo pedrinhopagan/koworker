@@ -3,90 +3,69 @@ import { toast } from "sonner";
 
 import { orpc } from "@/client";
 
-import type { EditableSkill, SkillFormData } from "./use-skill-form";
-
-type UseSkillMutationsOptions = {
-	skill?: EditableSkill;
-	onSave: () => void;
-};
-
-export function useSkillMutations({ skill, onSave }: UseSkillMutationsOptions) {
+// Mutations da página de skill: gravar o arquivo (autosave do corpo + descrição), padronizar as
+// variantes divergentes e remover. `updateContent` é silencioso no sucesso (dispara via debounce do
+// editor); revalida `list` e `get` — `get` é single-slug e o editor é keyado por path, então o
+// refetch na mesma tab não remonta nem atropela o que está sendo digitado. Padronizar e delete
+// avisam porque são ações únicas e destrutivas.
+export function useSkillMutations() {
 	const queryClient = useQueryClient();
-	const isEditing = Boolean(skill);
-	const skillsKey = orpc.skills.list.key();
-
-	const invalidate = () => queryClient.invalidateQueries({ queryKey: skillsKey });
-
-	const createMutation = useMutation({
-		...orpc.skills.create.mutationOptions(),
-		onSuccess: () => {
-			toast.success("Skill criada com sucesso");
-			invalidate();
-			onSave();
-		},
-		onError: (error: Error) => {
-			toast.error(`Erro ao criar skill: ${error.message}`);
-		},
-	});
+	const invalidateList = () => queryClient.invalidateQueries({ queryKey: orpc.skills.list.key() });
+	const invalidateAll = () => {
+		invalidateList();
+		queryClient.invalidateQueries({ queryKey: orpc.skills.get.key() });
+	};
 
 	const updateMutation = useMutation({
 		...orpc.skills.update.mutationOptions(),
-		onSuccess: () => {
-			toast.success("Skill atualizada com sucesso");
-			invalidate();
-			onSave();
+		onSuccess: invalidateAll,
+		onError: (error: Error) => toast.error(`Erro ao salvar skill: ${error.message}`),
+	});
+
+	const standardizeMutation = useMutation({
+		...orpc.skills.standardize.mutationOptions(),
+		onSuccess: (result) => {
+			invalidateAll();
+			toast.success(
+				`Padronizado em ${result.written} ${result.written === 1 ? "cópia" : "cópias"}`,
+			);
 		},
-		onError: (error: Error) => {
-			toast.error(`Erro ao atualizar skill: ${error.message}`);
-		},
+		onError: (error: Error) => toast.error(`Erro ao padronizar: ${error.message}`),
 	});
 
 	const deleteMutation = useMutation({
 		...orpc.skills.delete.mutationOptions(),
 		onSuccess: () => {
-			toast.success("Skill removida com sucesso");
-			invalidate();
-			onSave();
+			invalidateAll();
+			toast.success("Cópia removida");
 		},
-		onError: (error: Error) => {
-			toast.error(`Erro ao remover skill: ${error.message}`);
-		},
+		onError: (error: Error) => toast.error(`Erro ao remover skill: ${error.message}`),
 	});
 
-	function saveSkill(data: SkillFormData, metadata: Record<string, unknown>) {
-		if (isEditing && skill) {
-			updateMutation.mutate({
-				path: skill.primaryPath,
-				description: data.description,
-				content: data.content,
-				metadata,
-			});
-			return;
-		}
-
-		createMutation.mutate({
-			slug: data.slug,
-			description: data.description,
-			content: data.content,
-			metadata,
-		});
-	}
-
-	function removeSkill() {
-		if (!skill) {
-			return;
-		}
-		deleteMutation.mutate({ path: skill.primaryPath });
-	}
+	const deleteAllMutation = useMutation({
+		...orpc.skills.deleteAll.mutationOptions(),
+		onSuccess: (result) => {
+			invalidateAll();
+			toast.success(
+				`Skill removida de ${result.removed} ${result.removed === 1 ? "fonte" : "fontes"}`,
+			);
+		},
+		onError: (error: Error) => toast.error(`Erro ao remover skill: ${error.message}`),
+	});
 
 	return {
-		createMutation,
-		updateMutation,
-		deleteMutation,
-		saveSkill,
-		removeSkill,
-		isEditing,
-		isSaving: createMutation.isPending || updateMutation.isPending,
-		isDeleting: deleteMutation.isPending,
+		updateContent: (input: {
+			path: string;
+			description: string;
+			content: string;
+			metadata: Record<string, unknown>;
+		}) => updateMutation.mutateAsync(input),
+		standardize: (input: { slug: string; projectName?: string; sourcePath: string }) =>
+			standardizeMutation.mutate(input),
+		standardizing: standardizeMutation.isPending,
+		removeSkill: (path: string) => deleteMutation.mutate({ path }),
+		removeAllSkill: (input: { slug: string; projectName?: string }) =>
+			deleteAllMutation.mutate(input),
+		removing: deleteMutation.isPending || deleteAllMutation.isPending,
 	};
 }

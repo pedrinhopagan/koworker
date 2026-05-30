@@ -11,6 +11,7 @@ export function useSkillSettingsMutation() {
 		onSuccess: () => {
 			toast.success("Aparência da skill atualizada");
 			queryClient.invalidateQueries({ queryKey: orpc.skills.list.key() });
+			queryClient.invalidateQueries({ queryKey: orpc.skills.get.key() });
 		},
 		onError: (error: Error) => {
 			toast.error(`Erro ao salvar: ${error.message}`);
