@@ -82,16 +82,21 @@ export function buildFolderPath(id: string): string {
 
 // Cria a pasta da task com o index.md semeado pelo título (H1), pra que o prompt copiado
 // referencie um arquivo com conteúdo já na criação. Sem título, o arquivo nasce vazio e a
-// UI mostra o placeholder de escrita.
+// UI mostra o placeholder de escrita. Com `seed: false` a pasta nasce vazia (sem index.md):
+// é o caso de uma task criada só pra receber arquivos redirecionados do vault.
 export async function createTaskFolder(params: {
 	projectRoute: string;
 	folderPath: string;
 	title?: string;
+	seed?: boolean;
 }): Promise<void> {
 	await ensureKoworkerGitignored(params.projectRoute);
 
 	const dir = join(params.projectRoute, params.folderPath);
 	await mkdir(dir, { recursive: true });
+
+	if (params.seed === false) return;
+
 	await Bun.write(join(dir, PRIMARY_FILE), params.title ? `# ${params.title}\n` : "");
 }
 

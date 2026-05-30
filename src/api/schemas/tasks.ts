@@ -43,6 +43,10 @@ export const TaskCreateSchema = z.object({
 	title: z.string().trim().min(1).optional(),
 	priorityId: z.string().trim().min(1),
 	categoryId: z.string().trim().min(1),
+	// Semeia o index.md com o título (H1). Quem cria a task só pra receber arquivos (redirecionar
+	// do vault para uma tarefa nova) passa false: a pasta nasce vazia e os arquivos entram sem
+	// colidir com um index.md de boilerplate.
+	seed: z.boolean().optional().default(true),
 });
 
 export const TaskUpdateSchema = z.object({
@@ -104,6 +108,15 @@ const mdFileName = z
 	.trim()
 	.regex(/^[^/\\]+\.md$/, "File name must be a .md without path separators");
 
+// Nome de uma pasta solta dentro de `.koworker/`: um único segmento, sem separadores nem
+// referência a pai. É boundary — vira parte de um path no FS, então rejeitamos travessia.
+const vaultFolderName = z
+	.string()
+	.trim()
+	.min(1)
+	.regex(/^[^/\\]+$/, "Folder name must not contain path separators")
+	.refine((name) => name !== "." && name !== "..", "Invalid folder name");
+
 export const VaultListSchema = z.object({
 	projectId: z.string().trim().min(1),
 });
@@ -163,6 +176,21 @@ export const VaultMoveFilesToTaskSchema = z.object({
 export const VaultUnlinkFilesSchema = z.object({
 	projectId: z.string().trim().min(1),
 	files: z.array(linkedFileRef).min(1),
+});
+
+// Adota uma pasta solta (dir em `.koworker/` sem task) como tarefa: a task nova passa a
+// apontar para a pasta existente, sem mover arquivo nenhum.
+export const VaultAdoptFolderSchema = z.object({
+	projectId: z.string().trim().min(1),
+	folderName: vaultFolderName,
+});
+
+// Move `.md` de uma pasta solta para a pasta de uma tarefa existente.
+export const VaultMoveFolderFilesToTaskSchema = z.object({
+	projectId: z.string().trim().min(1),
+	folderName: vaultFolderName,
+	targetTaskId: z.string().trim().min(1),
+	files: z.array(mdFileName).min(1),
 });
 
 export const TaskRenameFileSchema = z.object({

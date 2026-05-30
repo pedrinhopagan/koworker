@@ -262,6 +262,7 @@ export const tasksRouter = {
 			projectRoute: project.main_route,
 			folderPath,
 			title: input.title,
+			seed: input.seed,
 		});
 
 		await dbTasks.create({

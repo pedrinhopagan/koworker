@@ -10,7 +10,7 @@ import { DocToolbar } from "@/components/doc-toolbar";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { useProjectFocus } from "@/hooks/use-project-focus";
-import { LinkTaskPopover } from "../-components/link-task-popover";
+import { LinkTaskPopover, type NewTaskPayload } from "../-components/link-task-popover";
 
 export const Route = createFileRoute("/_app/vault/$fileName/")({
 	component: VaultFilePage,
@@ -72,9 +72,23 @@ function VaultFilePage() {
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível vincular"),
 	});
 
+	const createTaskMutation = useMutation(orpc.tasks.create.mutationOptions());
+
 	async function link(taskId: string, targetName?: string) {
 		await paneRef.current?.flush();
 		linkMutation.mutate({ projectId, taskId, files: [{ name: fileName, targetName }] });
+	}
+
+	// Cria a tarefa de destino vazia (seed: false) e arquiva a nota nela no mesmo passo.
+	async function linkNew(payload: NewTaskPayload, targetName?: string) {
+		await paneRef.current?.flush();
+		try {
+			const task = await createTaskMutation.mutateAsync({ projectId, ...payload, seed: false });
+			if (!task) throw new Error("Não foi possível criar a tarefa");
+			linkMutation.mutate({ projectId, taskId: task.id, files: [{ name: fileName, targetName }] });
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Não foi possível criar a tarefa");
+		}
 	}
 
 	async function promote() {
@@ -139,8 +153,9 @@ function VaultFilePage() {
 						tasks={taskOptions}
 						loading={tasksQuery.isLoading}
 						fileNames={[file.name]}
-						pending={linkMutation.isPending}
+						pending={linkMutation.isPending || createTaskMutation.isPending}
 						onConfirm={(taskId, targetName) => void link(taskId, targetName)}
+						onConfirmNew={(payload, targetName) => void linkNew(payload, targetName)}
 					>
 						<Button variant="outline" size="sm" disabled={linkMutation.isPending}>
 							{linkMutation.isPending ? (

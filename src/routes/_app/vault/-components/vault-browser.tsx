@@ -1,17 +1,33 @@
-import { ArrowUpRight, Check, FileText, FolderOpen, Maximize2 } from "lucide-react";
+import {
+	ArrowUpRight,
+	Check,
+	FileText,
+	FolderOpen,
+	Folders,
+	Maximize2,
+	Sparkles,
+} from "lucide-react";
 
 import { FileContextMenu } from "@/components/file-context-menu";
 import { Text } from "@/components/typography";
+import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { cn } from "@/lib/utils";
 
 type LooseFile = { name: string; title: string; content: string };
 type TaskGroup = { taskId: string; displayTitle: string; fileNames: string[] };
+type LooseFolder = { name: string; fileNames: string[] };
 
 // Chave de seleção de um arquivo vinculado: o nome sozinho não basta porque o mesmo nome
 // (ex: index.md) se repete entre tarefas. Regex de nome bloqueia "/", então é separador seguro.
 export function linkedFileKey(taskId: string, name: string): string {
 	return `${taskId}/${name}`;
+}
+
+// Chave de seleção de um arquivo dentro de uma pasta solta: mesma lógica do linkedFileKey, mas a
+// origem é o nome da pasta. Nomes de pasta e de arquivo não têm "/", então o separador é seguro.
+export function folderFileKey(folderName: string, name: string): string {
+	return `${folderName}/${name}`;
 }
 
 function SectionLabel({ children, count }: { children: string; count: number }) {
@@ -33,28 +49,39 @@ function SectionLabel({ children, count }: { children: string; count: number }) 
 // tarefa — só referência, com atalho pra abrir a tarefa dedicada.
 export function VaultBrowser({
 	loose,
+	folders,
 	taskGroups,
 	selected,
+	folderSelected,
 	linkedSelected,
 	onToggleSelect,
+	onToggleFolderFile,
 	onToggleLinked,
+	onAdoptFolder,
+	adoptingFolder,
 	onOpen,
 	onNavigateTask,
 	onRenameLoose,
 	onDeleteLoose,
 }: {
 	loose: LooseFile[];
+	folders: LooseFolder[];
 	taskGroups: TaskGroup[];
 	selected: Set<string>;
+	folderSelected: Set<string>;
 	linkedSelected: Set<string>;
 	onToggleSelect: (name: string) => void;
+	onToggleFolderFile: (folderName: string, name: string) => void;
 	onToggleLinked: (taskId: string, name: string) => void;
+	onAdoptFolder: (folderName: string) => void;
+	adoptingFolder: string | null;
 	onOpen: (name: string) => void;
 	onNavigateTask: (taskId: string) => void;
 	onRenameLoose: (name: string) => void;
 	onDeleteLoose: (name: string) => void;
 }) {
 	const hasSelection = selected.size > 0;
+	const hasFolderSelection = folderSelected.size > 0;
 	const hasLinkedSelection = linkedSelected.size > 0;
 
 	return (
@@ -133,6 +160,70 @@ export function VaultBrowser({
 					</div>
 				)}
 			</section>
+
+			{folders.length > 0 && (
+				<section>
+					<SectionLabel count={folders.length}>Pastas soltas</SectionLabel>
+					<div className="flex flex-col gap-4">
+						{folders.map((folder) => (
+							<div key={folder.name} className="border border-border bg-card">
+								<div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+									<Folders className="size-4 shrink-0 text-muted-foreground" />
+									<span className="min-w-0 flex-1 truncate font-mono text-sm font-semibold">
+										{folder.name}
+									</span>
+									<Chip size="xs" variant="ghost">
+										{folder.fileNames.length}
+									</Chip>
+									<Button
+										size="sm"
+										variant="outline"
+										disabled={adoptingFolder !== null}
+										onClick={() => onAdoptFolder(folder.name)}
+									>
+										<Sparkles className="size-3.5" />
+										Transformar em tarefa
+									</Button>
+								</div>
+								<div className="flex flex-col">
+									{folder.fileNames.map((name) => {
+										const isSelected = folderSelected.has(folderFileKey(folder.name, name));
+										return (
+											<button
+												key={name}
+												type="button"
+												onClick={() => onToggleFolderFile(folder.name, name)}
+												aria-pressed={isSelected}
+												className={cn(
+													"group/file flex items-center gap-2 px-4 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+													isSelected ? "bg-primary/10" : "hover:bg-secondary/40",
+												)}
+											>
+												<span
+													aria-hidden="true"
+													className={cn(
+														"flex size-4 shrink-0 items-center justify-center rounded-sm border transition-all",
+														isSelected
+															? "border-primary bg-primary text-primary-foreground"
+															: "border-input opacity-0 group-hover/file:opacity-100",
+														hasFolderSelection && "opacity-100",
+													)}
+												>
+													{isSelected && <Check size={11} strokeWidth={3} />}
+												</span>
+												<FileText className="size-3.5 shrink-0 text-muted-foreground/70" />
+												<span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+													{name}
+												</span>
+											</button>
+										);
+									})}
+								</div>
+							</div>
+						))}
+					</div>
+				</section>
+			)}
 
 			{taskGroups.length > 0 && (
 				<section>

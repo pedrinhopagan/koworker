@@ -41,6 +41,55 @@ export async function listVaultFiles(projectRoute: string): Promise<VaultFile[]>
 	);
 }
 
+// Path de uma pasta solta relativo ao project.main_route, ex: ".koworker/notas-antigas".
+// É o folder_path que a task adotada passa a apontar, sem mover nada.
+export function vaultFolderPath(folderName: string): string {
+	return join(KOWORKER_DIR, folderName);
+}
+
+// True se a pasta solta existe no disco — guarda da adoção contra nome que não corresponde a
+// nenhuma pasta real.
+export function vaultFolderExists(params: {
+	projectRoute: string;
+	folderName: string;
+}): Promise<boolean> {
+	return stat(join(params.projectRoute, KOWORKER_DIR, params.folderName))
+		.then((s) => s.isDirectory())
+		.catch(() => false);
+}
+
+// Pastas soltas = subdiretórios de `.koworker/` que não pertencem a nenhuma task (os nomes em
+// `knownFolderNames` são as pastas das tasks vivas). Cada uma traz os nomes dos seus `.md`; pastas
+// sem `.md` ficam de fora, como na seção "Em tarefas". Devolve ordenado por nome.
+export async function listVaultFolders(params: {
+	projectRoute: string;
+	knownFolderNames: Set<string>;
+}): Promise<{ name: string; fileNames: string[] }[]> {
+	const dir = join(params.projectRoute, KOWORKER_DIR);
+
+	let dirNames: string[];
+	try {
+		dirNames = (await readdir(dir, { withFileTypes: true }))
+			.filter((entry) => entry.isDirectory() && !params.knownFolderNames.has(entry.name))
+			.map((entry) => entry.name);
+	} catch {
+		return [];
+	}
+
+	const folders = await Promise.all(
+		dirNames.map(async (name) => {
+			const fileNames = [...(await listMdNames(join(dir, name)))].sort((a, b) =>
+				a.localeCompare(b),
+			);
+			return { name, fileNames };
+		}),
+	);
+
+	return folders
+		.filter((folder) => folder.fileNames.length > 0)
+		.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 // Renomeia um `.md` solto na raiz do vault. Diferente de vincular/soltar, aqui o nome é escolha
 // do usuário, então colisão é erro — não inventamos sufixo.
 export async function renameVaultFile(params: {

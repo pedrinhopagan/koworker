@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useProjectFocus } from "@/hooks/use-project-focus";
-import { LinkTaskPopover } from "./-components/link-task-popover";
-import { linkedFileKey, VaultBrowser } from "./-components/vault-browser";
+import { LinkTaskPopover, type NewTaskPayload } from "./-components/link-task-popover";
+import { folderFileKey, linkedFileKey, VaultBrowser } from "./-components/vault-browser";
 
 export const Route = createFileRoute("/_app/vault/")({
 	component: VaultPage,
@@ -23,9 +23,11 @@ function VaultPage() {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
-	// Duas seleções mutuamente exclusivas: notas soltas (por nome) e arquivos já vinculados
-	// (por taskId/name). Cada uma habilita ações diferentes, então mexer numa zera a outra.
+	// Três seleções mutuamente exclusivas: notas soltas (por nome), arquivos dentro de uma pasta
+	// solta (por pasta/nome) e arquivos já vinculados a tarefas (por taskId/nome). Cada uma habilita
+	// ações diferentes, então mexer numa zera as outras.
 	const [selected, setSelected] = useState<Set<string>>(new Set());
+	const [folderSelected, setFolderSelected] = useState<Set<string>>(new Set());
 	const [linkedSelected, setLinkedSelected] = useState<Set<string>>(new Set());
 
 	// Nota solta sob ação do menu de contexto: renomear abre um diálogo com input, deletar
@@ -33,8 +35,12 @@ function VaultPage() {
 	const [renaming, setRenaming] = useState<{ name: string; value: string } | null>(null);
 	const [deleting, setDeleting] = useState<string | null>(null);
 
+	// Pasta solta sendo adotada como tarefa: trava os botões de adoção enquanto a request corre.
+	const [adoptingFolder, setAdoptingFolder] = useState<string | null>(null);
+
 	useEffect(() => {
 		setSelected(new Set());
+		setFolderSelected(new Set());
 		setLinkedSelected(new Set());
 		setRenaming(null);
 		setDeleting(null);
@@ -47,6 +53,10 @@ function VaultPage() {
 		...orpc.vault.list.queryOptions({ input: { projectId } }),
 		enabled,
 	});
+	const foldersQuery = useQuery({
+		...orpc.vault.listFolders.queryOptions({ input: { projectId } }),
+		enabled,
+	});
 	// listByProject não filtra `done`, então já traz as concluídas — o vault mostra os .md de
 	// todas as tarefas, não só das pendentes.
 	const tasksQuery = useQuery({
@@ -55,6 +65,7 @@ function VaultPage() {
 	});
 
 	const loose = looseQuery.data ?? [];
+	const folders = foldersQuery.data ?? [];
 	const allTasks = tasksQuery.data ?? [];
 	const taskGroups = useMemo(
 		() =>
@@ -111,6 +122,18 @@ function VaultPage() {
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível mover"),
 	});
 
+	const moveFolderMutation = useMutation({
+		...orpc.vault.moveFolderFilesToTask.mutationOptions(),
+		onSuccess: async (result) => {
+			await invalidateVaultAndTasks();
+			toast.success(
+				result.count === 1 ? "Arquivo movido para a tarefa" : `${result.count} arquivos movidos`,
+			);
+			setFolderSelected(new Set());
+		},
+		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível mover"),
+	});
+
 	const unlinkMutation = useMutation({
 		...orpc.vault.unlink.mutationOptions(),
 		onSuccess: async (result) => {
@@ -129,6 +152,35 @@ function VaultPage() {
 		},
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível soltar"),
 	});
+
+	const adoptMutation = useMutation({
+		...orpc.vault.adoptFolder.mutationOptions(),
+		onSuccess: async (result) => {
+			await invalidateVaultAndTasks();
+			setAdoptingFolder(null);
+			toast.success("Pasta transformada em tarefa");
+			navigate({ to: "/tarefas/$taskId", params: { taskId: result.id } });
+		},
+		onError: (err) => {
+			setAdoptingFolder(null);
+			toast.error(err instanceof Error ? err.message : "Não foi possível transformar a pasta");
+		},
+	});
+
+	const createTaskMutation = useMutation(orpc.tasks.create.mutationOptions());
+
+	// Cria a tarefa de destino com a pasta vazia (seed: false), pra os arquivos redirecionados
+	// entrarem sem colidir com um index.md de boilerplate. Devolve o id pra encadear o redirect.
+	async function createTaskForRedirect(payload: NewTaskPayload): Promise<string | null> {
+		try {
+			const task = await createTaskMutation.mutateAsync({ projectId, ...payload, seed: false });
+			if (!task) throw new Error("Não foi possível criar a tarefa");
+			return task.id;
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Não foi possível criar a tarefa");
+			return null;
+		}
+	}
 
 	const renameMutation = useMutation({
 		...orpc.vault.renameFile.mutationOptions(),
@@ -178,6 +230,7 @@ function VaultPage() {
 	}
 
 	function toggleSelect(name: string) {
+		setFolderSelected(new Set());
 		setLinkedSelected(new Set());
 		setSelected((prev) => {
 			const next = new Set(prev);
@@ -190,8 +243,28 @@ function VaultPage() {
 		});
 	}
 
+	// A seleção de arquivos da pasta solta é por pasta: o move manda um único folderName. Marcar um
+	// arquivo de outra pasta recomeça a seleção naquela pasta, em vez de misturar origens.
+	function toggleFolderFile(folderName: string, name: string) {
+		setSelected(new Set());
+		setLinkedSelected(new Set());
+		const key = folderFileKey(folderName, name);
+		setFolderSelected((prev) => {
+			if (prev.has(key)) {
+				const next = new Set(prev);
+				next.delete(key);
+				return next;
+			}
+			const sameFolder = [...prev].every((k) => k.startsWith(`${folderName}/`));
+			const next = sameFolder ? new Set(prev) : new Set<string>();
+			next.add(key);
+			return next;
+		});
+	}
+
 	function toggleLinked(taskId: string, name: string) {
 		setSelected(new Set());
+		setFolderSelected(new Set());
 		setLinkedSelected((prev) => {
 			const next = new Set(prev);
 			const key = linkedFileKey(taskId, name);
@@ -204,6 +277,11 @@ function VaultPage() {
 		});
 	}
 
+	function adoptFolder(folderName: string) {
+		setAdoptingFolder(folderName);
+		adoptMutation.mutate({ projectId, folderName });
+	}
+
 	function linkSelected(taskId: string, targetName?: string) {
 		const names = [...selected];
 		linkMutation.mutate({
@@ -214,6 +292,11 @@ function VaultPage() {
 				targetName: names.length === 1 && index === 0 ? targetName : undefined,
 			})),
 		});
+	}
+
+	async function linkSelectedToNew(payload: NewTaskPayload, targetName?: string) {
+		const id = await createTaskForRedirect(payload);
+		if (id) linkSelected(id, targetName);
 	}
 
 	// Reverte a chave taskId/name de volta pra { taskId, name }. Só o primeiro "/" separa:
@@ -236,8 +319,39 @@ function VaultPage() {
 		moveMutation.mutate({ projectId, targetTaskId, files: linkedFiles });
 	}
 
+	async function moveSelectedToNew(payload: NewTaskPayload) {
+		const id = await createTaskForRedirect(payload);
+		if (id) moveSelected(id);
+	}
+
 	function unlinkSelected() {
 		unlinkMutation.mutate({ projectId, files: linkedFiles });
+	}
+
+	// Arquivos da pasta solta selecionados, com a pasta de origem (única por seleção).
+	const folderFiles = useMemo(
+		() =>
+			[...folderSelected].map((key) => {
+				const slash = key.indexOf("/");
+				return { folderName: key.slice(0, slash), name: key.slice(slash + 1) };
+			}),
+		[folderSelected],
+	);
+	const activeFolderName = folderFiles[0]?.folderName ?? null;
+
+	function moveFolderSelected(targetTaskId: string) {
+		if (!activeFolderName) return;
+		moveFolderMutation.mutate({
+			projectId,
+			folderName: activeFolderName,
+			targetTaskId,
+			files: folderFiles.map((file) => file.name),
+		});
+	}
+
+	async function moveFolderSelectedToNew(payload: NewTaskPayload) {
+		const id = await createTaskForRedirect(payload);
+		if (id) moveFolderSelected(id);
 	}
 
 	if (!selectedProjectId) {
@@ -251,14 +365,15 @@ function VaultPage() {
 	}
 
 	const selectedNames = [...selected];
+	const isLoading = looseQuery.isLoading || foldersQuery.isLoading || tasksQuery.isLoading;
 
 	return (
 		<PageShell
 			title="Vault"
 			icon={Library}
-			description={`${loose.length} soltas · ${taskGroups.length} em tarefas de ${selectedProject?.name ?? "projeto"}`}
+			description={`${loose.length} soltas · ${folders.length} pastas · ${taskGroups.length} em tarefas de ${selectedProject?.name ?? "projeto"}`}
 		>
-			{looseQuery.isLoading || tasksQuery.isLoading ? (
+			{isLoading ? (
 				<div className="flex items-center gap-2 text-muted-foreground">
 					<Loader2 size={16} className="animate-spin" />
 					<Text size="sm" tone="muted">
@@ -270,17 +385,58 @@ function VaultPage() {
 					<div className="min-h-0 flex-1 overflow-y-auto pr-2">
 						<VaultBrowser
 							loose={loose}
+							folders={folders}
 							taskGroups={taskGroups}
 							selected={selected}
+							folderSelected={folderSelected}
 							linkedSelected={linkedSelected}
 							onToggleSelect={toggleSelect}
+							onToggleFolderFile={toggleFolderFile}
 							onToggleLinked={toggleLinked}
+							onAdoptFolder={adoptFolder}
+							adoptingFolder={adoptingFolder}
 							onOpen={(name) => navigate({ to: "/vault/$fileName", params: { fileName: name } })}
 							onNavigateTask={(taskId) => navigate({ to: "/tarefas/$taskId", params: { taskId } })}
 							onRenameLoose={(name) => setRenaming({ name, value: name })}
 							onDeleteLoose={(name) => setDeleting(name)}
 						/>
 					</div>
+
+					{folderFiles.length > 0 && (
+						<div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
+							<div className="pointer-events-auto flex items-center gap-3 border border-border bg-card px-3 py-2 shadow-xl">
+								<Text size="sm" className="font-mono tabular-nums">
+									{folderFiles.length} de {activeFolderName}
+								</Text>
+								<LinkTaskPopover
+									tasks={taskOptions}
+									loading={tasksQuery.isLoading}
+									fileNames={folderFiles.map((file) => file.name)}
+									pending={moveFolderMutation.isPending || createTaskMutation.isPending}
+									allowRename={false}
+									verb="mover"
+									onConfirm={(taskId) => moveFolderSelected(taskId)}
+									onConfirmNew={(payload) => void moveFolderSelectedToNew(payload)}
+								>
+									<Button
+										size="sm"
+										disabled={moveFolderMutation.isPending || createTaskMutation.isPending}
+									>
+										{moveFolderMutation.isPending ? (
+											<Loader2 size={14} className="animate-spin" />
+										) : (
+											<FolderInput size={14} />
+										)}
+										Mover para tarefa
+									</Button>
+								</LinkTaskPopover>
+								<Button variant="ghost" size="sm" onClick={() => setFolderSelected(new Set())}>
+									<X size={14} />
+									Limpar
+								</Button>
+							</div>
+						</div>
+					)}
 
 					{linkedFiles.length > 0 && (
 						<div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
@@ -292,10 +448,11 @@ function VaultPage() {
 									tasks={taskOptions.filter((task) => !linkedSourceTaskIds.has(task.id))}
 									loading={tasksQuery.isLoading}
 									fileNames={linkedFiles.map((file) => file.name)}
-									pending={moveMutation.isPending}
+									pending={moveMutation.isPending || createTaskMutation.isPending}
 									allowRename={false}
 									verb="mover"
 									onConfirm={(taskId) => moveSelected(taskId)}
+									onConfirmNew={(payload) => void moveSelectedToNew(payload)}
 								>
 									<Button size="sm" disabled={moveMutation.isPending || unlinkMutation.isPending}>
 										{moveMutation.isPending ? (
@@ -337,8 +494,11 @@ function VaultPage() {
 									tasks={taskOptions}
 									loading={tasksQuery.isLoading}
 									fileNames={selectedNames}
-									pending={linkMutation.isPending}
+									pending={linkMutation.isPending || createTaskMutation.isPending}
 									onConfirm={linkSelected}
+									onConfirmNew={(payload, targetName) =>
+										void linkSelectedToNew(payload, targetName)
+									}
 								>
 									<Button size="sm" disabled={linkMutation.isPending}>
 										{linkMutation.isPending ? (

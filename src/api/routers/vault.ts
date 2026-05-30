@@ -1,3 +1,5 @@
+import { basename } from "node:path";
+
 import { protectedProcedure } from "../auth/context";
 import { dbCategories } from "../db/categories";
 import { dbPriorities } from "../db/priorities";
@@ -8,19 +10,24 @@ import {
 	deleteVaultFile,
 	linkVaultFilesToTask,
 	listVaultFiles,
+	listVaultFolders,
 	moveFilesToTask,
 	promoteVaultFile,
 	renameVaultFile,
 	unlinkFilesToVault,
+	vaultFolderExists,
+	vaultFolderPath,
 	writeVaultFile,
 } from "../helpers/vault-folder";
 import { PubSub } from "../pubsub";
 import {
 	TaskPromoteSchema,
+	VaultAdoptFolderSchema,
 	VaultDeleteFileSchema,
 	VaultLinkFilesToTaskSchema,
 	VaultListSchema,
 	VaultMoveFilesToTaskSchema,
+	VaultMoveFolderFilesToTaskSchema,
 	VaultRenameFileSchema,
 	VaultUnlinkFilesSchema,
 	VaultWriteFileSchema,
@@ -32,6 +39,18 @@ export const vaultRouter = {
 		if (!project) return [];
 
 		return listVaultFiles(project.main_route);
+	}),
+
+	// Pastas soltas: dirs em `.koworker/` que não são pasta de nenhuma task viva. As tasks vivas
+	// dão os nomes conhecidos (basename do folder_path), o resto é solto.
+	listFolders: protectedProcedure.input(VaultListSchema).handler(async ({ input }) => {
+		const project = await dbProjects.getById(input.projectId);
+		if (!project) return [];
+
+		const tasks = await dbTasks.listByProject({ projectId: input.projectId });
+		const knownFolderNames = new Set(tasks.map((task) => basename(task.folder_path)));
+
+		return listVaultFolders({ projectRoute: project.main_route, knownFolderNames });
 	}),
 
 	writeFile: protectedProcedure.input(VaultWriteFileSchema).handler(async ({ input }) => {
@@ -190,6 +209,83 @@ export const vaultRouter = {
 
 		return { count: moved.length, renamed: moved.filter((file) => file.name !== file.finalName) };
 	}),
+
+	// Transforma uma pasta solta em tarefa: a task nova passa a apontar para a pasta existente
+	// (sem mover arquivo). Sem título — o displayTitle cai no fallback do 1º .md, como qualquer
+	// tarefa sem título. Prioridade/categoria pegam a primeira de cada, igual ao promote.
+	adoptFolder: protectedProcedure.input(VaultAdoptFolderSchema).handler(async ({ input }) => {
+		const project = await dbProjects.getById(input.projectId);
+		if (!project) throw new Error("Projeto não encontrado");
+
+		const folderPath = vaultFolderPath(input.folderName);
+
+		const exists = await vaultFolderExists({
+			projectRoute: project.main_route,
+			folderName: input.folderName,
+		});
+		if (!exists) throw new Error("Pasta não encontrada");
+
+		const existing = await dbTasks.getByFolderPath(folderPath);
+		if (existing) throw new Error("Essa pasta já pertence a uma tarefa");
+
+		const [priorities, categories] = await Promise.all([
+			dbPriorities.getAll(),
+			dbCategories.getAll(),
+		]);
+		const priority = priorities[0];
+		const category = categories[0];
+		if (!priority || !category) {
+			throw new Error("Defina ao menos uma prioridade e uma categoria antes de adotar");
+		}
+
+		const id = crypto.randomUUID();
+		await dbTasks.create({
+			id,
+			project_id: project.id,
+			folder_path: folderPath,
+			priority_id: priority.id,
+			category_id: category.id,
+		});
+
+		await PubSub.publish("tasks", project.id, {
+			taskId: id,
+			projectId: project.id,
+			action: "created",
+			source: "api",
+		});
+		await PubSub.publish("tasks", "global", {
+			taskId: id,
+			projectId: project.id,
+			action: "created",
+			source: "api",
+		});
+		restartTasksWatcher();
+
+		return { id };
+	}),
+
+	// Move `.md` de uma pasta solta para a pasta de uma tarefa existente. Reusa o move entre pastas:
+	// a origem é a pasta solta, o destino é a pasta da task.
+	moveFolderFilesToTask: protectedProcedure
+		.input(VaultMoveFolderFilesToTaskSchema)
+		.handler(async ({ input }) => {
+			const project = await dbProjects.getById(input.projectId);
+			if (!project) throw new Error("Projeto não encontrado");
+
+			const target = await dbTasks.getById(input.targetTaskId);
+			if (!target) throw new Error("Tarefa de destino não encontrada");
+
+			const sourceFolderPath = vaultFolderPath(input.folderName);
+			await moveFilesToTask({
+				projectRoute: project.main_route,
+				targetFolderPath: target.folder_path,
+				files: input.files.map((name) => ({ sourceFolderPath, name })),
+			});
+
+			await publishTasksUpdated(project.id, [target.id]);
+
+			return { targetTaskId: target.id, count: input.files.length };
+		}),
 };
 
 // Resolve os folder_path das tarefas de origem distintas, falhando se alguma não existir.
