@@ -1,5 +1,15 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Bell, Flag, Keyboard, Palette, Settings, Shield, Tags, Type } from "lucide-react";
+import {
+	Bell,
+	Flag,
+	FolderTree,
+	Keyboard,
+	Palette,
+	Settings,
+	Shield,
+	Tags,
+	Type,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { ConfigCard } from "@/components/settings/config-card";
@@ -39,6 +49,13 @@ function ConfiguracoesPage() {
 			title: "Prioridades",
 			description: "Ajuste os níveis de prioridade e a ordem exibida.",
 			onClick: () => openManageDrawer("priorities"),
+		},
+		{
+			id: "fontes-skills",
+			icon: FolderTree,
+			title: "Fontes de skills",
+			description: "Cadastre pastas do computador de onde ler skills, além dos diretórios padrão.",
+			onClick: () => navigate({ to: "/fontes-skills" }),
 		},
 		{
 			id: "atalhos",
