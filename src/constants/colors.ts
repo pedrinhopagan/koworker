@@ -1,3 +1,4 @@
+// Paleta de cores de domínio: usada por projetos e eventos da agenda. value = hex #rrggbb.
 export const projectColorOptions = [
 	{ value: "#ef4444", label: "Vermelho" },
 	{ value: "#f97316", label: "Laranja" },

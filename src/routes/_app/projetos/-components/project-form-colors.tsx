@@ -4,7 +4,7 @@ import { useFormContext, useWatch } from "react-hook-form";
 import { Text, Title } from "@/components/typography";
 import { cn } from "@/lib/utils";
 import type { ProjectFormValues } from "./project-form";
-import { defaultProjectColor, projectColorOptions } from "./project-form.constants";
+import { defaultProjectColor, projectColorOptions } from "@/constants/colors";
 
 export function ProjectFormColors() {
 	const { register, setValue, control } = useFormContext<ProjectFormValues>();

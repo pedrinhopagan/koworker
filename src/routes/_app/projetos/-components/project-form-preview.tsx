@@ -5,7 +5,7 @@ import { useFormContext, useWatch } from "react-hook-form";
 import { Text, Title } from "@/components/typography";
 import { cn } from "@/lib/utils";
 import type { ProjectFormValues } from "./project-form";
-import { defaultProjectColor } from "./project-form.constants";
+import { defaultProjectColor } from "@/constants/colors";
 
 type ProjectFormPreviewProps = {
 	mode: "create" | "edit";

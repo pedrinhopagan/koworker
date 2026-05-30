@@ -4,7 +4,7 @@ import { FormProvider, type SubmitHandler, useForm } from "react-hook-form";
 
 import { ProjectCreateSchema } from "@/api/schemas";
 import type { ProjectCreateInput } from "@/api/schemas/projects";
-import { defaultProjectColor } from "./project-form.constants";
+import { defaultProjectColor } from "@/constants/colors";
 import { ProjectFormBasics } from "./project-form-basics";
 import { ProjectFormColors } from "./project-form-colors";
 import { ProjectFormPreview } from "./project-form-preview";
