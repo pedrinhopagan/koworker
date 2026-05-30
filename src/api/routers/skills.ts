@@ -1,16 +1,25 @@
 import { protectedProcedure } from "../auth/context";
 import { dbSkillSettings } from "../db/skill-settings";
+import { dbSkillSourcePaths } from "../db/skill-source-paths";
 import {
 	createSkillInFs,
+	deleteAllSkillInFs,
 	deleteSkillInFs,
+	getSkillFromFs,
 	listSkillsFromFs,
+	standardizeSkillInFs,
 	updateSkillInFs,
 } from "../helpers/skills-fs";
 import {
 	SkillCreateSchema,
+	SkillDeleteAllSchema,
 	SkillDeleteSchema,
+	SkillGetSchema,
 	SkillListSchema,
+	SkillPathAddSchema,
+	SkillPathRemoveSchema,
 	SkillSettingsSchema,
+	SkillStandardizeSchema,
 	SkillUpdateSchema,
 } from "../schemas/skills";
 
@@ -35,6 +44,20 @@ export const skillsRouter = {
 		});
 	}),
 
+	get: protectedProcedure.input(SkillGetSchema).handler(async ({ input }) => {
+		const record = await getSkillFromFs(input.slug, input.projectName);
+		if (!record) return null;
+
+		const override = (await dbSkillSettings.getAll()).find((row) => row.slug === record.slug);
+		return Object.assign(record, {
+			settings: {
+				label: override?.label ?? null,
+				icon: override?.icon ?? null,
+				color: override?.color ?? null,
+			},
+		});
+	}),
+
 	updateSettings: protectedProcedure.input(SkillSettingsSchema).handler(async ({ input }) => {
 		await dbSkillSettings.upsert(input);
 		return { success: true };
@@ -49,8 +72,30 @@ export const skillsRouter = {
 		return { success: true };
 	}),
 
+	standardize: protectedProcedure.input(SkillStandardizeSchema).handler(async ({ input }) => {
+		return await standardizeSkillInFs(input);
+	}),
+
 	delete: protectedProcedure.input(SkillDeleteSchema).handler(async ({ input }) => {
 		await deleteSkillInFs(input.path);
+		return { success: true };
+	}),
+
+	deleteAll: protectedProcedure.input(SkillDeleteAllSchema).handler(async ({ input }) => {
+		return await deleteAllSkillInFs(input);
+	}),
+
+	listPaths: protectedProcedure.handler(async () => {
+		return await dbSkillSourcePaths.list();
+	}),
+
+	addPath: protectedProcedure.input(SkillPathAddSchema).handler(async ({ input }) => {
+		await dbSkillSourcePaths.create(input);
+		return { success: true };
+	}),
+
+	removePath: protectedProcedure.input(SkillPathRemoveSchema).handler(async ({ input }) => {
+		await dbSkillSourcePaths.remove(input.id);
 		return { success: true };
 	}),
 };

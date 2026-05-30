@@ -21,8 +21,35 @@ export const SkillUpdateSchema = z.object({
 	metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
+export const SkillGetSchema = z.object({
+	slug: z.string().min(1),
+	projectName: z.string().optional(),
+});
+
+export const SkillStandardizeSchema = z.object({
+	slug: z.string().min(1),
+	projectName: z.string().optional(),
+	sourcePath: z.string().min(1),
+});
+
 export const SkillDeleteSchema = z.object({
 	path: z.string().min(1),
+});
+
+export const SkillDeleteAllSchema = z.object({
+	slug: z.string().min(1),
+	projectName: z.string().optional(),
+});
+
+const SkillToolSchema = z.enum(["opencode", "claude-code", "codex", "agents", "koworker"]);
+
+export const SkillPathAddSchema = z.object({
+	tool: SkillToolSchema,
+	path: z.string().min(1),
+});
+
+export const SkillPathRemoveSchema = z.object({
+	id: z.string().min(1),
 });
 
 export const SkillSettingsSchema = z.object({

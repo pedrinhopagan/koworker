@@ -25,7 +25,10 @@ function toTaskSkill(skill: SkillRecord): TaskSkill {
 		color: skill.settings.color ?? metadataColor ?? DEFAULT_SKILL_COLOR,
 		source: isBuiltin ? "builtin" : "custom",
 		sources: skill.sources,
+		conflict: skill.conflict,
 		primaryPath: skill.primaryPath,
+		primaryDir: skill.primaryDir,
+		metadata,
 		requiresSubtaskSelection,
 	};
 }
@@ -37,5 +40,17 @@ export function useSkillsQuery(projectName?: string) {
 	return {
 		...query,
 		taskSkills,
+	};
+}
+
+export function useSkillQuery(slug: string, projectName?: string) {
+	const query = useQuery(orpc.skills.get.queryOptions({ input: { slug, projectName } }));
+	const skill = useMemo(() => (query.data ? toTaskSkill(query.data) : null), [query.data]);
+	const variants = query.data?.variants ?? [];
+
+	return {
+		...query,
+		skill,
+		variants,
 	};
 }

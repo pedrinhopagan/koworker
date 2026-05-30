@@ -128,6 +128,15 @@ const skillSettingsSchema = type({
 	"updated_at?": "number.integer",
 });
 
+// Caminhos extras do computador do usuário de onde ler skills, somados aos diretórios padrão
+// dos agents. `tool` marca a qual agent o caminho pertence, pra os chips ficarem corretos.
+const skillSourcePathsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	tool: "string",
+	path: "string",
+	created_at: type("number.integer").configure({ default: "now" }),
+});
+
 const database = new Database({
 	path: envVariables.DATABASE_URL,
 	tables: {
@@ -140,6 +149,7 @@ const database = new Database({
 		tasks: tasksSchema,
 		events: eventsSchema,
 		skill_settings: skillSettingsSchema,
+		skill_source_paths: skillSourcePathsSchema,
 	},
 });
 
@@ -161,6 +171,7 @@ export type task_groups = DB["task_groups"];
 export type categories = DB["categories"];
 export type priorities = DB["priorities"];
 export type skill_settings = DB["skill_settings"];
+export type skill_source_paths = DB["skill_source_paths"];
 
 export {
 	user_type,
@@ -173,4 +184,5 @@ export {
 	categoriesSchema,
 	prioritiesSchema,
 	skillSettingsSchema,
+	skillSourcePathsSchema,
 };
