@@ -147,7 +147,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
 	}
 
 	return (
-		<footer className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 py-4">
+		<footer className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 py-4 xl:max-w-4xl">
 			<div className="relative">
 				{menuOpen && (
 					<div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-full overflow-y-auto border border-border bg-popover shadow-md animate-in fade-in-0 slide-in-from-bottom-1 duration-150">

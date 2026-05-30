@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ArrowUpRight, Link2, Loader2 } from "lucide-react";
-import { useRef } from "react";
+import { ArrowLeft, ArrowUpRight, Link2, Loader2, X } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
@@ -22,6 +22,7 @@ function VaultFilePage() {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const paneRef = useRef<DocEditorPaneHandle>(null);
+	const [reading, setReading] = useState(false);
 
 	const projectId = selectedProjectId ?? "";
 	const enabled = Boolean(selectedProjectId);
@@ -137,61 +138,83 @@ function VaultFilePage() {
 
 	return (
 		<div className="relative flex h-full w-full flex-col">
-			<div className="w-full border-b border-border">
-				<div className="mx-auto flex h-10 w-full max-w-6xl items-center gap-2 px-2">
-					<Link
-						to="/vault"
-						className="flex items-center px-2 text-muted-foreground transition-colors hover:text-foreground"
-						aria-label="Voltar para o vault"
-					>
-						<ArrowLeft size={16} />
-					</Link>
-					<Text size="sm" className="min-w-0 flex-1 truncate font-display font-semibold">
-						{file.title}
-					</Text>
-					<LinkTaskPopover
-						tasks={taskOptions}
-						loading={tasksQuery.isLoading}
-						fileNames={[file.name]}
-						pending={linkMutation.isPending || createTaskMutation.isPending}
-						onConfirm={(taskId, targetName) => void link(taskId, targetName)}
-						onConfirmNew={(payload, targetName) => void linkNew(payload, targetName)}
-					>
-						<Button variant="outline" size="sm" disabled={linkMutation.isPending}>
-							{linkMutation.isPending ? (
+			{reading ? null : (
+				<div className="w-full border-b border-border">
+					<div className="mx-auto flex h-10 w-full max-w-6xl items-center gap-2 px-2">
+						<Link
+							to="/vault"
+							className="flex items-center px-2 text-muted-foreground transition-colors hover:text-foreground"
+							aria-label="Voltar para o vault"
+						>
+							<ArrowLeft size={16} />
+						</Link>
+						<Text size="sm" className="min-w-0 flex-1 truncate font-display font-semibold">
+							{file.title}
+						</Text>
+						<LinkTaskPopover
+							tasks={taskOptions}
+							loading={tasksQuery.isLoading}
+							fileNames={[file.name]}
+							pending={linkMutation.isPending || createTaskMutation.isPending}
+							onConfirm={(taskId, targetName) => void link(taskId, targetName)}
+							onConfirmNew={(payload, targetName) => void linkNew(payload, targetName)}
+						>
+							<Button variant="outline" size="sm" disabled={linkMutation.isPending}>
+								{linkMutation.isPending ? (
+									<Loader2 size={14} className="animate-spin" />
+								) : (
+									<Link2 size={14} />
+								)}
+								Vincular a tarefa
+							</Button>
+						</LinkTaskPopover>
+						<Button size="sm" onClick={() => void promote()} disabled={promoteMutation.isPending}>
+							{promoteMutation.isPending ? (
 								<Loader2 size={14} className="animate-spin" />
 							) : (
-								<Link2 size={14} />
+								<ArrowUpRight size={14} />
 							)}
-							Vincular a tarefa
+							Promover a tarefa
 						</Button>
-					</LinkTaskPopover>
-					<Button size="sm" onClick={() => void promote()} disabled={promoteMutation.isPending}>
-						{promoteMutation.isPending ? (
-							<Loader2 size={14} className="animate-spin" />
-						) : (
-							<ArrowUpRight size={14} />
-						)}
-						Promover a tarefa
-					</Button>
-					<div className="h-5 w-px bg-border" aria-hidden="true" />
-					<DocToolbar
-						onCollapse={() => paneRef.current?.collapseAll()}
-						onExpand={() => paneRef.current?.expandAll()}
-						onCopyContent={() => void paneRef.current?.copyContent()}
-						onCopyPath={() => void paneRef.current?.copyPath()}
-					/>
+						<div className="h-5 w-px bg-border" aria-hidden="true" />
+						<DocToolbar
+							onCollapse={() => paneRef.current?.collapseAll()}
+							onExpand={() => paneRef.current?.expandAll()}
+							onCopyContent={() => void paneRef.current?.copyContent()}
+							onCopyPath={() => void paneRef.current?.copyPath()}
+							onReading={() => setReading(true)}
+						/>
+					</div>
 				</div>
-			</div>
+			)}
 
-			<DocEditorPane
-				ref={paneRef}
-				fileName={file.name}
-				content={file.content}
-				folderPath=".koworker"
-				projectName={selectedProject?.name}
-				writeFile={(payload) => writeMutation.mutateAsync({ projectId, ...payload })}
-			/>
+			{/* Mesma ideia da página de tarefa: overlay em tela cheia na leitura, `display:contents`
+			    fora dela. O botão de sair vem depois do editor (posicionado absoluto) pra não deslocar
+			    o índice do DocEditorPane e remontar o CodeMirror ao alternar. */}
+			<div className={reading ? "fixed inset-0 z-50 flex flex-col bg-background" : "contents"}>
+				<DocEditorPane
+					ref={paneRef}
+					fileName={file.name}
+					content={file.content}
+					folderPath=".koworker"
+					projectName={selectedProject?.name}
+					writeFile={(payload) => writeMutation.mutateAsync({ projectId, ...payload })}
+					reading={reading}
+					onExitReading={() => setReading(false)}
+				/>
+				{reading ? (
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => setReading(false)}
+						className="absolute top-2 right-3 z-20"
+						title="Sair do modo leitura (Esc)"
+					>
+						<X size={16} />
+						Sair da leitura
+					</Button>
+				) : null}
+			</div>
 		</div>
 	);
 }

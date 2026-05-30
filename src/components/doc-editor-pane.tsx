@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { MarkdownEditor, type MarkdownEditorHandle } from "@/components/markdown-doc";
@@ -6,6 +6,7 @@ import { PromptInput, type PromptInputHandle } from "@/components/prompt-input";
 import { Text } from "@/components/typography";
 import { useDebouncedWrite } from "@/hooks/use-debounced-write";
 import { buildKoworkerPrompt, copyToClipboard } from "@/lib/build-prompt";
+import { cn } from "@/lib/utils";
 
 // Superfície de edição compartilhada por tarefa e vault: o editor markdown, a barra de prompt
 // com skills, o salvamento em debounce e a ponte editor↔prompt (mention de títulos). O header
@@ -26,11 +27,15 @@ type DocEditorPaneProps = {
 	projectName?: string;
 	writeFile: (payload: { name: string; content: string }) => Promise<unknown>;
 	emptyState?: string;
+	// Modo leitura é controlado pela página (que decide o que dimmer/esconder no entorno);
+	// aqui ele só amplia a fonte/largura, esconde o input e atende o Esc pra sair.
+	reading: boolean;
+	onExitReading: () => void;
 };
 
 export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>(
 	function DocEditorPane(
-		{ fileName, content, folderPath, projectName, writeFile, emptyState },
+		{ fileName, content, folderPath, projectName, writeFile, emptyState, reading, onExitReading },
 		ref,
 	) {
 		const editorRef = useRef<MarkdownEditorHandle>(null);
@@ -38,6 +43,15 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 		const [userInput, setUserInput] = useState("");
 
 		const { schedule, flush } = useDebouncedWrite(writeFile);
+
+		useEffect(() => {
+			if (!reading) return;
+			function onKey(event: KeyboardEvent) {
+				if (event.key === "Escape") onExitReading();
+			}
+			window.addEventListener("keydown", onKey);
+			return () => window.removeEventListener("keydown", onKey);
+		}, [reading, onExitReading]);
 
 		useImperativeHandle(ref, () => ({
 			flush,
@@ -80,12 +94,20 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 
 		return (
 			<>
-				<main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 overflow-y-auto pt-6 pr-6 pb-6 pl-4">
+				<main
+					className={cn(
+						"mx-auto flex w-full flex-1 flex-col gap-4 overflow-y-auto",
+						reading
+							? "max-w-4xl px-6 py-10 lg:max-w-5xl lg:px-10 2xl:max-w-6xl"
+							: "max-w-3xl pt-6 pr-6 pb-6 pl-4 xl:max-w-4xl",
+					)}
+				>
 					{fileName ? (
 						<MarkdownEditor
 							key={fileName}
 							ref={editorRef}
 							initialContent={content}
+							fontSize={reading ? "1.25rem" : "1rem"}
 							onChange={(next) => schedule({ name: fileName, content: next })}
 							onInlineCodeClick={(text) => void handleInlineCodeCopy(text)}
 							onHeadingMention={(text) => promptInputRef.current?.mention(text)}
@@ -97,15 +119,19 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 					)}
 				</main>
 
-				<div className="border-t border-border" />
+				{reading ? null : (
+					<>
+						<div className="border-t border-border" />
 
-				<PromptInput
-					ref={promptInputRef}
-					value={userInput}
-					onChange={setUserInput}
-					onSend={() => void handleSendPrompt()}
-					projectName={projectName}
-				/>
+						<PromptInput
+							ref={promptInputRef}
+							value={userInput}
+							onChange={setUserInput}
+							onSend={() => void handleSendPrompt()}
+							projectName={projectName}
+						/>
+					</>
+				)}
 			</>
 		);
 	},

@@ -15,7 +15,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -135,10 +135,14 @@ function TaskDetailPage() {
 
 	const [activeFile, setActiveFile] = useState<string | null>(null);
 	const [editing, setEditing] = useState(false);
+	const [reading, setReading] = useState(false);
 	const [renamingFile, setRenamingFile] = useState<string | null>(null);
 	const [deletingFile, setDeletingFile] = useState<string | null>(null);
 	const [renameValue, setRenameValue] = useState("");
+	const [creatingFile, setCreatingFile] = useState(false);
+	const [newFileValue, setNewFileValue] = useState("");
 	const renameInputRef = useRef<HTMLInputElement>(null);
+	const newFileInputRef = useRef<HTMLInputElement>(null);
 	const headerRef = useRef<HTMLDivElement>(null);
 	const paneRef = useRef<DocEditorPaneHandle>(null);
 
@@ -148,10 +152,34 @@ function TaskDetailPage() {
 	});
 
 	useEffect(() => {
+		if (creatingFile) {
+			return;
+		}
 		if (task && (!activeFile || !task.files.some((f) => f.name === activeFile))) {
 			setActiveFile(task.primaryFile ?? task.files[0]?.name ?? null);
 		}
-	}, [task, activeFile]);
+	}, [task, activeFile, creatingFile]);
+
+	useEffect(() => {
+		const files = task?.files;
+		if (!files?.length) {
+			return;
+		}
+		async function handleKeyDown(e: KeyboardEvent) {
+			if (!e.ctrlKey || e.key < "1" || e.key > "9") {
+				return;
+			}
+			const target = files![Number(e.key) - 1];
+			if (!target) {
+				return;
+			}
+			e.preventDefault();
+			await paneRef.current?.flush();
+			setActiveFile(target.name);
+		}
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [task?.files]);
 
 	if (taskQuery.isLoading) {
 		return (
@@ -195,6 +223,38 @@ function TaskDetailPage() {
 		await paneRef.current?.flush();
 		setActiveFile(name);
 	}
+
+	function startCreate() {
+		setCreatingFile(true);
+		setNewFileValue("");
+		setTimeout(() => newFileInputRef.current?.focus(), 0);
+	}
+
+	function cancelCreate() {
+		setCreatingFile(false);
+		setNewFileValue("");
+	}
+
+	const confirmCreate = async () => {
+		const raw = newFileValue.trim();
+		if (!raw) {
+			cancelCreate();
+			return;
+		}
+		const name = raw.endsWith(".md") ? raw : `${raw}.md`;
+		if (task.files.some((f) => f.name === name)) {
+			toast.error("Já existe um arquivo com esse nome");
+			return;
+		}
+		await paneRef.current?.flush();
+		await writeFileMutation.mutateAsync({ id: taskId, name, content: "" });
+		// Aguarda o refetch antes de selecionar: sem isso o effect de auto-seleção veria a aba
+		// nova fora de `task.files` e devolveria o foco ao primaryFile, abrindo o arquivo errado.
+		await queryClient.invalidateQueries(orpc.tasks.getFull.queryOptions({ input: { id: taskId } }));
+		setActiveFile(name);
+		setCreatingFile(false);
+		setNewFileValue("");
+	};
 
 	function startRename(name: string) {
 		setRenamingFile(name);
@@ -241,108 +301,171 @@ function TaskDetailPage() {
 
 	return (
 		<div className="relative flex h-full w-full flex-col">
-			<div className="w-full border-b border-border">
-				<div ref={headerRef} className="mx-auto flex h-10 w-full max-w-6xl items-center gap-2 px-2">
-					<Link
-						to="/tarefas"
-						className="flex items-center px-2 text-muted-foreground transition-colors hover:text-foreground"
-						aria-label="Voltar para tarefas"
+			{reading ? null : (
+				<div className="w-full border-b border-border">
+					<div
+						ref={headerRef}
+						className="mx-auto flex h-10 w-full max-w-6xl items-center gap-2 px-2"
 					>
-						<ArrowLeft size={16} />
-					</Link>
-					<Checkbox
-						checked={task.done}
-						onCheckedChange={(checked) =>
-							setDoneMutation.mutate({ id: task.id, done: checked === true })
-						}
-						disabled={isMutating}
-						aria-label={task.done ? "Marcar como não concluída" : "Marcar como concluída"}
-					/>
-					{editing ? (
-						<div className="min-w-0 flex-1">
-							<TaskTitleInput
-								initialValue={task.title ?? ""}
-								placeholder={task.displayTitle}
-								onSave={saveTitle}
-								onCancel={() => setEditing(false)}
-							/>
-						</div>
-					) : (
-						<Text
-							size="sm"
-							className={cn(
-								"min-w-0 flex-1 truncate font-medium",
-								task.done && "text-muted-foreground line-through",
-							)}
+						<Link
+							to="/tarefas"
+							className="flex items-center px-2 text-muted-foreground transition-colors hover:text-foreground"
+							aria-label="Voltar para tarefas"
 						>
-							{task.displayTitle}
-						</Text>
-					)}
-					<TaskMetaControls
-						categoryId={task.categoryId}
-						priorityId={task.priorityId}
-						editing={editing}
-						disabled={isMutating}
-						onToggleEdit={() => setEditing((value) => !value)}
-						onCategoryChange={(categoryId) => updateMutation.mutate({ id: task.id, categoryId })}
-						onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
-						onDelete={() => removeTaskMutation.mutate({ id: task.id })}
-					/>
-					<div className="h-5 w-px bg-border" aria-hidden="true" />
-					<DocToolbar
-						onCollapse={() => paneRef.current?.collapseAll()}
-						onExpand={() => paneRef.current?.expandAll()}
-						onCopyContent={() => void paneRef.current?.copyContent()}
-						onCopyPath={() => void paneRef.current?.copyPath()}
-					/>
-				</div>
-			</div>
-
-			<div className="w-full border-b border-border">
-				<DndContext
-					sensors={fileSensors}
-					collisionDetection={closestCenter}
-					onDragEnd={handleFileDragEnd}
-				>
-					<SortableContext
-						items={task.files.map((file) => file.name)}
-						strategy={horizontalListSortingStrategy}
-					>
-						<div className="mx-auto flex h-8 w-full max-w-6xl items-stretch">
-							{task.files.map((file) => (
-								<SortableFileTab
-									key={file.name}
-									file={file}
-									isActive={file.name === activeFile}
-									// Ponto só quando há mais de um arquivo: com um só, "o mais recente" é trivial.
-									level={task.files.length > 1 ? recencyLevels.get(file.name) : undefined}
-									isRenaming={renamingFile === file.name}
-									renameValue={renameValue}
-									renameInputRef={renameInputRef}
-									onSelect={() => void selectFile(file.name)}
-									onStartRename={() => startRename(file.name)}
-									onRequestDelete={() => setDeletingFile(file.name)}
-									onRenameChange={setRenameValue}
-									onRenameConfirm={confirmRename}
-									onRenameCancel={cancelRename}
+							<ArrowLeft size={16} />
+						</Link>
+						<Checkbox
+							checked={task.done}
+							onCheckedChange={(checked) =>
+								setDoneMutation.mutate({ id: task.id, done: checked === true })
+							}
+							disabled={isMutating}
+							aria-label={task.done ? "Marcar como não concluída" : "Marcar como concluída"}
+						/>
+						{editing ? (
+							<div className="min-w-0 flex-1">
+								<TaskTitleInput
+									initialValue={task.title ?? ""}
+									placeholder={task.displayTitle}
+									onSave={saveTitle}
+									onCancel={() => setEditing(false)}
 								/>
-							))}
-						</div>
-					</SortableContext>
-				</DndContext>
+							</div>
+						) : (
+							<Text
+								size="sm"
+								className={cn(
+									"min-w-0 flex-1 truncate font-medium",
+									task.done && "text-muted-foreground line-through",
+								)}
+							>
+								{task.displayTitle}
+							</Text>
+						)}
+						<TaskMetaControls
+							categoryId={task.categoryId}
+							priorityId={task.priorityId}
+							editing={editing}
+							disabled={isMutating}
+							onToggleEdit={() => setEditing((value) => !value)}
+							onCategoryChange={(categoryId) => updateMutation.mutate({ id: task.id, categoryId })}
+							onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
+							onDelete={() => removeTaskMutation.mutate({ id: task.id })}
+						/>
+						<div className="h-5 w-px bg-border" aria-hidden="true" />
+						<DocToolbar
+							onCollapse={() => paneRef.current?.collapseAll()}
+							onExpand={() => paneRef.current?.expandAll()}
+							onCopyContent={() => void paneRef.current?.copyContent()}
+							onCopyPath={() => void paneRef.current?.copyPath()}
+							onReading={() => setReading(true)}
+						/>
+					</div>
+				</div>
+			)}
+
+			{/* Na leitura este wrapper vira overlay em tela cheia (cobre a navegação do app, header
+			    e rodapé) com as tabs no topo; fora dela é `display:contents`, então tabs e editor
+			    seguem no fluxo normal. A ordem dos filhos não muda, pra o CodeMirror não remontar. */}
+			<div className={reading ? "fixed inset-0 z-50 flex flex-col bg-background" : "contents"}>
+				<div className="w-full border-b border-border">
+					<DndContext
+						sensors={fileSensors}
+						collisionDetection={closestCenter}
+						onDragEnd={handleFileDragEnd}
+					>
+						<SortableContext
+							items={task.files.map((file) => file.name)}
+							strategy={horizontalListSortingStrategy}
+						>
+							<div className="mx-auto flex h-8 w-full max-w-6xl items-stretch">
+								{/* No modo leitura as tabs perdem destaque, mas seguem navegáveis pra trocar de
+							    arquivo sem sair da leitura; o dim mora aqui pra não atingir o botão de sair. */}
+								<div
+									className={cn(
+										"flex min-w-0 flex-1 items-stretch transition-opacity",
+										reading && "opacity-40 hover:opacity-100",
+									)}
+								>
+									{task.files.map((file) => (
+										<SortableFileTab
+											key={file.name}
+											file={file}
+											isActive={file.name === activeFile}
+											// Ponto só quando há mais de um arquivo: com um só, "o mais recente" é trivial.
+											level={task.files.length > 1 ? recencyLevels.get(file.name) : undefined}
+											isRenaming={renamingFile === file.name}
+											renameValue={renameValue}
+											renameInputRef={renameInputRef}
+											onSelect={() => void selectFile(file.name)}
+											onStartRename={() => startRename(file.name)}
+											onRequestDelete={() => setDeletingFile(file.name)}
+											onRenameChange={setRenameValue}
+											onRenameConfirm={confirmRename}
+											onRenameCancel={cancelRename}
+										/>
+									))}
+									{creatingFile ? (
+										<div className="min-w-0 flex-1 border-l border-border bg-secondary text-foreground">
+											<input
+												ref={newFileInputRef}
+												value={newFileValue}
+												onChange={(e) => setNewFileValue(e.target.value)}
+												onBlur={() => void confirmCreate()}
+												onKeyDown={(e) => {
+													if (e.key === "Enter") void confirmCreate();
+													else if (e.key === "Escape") cancelCreate();
+												}}
+												placeholder="novo-arquivo.md"
+												className="h-full w-full bg-transparent px-3 text-center text-xs outline-none placeholder:text-muted-foreground"
+											/>
+										</div>
+									) : null}
+								</div>
+								{reading ? (
+									<button
+										type="button"
+										onClick={() => setReading(false)}
+										className="flex shrink-0 items-center gap-1.5 border-l border-border px-3 text-xs text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
+										title="Sair do modo leitura (Esc)"
+									>
+										<X size={14} />
+										Sair da leitura
+									</button>
+								) : creatingFile ? null : (
+									<button
+										type="button"
+										onClick={startCreate}
+										className="flex shrink-0 items-center justify-center border-l border-border px-3 text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
+										title="Novo arquivo"
+										aria-label="Novo arquivo"
+									>
+										<Plus size={14} />
+									</button>
+								)}
+							</div>
+						</SortableContext>
+					</DndContext>
+				</div>
+
+				<DocEditorPane
+					ref={paneRef}
+					fileName={creatingFile ? null : activeFile}
+					content={creatingFile ? "" : (current?.content ?? "")}
+					folderPath={task.folderPath}
+					projectName={task.project?.name}
+					writeFile={(payload) => writeFileMutation.mutateAsync({ id: taskId, ...payload })}
+					emptyState={
+						creatingFile
+							? "Defina o título da nova aba para criar o arquivo."
+							: "Nenhum arquivo markdown nesta tarefa."
+					}
+					reading={reading}
+					onExitReading={() => setReading(false)}
+				/>
 			</div>
 
-			<DocEditorPane
-				ref={paneRef}
-				fileName={activeFile}
-				content={current?.content ?? ""}
-				folderPath={task.folderPath}
-				projectName={task.project?.name}
-				writeFile={(payload) => writeFileMutation.mutateAsync({ id: taskId, ...payload })}
-				emptyState="Nenhum arquivo markdown nesta tarefa."
-			/>
-
-			{current ? (
+			{current && !reading ? (
 				<FileDateFooter
 					taskId={taskId}
 					file={current}

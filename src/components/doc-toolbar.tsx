@@ -1,4 +1,4 @@
-import { ChevronsDownUp, ChevronsUpDown, ClipboardCopy, Link2 } from "lucide-react";
+import { BookOpen, ChevronsDownUp, ChevronsUpDown, ClipboardCopy, Link2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -9,14 +9,27 @@ export function DocToolbar({
 	onExpand,
 	onCopyContent,
 	onCopyPath,
+	onReading,
 }: {
 	onCollapse: () => void;
 	onExpand: () => void;
 	onCopyContent: () => void;
 	onCopyPath: () => void;
+	onReading: () => void;
 }) {
 	return (
 		<div className="flex shrink-0 items-center gap-1">
+			<Button
+				type="button"
+				variant="ghost"
+				size="icon-sm"
+				onClick={onReading}
+				title="Modo leitura"
+				aria-label="Modo leitura"
+				className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+			>
+				<BookOpen className="h-3.5 w-3.5" />
+			</Button>
 			<Button
 				type="button"
 				variant="ghost"

@@ -23,43 +23,44 @@ const highlightStyle = HighlightStyle.define([
 	{ tag: t.heading, fontWeight: "700" },
 ]);
 
-const editorTheme = EditorView.theme(
-	{
-		"&": {
-			backgroundColor: "transparent",
-			color: "var(--foreground)",
-			fontSize: "1rem",
-			fontFamily: "var(--font-reading)",
-			borderLeft: "2px solid transparent",
-			paddingLeft: "0.875rem",
-			transition: "border-color 0.15s ease, background-color 0.15s ease",
+const createEditorTheme = (fontSize: string) =>
+	EditorView.theme(
+		{
+			"&": {
+				backgroundColor: "transparent",
+				color: "var(--foreground)",
+				fontSize,
+				fontFamily: "var(--font-reading)",
+				borderLeft: "2px solid transparent",
+				paddingLeft: "0.875rem",
+				transition: "border-color 0.15s ease, background-color 0.15s ease",
+			},
+			"&:hover:not(.cm-focused)": { borderLeftColor: "var(--border)" },
+			"&.cm-focused": {
+				outline: "none",
+				borderLeftColor: "var(--primary)",
+				backgroundColor: "color-mix(in oklab, var(--primary) 4%, transparent)",
+			},
+			".cm-content": {
+				fontFamily: "inherit",
+				lineHeight: "1.7",
+				padding: "0",
+				caretColor: "transparent",
+			},
+			".cm-line": { padding: "0" },
+			".cm-cursor, .cm-dropCursor": {
+				borderLeftColor: "var(--primary)",
+				borderLeftWidth: "2px",
+				boxShadow: "0 0 6px -1px var(--primary)",
+			},
+			"&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
+				backgroundColor: "color-mix(in oklab, var(--primary) 28%, transparent)",
+			},
+			".cm-scroller": { fontFamily: "inherit" },
+			".cm-placeholder": { color: "var(--muted-foreground)", fontStyle: "italic" },
 		},
-		"&:hover:not(.cm-focused)": { borderLeftColor: "var(--border)" },
-		"&.cm-focused": {
-			outline: "none",
-			borderLeftColor: "var(--primary)",
-			backgroundColor: "color-mix(in oklab, var(--primary) 4%, transparent)",
-		},
-		".cm-content": {
-			fontFamily: "inherit",
-			lineHeight: "1.7",
-			padding: "0",
-			caretColor: "transparent",
-		},
-		".cm-line": { padding: "0" },
-		".cm-cursor, .cm-dropCursor": {
-			borderLeftColor: "var(--primary)",
-			borderLeftWidth: "2px",
-			boxShadow: "0 0 6px -1px var(--primary)",
-		},
-		"&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
-			backgroundColor: "color-mix(in oklab, var(--primary) 28%, transparent)",
-		},
-		".cm-scroller": { fontFamily: "inherit" },
-		".cm-placeholder": { color: "var(--muted-foreground)", fontStyle: "italic" },
-	},
-	{ dark: true },
-);
+		{ dark: true },
+	);
 
 const basicSetup = {
 	lineNumbers: false,
@@ -81,13 +82,18 @@ type MarkdownEditorProps = {
 	onChange: (content: string) => void;
 	onInlineCodeClick?: (text: string) => void;
 	onHeadingMention?: (text: string) => void;
+	// Tamanho base da fonte; títulos e demais elementos usam `em`, então escalam junto.
+	fontSize?: string;
 };
 
 // Editor markdown sempre editável com live preview estilo Obsidian: o `.md` cru fica
 // intacto no disco, mas headings, *bold*, _italic_, etc. são estilizados ao vivo e os
 // marcadores de sintaxe somem quando o cursor sai da linha.
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
-	function MarkdownEditor({ initialContent, onChange, onInlineCodeClick, onHeadingMention }, ref) {
+	function MarkdownEditor(
+		{ initialContent, onChange, onInlineCodeClick, onHeadingMention, fontSize = "1rem" },
+		ref,
+	) {
 		const [draft, setDraft] = useState(initialContent);
 		const cmRef = useRef<ReactCodeMirrorRef>(null);
 
@@ -96,11 +102,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 				markdown({ base: markdownLanguage }),
 				syntaxHighlighting(highlightStyle),
 				markdownLivePreview({ onInlineCodeClick, onHeadingMention }),
-				editorTheme,
+				createEditorTheme(fontSize),
 				EditorView.lineWrapping,
 				placeholder("Comece a escrever…"),
 			],
-			[onInlineCodeClick, onHeadingMention],
+			[onInlineCodeClick, onHeadingMention, fontSize],
 		);
 
 		useImperativeHandle(ref, () => ({
