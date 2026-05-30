@@ -1,76 +1,47 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { forwardRef, useImperativeHandle } from "react";
+import { useMemo } from "react";
 
-import { Title } from "@/components/typography";
-import { Button } from "@/components/ui/button";
+import { useAgendaStore } from "@/stores/agenda";
+import { bucketEventsByDay } from "../-utils/event-day";
+import { useRangeEvents } from "../-utils/use-range-events";
 import { useWeekCalendar } from "../-utils/use-week-calendar";
-import { useWeekTasks } from "../-utils/use-week-tasks";
-import { WeekDay } from "./week-day";
+import { AgendaNav } from "./agenda-nav";
+import { EventDayCell } from "./event-day-cell";
 
-export type WeekCalendarRef = {
-	refresh: () => void;
-};
+export function WeekCalendar() {
+	const { weekDays, startDate, endDate, rangeLabel, goToPrev, goToNext, goToToday } =
+		useWeekCalendar();
+	const { events } = useRangeEvents(startDate, endDate);
+	const openCreate = useAgendaStore((s) => s.openCreate);
+	const openEdit = useAgendaStore((s) => s.openEdit);
 
-export const WeekCalendar = forwardRef<WeekCalendarRef, object>(function WeekCalendar(_props, ref) {
-	const {
-		weekDays,
-		weekRangeLabel,
-		startDate,
-		endDate,
-		goToPreviousWeek,
-		goToNextWeek,
-		goToToday,
-	} = useWeekCalendar();
-
-	const { tasksByDate, loading, refetch } = useWeekTasks(startDate, endDate);
-
-	function handleDayClick(_date: string) {
-		// Day click is handled by WeekDay component via openDrawer
-	}
-
-	useImperativeHandle(ref, () => ({
-		refresh: () => refetch(),
-	}));
+	const byDay = useMemo(
+		() =>
+			bucketEventsByDay(
+				events,
+				weekDays.map((day) => day.date),
+			),
+		[events, weekDays],
+	);
 
 	return (
-		<div className="flex h-full flex-col">
-			{/* Header with Navigation */}
-			<div className="flex items-center justify-between border-b border-border px-4 py-3">
-				<div className="flex items-center gap-2">
-					<Button variant="ghost" size="icon" onClick={goToPreviousWeek} className="h-8 w-8">
-						<ChevronLeft className="h-4 w-4" />
-					</Button>
-					<Title as="h2" size="lg" className="min-w-45 text-center font-medium">
-						{weekRangeLabel}
-					</Title>
-					<Button variant="ghost" size="icon" onClick={goToNextWeek} className="h-8 w-8">
-						<ChevronRight className="h-4 w-4" />
-					</Button>
-				</div>
-				<Button variant="outline" size="sm" onClick={goToToday}>
-					Hoje
-				</Button>
-			</div>
-
-			{/* Week Grid */}
-			<div className="relative flex flex-1 overflow-hidden">
-				{loading ? (
-					<div className="flex flex-1 items-center justify-center">
-						<span className="text-sm text-muted-foreground">Carregando...</span>
-					</div>
-				) : (
-					<div className="grid flex-1 grid-cols-7">
-						{weekDays.map((day) => (
-							<WeekDay
-								key={day.date}
-								day={day}
-								tasks={tasksByDate.get(day.date) ?? []}
-								onDayClick={handleDayClick}
-							/>
-						))}
-					</div>
-				)}
+		<div className="flex min-h-0 flex-1 flex-col">
+			<AgendaNav label={rangeLabel} onPrev={goToPrev} onNext={goToNext} onToday={goToToday} />
+			<div className="grid min-h-0 flex-1 grid-cols-7 gap-px">
+				{weekDays.map((day) => (
+					<EventDayCell
+						key={day.date}
+						date={day.date}
+						dayNumber={day.dayNumber}
+						dayName={day.dayName}
+						events={byDay.get(day.date) ?? []}
+						maxVisible={5}
+						isToday={day.isToday}
+						isPast={day.isPast}
+						onCreate={() => openCreate(day.date)}
+						onEventClick={openEdit}
+					/>
+				))}
 			</div>
 		</div>
 	);
-});
+}

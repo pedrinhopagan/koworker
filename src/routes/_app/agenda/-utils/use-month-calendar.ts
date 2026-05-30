@@ -1,22 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
+import dayjs from "dayjs";
 
-export type MonthDayData = {
-	date: string;
-	dayNumber: number;
-	isToday: boolean;
-	isCurrentMonth: boolean;
-	isPast: boolean;
-};
-
-export type UseMonthCalendarReturn = {
-	monthDays: MonthDayData[];
-	monthLabel: string;
-	startDate: string;
-	endDate: string;
-	goToPreviousMonth: () => void;
-	goToNextMonth: () => void;
-	goToToday: () => void;
-};
+const weekdayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 const monthNames = [
 	"Janeiro",
@@ -33,76 +18,47 @@ const monthNames = [
 	"Dezembro",
 ];
 
-function formatDate(date: Date) {
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, "0");
-	const day = String(date.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
-}
+export function useMonthCalendar() {
+	const [currentMonth, setCurrentMonth] = useState(() => dayjs().startOf("month"));
 
-function getCalendarGridStart(currentMonth: Date) {
-	const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-	const offset = firstDay.getDay();
-	firstDay.setDate(firstDay.getDate() - offset);
-	firstDay.setHours(0, 0, 0, 0);
-	return firstDay;
-}
-
-export function useMonthCalendar(): UseMonthCalendarReturn {
-	const [currentMonth, setCurrentMonth] = useState(() => {
-		const now = new Date();
-		return new Date(now.getFullYear(), now.getMonth(), 1);
-	});
-
-	const monthLabel = useMemo(
-		() => `${monthNames[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`,
-		[currentMonth],
-	);
-
-	const monthDays = useMemo(() => {
-		const today = new Date();
-		const todayLabel = formatDate(today);
-		const start = getCalendarGridStart(currentMonth);
-
-		return Array.from({ length: 42 }, (_, index) => {
-			const date = new Date(start);
-			date.setDate(start.getDate() + index);
-
-			const dateLabel = formatDate(date);
-
-			return {
-				date: dateLabel,
-				dayNumber: date.getDate(),
-				isToday: dateLabel === todayLabel,
-				isCurrentMonth: date.getMonth() === currentMonth.getMonth(),
-				isPast: dateLabel < todayLabel,
-			};
-		});
-	}, [currentMonth]);
-
-	const startDate = monthDays[0]?.date ?? formatDate(currentMonth);
-	const endDate = monthDays[41]?.date ?? formatDate(currentMonth);
-
-	const goToPreviousMonth = useCallback(() => {
-		setCurrentMonth((previous) => new Date(previous.getFullYear(), previous.getMonth() - 1, 1));
+	const goToPrev = useCallback(() => {
+		setCurrentMonth((month) => month.subtract(1, "month"));
 	}, []);
 
-	const goToNextMonth = useCallback(() => {
-		setCurrentMonth((previous) => new Date(previous.getFullYear(), previous.getMonth() + 1, 1));
+	const goToNext = useCallback(() => {
+		setCurrentMonth((month) => month.add(1, "month"));
 	}, []);
 
 	const goToToday = useCallback(() => {
-		const now = new Date();
-		setCurrentMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+		setCurrentMonth(dayjs().startOf("month"));
 	}, []);
 
-	return {
-		monthDays,
-		monthLabel,
-		startDate,
-		endDate,
-		goToPreviousMonth,
-		goToNextMonth,
-		goToToday,
-	};
+	return useMemo(() => {
+		const today = dayjs().format("YYYY-MM-DD");
+		const gridStart = currentMonth.subtract(currentMonth.day(), "day");
+
+		const monthDays = Array.from({ length: 42 }, (_, index) => {
+			const cell = gridStart.add(index, "day");
+			const date = cell.format("YYYY-MM-DD");
+
+			return {
+				date,
+				dayNumber: cell.date(),
+				isToday: date === today,
+				isCurrentMonth: cell.month() === currentMonth.month(),
+				isPast: date < today,
+			};
+		});
+
+		return {
+			monthDays,
+			weekdayLabels,
+			startDate: monthDays[0].date,
+			endDate: monthDays[41].date,
+			monthLabel: `${monthNames[currentMonth.month()]} ${currentMonth.year()}`,
+			goToPrev,
+			goToNext,
+			goToToday,
+		};
+	}, [currentMonth, goToPrev, goToNext, goToToday]);
 }

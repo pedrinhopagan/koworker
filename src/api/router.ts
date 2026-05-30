@@ -2,6 +2,7 @@ import { protectedProcedure, publicProcedure } from "./auth/context";
 import { Auth } from "./auth/login";
 import { PubSub } from "./pubsub";
 import { categoriesRouter } from "./routers/categories";
+import { eventsRouter } from "./routers/events";
 import { prioritiesRouter } from "./routers/priorities";
 import { projectRoutesRouter } from "./routers/project-routes";
 import { projectsRouter } from "./routers/projects";
@@ -26,6 +27,7 @@ export const router = {
 	projectRoutes: projectRoutesRouter,
 	tasks: tasksRouter,
 	taskGroups: taskGroupsRouter,
+	events: eventsRouter,
 	categories: categoriesRouter,
 	priorities: prioritiesRouter,
 	skills: skillsRouter,
@@ -52,6 +54,8 @@ export const wsRouter = {
 	),
 
 	tasks: protectedProcedure.handler(({ signal }) => PubSub.subscribe("tasks", "global", signal)),
+
+	events: protectedProcedure.handler(({ signal }) => PubSub.subscribe("events", "global", signal)),
 
 	terminal: terminalWsRouter,
 };

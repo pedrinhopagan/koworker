@@ -2,6 +2,12 @@ import { AuthLoginSchema } from "./auth";
 
 export { AuthLoginSchema } from "./auth";
 export {
+	EventCreateSchema,
+	EventIdSchema,
+	EventListByRangeSchema,
+	EventUpdateSchema,
+} from "./events";
+export {
 	CategoryCreateSchema,
 	CategoryIdSchema,
 	CategoryMigrateAndDeleteSchema,
@@ -47,9 +53,7 @@ export {
 	TaskFocusSchema,
 	TaskGetAllSchema,
 	TaskIdSchema,
-	TaskListByDateSchema,
 	TaskListByProjectSchema,
-	TaskListByWeekSchema,
 	TaskMetricsSchema,
 	TaskPromoteSchema,
 	TaskRenameFileSchema,

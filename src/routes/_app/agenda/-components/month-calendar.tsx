@@ -1,82 +1,70 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { forwardRef, useImperativeHandle } from "react";
+import { useMemo } from "react";
 
-import { Title } from "@/components/typography";
-import { Button } from "@/components/ui/button";
+import { Text } from "@/components/typography";
+import { useAgendaStore } from "@/stores/agenda";
+import { bucketEventsByDay } from "../-utils/event-day";
 import { useMonthCalendar } from "../-utils/use-month-calendar";
-import { useWeekTasks } from "../-utils/use-week-tasks";
-import { MonthDay } from "./month-day";
+import { useRangeEvents } from "../-utils/use-range-events";
+import { AgendaNav } from "./agenda-nav";
+import { EventDayCell } from "./event-day-cell";
 
-const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+export function MonthCalendar() {
+	const {
+		monthDays,
+		weekdayLabels,
+		startDate,
+		endDate,
+		monthLabel,
+		goToPrev,
+		goToNext,
+		goToToday,
+	} = useMonthCalendar();
+	const { events } = useRangeEvents(startDate, endDate);
+	const openCreate = useAgendaStore((s) => s.openCreate);
+	const openEdit = useAgendaStore((s) => s.openEdit);
 
-export type MonthCalendarRef = {
-	refresh: () => void;
-};
+	const byDay = useMemo(
+		() =>
+			bucketEventsByDay(
+				events,
+				monthDays.map((day) => day.date),
+			),
+		[events, monthDays],
+	);
 
-export const MonthCalendar = forwardRef<MonthCalendarRef, object>(
-	function MonthCalendar(_props, ref) {
-		const {
-			monthDays,
-			monthLabel,
-			startDate,
-			endDate,
-			goToPreviousMonth,
-			goToNextMonth,
-			goToToday,
-		} = useMonthCalendar();
-
-		const { tasksByDate, loading, refetch } = useWeekTasks(startDate, endDate);
-
-		useImperativeHandle(ref, () => ({
-			refresh: () => refetch(),
-		}));
-
-		return (
-			<div className="flex h-full flex-col">
-				<div className="flex items-center justify-between border-b border-border px-4 py-3">
-					<div className="flex items-center gap-2">
-						<Button variant="ghost" size="icon" onClick={goToPreviousMonth} className="h-8 w-8">
-							<ChevronLeft className="h-4 w-4" />
-						</Button>
-						<Title as="h2" size="lg" className="min-w-45 text-center font-medium">
-							{monthLabel}
-						</Title>
-						<Button variant="ghost" size="icon" onClick={goToNextMonth} className="h-8 w-8">
-							<ChevronRight className="h-4 w-4" />
-						</Button>
-					</div>
-					<Button variant="outline" size="sm" onClick={goToToday}>
-						Hoje
-					</Button>
-				</div>
-
-				{loading && (
-					<div className="flex flex-1 items-center justify-center">
-						<span className="text-sm text-muted-foreground">Carregando...</span>
-					</div>
-				)}
-
-				{!loading && (
-					<div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-[auto_repeat(6,minmax(0,1fr))] overflow-y-auto">
-						{dayNames.map((dayName) => (
-							<div
-								key={dayName}
-								className="sticky top-0 z-10 border-r border-b border-border bg-card px-2 py-2 text-center text-xs font-semibold uppercase text-muted-foreground last:border-r-0"
-							>
-								{dayName}
-							</div>
-						))}
-						{monthDays.map((day, index) => (
-							<MonthDay
-								key={day.date}
-								day={day}
-								tasks={tasksByDate.get(day.date) ?? []}
-								isLastColumn={index % 7 === 6}
-							/>
-						))}
-					</div>
-				)}
+	return (
+		<div className="flex min-h-0 flex-1 flex-col">
+			<AgendaNav label={monthLabel} onPrev={goToPrev} onNext={goToNext} onToday={goToToday} />
+			<div className="grid grid-cols-7">
+				{weekdayLabels.map((label) => (
+					<Text
+						key={label}
+						as="span"
+						size="xs"
+						tone="muted"
+						className="px-1.5 pb-1 text-center uppercase tracking-wide"
+					>
+						{label}
+					</Text>
+				))}
 			</div>
-		);
-	},
-);
+			<div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-px">
+				{monthDays.map((day) => (
+					<EventDayCell
+						key={day.date}
+						date={day.date}
+						dayNumber={day.dayNumber}
+						events={byDay.get(day.date) ?? []}
+						maxVisible={2}
+						isToday={day.isToday}
+						isPast={day.isPast}
+						muted={!day.isCurrentMonth}
+						className="min-h-[88px]"
+						onCreate={() => openCreate(day.date)}
+						onEventClick={openEdit}
+					/>
+				))}
+			</div>
+		</div>
+	);
+}

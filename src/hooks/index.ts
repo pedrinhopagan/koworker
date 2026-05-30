@@ -7,5 +7,4 @@ export { type UseProjectFocusReturn, useProjectFocus } from "./use-project-focus
 export { useSkillsQuery } from "./use-skills";
 export { type TaskMetrics, useTaskMetrics } from "./use-task-metrics";
 export { type TasksSearchFilters, useTasksData } from "./use-tasks-data";
-export { useTodayTasks } from "./use-today-tasks";
 export { useUser } from "./use-user";

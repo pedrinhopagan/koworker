@@ -13,7 +13,6 @@ import { useClickOutside } from "@/hooks/use-click-outside";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import type { TaskWithMeta } from "@/types/tasks";
-import { type AgendaTaskItemVariant, TaskItemAgendaVariant } from "./task-item-agenda-variant";
 import {
 	TASK_SELECT_CONTENT_SELECTOR,
 	TaskMetaControls,
@@ -33,14 +32,11 @@ const taskItemVariants = tv({
 	},
 });
 
-export type TaskItemVariant =
-	| VariantProps<typeof taskItemVariants>["variant"]
-	| AgendaTaskItemVariant;
+export type TaskItemVariant = VariantProps<typeof taskItemVariants>["variant"];
 
 type TaskItemProps = {
 	task: TaskWithMeta;
 	variant?: TaskItemVariant;
-	showScheduledDate?: boolean;
 	// Destaque de recência: 1 = última editada (mais forte), 2/3 = anteriores (mais sutil).
 	highlight?: number;
 };
@@ -208,17 +204,6 @@ function TaskItemDefault({
 	);
 }
 
-export function TaskItem({
-	task,
-	variant = "default",
-	showScheduledDate = false,
-	highlight,
-}: TaskItemProps) {
-	if (variant === "agendaBacklog" || variant === "agendaMini") {
-		return (
-			<TaskItemAgendaVariant task={task} variant={variant} showScheduledDate={showScheduledDate} />
-		);
-	}
-
+export function TaskItem({ task, variant = "default", highlight }: TaskItemProps) {
 	return <TaskItemDefault task={task} variant={variant} highlight={highlight} />;
 }

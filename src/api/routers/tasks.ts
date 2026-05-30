@@ -25,9 +25,7 @@ import {
 	TaskFocusSchema,
 	TaskGetAllSchema,
 	TaskIdSchema,
-	TaskListByDateSchema,
 	TaskListByProjectSchema,
-	TaskListByWeekSchema,
 	TaskMetricsSchema,
 	TaskRenameFileSchema,
 	TaskReorderFilesSchema,
@@ -52,8 +50,6 @@ const mapTask = (
 	categoryId: row.category_id,
 	groupId: row.group_id ?? undefined,
 	displayOrder: row.display_order,
-	scheduledDate: row.scheduled_date ?? undefined,
-	scheduledTime: row.scheduled_time ?? undefined,
 	done: Boolean(row.done),
 	completedAt: row.completed_at ?? undefined,
 	createdAt: row.created_at,
@@ -180,10 +176,20 @@ export const tasksRouter = {
 	getAll: protectedProcedure.input(TaskGetAllSchema).handler(async ({ input }) => {
 		const rows = await dbTasks.getAll({
 			projectId: input.projectId ?? null,
-			date: input.date,
-			startDate: input.startDate,
-			endDate: input.endDate,
 			includeCompleted: input.includeCompleted,
+			taskTypeId: input.taskTypeId,
+			priorityId: input.priorityId,
+			priority: input.priority,
+			q: input.q,
+		});
+
+		return mapTasks(rows);
+	}),
+
+	// Backlog da agenda: tarefas pendentes ainda não ligadas a um event. Fonte do DnD para agendar.
+	backlog: protectedProcedure.input(TaskGetAllSchema).handler(async ({ input }) => {
+		const rows = await dbTasks.listBacklog({
+			projectId: input.projectId ?? null,
 			taskTypeId: input.taskTypeId,
 			priorityId: input.priorityId,
 			priority: input.priority,
@@ -195,16 +201,6 @@ export const tasksRouter = {
 
 	listByProject: protectedProcedure.input(TaskListByProjectSchema).handler(async ({ input }) => {
 		const rows = await dbTasks.listByProject(input);
-		return mapTasks(rows);
-	}),
-
-	listByDate: protectedProcedure.input(TaskListByDateSchema).handler(async ({ input }) => {
-		const rows = await dbTasks.listByDate(input.date, input);
-		return mapTasks(rows);
-	}),
-
-	listByWeek: protectedProcedure.input(TaskListByWeekSchema).handler(async ({ input }) => {
-		const rows = await dbTasks.listByDateRange(input.startDate, input.endDate, input);
 		return mapTasks(rows);
 	}),
 
@@ -275,8 +271,6 @@ export const tasksRouter = {
 			title: input.title,
 			priority_id: input.priorityId,
 			category_id: input.categoryId,
-			scheduled_date: input.scheduledDate,
-			scheduled_time: input.scheduledTime,
 		});
 
 		await publishTaskEvent(id, input.projectId, "created");
@@ -293,8 +287,6 @@ export const tasksRouter = {
 			title: input.title,
 			priority_id: input.priorityId,
 			category_id: input.categoryId,
-			scheduled_date: input.scheduledDate,
-			scheduled_time: input.scheduledTime,
 			done: input.done === undefined ? undefined : input.done ? 1 : 0,
 			completed_at: input.done === undefined ? undefined : input.done ? Date.now() : null,
 		});

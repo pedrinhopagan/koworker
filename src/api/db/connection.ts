@@ -55,14 +55,36 @@ const tasksSchema = type({
 	// Ordem manual das abas (.md) na rota da task, como array JSON de nomes. Arquivos fora
 	// dessa lista (novos, criados no disco pelo agente) entram à direita por birthtime.
 	"file_order?": "string",
-	// YYYY-MM-DD format
-	"scheduled_date?": "string",
-	"scheduled_time?": "string",
 	done: type("number.integer").configure({ default: 0 }),
 	"completed_at?": "number.integer",
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 	"deleted_at?": "number.integer",
+});
+
+// Fonte única de verdade do que é colocado no tempo. Evento pessoal puro → task_id null;
+// "linkar tarefa a data/horário" → uma linha referenciando a task.
+//
+// IMPORTANTE — semântica de start_at/end_at: wall-clock naive-local 'YYYY-MM-DDTHH:mm'
+// (zero-padded, largura fixa). NÃO são instantes UTC apesar do sufixo _at. Intervalo
+// half-open [start, end): end é exclusivo e sempre carrega a própria data. O formato
+// fixed-width garante ordenação lexicográfica == cronológica, então as queries de
+// intervalo no SQLite são comparação direta de string contra bounds datetime completos.
+//
+// created_at/updated_at: epoch-ms gravados via Date.now() no boundary (dbEvents). NÃO
+// confiar no default "now" do arktype, que grava segundos.
+const eventsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	"title?": "string",
+	start_at: "string",
+	end_at: "string",
+	all_day: type("number.integer").configure({ default: 0 }),
+	"task_id?": type("string").configure({ references: "tasks.id", onDelete: "cascade" }),
+	"color?": "string",
+	"icon?": "string",
+	"notes?": "string",
+	created_at: type("number.integer").configure({ default: "now" }),
+	"updated_at?": "number.integer",
 });
 
 const taskGroupsSchema = type({
@@ -116,6 +138,7 @@ const database = new Database({
 		project_routes: projectRoutesSchema,
 		task_groups: taskGroupsSchema,
 		tasks: tasksSchema,
+		events: eventsSchema,
 		skill_settings: skillSettingsSchema,
 	},
 });
@@ -133,6 +156,7 @@ export type users = DB["users"];
 export type projects = DB["projects"];
 export type project_routes = DB["project_routes"];
 export type tasks = DB["tasks"];
+export type events = DB["events"];
 export type task_groups = DB["task_groups"];
 export type categories = DB["categories"];
 export type priorities = DB["priorities"];
@@ -145,6 +169,7 @@ export {
 	projectRoutesSchema,
 	taskGroupsSchema,
 	tasksSchema,
+	eventsSchema,
 	categoriesSchema,
 	prioritiesSchema,
 	skillSettingsSchema,

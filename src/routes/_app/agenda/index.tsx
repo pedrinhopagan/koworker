@@ -1,88 +1,62 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CalendarCheck } from "lucide-react";
-import { useRef, useState } from "react";
-import { z } from "zod";
-import { PageShell } from "@/components/layout/page-shell";
-import { useProjectFocus } from "@/hooks";
-import {
-	AgendaDndWrapper,
-	AgendaSidebar,
-	DayDrawer,
-	MonthCalendar,
-	type MonthCalendarRef,
-	WeekCalendar,
-	type WeekCalendarRef,
-} from "./-components";
 
-const searchSchema = z.object({
-	inicio: z.string().optional(),
-	fim: z.string().optional(),
-	projetoId: z.string().optional(),
-	mostrar: z.enum(["agenda", "lista"]).optional(),
-});
+import { PageShell } from "@/components/layout/page-shell";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useAgendaStore } from "@/stores/agenda";
+import { AgendaSidebar } from "./-components/agenda-sidebar";
+import { EventDrawer } from "./-components/event-drawer";
+import { MonthCalendar } from "./-components/month-calendar";
+import { WeekCalendar } from "./-components/week-calendar";
+import { useAgendaRealtime } from "./-utils/use-agenda-realtime";
 
 export const Route = createFileRoute("/_app/agenda/")({
-	validateSearch: (search) => searchSchema.parse(search),
 	component: AgendaPage,
 });
 
 function AgendaPage() {
-	const { projetoId } = Route.useSearch();
-	useProjectFocus({ preferredProjectId: projetoId ?? null });
-	const [viewMode, setViewMode] = useState<"semana" | "mes">("semana");
-	const weekCalendarRef = useRef<WeekCalendarRef>(null);
-	const monthCalendarRef = useRef<MonthCalendarRef>(null);
-
-	function handleTaskChange() {
-		weekCalendarRef.current?.refresh();
-		monthCalendarRef.current?.refresh();
-	}
+	useAgendaRealtime();
+	const view = useAgendaStore((s) => s.view);
+	const setView = useAgendaStore((s) => s.setView);
+	const drawerOpen = useAgendaStore((s) => s.drawerOpen);
+	const drawerEvent = useAgendaStore((s) => s.drawerEvent);
+	const drawerDate = useAgendaStore((s) => s.drawerDate);
 
 	return (
-		<AgendaDndWrapper onTasksChanged={handleTaskChange}>
-			<PageShell
-				title="Agenda"
-				description="Planeje tarefas por semana ou mês e arraste para reagendar"
-				icon={CalendarCheck}
-				variant="grid"
-				contentClassName="gap-0 md:grid-cols-[320px_minmax(0,1fr)]"
-				headerClassName="mb-0"
-			>
-				<AgendaSidebar />
+		<PageShell
+			title="Agenda"
+			description="Planeje eventos e tarefas no tempo"
+			icon={CalendarCheck}
+			variant="grid"
+			contentClassName="md:grid-cols-[280px_minmax(0,1fr)]"
+		>
+			<AgendaSidebar />
 
-				<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-					<div className="flex items-center gap-2 border-b border-border px-4 py-3">
-						<button
-							type="button"
-							onClick={() => setViewMode("semana")}
-							className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-								viewMode === "semana"
-									? "bg-primary text-primary-foreground"
-									: "bg-muted text-muted-foreground hover:text-foreground"
-							}`}
-						>
-							Semana
-						</button>
-						<button
-							type="button"
-							onClick={() => setViewMode("mes")}
-							className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-								viewMode === "mes"
-									? "bg-primary text-primary-foreground"
-									: "bg-muted text-muted-foreground hover:text-foreground"
-							}`}
-						>
-							Mês
-						</button>
-					</div>
-
-					<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-						{viewMode === "semana" && <WeekCalendar ref={weekCalendarRef} />}
-						{viewMode === "mes" && <MonthCalendar ref={monthCalendarRef} />}
-					</div>
+			<div className="flex min-h-0 flex-col">
+				<div className="mb-3 flex items-center gap-1">
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={() => setView("semana")}
+						className={cn(view === "semana" && "bg-secondary text-foreground")}
+					>
+						Semana
+					</Button>
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={() => setView("mes")}
+						className={cn(view === "mes" && "bg-secondary text-foreground")}
+					>
+						Mês
+					</Button>
 				</div>
-			</PageShell>
-			<DayDrawer onTaskChange={handleTaskChange} />
-		</AgendaDndWrapper>
+
+				{view === "semana" ? <WeekCalendar /> : <MonthCalendar />}
+			</div>
+
+			{drawerOpen && <EventDrawer key={drawerEvent?.id ?? drawerDate ?? "new"} />}
+		</PageShell>
 	);
 }

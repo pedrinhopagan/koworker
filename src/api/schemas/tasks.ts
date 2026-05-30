@@ -28,65 +28,21 @@ export const TaskListByProjectSchema = z
 	})
 	.merge(TaskListFiltersSchema);
 
-export const TaskListByDateSchema = z
-	.object({
-		date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
-		projectId: z.string().min(1).nullable().optional(),
-	})
-	.merge(TaskListFiltersSchema);
-
-export const TaskListByWeekSchema = z
-	.object({
-		startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
-		endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
-		projectId: z.string().min(1).nullable().optional(),
-	})
-	.merge(TaskListFiltersSchema);
-
 // Centralized listing endpoint.
 export const TaskGetAllSchema = z
 	.object({
 		projectId: z.string().min(1).nullable().optional(),
-		date: z
-			.string()
-			.regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
-			.optional(),
-		startDate: z
-			.string()
-			.regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
-			.optional(),
-		endDate: z
-			.string()
-			.regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
-			.optional(),
 
 		// Default to the current app behavior: do NOT return completed tasks unless explicitly asked.
 		includeCompleted: z.boolean().optional().default(false),
 	})
-	.merge(TaskListFiltersSchema)
-	.refine(
-		(v) => {
-			if (v.startDate || v.endDate) return Boolean(v.startDate && v.endDate);
-			return true;
-		},
-		{ message: "startDate and endDate must be provided together" },
-	);
+	.merge(TaskListFiltersSchema);
 
 export const TaskCreateSchema = z.object({
 	projectId: z.string().trim().min(1),
 	title: z.string().trim().min(1).optional(),
 	priorityId: z.string().trim().min(1),
 	categoryId: z.string().trim().min(1),
-	scheduledDate: z
-		.string()
-		.regex(/^\d{4}-\d{2}-\d{2}$/)
-		.nullable()
-		.optional(),
-	scheduledTime: z
-		.string()
-		.regex(/^([01]\d|2[0-3]):[0-5]\d$/)
-		.nullable()
-		.optional(),
 });
 
 export const TaskUpdateSchema = z.object({
@@ -100,16 +56,6 @@ export const TaskUpdateSchema = z.object({
 		.transform((v) => (v === "" ? null : v)),
 	priorityId: z.string().trim().min(1).optional(),
 	categoryId: z.string().trim().min(1).optional(),
-	scheduledDate: z
-		.string()
-		.regex(/^\d{4}-\d{2}-\d{2}$/)
-		.nullable()
-		.optional(),
-	scheduledTime: z
-		.string()
-		.regex(/^([01]\d|2[0-3]):[0-5]\d$/)
-		.nullable()
-		.optional(),
 	done: z.boolean().optional(),
 });
 
@@ -254,8 +200,6 @@ export const TaskDbCreateSchema = z.object({
 	group_id: z.string().min(1).nullable().optional(),
 	display_order: z.number().int().optional(),
 	file_order: z.string().nullable().optional(),
-	scheduled_date: z.string().nullable().optional(),
-	scheduled_time: z.string().nullable().optional(),
 	done: z.number().int().optional(),
 	completed_at: z.number().int().nullable().optional(),
 	created_at: z.number().int().optional(),

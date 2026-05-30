@@ -61,54 +61,13 @@ export const dbTasks = {
 		return query.execute();
 	},
 
-	listByDate: (
-		date: string,
-		filters?: (TaskListFiltersInput & { projectId?: string | null }) | null,
-	) => {
-		let query = db
-			.selectFrom("tasks")
-			.selectAll()
-			.where("scheduled_date", "=", date)
-			.where("deleted_at", "is", null);
-
-		query = applyTaskListFilters(query, filters);
-		return query.execute();
-	},
-
-	listByDateRange: (
-		startDate: string,
-		endDate: string,
-		filters?: (TaskListFiltersInput & { projectId?: string | null }) | null,
-	) => {
-		let query = db
-			.selectFrom("tasks")
-			.selectAll()
-			.where("scheduled_date", ">=", startDate)
-			.where("scheduled_date", "<=", endDate)
-			.where("deleted_at", "is", null);
-
-		query = applyTaskListFilters(query, filters);
-		return query.execute();
-	},
-
 	getAll: (
 		input: {
 			projectId?: string | null;
-			date?: string;
-			startDate?: string;
-			endDate?: string;
 			includeCompleted?: boolean;
 		} & TaskListFiltersInput,
 	) => {
 		let query = db.selectFrom("tasks").selectAll().where("deleted_at", "is", null);
-
-		// Date filters
-		if (input.date) {
-			query = query.where("scheduled_date", "=", input.date);
-		} else if (input.startDate && input.endDate) {
-			query = query.where("scheduled_date", ">=", input.startDate);
-			query = query.where("scheduled_date", "<=", input.endDate);
-		}
 
 		// Exclude completed tasks by default.
 		if (!input.includeCompleted) {
@@ -118,6 +77,31 @@ export const dbTasks = {
 		query = applyTaskListFilters(query, input);
 		// Ordem-base estável; o agrupamento final (grupo → categoria → display_order) é
 		// resolvido no frontend, que tem o display_order de grupos e categorias.
+		query = query.orderBy("display_order", "asc").orderBy("created_at", "desc");
+		return query.execute();
+	},
+
+	// Backlog da agenda: tarefas pendentes ainda NÃO ligadas a um event. Fonte do DnD para
+	// agendar. "Sem agendamento" agora = sem event de ligação (a tabela events é dona do tempo).
+	listBacklog: (input: { projectId?: string | null } & TaskListFiltersInput) => {
+		let query = db
+			.selectFrom("tasks")
+			.selectAll()
+			.where("deleted_at", "is", null)
+			.where("done", "=", 0)
+			.where((eb) =>
+				eb(
+					"id",
+					"not in",
+					eb
+						.selectFrom("events")
+						.select("task_id")
+						.where("task_id", "is not", null)
+						.$castTo<string>(),
+				),
+			);
+
+		query = applyTaskListFilters(query, input);
 		query = query.orderBy("display_order", "asc").orderBy("created_at", "desc");
 		return query.execute();
 	},
@@ -165,16 +149,23 @@ export const dbTasks = {
 		});
 	},
 
-	softDelete: (id: string) =>
-		db
-			.updateTable("tasks")
-			.set({
-				deleted_at: Date.now(),
-				updated_at: Date.now(),
-			})
-			.where("id", "=", id)
-			.where("deleted_at", "is", null)
-			.executeTakeFirst(),
+	// Soft delete da task + hard delete dos events ligados. O ON DELETE cascade da FK só dispara
+	// em hard delete (que tasks nunca fazem), então sem isto os events ficariam órfãos de uma task
+	// invisível. Uma transação para a remoção chegar atômica.
+	softDelete: async (id: string) => {
+		await db.transaction().execute(async (trx) => {
+			await trx.deleteFrom("events").where("task_id", "=", id).execute();
+			await trx
+				.updateTable("tasks")
+				.set({
+					deleted_at: Date.now(),
+					updated_at: Date.now(),
+				})
+				.where("id", "=", id)
+				.where("deleted_at", "is", null)
+				.executeTakeFirst();
+		});
+	},
 
 	getStatsByProject: () =>
 		db
