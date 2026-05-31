@@ -617,8 +617,10 @@ function collectHeadings(view: EditorView): HeadingInfo[] {
 function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet {
 	const { doc } = view.state;
 	const selection = view.state.selection.main;
-	const activeFrom = doc.lineAt(selection.from).from;
-	const activeTo = doc.lineAt(selection.to).to;
+	// Sem foco, nenhuma linha conta como ativa: os marcadores da linha do cursor também somem e o
+	// texto fica "limpo". Clicar fora do editor (na margem) tira o foco e dispara essa limpeza.
+	const activeFrom = view.hasFocus ? doc.lineAt(selection.from).from : -1;
+	const activeTo = view.hasFocus ? doc.lineAt(selection.to).to : -1;
 	const collapsed = view.state.field(collapsedHeadingsField);
 
 	const ranges: Range<Decoration>[] = [];
@@ -808,6 +810,7 @@ function livePreviewPlugin(callbacks: Callbacks) {
 					update.docChanged ||
 					update.selectionSet ||
 					update.viewportChanged ||
+					update.focusChanged ||
 					collapsedChanged
 				) {
 					this.decorations = buildDecorations(update.view, callbacks);

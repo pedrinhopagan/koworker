@@ -107,32 +107,63 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 			);
 		}
 
+		// Gutters laterais que crescem (flex-1) e ocupam exatamente o vão dos dois lados da coluna de
+		// texto. Clicar neles tira o foco do editor — com o editor sem foco, o live preview esconde os
+		// marcadores e o markdown fica "limpo". `onMouseDown` (não `onClick`) pra agir antes do foco e
+		// `preventDefault` pra não roubar/mexer no foco/seleção.
+		function blurOnGutter(event: React.MouseEvent) {
+			event.preventDefault();
+			editorRef.current?.blur();
+		}
+
 		return (
 			<>
-				<main
-					className={cn(
-						"mx-auto flex w-full flex-1 flex-col gap-4 overflow-y-auto",
-						reading
-							? "max-w-4xl px-6 py-10 lg:max-w-5xl lg:px-10 2xl:max-w-6xl"
-							: "max-w-3xl pt-6 pr-6 pb-6 pl-4 xl:max-w-4xl",
+				<div className="relative flex min-h-0 flex-1 flex-col">
+					<main
+						className={cn(
+							"mx-auto flex w-full flex-1 flex-col gap-4 overflow-y-auto",
+							reading
+								? "max-w-4xl px-6 py-10 lg:max-w-5xl lg:px-10 2xl:max-w-6xl"
+								: "max-w-3xl pt-6 pr-6 pb-6 pl-4 xl:max-w-4xl",
+						)}
+					>
+						{fileName ? (
+							<MarkdownEditor
+								key={fileName}
+								ref={editorRef}
+								initialContent={content}
+								fontSize={reading ? "1.25rem" : "1rem"}
+								onChange={(next) => schedule({ name: fileName, content: next })}
+								onInlineCodeClick={(text) => void handleInlineCodeCopy(text)}
+								onHeadingMention={(text) => promptInputRef.current?.mention(text)}
+							/>
+						) : (
+							<Text size="sm" tone="muted">
+								{emptyState ?? "Nenhum arquivo markdown."}
+							</Text>
+						)}
+					</main>
+
+					{/* Gutters laterais SOBRE os vãos fora da coluna de texto (largura = metade da janela
+					    menos metade do max-width da coluna, por breakpoint). `main` mantém a largura
+					    responsiva original; estes divs só cobrem o espaço que não era usado e desfocam. */}
+					{reading ? null : (
+						<>
+							{/** biome-ignore lint/a11y/noStaticElementInteractions: gutter decorativo só pra desfocar. */}
+							<div
+								aria-hidden
+								onMouseDown={blurOnGutter}
+								className="absolute inset-y-0 left-0 z-10 w-[max(0px,calc(50%_-_24rem))] cursor-text xl:w-[max(0px,calc(50%_-_28rem))]"
+							/>
+							{/** biome-ignore lint/a11y/noStaticElementInteractions: gutter decorativo só pra desfocar. */}
+							<div
+								aria-hidden
+								onMouseDown={blurOnGutter}
+								className="absolute inset-y-0 right-0 z-10 w-[max(0px,calc(50%_-_24rem))] cursor-text xl:w-[max(0px,calc(50%_-_28rem))]"
+							/>
+						</>
 					)}
-				>
-					{fileName ? (
-						<MarkdownEditor
-							key={fileName}
-							ref={editorRef}
-							initialContent={content}
-							fontSize={reading ? "1.25rem" : "1rem"}
-							onChange={(next) => schedule({ name: fileName, content: next })}
-							onInlineCodeClick={(text) => void handleInlineCodeCopy(text)}
-							onHeadingMention={(text) => promptInputRef.current?.mention(text)}
-						/>
-					) : (
-						<Text size="sm" tone="muted">
-							{emptyState ?? "Nenhum arquivo markdown."}
-						</Text>
-					)}
-				</main>
+				</div>
 
 				{reading || !showPrompt ? null : (
 					<>

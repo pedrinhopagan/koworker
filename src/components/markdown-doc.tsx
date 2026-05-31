@@ -12,7 +12,7 @@ import type { SyntaxNode } from "@lezer/common";
 import { tags as t } from "@lezer/highlight";
 import type { DelimiterType, MarkdownConfig } from "@lezer/markdown";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import {
 	collapseAllHeadings,
@@ -224,6 +224,7 @@ export type MarkdownEditorHandle = {
 	collapseAll: () => void;
 	expandAll: () => void;
 	getContent: () => string;
+	blur: () => void;
 };
 
 type MarkdownEditorProps = {
@@ -245,6 +246,64 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 	) {
 		const [draft, setDraft] = useState(initialContent);
 		const cmRef = useRef<ReactCodeMirrorRef>(null);
+
+		// Tira o foco do editor quando o clique não cai sobre o TEXTO renderizado, deixando o markdown
+		// "limpo" (o live preview esconde os marcadores ao perder o foco). As linhas ocupam a largura
+		// toda, então o vão lateral é parte do editor e focaria normalmente. Em vez de heurística,
+		// medimos os retângulos reais dos glifos da linha clicada via `Range.getClientRects()` (cobre
+		// linhas quebradas e os dois lados) e checamos se o ponto caiu sobre algum. Cliques fora do
+		// editor (toolbar, descrição, margens da página) também desfocam. Captura no documento porque
+		// o alvo pode estar fora do DOM do CodeMirror.
+		useEffect(() => {
+			function pointOverText(el: Element, x: number, y: number) {
+				const range = document.createRange();
+				range.selectNodeContents(el);
+				for (const rect of Array.from(range.getClientRects())) {
+					if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+						return true;
+					}
+				}
+				return false;
+			}
+
+			// Impede o CodeMirror de receber o mousedown (ele foca o editor no próprio handler, o que
+			// desfaria o blur) e cancela o foco nativo do contenteditable, depois tira o foco.
+			function blur(event: MouseEvent, view: EditorView) {
+				event.preventDefault();
+				event.stopPropagation();
+				view.contentDOM.blur();
+			}
+
+			function onMouseDown(event: MouseEvent) {
+				if (event.button !== 0) return;
+				const view = cmRef.current?.view;
+				if (!view) return;
+
+				const target = event.target as HTMLElement;
+				if (!view.dom.contains(target)) {
+					if (view.hasFocus) view.contentDOM.blur();
+					return;
+				}
+
+				// Clicou diretamente numa linha: mantém o foco só se o ponto estiver sobre os glifos;
+				// no vão lateral (ou linha vazia) desfoca.
+				if (target.classList.contains("cm-line")) {
+					if (!pointOverText(target, event.clientX, event.clientY)) blur(event, view);
+					return;
+				}
+
+				// Área estrutural sem texto (padding do conteúdo, scroller abaixo das linhas) → desfoca.
+				if (target.classList.contains("cm-content") || target.classList.contains("cm-scroller")) {
+					blur(event, view);
+				}
+
+				// Qualquer outro alvo (spans de estilo, widgets, links, código inline) tem comportamento
+				// próprio e mantém o foco.
+			}
+
+			document.addEventListener("mousedown", onMouseDown, true);
+			return () => document.removeEventListener("mousedown", onMouseDown, true);
+		}, []);
 
 		const extensions = useMemo(
 			() => [
@@ -272,6 +331,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 			},
 			getContent() {
 				return cmRef.current?.view?.state.doc.toString() ?? draft;
+			},
+			blur() {
+				cmRef.current?.view?.contentDOM.blur();
 			},
 		}));
 
