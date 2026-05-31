@@ -126,12 +126,12 @@ src/
 - `completed_at` só é preenchido quando o usuário aprova
 - O estado visual do progresso é derivado por função em `src/lib/` (não é coluna)
 
-## CLI KOWORK
+## CLI kw-cli
 
 - CLI mora em `src/cli/` e **acessa o DB direto** (sem API)
-- Comando principal: `kowork update-task` recebendo JSON completo
-- A CLI **não** seta `completed_at`
-- Atualizações sempre preenchem `updated_at`
+- Binário: `kw-cli` (nome distinto da GUI `kowork` pra não colidir no PATH)
+- Comandos: `create`, `done`, `task set/rm`, `project list/create/set`, `route add/rm`, `skill style/list`
+- Após escritas no banco, avisa o servidor por HTTP (`notify.ts`) — best-effort
 - Falhas retornam erro em pt-BR e exit code != 0
 
 ## REALTIME

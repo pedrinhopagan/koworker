@@ -24,7 +24,7 @@ async function runTaskSet(args: string[]): Promise<void> {
 	const raw = positionals[0];
 	if (!raw) {
 		throw new Error(
-			"Uso: kowork task set <taskId|caminho> [--title ...] [--category <nome|id>] [--priority <nome|id>]",
+			"Uso: kw-cli task set <taskId|caminho> [--title ...] [--category <nome|id>] [--priority <nome|id>]",
 		);
 	}
 
@@ -55,7 +55,7 @@ async function runTaskSet(args: string[]): Promise<void> {
 async function runTaskRm(args: string[]): Promise<void> {
 	const raw = args[0];
 	if (!raw) {
-		throw new Error("Uso: kowork task rm <taskId|caminho>");
+		throw new Error("Uso: kw-cli task rm <taskId|caminho>");
 	}
 
 	const row = await resolveTask(raw);

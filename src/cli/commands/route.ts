@@ -20,7 +20,7 @@ async function runRouteAdd(args: string[]): Promise<void> {
 	const [projectId, name] = positionals;
 	if (!projectId || !name) {
 		throw new Error(
-			"Uso: kowork route add <projetoId> <nome> [--command ...] [--icon ...] [--route <caminho>]",
+			"Uso: kw-cli route add <projetoId> <nome> [--command ...] [--icon ...] [--route <caminho>]",
 		);
 	}
 
@@ -46,7 +46,7 @@ async function runRouteAdd(args: string[]): Promise<void> {
 async function runRouteRm(args: string[]): Promise<void> {
 	const id = args[0];
 	if (!id) {
-		throw new Error("Uso: kowork route rm <routeId>");
+		throw new Error("Uso: kw-cli route rm <routeId>");
 	}
 
 	const route = await dbProjectRoutes.getById(id);

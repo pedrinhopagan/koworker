@@ -2,7 +2,7 @@
 
 ## OBJETIVO
 
-CLI `kowork` usada por AI Coding Agents. Com o modelo orientado a `.md`, a leitura e a
+CLI `kw-cli` usada por AI Coding Agents. Com o modelo orientado a `.md`, a leitura e a
 escrita da tarefa acontecem direto nos arquivos da pasta `.koworker/<id>` — a CLI só cobre
 o que não vive no FS: registrar uma tarefa nova no índice (SQLite) e marcá-la como concluída.
 
@@ -28,7 +28,7 @@ cli/
 ### create
 
 ```bash
-kowork create "<título da tarefa>"
+kw-cli create "<título da tarefa>"
 ```
 
 Resolve o projeto cujo `main_route` é exatamente o cwd, gera o id curto e o `folder_path`
@@ -39,7 +39,7 @@ com a primeira prioridade e categoria (por `display_order`). Imprime o `folder_p
 ### done
 
 ```bash
-kowork done <caminho-da-pasta>
+kw-cli done <caminho-da-pasta>
 ```
 
 Recebe qualquer caminho dentro da pasta da tarefa (absoluto, relativo ou um `.md`

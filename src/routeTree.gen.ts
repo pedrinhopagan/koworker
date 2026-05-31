@@ -25,6 +25,7 @@ import { Route as AppTarefasTaskIdIndexRouteImport } from './routes/_app/tarefas
 import { Route as AppSkillsSlugIndexRouteImport } from './routes/_app/skills/$slug/index'
 import { Route as AppProjetosNovoIndexRouteImport } from './routes/_app/projetos/novo/index'
 import { Route as AppProjetosProjetoIdIndexRouteImport } from './routes/_app/projetos/$projetoId/index'
+import { Route as AppProjetosProjetoIdDocsSplatRouteImport } from './routes/_app/projetos/$projetoId/docs/$'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -106,6 +107,12 @@ const AppProjetosProjetoIdIndexRoute =
     path: '/projetos/$projetoId/',
     getParentRoute: () => AppRoute,
   } as any)
+const AppProjetosProjetoIdDocsSplatRoute =
+  AppProjetosProjetoIdDocsSplatRouteImport.update({
+    id: '/projetos/$projetoId/docs/$',
+    path: '/projetos/$projetoId/docs/$',
+    getParentRoute: () => AppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/skills/$slug/': typeof AppSkillsSlugIndexRoute
   '/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/vault/$fileName/': typeof AppVaultFileNameIndexRoute
+  '/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -140,6 +148,7 @@ export interface FileRoutesByTo {
   '/skills/$slug': typeof AppSkillsSlugIndexRoute
   '/tarefas/$taskId': typeof AppTarefasTaskIdIndexRoute
   '/vault/$fileName': typeof AppVaultFileNameIndexRoute
+  '/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -159,6 +168,7 @@ export interface FileRoutesById {
   '/_app/skills/$slug/': typeof AppSkillsSlugIndexRoute
   '/_app/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/_app/vault/$fileName/': typeof AppVaultFileNameIndexRoute
+  '/_app/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/skills/$slug/'
     | '/tarefas/$taskId/'
     | '/vault/$fileName/'
+    | '/projetos/$projetoId/docs/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/skills/$slug'
     | '/tarefas/$taskId'
     | '/vault/$fileName'
+    | '/projetos/$projetoId/docs/$'
   id:
     | '__root__'
     | '/_app'
@@ -213,6 +225,7 @@ export interface FileRouteTypes {
     | '/_app/skills/$slug/'
     | '/_app/tarefas/$taskId/'
     | '/_app/vault/$fileName/'
+    | '/_app/projetos/$projetoId/docs/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -334,6 +347,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjetosProjetoIdIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/projetos/$projetoId/docs/$': {
+      id: '/_app/projetos/$projetoId/docs/$'
+      path: '/projetos/$projetoId/docs/$'
+      fullPath: '/projetos/$projetoId/docs/$'
+      preLoaderRoute: typeof AppProjetosProjetoIdDocsSplatRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -352,6 +372,7 @@ interface AppRouteChildren {
   AppSkillsSlugIndexRoute: typeof AppSkillsSlugIndexRoute
   AppTarefasTaskIdIndexRoute: typeof AppTarefasTaskIdIndexRoute
   AppVaultFileNameIndexRoute: typeof AppVaultFileNameIndexRoute
+  AppProjetosProjetoIdDocsSplatRoute: typeof AppProjetosProjetoIdDocsSplatRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -369,6 +390,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSkillsSlugIndexRoute: AppSkillsSlugIndexRoute,
   AppTarefasTaskIdIndexRoute: AppTarefasTaskIdIndexRoute,
   AppVaultFileNameIndexRoute: AppVaultFileNameIndexRoute,
+  AppProjetosProjetoIdDocsSplatRoute: AppProjetosProjetoIdDocsSplatRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

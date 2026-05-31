@@ -41,7 +41,7 @@ export async function runCreate(args: string[]): Promise<void> {
 	const project = await resolveProjectByCwd();
 	if (!project) {
 		throw new Error(
-			`Nenhum projeto koworker registrado para ${process.cwd()}. Cadastre o projeto no app (ou rode 'kowork project create') antes de criar tarefas.`,
+			`Nenhum projeto koworker registrado para ${process.cwd()}. Cadastre o projeto no app (ou rode 'kw-cli project create') antes de criar tarefas.`,
 		);
 	}
 

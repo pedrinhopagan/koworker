@@ -4,6 +4,25 @@ export const ProjectIdSchema = z.object({
 	id: z.string().min(1),
 });
 
+// Caminho relativo de um doc principal: segmentos `/`, sem barra inicial, sem travessia, terminando
+// num `.md`. É boundary — vira parte de um path no FS; o nome reconhecido é checado no helper.
+const projectDocPath = z
+	.string()
+	.trim()
+	.min(1)
+	.regex(/^[^/\\][^\\]*\.md$/, "Path must be a relative .md without backslashes")
+	.refine(
+		(path) =>
+			!path.split("/").some((segment) => segment === "" || segment === "." || segment === ".."),
+		"Path must not contain empty or traversal segments",
+	);
+
+export const ProjectDocWriteSchema = z.object({
+	id: z.string().min(1),
+	path: projectDocPath,
+	content: z.string(),
+});
+
 export const ProjectCreateSchema = z.object({
 	name: z.string().min(1),
 	description: z.string().optional(),

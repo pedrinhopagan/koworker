@@ -24,7 +24,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 const handler = command ? commands[command] : undefined;
 
 if (!handler) {
-	console.log(`kowork - CLI
+	console.log(`kw-cli - CLI
 
 Tarefas:
   create [título] [--category <nome|id>] [--priority <nome|id>]

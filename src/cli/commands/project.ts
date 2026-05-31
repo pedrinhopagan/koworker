@@ -33,11 +33,11 @@ async function runProjectCreate(args: string[]): Promise<void> {
 	const name = positionals.join(" ").trim();
 	if (!name) {
 		throw new Error(
-			"Uso: kowork project create <nome> [--route <caminho>] [--color #rrggbb] [--desc ...]",
+			"Uso: kw-cli project create <nome> [--route <caminho>] [--color #rrggbb] [--desc ...]",
 		);
 	}
 
-	// Sem --route, registra o cwd: 'kowork project create "Meu Projeto"' fica registrando o
+	// Sem --route, registra o cwd: 'kw-cli project create "Meu Projeto"' fica registrando o
 	// diretório atual, que é o caso comum.
 	const mainRoute = flags.route?.trim() || canonicalPath(process.cwd());
 
@@ -60,7 +60,7 @@ async function runProjectSet(args: string[]): Promise<void> {
 	const id = positionals[0];
 	if (!id) {
 		throw new Error(
-			"Uso: kowork project set <id> [--name ...] [--route ...] [--color #rrggbb] [--desc ...]",
+			"Uso: kw-cli project set <id> [--name ...] [--route ...] [--color #rrggbb] [--desc ...]",
 		);
 	}
 

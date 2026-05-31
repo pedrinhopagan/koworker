@@ -20,7 +20,7 @@ async function runSkillStyle(args: string[]): Promise<void> {
 	const { positionals, flags } = parseArgs(args);
 	const slug = positionals[0];
 	if (!slug) {
-		throw new Error("Uso: kowork skill style <slug> [--label ...] [--icon ...] [--color #rrggbb]");
+		throw new Error("Uso: kw-cli skill style <slug> [--label ...] [--icon ...] [--color #rrggbb]");
 	}
 
 	if (flags.label === undefined && flags.icon === undefined && flags.color === undefined) {

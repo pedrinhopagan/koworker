@@ -5,7 +5,7 @@ import { resolveTask } from "../resolve";
 export async function runDone(args: string[]): Promise<void> {
 	const raw = args[0];
 	if (!raw) {
-		throw new Error("Uso: kowork done <taskId|caminho>");
+		throw new Error("Uso: kw-cli done <taskId|caminho>");
 	}
 
 	const row = await resolveTask(raw);

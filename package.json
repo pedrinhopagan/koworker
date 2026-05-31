@@ -11,7 +11,7 @@
 		"url": "https://github.com/pedrinhopagan/koworker.git"
 	},
 	"bin": {
-		"kowork": "./src/cli/index.ts"
+		"kw-cli": "./src/cli/index.ts"
 	},
 	"type": "module",
 	"scripts": {

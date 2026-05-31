@@ -2,9 +2,11 @@ import { protectedProcedure } from "../auth/context";
 import type { project_routes, projects } from "../db/connection";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
+import { listProjectDocs, writeProjectDoc } from "../helpers/project-docs";
 import { restartTasksWatcher } from "../helpers/tasks-watcher";
 import {
 	ProjectCreateSchema,
+	ProjectDocWriteSchema,
 	ProjectIdSchema,
 	ProjectReorderSchema,
 	ProjectUpdateSchema,
@@ -102,6 +104,26 @@ export const projectsRouter = {
 	reorder: protectedProcedure.input(ProjectReorderSchema).handler(async ({ input }) => {
 		await dbProjects.reorder(input.orderedIds);
 		return { success: true };
+	}),
+
+	listDocs: protectedProcedure.input(ProjectIdSchema).handler(async ({ input }) => {
+		const project = await dbProjects.getById(input.id);
+		if (!project) return [];
+
+		return listProjectDocs(project.main_route);
+	}),
+
+	writeDoc: protectedProcedure.input(ProjectDocWriteSchema).handler(async ({ input }) => {
+		const project = await dbProjects.getById(input.id);
+		if (!project) throw new Error("Projeto não encontrado");
+
+		await writeProjectDoc({
+			projectRoute: project.main_route,
+			path: input.path,
+			content: input.content,
+		});
+
+		return { path: input.path };
 	}),
 
 	stats: protectedProcedure.handler(async () => {

@@ -29,6 +29,7 @@ export {
 } from "./project-routes";
 export {
 	ProjectCreateSchema,
+	ProjectDocWriteSchema,
 	ProjectIdSchema,
 	ProjectReorderSchema,
 	ProjectUpdateSchema,

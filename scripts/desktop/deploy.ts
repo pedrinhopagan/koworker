@@ -212,6 +212,12 @@ async function installLocally(worktreeDir: string) {
 	await copyFile(binaryPath, localBinaryPath);
 	await chmod(localBinaryPath, 0o755);
 
+	// CLI standalone pra AI agents. Nome `kw-cli` (não `kowork`) de propósito: o binário da GUI
+	// acima já ocupa `kowork` no PATH, então um CLI homônimo abriria o app em vez de rodar o comando.
+	const cliBinaryPath = join(localBinDir, "kw-cli");
+	run(["bun", "build", "src/cli/index.ts", "--compile", "--outfile", cliBinaryPath], worktreeDir);
+	await chmod(cliBinaryPath, 0o755);
+
 	const appDataDir = join(home, ".local", "share", "com.pedro.kowork");
 	const backendBinDir = join(home, ".local", "lib", "kowork", "bin");
 	const backendSource = join(worktreeDir, "src-tauri", "bin", "kowork-backend");
