@@ -147,22 +147,28 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 					{/* Gutters laterais SOBRE os vãos fora da coluna de texto (largura = metade da janela
 					    menos metade do max-width da coluna, por breakpoint). `main` mantém a largura
 					    responsiva original; estes divs só cobrem o espaço que não era usado e desfocam. */}
-					{reading ? null : (
-						<>
-							{/** biome-ignore lint/a11y/noStaticElementInteractions: gutter decorativo só pra desfocar. */}
-							<div
-								aria-hidden
-								onMouseDown={blurOnGutter}
-								className="absolute inset-y-0 left-0 z-10 w-[max(0px,calc(50%_-_24rem))] cursor-text xl:w-[max(0px,calc(50%_-_28rem))]"
-							/>
-							{/** biome-ignore lint/a11y/noStaticElementInteractions: gutter decorativo só pra desfocar. */}
-							<div
-								aria-hidden
-								onMouseDown={blurOnGutter}
-								className="absolute inset-y-0 right-0 z-10 w-[max(0px,calc(50%_-_24rem))] cursor-text xl:w-[max(0px,calc(50%_-_28rem))]"
-							/>
-						</>
-					)}
+					{/** biome-ignore lint/a11y/noStaticElementInteractions: gutter decorativo só pra desfocar. */}
+					<div
+						aria-hidden
+						onMouseDown={blurOnGutter}
+						className={cn(
+							"absolute inset-y-0 left-0 z-10 cursor-text",
+							reading
+								? "w-[max(0px,calc(50%_-_28rem))] lg:w-[max(0px,calc(50%_-_32rem))] 2xl:w-[max(0px,calc(50%_-_36rem))]"
+								: "w-[max(0px,calc(50%_-_24rem))] xl:w-[max(0px,calc(50%_-_28rem))]",
+						)}
+					/>
+					{/** biome-ignore lint/a11y/noStaticElementInteractions: gutter decorativo só pra desfocar. */}
+					<div
+						aria-hidden
+						onMouseDown={blurOnGutter}
+						className={cn(
+							"absolute inset-y-0 right-0 z-10 cursor-text",
+							reading
+								? "w-[max(0px,calc(50%_-_28rem))] lg:w-[max(0px,calc(50%_-_32rem))] 2xl:w-[max(0px,calc(50%_-_36rem))]"
+								: "w-[max(0px,calc(50%_-_24rem))] xl:w-[max(0px,calc(50%_-_28rem))]",
+						)}
+					/>
 				</div>
 
 				{reading || !showPrompt ? null : (

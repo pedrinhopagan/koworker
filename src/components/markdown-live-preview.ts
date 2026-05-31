@@ -181,6 +181,26 @@ const headingLineCollapsed: Record<string, Decoration> = {
 
 const hidden = Decoration.replace({});
 
+// `---` (HorizontalRule) fora do foco vira uma régua de verdade no lugar do texto; com o cursor na
+// linha, os `---` reaparecem pra editar. `block: false` mantém o widget no fluxo da linha.
+class DividerWidget extends WidgetType {
+	eq() {
+		return true;
+	}
+
+	toDOM() {
+		const el = document.createElement("span");
+		el.className = "cm-md-divider";
+		return el;
+	}
+
+	ignoreEvent() {
+		return true;
+	}
+}
+
+const divider = Decoration.replace({ widget: new DividerWidget() });
+
 // Estilo de pill para `inline code`: só decora, mantendo o texto totalmente editável.
 const inlineCodeMark = Decoration.mark({ class: "cm-md-inline-code" });
 
@@ -614,8 +634,22 @@ function collectHeadings(view: EditorView): HeadingInfo[] {
 	return out;
 }
 
+// `---\n…\n---` no topo do arquivo é frontmatter (metadados), não um divider. Devolve o fim do bloco
+// (posição do fechamento) pra pular esses delimitadores; -1 quando não há frontmatter. O `---` de
+// abertura parseia como HorizontalRule e o de fechamento como SetextHeading, então pular o range
+// inteiro cobre os dois casos sem depender de qual nó cada delimitador virou.
+function frontmatterEnd(doc: EditorState["doc"]): number {
+	if (doc.lines < 2 || doc.line(1).text.trim() !== "---") return -1;
+	for (let n = 2; n <= doc.lines; n++) {
+		const text = doc.line(n).text.trim();
+		if (text === "---" || text === "...") return doc.line(n).to;
+	}
+	return -1;
+}
+
 function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet {
 	const { doc } = view.state;
+	const frontmatterTo = frontmatterEnd(doc);
 	const selection = view.state.selection.main;
 	// Sem foco, nenhuma linha conta como ativa: os marcadores da linha do cursor também somem e o
 	// texto fica "limpo". Clicar fora do editor (na margem) tira o foco e dispara essa limpeza.
@@ -731,6 +765,16 @@ function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet
 					return false;
 				}
 
+				if (node.name === "HorizontalRule") {
+					// Delimitador de frontmatter no topo → não é divider, fica como está.
+					if (node.from <= frontmatterTo) return false;
+					const line = doc.lineAt(node.from);
+					const lineActive = line.from <= activeTo && line.to >= activeFrom;
+					// Com o cursor na linha, mantém os `---` editáveis; fora dela, vira a régua.
+					if (!lineActive) ranges.push(divider.range(line.from, line.to));
+					return false;
+				}
+
 				if (node.name === "TaskMarker") {
 					const checked = doc.sliceString(node.from + 1, node.to - 1).toLowerCase() === "x";
 					ranges.push(
@@ -830,6 +874,14 @@ const baseTheme = EditorView.baseTheme({
 	".cm-md-h6": { fontSize: "1em", fontWeight: "600", opacity: "0.8" },
 	".cm-md-heading": { position: "relative" },
 	".cm-md-collapsed": { display: "none" },
+	// Régua de `---`: ocupa a largura da linha como uma borda fina centrada verticalmente.
+	".cm-md-divider": {
+		display: "inline-block",
+		width: "100%",
+		height: "0",
+		verticalAlign: "middle",
+		borderTop: "1px solid var(--border)",
+	},
 	// Headings recolhidos ganham margem inferior maior conforme o nível (h1 > h2 > h3…),
 	// pra criar respiro proporcional onde antes havia o conteúdo escondido.
 	".cm-md-h1.cm-md-heading-collapsed": { paddingBottom: "1.2em" },
