@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LucideIcon } from "@/lib/lucide-icon";
 
-export type SkillAppearanceChange = { slug: string; icon?: string; color?: string };
+type SkillAppearanceChange = { slug: string; icon?: string; color?: string };
 
 // Controles de aparência da skill (preview + ícone + cor) — metadados internos em `skill_settings`,
 // não tocam o arquivo. Ícone aplica direto (escolha discreta); cor mantém rascunho local pro

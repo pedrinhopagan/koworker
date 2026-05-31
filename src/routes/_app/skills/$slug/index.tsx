@@ -1,5 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Check, Loader2, PencilLine, Trash2, TriangleAlert, X } from "lucide-react";
+import {
+	ArrowLeft,
+	Check,
+	Loader2,
+	PencilLine,
+	SlidersHorizontal,
+	Trash2,
+	TriangleAlert,
+	X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
@@ -17,7 +26,8 @@ import { useSkillQuery } from "@/hooks/use-skills";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
 import type { SkillVariant, TaskSkill } from "@/types/skills";
-import { SkillAppearancePopover } from "../-components/skill-appearance-popover";
+import { SkillAppearanceDialog } from "../-components/skill-appearance-dialog";
+import { SkillMetadataControls } from "../-components/skill-metadata-controls";
 import { useSkillMutations } from "../-utils/use-skill-mutations";
 import { useSkillSettingsMutation } from "../-utils/use-skill-settings";
 
@@ -101,6 +111,7 @@ function SkillEditor({
 	const [editingLabel, setEditingLabel] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [confirmingStandardize, setConfirmingStandardize] = useState(false);
+	const [appearanceOpen, setAppearanceOpen] = useState(false);
 	const [activeVariantPath, setActiveVariantPath] = useState(skill.primaryPath);
 
 	const settingsMutation = useSkillSettingsMutation();
@@ -112,6 +123,7 @@ function SkillEditor({
 	const hasConflict = new Set(variants.map((variant) => variant.group)).size > 1;
 
 	const [description, setDescription] = useState(activeVariant?.description ?? skill.description);
+	const [metadata, setMetadata] = useState<Record<string, unknown>>(activeVariant?.metadata ?? {});
 
 	// Se a variante ativa some (ex.: removeu só esta cópia), cai pra primeira restante. Troca o path
 	// → remonta o editor com o conteúdo certo e dispara o reset da descrição abaixo.
@@ -121,19 +133,35 @@ function SkillEditor({
 		}
 	}, [variants, activeVariantPath]);
 
-	// Reseta a descrição só ao trocar de variante (ou de slug, via remount do parent).
+	// Reseta descrição e metadados só ao trocar de variante (ou de slug, via remount do parent).
 	// biome-ignore lint/correctness/useExhaustiveDependencies: reset intencional só por variante.
-	useEffect(() => setDescription(activeVariant?.description ?? ""), [activeVariantPath]);
+	useEffect(() => {
+		setDescription(activeVariant?.description ?? "");
+		setMetadata(activeVariant?.metadata ?? {});
+	}, [activeVariantPath]);
 
-	// `skills.update` reescreve o arquivo da VARIANTE ATIVA: os dois gatilhos enviam o par completo.
-	// O corpo lê a descrição atual (estado mais recente via closure renovado do useDebouncedWrite);
-	// a descrição lê o corpo ao vivo do editor. `metadata` da variante é repassado intacto.
-	function persist(next: { description: string; content: string }) {
+	// `skills.update` reescreve o arquivo da VARIANTE ATIVA: os três gatilhos (descrição, corpo,
+	// metadados) sempre enviam o trio completo. Descrição e metadados vêm do estado local; o corpo,
+	// ao vivo do editor. Assim um switch de metadado não atropela uma edição de texto pendente.
+	function persist(next: {
+		description: string;
+		content: string;
+		metadata: Record<string, unknown>;
+	}) {
 		return updateContent({
 			path: activeVariantPath,
 			description: next.description,
 			content: next.content,
-			metadata: activeVariant?.metadata ?? {},
+			metadata: next.metadata,
+		});
+	}
+
+	function changeMetadata(next: Record<string, unknown>) {
+		setMetadata(next);
+		void persist({
+			description,
+			content: paneRef.current?.getContent() ?? activeVariant?.content ?? "",
+			metadata: next,
 		});
 	}
 
@@ -142,6 +170,7 @@ function SkillEditor({
 		void persist({
 			description,
 			content: paneRef.current?.getContent() ?? activeVariant?.content ?? "",
+			metadata,
 		});
 	}
 
@@ -238,13 +267,16 @@ function SkillEditor({
 								)}
 							</div>
 
-							<SkillAppearancePopover
-								slug={skill.slug}
-								label={skill.label}
-								icon={skill.icon}
-								color={skill.color}
-								onChange={(settings) => settingsMutation.mutate(settings)}
-							/>
+							<SkillMetadataControls metadata={metadata} onChange={changeMetadata} />
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => setAppearanceOpen(true)}
+							>
+								<SlidersHorizontal className="size-3.5" />
+								Aparência
+							</Button>
 							<div className="h-5 w-px bg-border" aria-hidden="true" />
 							<DocToolbar
 								onCollapse={() => paneRef.current?.collapseAll()}
@@ -342,7 +374,7 @@ function SkillEditor({
 					fileName="SKILL.md"
 					content={activeVariant?.content ?? skill.instructions}
 					folderPath={activeVariant?.dir ?? skill.primaryDir}
-					writeFile={({ content }) => persist({ description, content })}
+					writeFile={({ content }) => persist({ description, content, metadata })}
 					reading={reading}
 					onExitReading={() => setReading(false)}
 				/>
@@ -415,6 +447,11 @@ function SkillEditor({
 						: "Esta ação não pode ser desfeita."}
 				</Text>
 			</Dialog>
+
+			<SkillAppearanceDialog
+				skill={appearanceOpen ? skill : null}
+				onClose={() => setAppearanceOpen(false)}
+			/>
 
 			<ConfirmDialog
 				open={confirmingStandardize}

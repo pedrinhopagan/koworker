@@ -31,7 +31,7 @@ type SkillsGridProps = {
 export function SkillsGrid({ skills, loading }: SkillsGridProps) {
 	const [search, setSearch] = useState("");
 	const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
-	const [appearanceSkill, setAppearanceSkill] = useState<TaskSkill | null>(null);
+	const [appearanceSlug, setAppearanceSlug] = useState<string | null>(null);
 
 	const filtered = useMemo(() => {
 		const term = search.trim().toLowerCase();
@@ -45,6 +45,12 @@ export function SkillsGrid({ skills, loading }: SkillsGridProps) {
 			);
 		});
 	}, [skills, search, sourceFilter]);
+
+	// Deriva a skill viva de `skills` (não um snapshot): ao trocar ícone/cor a mutation invalida a
+	// query, `skills` se atualiza e o preview do dialog reflete a mudança em tempo real.
+	const appearanceSkill = appearanceSlug
+		? (skills.find((skill) => skill.slug === appearanceSlug) ?? null)
+		: null;
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -104,14 +110,14 @@ export function SkillsGrid({ skills, loading }: SkillsGridProps) {
 								key={skill.slug}
 								skill={skill}
 								index={index}
-								onAppearance={() => setAppearanceSkill(skill)}
+								onAppearance={() => setAppearanceSlug(skill.slug)}
 							/>
 						))}
 					</div>
 				</div>
 			)}
 
-			<SkillAppearanceDialog skill={appearanceSkill} onClose={() => setAppearanceSkill(null)} />
+			<SkillAppearanceDialog skill={appearanceSkill} onClose={() => setAppearanceSlug(null)} />
 		</div>
 	);
 }
