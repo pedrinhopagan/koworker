@@ -139,12 +139,15 @@ const tableDecorationsField = StateField.define<DecorationSet>({
 	provide: (f) => EditorView.decorations.from(f),
 });
 
-// Marcadores de sintaxe que somem quando o cursor não está na linha (estilo "live preview" do Obsidian).
-// `ListMark` fica de fora de propósito: esconder `- ` apagaria o marcador da lista.
-const HIDDEN_MARKS = new Set([
+// Marcadores de estilo de texto (`**`, `_`, `~~`) que ficam SEMPRE escondidos, mesmo com o
+// cursor na linha — o estilo continua aplicado e o markup só reaparece quando deletado, igual
+// ao `==` do Highlight. Escrever dentro do estilo nunca expõe os delimitadores.
+const ALWAYS_HIDDEN_MARKS = new Set(["EmphasisMark", "StrikethroughMark"]);
+
+// Marcadores estruturais que somem só quando o cursor não está na linha (estilo "live preview"
+// do Obsidian). `ListMark` fica de fora de propósito: esconder `- ` apagaria o marcador da lista.
+const CURSOR_HIDDEN_MARKS = new Set([
 	"HeaderMark",
-	"EmphasisMark",
-	"StrikethroughMark",
 	"QuoteMark",
 	"LinkMark",
 	"CodeMark",
@@ -154,6 +157,9 @@ const HIDDEN_MARKS = new Set([
 const codeBlockLine = Decoration.line({ class: "cm-md-code-block" });
 const codeBlockFirst = Decoration.line({ class: "cm-md-code-block cm-md-code-block-first" });
 const codeBlockLast = Decoration.line({ class: "cm-md-code-block cm-md-code-block-last" });
+const codeBlockOnly = Decoration.line({
+	class: "cm-md-code-block cm-md-code-block-first cm-md-code-block-last",
+});
 
 const headingLine: Record<string, Decoration> = {
 	ATXHeading1: Decoration.line({ class: "cm-md-h1 cm-md-heading" }),
@@ -177,6 +183,9 @@ const hidden = Decoration.replace({});
 
 // Estilo de pill para `inline code`: só decora, mantendo o texto totalmente editável.
 const inlineCodeMark = Decoration.mark({ class: "cm-md-inline-code" });
+
+// Fundo de "grifa-texto" para `==destaque==`; os `==` ficam sempre escondidos (tratado no nó Highlight).
+const highlightMark = Decoration.mark({ class: "cm-md-highlight" });
 
 type Callbacks = {
 	onInlineCodeClick?: (text: string) => void;
@@ -694,7 +703,13 @@ function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet
 					for (let n = styleStart; n <= styleEnd; n++) {
 						const line = doc.line(n);
 						const decoration =
-							n === styleStart ? codeBlockFirst : n === styleEnd ? codeBlockLast : codeBlockLine;
+							styleStart === styleEnd
+								? codeBlockOnly
+								: n === styleStart
+									? codeBlockFirst
+									: n === styleEnd
+										? codeBlockLast
+										: codeBlockLine;
 						ranges.push(decoration.range(line.from));
 					}
 
@@ -727,6 +742,18 @@ function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet
 				// tratados na passada global
 				if (node.name in headingLine) return;
 
+				if (node.name === "Highlight") {
+					// Fundo no miolo + os `==` sempre escondidos (igual ao inline code), some o ruído
+					// dos marcadores assim que a grifa existe. Desce pra estilizar *bold*/_italic_
+					// aninhados; pra tirar a grifa use Ctrl+H (os `==` não ficam à mão no preview).
+					const innerFrom = node.from + 2;
+					const innerTo = node.to - 2;
+					if (innerTo > innerFrom) ranges.push(highlightMark.range(innerFrom, innerTo));
+					ranges.push(hidden.range(node.from, innerFrom));
+					ranges.push(hidden.range(innerTo, node.to));
+					return;
+				}
+
 				if (node.name === "InlineCode") {
 					// Pill sempre presente com os backticks escondidos, mesmo com o cursor dentro:
 					// edita-se o conteúdo mantendo o visual. O conteúdo segue como texto comum.
@@ -740,7 +767,13 @@ function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet
 					return false;
 				}
 
-				if (!HIDDEN_MARKS.has(node.name)) return;
+				// Estilos de texto: marcadores sempre escondidos, independente do cursor.
+				if (ALWAYS_HIDDEN_MARKS.has(node.name)) {
+					ranges.push(hidden.range(node.from, node.to));
+					return;
+				}
+
+				if (!CURSOR_HIDDEN_MARKS.has(node.name)) return;
 
 				// Cursor na linha do marcador → mantém o markup visível para edição.
 				if (node.to >= activeFrom && node.from <= activeTo) return;
@@ -905,6 +938,14 @@ const baseTheme = EditorView.baseTheme({
 	".cm-md-inline-code:hover": {
 		background: "color-mix(in oklab, var(--primary) 14%, var(--muted))",
 		borderColor: "var(--primary)",
+	},
+	".cm-md-highlight": {
+		padding: "0.05em 0.15em",
+		borderRadius: "3px",
+		// Grifa âmbar translúcida — funciona sobre o fundo escuro mantendo o texto legível.
+		background: "color-mix(in oklab, #facc15 30%, transparent)",
+		color: "var(--foreground)",
+		boxDecorationBreak: "clone",
 	},
 	".cm-md-task-checkbox": {
 		display: "inline-flex",

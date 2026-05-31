@@ -1,7 +1,16 @@
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { EditorView, placeholder } from "@codemirror/view";
+import {
+	HighlightStyle,
+	LanguageDescription,
+	syntaxHighlighting,
+	syntaxTree,
+} from "@codemirror/language";
+import { languages } from "@codemirror/language-data";
+import { EditorSelection, Prec } from "@codemirror/state";
+import { type Command, EditorView, keymap, placeholder } from "@codemirror/view";
+import type { SyntaxNode } from "@lezer/common";
 import { tags as t } from "@lezer/highlight";
+import type { DelimiterType, MarkdownConfig } from "@lezer/markdown";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "react";
 
@@ -21,6 +30,39 @@ const highlightStyle = HighlightStyle.define([
 	{ tag: t.quote, color: "var(--muted-foreground)", fontStyle: "italic" },
 	{ tag: t.list, color: "var(--muted-foreground)" },
 	{ tag: t.heading, fontWeight: "700" },
+	// Tokens de código nas fences (```js, ```python…). Paleta `oklch` afinada às hues do tema
+	// (earthy/terminal): verde oliva, âmbar e vermelho terroso, em lightness alta pra ler sobre
+	// o fundo escuro do bloco. Cada tom mapeia um papel semântico do token.
+	// Palavras-chave / controle de fluxo → vermelho terroso (mesma hue do destructive).
+	{
+		tag: [t.keyword, t.moduleKeyword, t.operatorKeyword, t.controlKeyword],
+		color: "oklch(0.7 0.12 25)",
+	},
+	// Strings → verde oliva (hue do primary), o "conteúdo literal" do tema.
+	{ tag: [t.string, t.special(t.string), t.regexp], color: "oklch(0.74 0.11 130)" },
+	// Números, booleanos e átomos → âmbar (hue do warning).
+	{ tag: [t.number, t.bool, t.null, t.atom], color: "oklch(0.78 0.11 70)" },
+	// Comentários → cinza apagado do tema, em itálico.
+	{
+		tag: [t.comment, t.lineComment, t.blockComment],
+		color: "var(--muted-foreground)",
+		fontStyle: "italic",
+	},
+	// Variáveis e propriedades → texto base.
+	{ tag: [t.variableName, t.propertyName], color: "var(--foreground)" },
+	// Funções → ciano dessaturado, único tom frio pra destacar a chamada sem brigar com o verde.
+	{ tag: [t.function(t.variableName), t.function(t.propertyName)], color: "oklch(0.78 0.08 210)" },
+	// Tipos, classes e namespaces → teal esverdeado.
+	{ tag: [t.typeName, t.className, t.namespace], color: "oklch(0.8 0.09 175)" },
+	// Tags HTML/JSX e colchetes angulares → verde oliva, como as strings.
+	{ tag: [t.tagName, t.angleBracket], color: "oklch(0.74 0.11 130)" },
+	// Atributos → âmbar, igual aos valores literais.
+	{ tag: [t.attributeName], color: "oklch(0.78 0.11 70)" },
+	// Operadores e pontuação → texto base levemente apagado.
+	{
+		tag: [t.operator, t.punctuation, t.separator, t.derefOperator],
+		color: "var(--muted-foreground)",
+	},
 ]);
 
 const createEditorTheme = (fontSize: string) =>
@@ -62,6 +104,113 @@ const createEditorTheme = (fontSize: string) =>
 		{ dark: true },
 	);
 
+// `==texto==` não faz parte do CommonMark. Espelha o Strikethrough do GFM: um delimitador
+// `==` simétrico que o parser casa e envolve num nó Highlight, com os `==` virando HighlightMark
+// (escondidos no live preview). Vira um nó de verdade pra `markdownLivePreview` poder estilizar
+// o miolo e sumir com os marcadores quando o cursor sai da linha, igual a *bold*/_italic_.
+const highlightDelimiter: DelimiterType = { resolve: "Highlight", mark: "HighlightMark" };
+
+// Apelidos amigáveis pro info string da fence (```react) que não batem direto com os nomes do
+// `@codemirror/language-data`. O resto resolve por nome/alias/extensão via matchLanguageName.
+const languageAliases: Record<string, string> = {
+	react: "jsx",
+	"react-ts": "tsx",
+	js: "javascript",
+	ts: "typescript",
+	py: "python",
+	sh: "shell",
+	bash: "shell",
+	zsh: "shell",
+	yml: "yaml",
+	golang: "go",
+	// Django não tem parser próprio no language-data; templates Django usam a mesma sintaxe de
+	// Jinja (`{% %}` / `{{ }}`), então reaproveitamos esse modo.
+	django: "jinja",
+};
+
+// Carrega o parser da linguagem declarada na fence (```js, ```python, ```go…) pro CodeMirror
+// aplicar a sintaxe dentro do bloco. Retorna null quando não reconhece (fica texto puro).
+function resolveCodeLanguage(info: string) {
+	const name = languageAliases[info.toLowerCase()] ?? info;
+	return LanguageDescription.matchLanguageName(languages, name, true);
+}
+
+const highlightExtension: MarkdownConfig = {
+	defineNodes: [{ name: "Highlight" }, { name: "HighlightMark" }],
+	parseInline: [
+		{
+			name: "Highlight",
+			parse(cx, next, pos) {
+				// 61 = código de "="; precisa de `==` para abrir/fechar a grifa.
+				if (next !== 61 || cx.char(pos + 1) !== 61) return -1;
+				return cx.addDelimiter(highlightDelimiter, pos, pos + 2, true, true);
+			},
+		},
+	],
+};
+
+// Toggle de estilo "de nó": como os marcadores (`**`, `_`, `~~`, `==`) ficam escondidos no
+// preview, a remoção não pode depender da borda da seleção. Com o cursor em qualquer ponto de
+// um trecho já estilizado, reusar o comando tira o estilo; com seleção fora de um, envolve; sem
+// nada ao redor, abre o par e deixa o cursor no meio pra já começar a digitar dentro do estilo.
+function toggleStyle(nodeName: string, marker: string): Command {
+	const len = marker.length;
+	return (view) => {
+		const { state } = view;
+		const tree = syntaxTree(state);
+		const tr = state.changeByRange((range) => {
+			let target: SyntaxNode | null = null;
+			for (
+				let node: SyntaxNode | null = tree.resolveInner(range.from, 1);
+				node;
+				node = node.parent
+			) {
+				if (node.name === nodeName) {
+					target = node;
+					break;
+				}
+			}
+
+			if (target) {
+				// Remove os marcadores das pontas; a seleção reacompanha o deslocamento do início.
+				const { from, to } = target;
+				const mapPos = (pos: number) => {
+					if (pos <= from + len) return from;
+					if (pos >= to - len) return to - 2 * len;
+					return pos - len;
+				};
+				return {
+					changes: [
+						{ from, to: from + len },
+						{ from: to - len, to },
+					],
+					range: EditorSelection.range(mapPos(range.from), mapPos(range.to)),
+				};
+			}
+
+			return {
+				changes: [
+					{ from: range.from, insert: marker },
+					{ from: range.to, insert: marker },
+				],
+				range: EditorSelection.range(range.from + len, range.to + len),
+			};
+		});
+		view.dispatch(state.update(tr, { scrollIntoView: true, userEvent: "input.format" }));
+		return true;
+	};
+}
+
+// Atalhos de formatação estilo editor de texto. `Prec.high` pra vencer qualquer binding padrão.
+const formattingKeymap = Prec.high(
+	keymap.of([
+		{ key: "Mod-b", run: toggleStyle("StrongEmphasis", "**"), preventDefault: true },
+		{ key: "Mod-i", run: toggleStyle("Emphasis", "_"), preventDefault: true },
+		{ key: "Mod-h", run: toggleStyle("Highlight", "=="), preventDefault: true },
+		{ key: "Mod-Shift-s", run: toggleStyle("Strikethrough", "~~"), preventDefault: true },
+	]),
+);
+
 const basicSetup = {
 	lineNumbers: false,
 	foldGutter: false,
@@ -99,9 +248,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
 		const extensions = useMemo(
 			() => [
-				markdown({ base: markdownLanguage }),
+				markdown({
+					base: markdownLanguage,
+					extensions: [highlightExtension],
+					codeLanguages: resolveCodeLanguage,
+				}),
 				syntaxHighlighting(highlightStyle),
 				markdownLivePreview({ onInlineCodeClick, onHeadingMention }),
+				formattingKeymap,
 				createEditorTheme(fontSize),
 				EditorView.lineWrapping,
 				placeholder("Comece a escrever…"),
