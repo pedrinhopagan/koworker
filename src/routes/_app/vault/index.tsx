@@ -38,6 +38,9 @@ function VaultPage() {
 	// Pasta solta sendo adotada como tarefa: trava os botões de adoção enquanto a request corre.
 	const [adoptingFolder, setAdoptingFolder] = useState<string | null>(null);
 
+	// Criação de nota solta: o dialog pede só um título e deriva o nome do arquivo.
+	const [creatingTitle, setCreatingTitle] = useState<string | null>(null);
+
 	useEffect(() => {
 		setSelected(new Set());
 		setFolderSelected(new Set());
@@ -168,6 +171,32 @@ function VaultPage() {
 	});
 
 	const createTaskMutation = useMutation(orpc.tasks.create.mutationOptions());
+
+	// Cria um `.md` solto na raiz do vault com um H1 inicial e abre a nota pra editar.
+	const createNoteMutation = useMutation({
+		...orpc.vault.writeFile.mutationOptions(),
+		onSuccess: async (_result, variables) => {
+			await invalidateVaultAndTasks();
+			setCreatingTitle(null);
+			navigate({ to: "/vault/$fileName", params: { fileName: variables.name } });
+		},
+		onError: (err) =>
+			toast.error(err instanceof Error ? err.message : "Não foi possível criar a nota"),
+	});
+
+	function confirmCreateNote() {
+		if (creatingTitle === null) return;
+		const base = creatingTitle.trim().replaceAll(/[/\\]/g, "-").replace(/^\.+/, "");
+		if (!base) return;
+
+		const name = `${base}.md`;
+		if (loose.some((file) => file.name === name)) {
+			toast.error("Já existe uma nota com esse nome");
+			return;
+		}
+
+		createNoteMutation.mutate({ projectId, name, content: `# ${base}\n\n` });
+	}
 
 	// Cria a tarefa de destino com a pasta vazia (seed: false), pra os arquivos redirecionados
 	// entrarem sem colidir com um index.md de boilerplate. Devolve o id pra encadear o redirect.
@@ -396,6 +425,7 @@ function VaultPage() {
 							onAdoptFolder={adoptFolder}
 							adoptingFolder={adoptingFolder}
 							onOpen={(name) => navigate({ to: "/vault/$fileName", params: { fileName: name } })}
+							onCreateLoose={() => setCreatingTitle("")}
 							onNavigateTask={(taskId) => navigate({ to: "/tarefas/$taskId", params: { taskId } })}
 							onRenameLoose={(name) => setRenaming({ name, value: name })}
 							onDeleteLoose={(name) => setDeleting(name)}
@@ -516,6 +546,49 @@ function VaultPage() {
 							</div>
 						</div>
 					)}
+				</div>
+			)}
+
+			{creatingTitle !== null && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center">
+					<button
+						type="button"
+						aria-label="Fechar"
+						onClick={() => setCreatingTitle(null)}
+						className="absolute inset-0 bg-black/50"
+					/>
+					<form
+						onSubmit={(e) => {
+							e.preventDefault();
+							confirmCreateNote();
+						}}
+						className="relative z-10 w-full max-w-md border border-border bg-background p-6 shadow-lg animate-in fade-in-0 zoom-in-95"
+					>
+						<Text size="sm" tone="muted" className="mb-3">
+							Nova nota solta
+						</Text>
+						<Input
+							autoFocus
+							value={creatingTitle}
+							onChange={(e) => setCreatingTitle(e.target.value)}
+							placeholder="Título da nota"
+							className="font-mono text-sm"
+							aria-label="Título"
+						/>
+						{creatingTitle.trim() && (
+							<Text size="xs" tone="muted" className="mt-2 font-mono">
+								arquivo: {creatingTitle.trim().replaceAll(/[/\\]/g, "-").replace(/^\.+/, "")}.md
+							</Text>
+						)}
+						<div className="mt-6 flex justify-end gap-3">
+							<Button type="button" variant="outline" onClick={() => setCreatingTitle(null)}>
+								Cancelar
+							</Button>
+							<Button type="submit" disabled={createNoteMutation.isPending}>
+								{createNoteMutation.isPending ? "Criando..." : "Criar nota"}
+							</Button>
+						</div>
+					</form>
 				</div>
 			)}
 

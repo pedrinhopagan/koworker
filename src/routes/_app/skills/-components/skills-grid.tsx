@@ -10,6 +10,7 @@ import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
 import type { TaskSkill } from "@/types/skills";
 import { SkillAppearanceDialog } from "./skill-appearance-dialog";
+import { SkillCreateTile } from "./skill-create-tile";
 
 type SourceFilter = "all" | "builtin" | "custom";
 
@@ -90,21 +91,10 @@ export function SkillsGrid({ skills, loading }: SkillsGridProps) {
 				</Text>
 			)}
 
-			{!loading && skills.length === 0 && (
-				<Text size="sm" tone="muted">
-					Nenhuma skill encontrada nas pastas de configuração
-				</Text>
-			)}
-
-			{!loading && skills.length > 0 && filtered.length === 0 && (
-				<Text size="sm" tone="muted">
-					Nenhuma skill corresponde aos filtros
-				</Text>
-			)}
-
-			{!loading && filtered.length > 0 && (
+			{!loading && (
 				<div className="min-h-0 flex-1 transform-gpu overflow-y-auto overscroll-contain pr-1">
 					<div className="grid grid-cols-3 lg:grid-cols-4 gap-3">
+						<SkillCreateTile />
 						{filtered.map((skill, index) => (
 							<SkillTile
 								key={skill.slug}
@@ -114,6 +104,12 @@ export function SkillsGrid({ skills, loading }: SkillsGridProps) {
 							/>
 						))}
 					</div>
+
+					{skills.length > 0 && filtered.length === 0 && (
+						<Text size="sm" tone="muted" className="pt-3">
+							Nenhuma skill corresponde aos filtros
+						</Text>
+					)}
 				</div>
 			)}
 

@@ -5,6 +5,7 @@ import {
 	FolderOpen,
 	Folders,
 	Maximize2,
+	Plus,
 	Sparkles,
 } from "lucide-react";
 
@@ -60,6 +61,7 @@ export function VaultBrowser({
 	onAdoptFolder,
 	adoptingFolder,
 	onOpen,
+	onCreateLoose,
 	onNavigateTask,
 	onRenameLoose,
 	onDeleteLoose,
@@ -76,6 +78,7 @@ export function VaultBrowser({
 	onAdoptFolder: (folderName: string) => void;
 	adoptingFolder: string | null;
 	onOpen: (name: string) => void;
+	onCreateLoose: () => void;
 	onNavigateTask: (taskId: string) => void;
 	onRenameLoose: (name: string) => void;
 	onDeleteLoose: (name: string) => void;
@@ -88,13 +91,18 @@ export function VaultBrowser({
 		<div className="flex flex-col gap-8 pb-24">
 			<section>
 				<SectionLabel count={loose.length}>Soltas</SectionLabel>
-				{loose.length === 0 ? (
-					<Text size="sm" tone="muted">
-						Nenhuma nota solta — tudo já está arrumado dentro de uma tarefa.
-					</Text>
-				) : (
-					<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-						{loose.map((file, index) => {
+				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+					<button
+						type="button"
+						onClick={onCreateLoose}
+						className="group flex min-h-[88px] flex-col items-center justify-center gap-2 border border-dashed border-border bg-card/40 p-4 text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-secondary/40 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					>
+						<Plus className="size-5" />
+						<span className="font-display text-sm font-semibold">Nova nota</span>
+					</button>
+
+					{loose.length > 0 &&
+						loose.map((file, index) => {
 							const isSelected = selected.has(file.name);
 							return (
 								<FileContextMenu
@@ -157,8 +165,7 @@ export function VaultBrowser({
 								</FileContextMenu>
 							);
 						})}
-					</div>
-				)}
+				</div>
 			</section>
 
 			{folders.length > 0 && (

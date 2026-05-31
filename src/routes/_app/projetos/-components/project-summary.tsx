@@ -1,6 +1,6 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { FolderOpen, TerminalSquare } from "lucide-react";
+import { FileText, FolderOpen, TerminalSquare } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -146,6 +146,71 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 				routes={project.routes}
 				onReorder={(orderedIds) => reorderRoutesMutation.mutate({ orderedIds })}
 			/>
+
+			<SummaryDocs projectId={project.id} />
+		</div>
+	);
+}
+
+type SummaryDocsProps = {
+	projectId: string;
+};
+
+// Docs principais (CLAUDE.md, AGENTS.md, …) detectados na raiz do projeto. Listados como os
+// arquivos soltos do vault, cada um abre a tela de edição própria. Some quando o projeto não tem
+// nenhum desses arquivos.
+function SummaryDocs({ projectId }: SummaryDocsProps) {
+	const docsQuery = useQuery(orpc.projects.listDocs.queryOptions({ input: { id: projectId } }));
+	const docs = useMemo(() => docsQuery.data ?? [], [docsQuery.data]);
+
+	// Agrupa por pasta e ordena os grupos por profundidade: a raiz primeiro, depois as pastas
+	// progressivamente mais internas. Dentro de cada grupo, ordem por nome.
+	const groups = useMemo(() => {
+		const byDir = new Map<string, typeof docs>();
+		for (const doc of docs) {
+			const list = byDir.get(doc.dirLabel) ?? [];
+			list.push(doc);
+			byDir.set(doc.dirLabel, list);
+		}
+
+		const depth = (dirLabel: string) => dirLabel.split("/").filter(Boolean).length;
+
+		return [...byDir.entries()]
+			.sort(([a], [b]) => depth(a) - depth(b) || a.localeCompare(b))
+			.map(([dirLabel, files]) => ({
+				dirLabel,
+				files: files.sort((a, b) => a.name.localeCompare(b.name)),
+			}));
+	}, [docs]);
+
+	if (docs.length === 0) {
+		return null;
+	}
+
+	return (
+		<div className="space-y-3">
+			<Text size="xs" tone="muted" className="uppercase tracking-[0.18em]">
+				Documentos ({docs.length})
+			</Text>
+
+			{groups.map((group) => (
+				<div key={group.dirLabel} className="space-y-1">
+					<Text size="xs" tone="muted" className="truncate font-mono">
+						{group.dirLabel}
+					</Text>
+					{group.files.map((doc) => (
+						<Link
+							key={doc.path}
+							to="/projetos/$projetoId/docs/$"
+							params={{ projetoId: projectId, _splat: doc.path }}
+							className="flex items-center gap-2.5 border border-border bg-card px-3 py-2 transition-colors hover:bg-accent"
+						>
+							<FileText className="size-4 shrink-0 text-muted-foreground" />
+							<span className="truncate font-mono text-sm font-medium">{doc.name}</span>
+						</Link>
+					))}
+				</div>
+			))}
 		</div>
 	);
 }
