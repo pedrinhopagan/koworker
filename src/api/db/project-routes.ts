@@ -1,3 +1,5 @@
+import { sql } from "kysely";
+
 import type {
 	ProjectRouteDbCreateInput,
 	ProjectRouteDbUpdateInput,
@@ -74,6 +76,22 @@ export const dbProjectRoutes = {
 			.updateTable("project_routes")
 			.set({ ...cleanValues, updated_at: Date.now() })
 			.where("id", "=", id)
+			.executeTakeFirst();
+	},
+
+	rewritePrefix: (input: { projectId: string; oldPrefix: string; newPrefix: string }) => {
+		const { projectId, oldPrefix, newPrefix } = input;
+		const len = oldPrefix.length;
+
+		return db
+			.updateTable("project_routes")
+			.set({
+				route: sql<string>`${newPrefix} || substr(route, ${len + 1})`,
+				updated_at: Date.now(),
+			})
+			.where("project_id", "=", projectId)
+			.where(sql<boolean>`substr(route, 1, ${len}) = ${oldPrefix}`)
+			.where(sql<boolean>`(length(route) = ${len} or substr(route, ${len + 1}, 1) = '/')`)
 			.executeTakeFirst();
 	},
 

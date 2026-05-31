@@ -115,8 +115,8 @@ function FilterSelect<T extends { id: string; name: string; color: string; level
 				<>
 					<span className="flex min-w-0 items-center gap-2">
 						<span
-							className="size-2 shrink-0 rounded-full"
-							style={{ backgroundColor: selected?.color ?? "#6b7280" }}
+							className={cn("size-2 shrink-0 rounded-full", !selected && "bg-muted-foreground")}
+							style={selected ? { backgroundColor: selected.color } : undefined}
 						/>
 						<span className="truncate">{selected?.name ?? placeholder}</span>
 					</span>

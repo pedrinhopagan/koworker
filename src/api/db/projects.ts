@@ -1,8 +1,10 @@
 import { sql } from "kysely";
 
+import { DEFAULT_PROJECT_ROUTES } from "@/constants/projects";
 import type { ProjectDbCreateInput, ProjectDbUpdateInput } from "../schemas/projects";
 import { db, type projects } from "./connection";
 import { cleanUpdate } from "./helpers";
+import { dbProjectRoutes } from "./project-routes";
 
 export const dbProjects = {
 	getAll: async () => {
@@ -87,22 +89,59 @@ export const dbProjects = {
 
 		const displayOrder = ((maxOrder?.maxOrder as number | null) ?? -1) + 1;
 
-		return db
+		const result = await db
 			.insertInto("projects")
 			.values({ ...(input as projects), display_order: displayOrder })
 			.executeTakeFirst();
+
+		// Criar um projeto = criá-lo já com suas rotas padrão. Mora aqui (não no router) pra que
+		// UI e CLI passem pelo mesmo dono e nenhum projeto nasça sem atalhos.
+		for (const route of DEFAULT_PROJECT_ROUTES) {
+			await dbProjectRoutes.create({
+				id: crypto.randomUUID(),
+				project_id: input.id,
+				name: route.name,
+				route: input.main_route,
+				icon: "Cpu",
+				command: route.command,
+			});
+		}
+
+		return result;
 	},
 
-	update: (input: { id: string } & ProjectDbUpdateInput) => {
+	update: async (input: { id: string } & ProjectDbUpdateInput) => {
 		const { id, ...values } = input;
 		const cleanValues = cleanUpdate(values);
 
-		return db
+		// Mover o main_route precisa reescrever o prefixo das rotas do projeto, senão os atalhos
+		// apontariam pra um caminho que não existe mais. Lê o anterior só quando o route muda.
+		const previous =
+			values.main_route === undefined
+				? null
+				: await db
+						.selectFrom("projects")
+						.select("main_route")
+						.where("id", "=", id)
+						.where("deleted_at", "is", null)
+						.executeTakeFirst();
+
+		const result = await db
 			.updateTable("projects")
 			.set({ ...cleanValues, updated_at: Date.now() })
 			.where("id", "=", id)
 			.where("deleted_at", "is", null)
 			.executeTakeFirst();
+
+		if (values.main_route !== undefined && previous && values.main_route !== previous.main_route) {
+			await dbProjectRoutes.rewritePrefix({
+				projectId: id,
+				oldPrefix: previous.main_route,
+				newPrefix: values.main_route,
+			});
+		}
+
+		return result;
 	},
 
 	softDelete: (id: string) =>

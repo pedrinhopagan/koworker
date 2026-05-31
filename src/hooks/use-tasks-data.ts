@@ -46,6 +46,10 @@ export function useTasksData(filters: TasksSearchFilters) {
 		}),
 	});
 
+	const metricsQuery = useQuery(
+		orpc.tasks.metrics.queryOptions({ input: { projectId: projectIdForQuery } }),
+	);
+
 	const categories = categoriesQuery.data ?? [];
 	const priorities = prioritiesQuery.data ?? [];
 	const groups = groupsQuery.data ?? [];
@@ -71,8 +75,8 @@ export function useTasksData(filters: TasksSearchFilters) {
 		});
 	});
 
-	const pendingCount = tasksWithMeta.filter((task) => !task.done).length;
-	const executedCount = tasksWithMeta.filter((task) => task.done).length;
+	const pendingCount = metricsQuery.data?.pending ?? 0;
+	const executedCount = metricsQuery.data?.done ?? 0;
 
 	const loading =
 		projectsLoading ||
