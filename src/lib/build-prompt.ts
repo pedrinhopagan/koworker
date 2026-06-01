@@ -1,17 +1,16 @@
-// Prompt enviado ao agente: `/kw` + o caminho do `.md` em foco, relativo à raiz do
-// projeto (sem o caminho da máquina). O agente resolve dentro do projeto atual e lê a pasta
-// inteira; o conteúdo dos `.md` não vai no prompt.
-export function buildKoworkerPrompt(params: {
-	folderPath: string;
-	fileName?: string;
-	userInput?: string;
-}): string {
-	const target = params.fileName ? `${params.folderPath}/${params.fileName}` : params.folderPath;
-	const lines = [`/kw ${target}`];
+// Prompt enviado ao agente: `/kw <target>` (caminho relativo à raiz do projeto, sem o caminho da
+// máquina) seguido do texto livre. O `target` já vem montado pelo chamador — é uniforme pra
+// tarefa/vault/docs/skill. Sem alvo (rota que não anexa caminho), copia só o texto.
+export function buildKoworkerPrompt(params: { target?: string | null; text: string }): string {
+	const text = params.text.trim();
 
-	const extra = params.userInput?.trim();
-	if (extra) {
-		lines.push("", extra);
+	if (!params.target) {
+		return text;
+	}
+
+	const lines = [`/kw ${params.target}`];
+	if (text) {
+		lines.push("", text);
 	}
 
 	return lines.join("\n");

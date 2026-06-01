@@ -1,16 +1,16 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { toast } from "sonner";
 
 import { MarkdownEditor, type MarkdownEditorHandle } from "@/components/markdown-doc";
-import { PromptInput, type PromptInputHandle } from "@/components/prompt-input";
 import { Text } from "@/components/typography";
 import { useDebouncedWrite } from "@/hooks/use-debounced-write";
-import { buildKoworkerPrompt, copyToClipboard } from "@/lib/build-prompt";
+import { copyToClipboard } from "@/lib/build-prompt";
 import { cn } from "@/lib/utils";
+import { usePromptBarStore } from "@/stores/prompt-bar";
 
-// Superfície de edição compartilhada por tarefa e vault: o editor markdown, a barra de prompt
-// com skills, o salvamento em debounce e a ponte editor↔prompt (mention de títulos). O header
-// e seus controles ficam com a página; aqui mora só o que as duas telas têm igual.
+// Superfície de edição compartilhada por tarefa e vault: o editor markdown, o salvamento em
+// debounce e a ponte editor→prompt global (mention de títulos). O header e seus controles ficam
+// com a página; aqui mora só o que as telas têm igual. O prompt agora é o footer global.
 export type DocEditorPaneHandle = {
 	flush: () => Promise<void>;
 	getContent: () => string;
@@ -25,36 +25,20 @@ type DocEditorPaneProps = {
 	fileName: string | null;
 	content: string;
 	folderPath: string;
-	projectName?: string;
 	writeFile: (payload: { name: string; content: string }) => Promise<unknown>;
 	emptyState?: string;
-	// Rodapé com o `/kw …` é específico de tarefa/vault; a página de skill passa `false`
-	// (o conteúdo da skill não vira prompt e a borda separadora some junto).
-	showPrompt?: boolean;
 	// Modo leitura é controlado pela página (que decide o que dimmer/esconder no entorno);
-	// aqui ele só amplia a fonte/largura, esconde o input e atende o Esc pra sair.
+	// aqui ele só amplia a fonte/largura e atende o Esc pra sair.
 	reading: boolean;
 	onExitReading: () => void;
 };
 
 export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>(
 	function DocEditorPane(
-		{
-			fileName,
-			content,
-			folderPath,
-			projectName,
-			writeFile,
-			emptyState,
-			showPrompt = true,
-			reading,
-			onExitReading,
-		},
+		{ fileName, content, folderPath, writeFile, emptyState, reading, onExitReading },
 		ref,
 	) {
 		const editorRef = useRef<MarkdownEditorHandle>(null);
-		const promptInputRef = useRef<PromptInputHandle>(null);
-		const [userInput, setUserInput] = useState("");
 
 		const { schedule, flush } = useDebouncedWrite(writeFile);
 
@@ -94,19 +78,6 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 			toast[ok ? "success" : "error"](ok ? "Copiado" : "Não foi possível copiar");
 		}
 
-		async function handleSendPrompt() {
-			await flush();
-			const prompt = buildKoworkerPrompt({
-				folderPath,
-				fileName: fileName ?? undefined,
-				userInput,
-			});
-			const copied = await copyToClipboard(prompt);
-			toast[copied ? "success" : "error"](
-				copied ? "Prompt copiado para a área de transferência" : "Não foi possível copiar o prompt",
-			);
-		}
-
 		// Gutters laterais que crescem (flex-1) e ocupam exatamente o vão dos dois lados da coluna de
 		// texto. Clicar neles tira o foco do editor — com o editor sem foco, o live preview esconde os
 		// marcadores e o markdown fica "limpo". `onMouseDown` (não `onClick`) pra agir antes do foco e
@@ -117,74 +88,58 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 		}
 
 		return (
-			<>
-				<div className="relative flex min-h-0 flex-1 flex-col">
-					<main
-						className={cn(
-							"mx-auto flex w-full flex-1 flex-col gap-4 overflow-y-auto",
-							reading
-								? "max-w-4xl px-6 py-10 lg:max-w-5xl lg:px-10 2xl:max-w-6xl"
-								: "max-w-3xl pt-6 pr-6 pb-6 pl-4 xl:max-w-4xl",
-						)}
-					>
-						{fileName ? (
-							<MarkdownEditor
-								key={fileName}
-								ref={editorRef}
-								initialContent={content}
-								fontSize={reading ? "1.25rem" : "1rem"}
-								onChange={(next) => schedule({ name: fileName, content: next })}
-								onInlineCodeClick={(text) => void handleInlineCodeCopy(text)}
-								onHeadingMention={(text) => promptInputRef.current?.mention(text)}
-							/>
-						) : (
-							<Text size="sm" tone="muted">
-								{emptyState ?? "Nenhum arquivo markdown."}
-							</Text>
-						)}
-					</main>
+			<div className="relative flex min-h-0 flex-1 flex-col">
+				<main
+					className={cn(
+						"mx-auto flex w-full flex-1 flex-col gap-4 overflow-y-auto",
+						reading
+							? "max-w-4xl px-6 py-10 lg:max-w-5xl lg:px-10 2xl:max-w-6xl"
+							: "max-w-3xl pt-6 pr-6 pb-6 pl-4 xl:max-w-4xl",
+					)}
+				>
+					{fileName ? (
+						<MarkdownEditor
+							key={fileName}
+							ref={editorRef}
+							initialContent={content}
+							fontSize={reading ? "1.25rem" : "1rem"}
+							onChange={(next) => schedule({ name: fileName, content: next })}
+							onInlineCodeClick={(text) => void handleInlineCodeCopy(text)}
+							onHeadingMention={(text) => usePromptBarStore.getState().appendMention(text)}
+						/>
+					) : (
+						<Text size="sm" tone="muted">
+							{emptyState ?? "Nenhum arquivo markdown."}
+						</Text>
+					)}
+				</main>
 
-					{/* Gutters laterais SOBRE os vãos fora da coluna de texto (largura = metade da janela
+				{/* Gutters laterais SOBRE os vãos fora da coluna de texto (largura = metade da janela
 					    menos metade do max-width da coluna, por breakpoint). `main` mantém a largura
 					    responsiva original; estes divs só cobrem o espaço que não era usado e desfocam. */}
-					{/** biome-ignore lint/a11y/noStaticElementInteractions: gutter decorativo só pra desfocar. */}
-					<div
-						aria-hidden
-						onMouseDown={blurOnGutter}
-						className={cn(
-							"absolute inset-y-0 left-0 z-10 cursor-text",
-							reading
-								? "w-[max(0px,calc(50%_-_28rem))] lg:w-[max(0px,calc(50%_-_32rem))] 2xl:w-[max(0px,calc(50%_-_36rem))]"
-								: "w-[max(0px,calc(50%_-_24rem))] xl:w-[max(0px,calc(50%_-_28rem))]",
-						)}
-					/>
-					{/** biome-ignore lint/a11y/noStaticElementInteractions: gutter decorativo só pra desfocar. */}
-					<div
-						aria-hidden
-						onMouseDown={blurOnGutter}
-						className={cn(
-							"absolute inset-y-0 right-0 z-10 cursor-text",
-							reading
-								? "w-[max(0px,calc(50%_-_28rem))] lg:w-[max(0px,calc(50%_-_32rem))] 2xl:w-[max(0px,calc(50%_-_36rem))]"
-								: "w-[max(0px,calc(50%_-_24rem))] xl:w-[max(0px,calc(50%_-_28rem))]",
-						)}
-					/>
-				</div>
-
-				{reading || !showPrompt ? null : (
-					<>
-						<div className="border-t border-border" />
-
-						<PromptInput
-							ref={promptInputRef}
-							value={userInput}
-							onChange={setUserInput}
-							onSend={() => void handleSendPrompt()}
-							projectName={projectName}
-						/>
-					</>
-				)}
-			</>
+				{/** biome-ignore lint/a11y/noStaticElementInteractions: gutter decorativo só pra desfocar. */}
+				<div
+					aria-hidden
+					onMouseDown={blurOnGutter}
+					className={cn(
+						"absolute inset-y-0 left-0 z-10 cursor-text",
+						reading
+							? "w-[max(0px,calc(50%_-_28rem))] lg:w-[max(0px,calc(50%_-_32rem))] 2xl:w-[max(0px,calc(50%_-_36rem))]"
+							: "w-[max(0px,calc(50%_-_24rem))] xl:w-[max(0px,calc(50%_-_28rem))]",
+					)}
+				/>
+				{/** biome-ignore lint/a11y/noStaticElementInteractions: gutter decorativo só pra desfocar. */}
+				<div
+					aria-hidden
+					onMouseDown={blurOnGutter}
+					className={cn(
+						"absolute inset-y-0 right-0 z-10 cursor-text",
+						reading
+							? "w-[max(0px,calc(50%_-_28rem))] lg:w-[max(0px,calc(50%_-_32rem))] 2xl:w-[max(0px,calc(50%_-_36rem))]"
+							: "w-[max(0px,calc(50%_-_24rem))] xl:w-[max(0px,calc(50%_-_28rem))]",
+					)}
+				/>
+			</div>
 		);
 	},
 );

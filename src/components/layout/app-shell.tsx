@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { ProjectFocusBar } from "@/components/layout/project-focus-bar";
 import { StatusBar } from "@/components/layout/status-bar";
 import { TabBar } from "@/components/layout/tab-bar";
+import { GlobalPromptBar } from "@/components/prompt-bar/global-prompt-bar";
 import { usePrimaryColor, useProjectFocus, useUser } from "@/hooks";
 
 type AppShellProps = {
@@ -57,6 +58,8 @@ export function AppShell({ children }: AppShellProps) {
 				<main className="flex-1 flex flex-col overflow-hidden min-h-0 bg-background">
 					{children}
 				</main>
+
+				<GlobalPromptBar />
 
 				<StatusBar />
 			</div>
