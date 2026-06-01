@@ -65,13 +65,20 @@ function firstMeaningfulLine(content: string): string | null {
 }
 
 // O nome exibido da task: o título do banco quando há, senão o começo do primeiro .md,
-// senão um placeholder. É a única fonte do que a UI renderiza como nome da task.
-export function resolveDisplayTitle(params: { title?: string; firstContent?: string }): string {
+// senão um placeholder. É a única fonte do que a UI renderiza como nome da task. fromContent
+// distingue o snippet do .md do fallback "Sem título" — a UI usa isso pra deixar claro, na edição,
+// que o nome mostrado é só o início do conteúdo e não um título de verdade.
+export function resolveDisplayTitle(params: { title?: string; firstContent?: string }): {
+	title: string;
+	fromContent: boolean;
+} {
 	const title = params.title?.trim();
-	if (title) return title;
+	if (title) return { title, fromContent: false };
 
 	const fromContent = params.firstContent ? firstMeaningfulLine(params.firstContent) : null;
-	return fromContent ?? DISPLAY_TITLE_FALLBACK;
+	if (fromContent) return { title: fromContent, fromContent: true };
+
+	return { title: DISPLAY_TITLE_FALLBACK, fromContent: false };
 }
 
 // Pasta da task relativa ao project.main_route, ex: ".koworker/3f2a8b1c". S\u00F3 o id curto,

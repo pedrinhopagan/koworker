@@ -79,6 +79,15 @@ function MetaSelect({
 	);
 }
 
+// Placeholder do input de renome. Quando a task não tem título, o nome exibido é só o início do
+// 1º .md (titleFromContent) — o placeholder deixa explícito que não é um título de verdade, em vez
+// de só repetir o snippet e parecer que já existe um nome.
+export function taskTitlePlaceholder(task: { title?: string; titleFromContent: boolean }): string {
+	if (task.title) return "Título da tarefa";
+	if (task.titleFromContent) return "Sem título — o texto mostrado é o início do conteúdo";
+	return "Sem título — digite para nomear";
+}
+
 // Input de renome do título. Salva no blur (sem fechar o modo: quem controla é o lápis) e
 // cancela no Escape.
 export function TaskTitleInput({

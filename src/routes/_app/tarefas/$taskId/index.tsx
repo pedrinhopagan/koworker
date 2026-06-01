@@ -28,6 +28,7 @@ import {
 	TASK_SELECT_CONTENT_SELECTOR,
 	TaskMetaControls,
 	TaskTitleInput,
+	taskTitlePlaceholder,
 } from "@/components/tasks/task-meta-controls";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
@@ -326,7 +327,7 @@ function TaskDetailPage() {
 							<div className="min-w-0 flex-1">
 								<TaskTitleInput
 									initialValue={task.title ?? ""}
-									placeholder={task.displayTitle}
+									placeholder={taskTitlePlaceholder(task)}
 									onSave={saveTitle}
 									onCancel={() => setEditing(false)}
 								/>

@@ -17,6 +17,7 @@ import {
 	TASK_SELECT_CONTENT_SELECTOR,
 	TaskMetaControls,
 	TaskTitleInput,
+	taskTitlePlaceholder,
 } from "./task-meta-controls";
 
 const taskItemVariants = tv({
@@ -158,7 +159,7 @@ function TaskItemDefault({
 					<div className="pointer-events-auto min-w-0 flex-1">
 						<TaskTitleInput
 							initialValue={task.title ?? ""}
-							placeholder={task.displayTitle}
+							placeholder={taskTitlePlaceholder(task)}
 							onSave={saveTitle}
 							onCancel={() => setEditing(false)}
 						/>

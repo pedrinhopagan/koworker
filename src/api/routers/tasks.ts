@@ -38,14 +38,17 @@ import {
 
 const mapTask = (
 	row: tasks,
-	displayTitle: string,
+	display: { title: string; fromContent: boolean },
 	meta: { fileNames?: string[]; lastEditedAt?: number } = {},
 ) => ({
 	id: row.id,
 	projectId: row.project_id,
 	folderPath: row.folder_path,
 	title: row.title ?? undefined,
-	displayTitle,
+	displayTitle: display.title,
+	// O displayTitle veio do início do 1º .md (a task não tem título). A UI usa isso pra
+	// explicar, na edição do nome, que o texto mostrado é só o começo do conteúdo.
+	titleFromContent: display.fromContent,
 	priorityId: row.priority_id,
 	categoryId: row.category_id,
 	groupId: row.group_id ?? undefined,
@@ -72,7 +75,7 @@ async function mapTaskWithDisplay(row: tasks) {
 		: { fileNames: [] };
 
 	const title = row.title?.trim();
-	if (title) return mapTask(row, title, meta);
+	if (title) return mapTask(row, { title, fromContent: false }, meta);
 
 	const firstContent = project
 		? await readFirstMarkdownContent({
@@ -127,7 +130,7 @@ async function mapTasks(rows: tasks[]) {
 	return rows.map((row) => {
 		const meta = metaByTask.get(row.id) ?? { fileNames: [] };
 		const title = row.title?.trim();
-		if (title) return mapTask(row, title, meta);
+		if (title) return mapTask(row, { title, fromContent: false }, meta);
 		return mapTask(
 			row,
 			resolveDisplayTitle({ firstContent: firstContentByTask.get(row.id) }),
@@ -227,13 +230,13 @@ export const tasksRouter = {
 				})
 			: { files: [], primaryFile: null };
 
-		const displayTitle = resolveDisplayTitle({
+		const display = resolveDisplayTitle({
 			title: row.title ?? undefined,
 			firstContent: files.at(0)?.content,
 		});
 
 		return {
-			...mapTask(row, displayTitle, { fileNames: files.map((file) => file.name) }),
+			...mapTask(row, display, { fileNames: files.map((file) => file.name) }),
 			files,
 			primaryFile,
 			category: category ? { id: category.id, name: category.name, color: category.color } : null,

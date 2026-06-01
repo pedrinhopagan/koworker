@@ -60,7 +60,7 @@ async function resolveEvent(row: EventRow) {
 							folderPath: row.task_folder_path,
 						})
 					: undefined;
-			displayTitle = resolveDisplayTitle({ firstContent });
+			displayTitle = resolveDisplayTitle({ firstContent }).title;
 		}
 	}
 
