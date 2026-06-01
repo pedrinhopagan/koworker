@@ -109,6 +109,16 @@ describe("togglePin / removeRecent / clearLoose", () => {
 		expect(useDocSessionsStore.getState().recents.map((r) => r.key)).toEqual(["b"]);
 	});
 
+	it("removeRecentsByPrefix tira todas as sessões da tarefa (uma por arquivo)", () => {
+		const { recordVisit, removeRecentsByPrefix } = useDocSessionsStore.getState();
+		recordVisit(visit("task:t1:plan.md"));
+		recordVisit(visit("task:t1:notes.md"));
+		recordVisit(visit("task:t2:plan.md"));
+		removeRecentsByPrefix("task:t1:");
+
+		expect(useDocSessionsStore.getState().recents.map((r) => r.key)).toEqual(["task:t2:plan.md"]);
+	});
+
 	it("clearLoose remove só as não-fixadas", () => {
 		const { recordVisit, togglePin, clearLoose } = useDocSessionsStore.getState();
 		recordVisit(visit("a"));

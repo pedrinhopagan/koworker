@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip } from "@/components/ui/tooltip";
 import { recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
+import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import type { TaskWithMeta } from "@/types/tasks";
@@ -71,10 +72,7 @@ function TaskItemDefault({
 		});
 	}
 
-	const setDoneMutation = useMutation({
-		...orpc.tasks.setDone.mutationOptions(),
-		onSuccess: invalidateTasks,
-	});
+	const setDoneMutation = useSetDoneMutation();
 
 	const updateMutation = useMutation({
 		...orpc.tasks.update.mutationOptions(),

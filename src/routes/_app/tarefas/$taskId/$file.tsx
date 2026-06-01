@@ -36,6 +36,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RECENCY_HIGHLIGHT_DEPTH, recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useRecordDocSession } from "@/hooks/use-record-doc-session";
+import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
@@ -65,6 +66,7 @@ function TaskFilePage() {
 					nav: { to: "/tarefas/$taskId/$file", params: { taskId, file: activeFile } },
 				}
 			: null,
+		{ completed: task?.done ?? false },
 	);
 
 	function invalidateTasks() {
@@ -146,10 +148,7 @@ function TaskFilePage() {
 		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
 	);
 
-	const setDoneMutation = useMutation({
-		...orpc.tasks.setDone.mutationOptions(),
-		onSuccess: invalidateTasks,
-	});
+	const setDoneMutation = useSetDoneMutation();
 
 	const updateMutation = useMutation({
 		...orpc.tasks.update.mutationOptions(),

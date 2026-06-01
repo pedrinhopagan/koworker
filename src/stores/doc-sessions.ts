@@ -76,6 +76,8 @@ interface DocSessionsState {
 	recordVisit: (meta: Omit<DocSessionMeta, "lastVisited">) => void;
 	togglePin: (key: string) => void;
 	removeRecent: (key: string) => void;
+	// Remove todas as sessões cuja chave começa por `prefix` — uma tarefa tem uma sessão por arquivo.
+	removeRecentsByPrefix: (prefix: string) => void;
 	// Limpa só as automáticas; fixadas permanecem (é o propósito de fixar).
 	clearLoose: () => void;
 }
@@ -123,6 +125,8 @@ export const useDocSessionsStore = create<DocSessionsState>()(
 				})),
 			removeRecent: (key) =>
 				set((state) => ({ recents: state.recents.filter((r) => r.key !== key) })),
+			removeRecentsByPrefix: (prefix) =>
+				set((state) => ({ recents: state.recents.filter((r) => !r.key.startsWith(prefix)) })),
 			clearLoose: () => set((state) => ({ recents: state.recents.filter((r) => r.pinned) })),
 		}),
 		{
