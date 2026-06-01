@@ -48,6 +48,11 @@ export type InlineTaskCreateFormProps = {
 	 */
 	resetMode?: "title" | "all" | "none";
 	variant?: "default" | "home";
+	/**
+	 * Sempre renderiza o seletor de projeto e deixa a escolha do usuário ser autoritativa, mesmo
+	 * com um projeto em foco no store. Usado pelo "nova tarefa" global, que cria pra qualquer projeto.
+	 */
+	forceProjectSelect?: boolean;
 	inputProps?: Omit<ComponentProps<typeof Input>, "value" | "onChange" | "defaultValue" | "name">;
 };
 
@@ -73,6 +78,7 @@ export function InlineTaskCreateForm({
 	autoFocus,
 	resetMode = "title",
 	variant = "default",
+	forceProjectSelect = false,
 	inputProps,
 }: InlineTaskCreateFormProps) {
 	// IMPORTANT: only READ from the store here (no writes).
@@ -89,8 +95,11 @@ export function InlineTaskCreateForm({
 
 	const [transientProjectId, setTransientProjectId] = useState<string | null>(null);
 
-	const effectiveProjectId = storeProjectId ?? projectId ?? transientProjectId;
-	const shouldRenderProjectSelect = !storeProjectId && !projectId;
+	// No modo forçado a escolha do usuário (transient) manda; o foco/prop só servem de default visual.
+	const effectiveProjectId = forceProjectSelect
+		? (transientProjectId ?? storeProjectId ?? projectId)
+		: (storeProjectId ?? projectId ?? transientProjectId);
+	const shouldRenderProjectSelect = forceProjectSelect || (!storeProjectId && !projectId);
 	const isHomeVariant = variant === "home";
 
 	const selectedProject =

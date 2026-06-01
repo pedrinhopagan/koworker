@@ -43,8 +43,11 @@ export function useSkillsQuery(projectName?: string) {
 	};
 }
 
-export function useSkillQuery(slug: string, projectName?: string) {
-	const query = useQuery(orpc.skills.get.queryOptions({ input: { slug, projectName } }));
+export function useSkillQuery(slug: string, projectName?: string, options?: { enabled?: boolean }) {
+	const query = useQuery({
+		...orpc.skills.get.queryOptions({ input: { slug, projectName } }),
+		enabled: options?.enabled ?? true,
+	});
 	const skill = useMemo(() => (query.data ? toTaskSkill(query.data) : null), [query.data]);
 	const variants = query.data?.variants ?? [];
 
