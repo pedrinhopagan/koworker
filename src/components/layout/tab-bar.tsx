@@ -103,7 +103,7 @@ export function TabBar() {
 	return (
 		<nav
 			className={cn(
-				"flex items-center border-b gap-4 border-border select-none",
+				"flex items-center border-b gap-4 border-border bg-chrome select-none",
 				isTauri() && "cursor-grab active:cursor-grabbing",
 			)}
 			onMouseDown={handleMouseDown}

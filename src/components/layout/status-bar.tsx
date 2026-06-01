@@ -82,7 +82,7 @@ export function StatusBar() {
 	}
 
 	return (
-		<footer className="h-8 px-3 border-t border-border/80 bg-muted/20 flex items-center justify-between gap-3 text-xs">
+		<footer className="h-8 px-3 border-t border-border/80 bg-chrome flex items-center justify-between gap-3 text-xs">
 			<div className="min-w-0 flex items-center gap-2">
 				<div
 					className={cn(

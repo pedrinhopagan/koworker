@@ -18,6 +18,9 @@
 	--background: oklch(0.97 0.007 107);
 	--foreground: oklch(0.23 0 90);
 
+	/* Superfície das barras (TabBar, ProjectFocusBar, StatusBar): divisão sutil sobre o bg */
+	--chrome: oklch(0.945 0.008 107);
+
 	--card: oklch(1 0 90);
 	--card-foreground: oklch(0.23 0 90);
 
@@ -27,7 +30,7 @@
 	--select: oklch(1 0 90);
 	--select-foreground: oklch(0.5 0 90);
 
-	--primary: oklch(0.56 0.049 132);
+	--primary: oklch(0.55 0.08 251);
 	--primary-foreground: oklch(0.97 0.007 107);
 
 	--secondary: oklch(0.93 0.011 107);
@@ -45,20 +48,24 @@
 	--warning: oklch(0.66 0.104 43);
 	--warning-foreground: oklch(0.23 0 90);
 
-	--success: oklch(0.56 0.049 132);
+	--success: oklch(0.55 0.08 251);
 	--success-foreground: oklch(0.97 0.007 107);
 
 	--border: oklch(0.87 0.019 107);
 
 	--input: oklch(0.87 0.019 107);
 
-	--ring: oklch(0.56 0.049 132);
+	--ring: oklch(0.55 0.08 251);
 }
 
 .dark {
 	/* WorkOpilot theme - earthy/terminal aesthetic (dark mode) */
-	--background: oklch(0.23 0 90);
+	/* bg alinhado ao terminal Alacritty (#1a1916) */
+	--background: oklch(0.213 0.006 95);
 	--foreground: oklch(0.88 0 90);
+
+	/* Superfície das barras (TabBar, ProjectFocusBar, StatusBar): divisão sutil sobre o bg */
+	--chrome: oklch(0.245 0.006 95);
 
 	--card: oklch(0.26 0 90);
 	--card-foreground: oklch(0.88 0 90);
@@ -69,7 +76,7 @@
 	--select: oklch(0.26 0 90);
 	--select-foreground: oklch(0.61 0 90);
 
-	--primary: oklch(0.67 0.081 119);
+	--primary: oklch(0.70 0.06 251);
 	--primary-foreground: oklch(0.23 0 90);
 
 	--secondary: oklch(0.32 0 90);
@@ -87,14 +94,14 @@
 	--warning: oklch(0.66 0.104 43);
 	--warning-foreground: oklch(0.23 0 90);
 
-	--success: oklch(0.67 0.081 119);
+	--success: oklch(0.70 0.06 251);
 	--success-foreground: oklch(0.23 0 90);
 
 	--border: oklch(0.35 0.011 85);
 
 	--input: oklch(0.35 0.011 85);
 
-	--ring: oklch(0.67 0.081 119);
+	--ring: oklch(0.70 0.06 251);
 }
 
 @theme inline {
@@ -104,6 +111,8 @@
 
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
+
+	--color-chrome: var(--chrome);
 
 	--color-card: var(--card);
 	--color-card-foreground: var(--card-foreground);
@@ -298,10 +307,10 @@
 @keyframes glow-pulse {
 	0%,
 	100% {
-		box-shadow: 0 0 0 0 rgba(144, 157, 99, 0);
+		box-shadow: 0 0 0 0 transparent;
 	}
 	50% {
-		box-shadow: 0 0 20px 4px rgba(144, 157, 99, 0.15);
+		box-shadow: 0 0 20px 4px color-mix(in oklab, var(--primary) 15%, transparent);
 	}
 }
 
@@ -416,13 +425,13 @@
 /* Selection ring animation */
 @keyframes selection-ring {
 	0% {
-		box-shadow: 0 0 0 0 rgba(144, 157, 99, 0.4);
+		box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 40%, transparent);
 	}
 	70% {
-		box-shadow: 0 0 0 6px rgba(144, 157, 99, 0);
+		box-shadow: 0 0 0 6px transparent;
 	}
 	100% {
-		box-shadow: 0 0 0 0 rgba(144, 157, 99, 0);
+		box-shadow: 0 0 0 0 transparent;
 	}
 }
 

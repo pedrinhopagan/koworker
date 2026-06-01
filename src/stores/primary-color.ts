@@ -8,6 +8,7 @@ type PrimaryColorPreset = {
 };
 
 export const primaryColorPresets: PrimaryColorPreset[] = [
+	{ name: "Nord", light: "oklch(0.55 0.08 251)", dark: "oklch(0.70 0.06 251)" },
 	{ name: "Olive", light: "oklch(0.56 0.049 132)", dark: "oklch(0.67 0.081 119)" },
 	{ name: "Emerald", light: "oklch(0.59 0.15 163)", dark: "oklch(0.70 0.15 163)" },
 	{ name: "Sky", light: "oklch(0.55 0.15 230)", dark: "oklch(0.68 0.15 230)" },
@@ -27,10 +28,10 @@ interface PrimaryColorState {
 export const usePrimaryColorStore = create<PrimaryColorState>()(
 	persist(
 		(set, get) => ({
-			presetName: "Olive",
+			presetName: "Nord",
 			setPresetName: (name) => set({ presetName: name }),
 			getColors: () => primaryColorPresets.find((p) => p.name === get().presetName),
 		}),
-		{ name: "primary-color-storage" }
-	)
+		{ name: "primary-color-storage", version: 1 },
+	),
 );
