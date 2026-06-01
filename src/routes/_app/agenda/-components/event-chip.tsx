@@ -1,3 +1,4 @@
+import { useDraggable } from "@dnd-kit/core";
 import type { CSSProperties } from "react";
 
 import { LucideIcon } from "@/lib/lucide-icon";
@@ -20,6 +21,10 @@ type EventChipProps = {
 };
 
 export function EventChip({ event, onClick, compact }: EventChipProps) {
+	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+		id: `event:${event.id}`,
+		data: { type: "event", event },
+	});
 	const color = event.displayColor ?? "var(--primary)";
 	const time = event.allDay ? null : event.startAt.slice(11, 16);
 	const isDone = event.done === true;
@@ -31,7 +36,10 @@ export function EventChip({ event, onClick, compact }: EventChipProps) {
 
 	return (
 		<button
+			ref={setNodeRef}
 			type="button"
+			{...attributes}
+			{...listeners}
 			onClick={(e) => {
 				e.stopPropagation();
 				onClick?.();
@@ -41,6 +49,7 @@ export function EventChip({ event, onClick, compact }: EventChipProps) {
 			className={cn(
 				"flex w-full items-center gap-1.5 overflow-hidden rounded-none px-1.5 text-left transition-opacity hover:opacity-80",
 				compact ? "h-5 text-[11px]" : "h-6 text-xs",
+				isDragging && "opacity-40",
 				isDone && "opacity-50",
 			)}
 		>

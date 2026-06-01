@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { Text, Title } from "@/components/typography";
 import { cn } from "@/lib/utils";
@@ -9,10 +10,12 @@ type ConfirmDialogProps = {
 	onConfirm: () => void;
 	title: string;
 	description?: string;
+	children?: ReactNode;
 	confirmLabel?: string;
 	cancelLabel?: string;
 	variant?: "danger" | "default";
 	loading?: boolean;
+	confirmDisabled?: boolean;
 };
 
 export function ConfirmDialog({
@@ -21,10 +24,12 @@ export function ConfirmDialog({
 	onConfirm,
 	title,
 	description,
+	children,
 	confirmLabel = "Confirmar",
 	cancelLabel = "Cancelar",
 	variant = "default",
 	loading = false,
+	confirmDisabled = false,
 }: ConfirmDialogProps) {
 	const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -70,10 +75,17 @@ export function ConfirmDialog({
 				</Title>
 
 				{description && (
-					<Text id="confirm-dialog-description" size="sm" tone="muted" className="mb-6">
+					<Text
+						id="confirm-dialog-description"
+						size="sm"
+						tone="muted"
+						className={cn(children ? "mb-4" : "mb-6")}
+					>
 						{description}
 					</Text>
 				)}
+
+				{children && <div className="mb-6">{children}</div>}
 
 				<div className="flex justify-end gap-3">
 					<Button type="button" variant="outline" onClick={onClose} disabled={loading}>
@@ -83,7 +95,7 @@ export function ConfirmDialog({
 						type="button"
 						variant={variant === "danger" ? "destructive" : "default"}
 						onClick={onConfirm}
-						disabled={loading}
+						disabled={loading || confirmDisabled}
 						className={cn(loading && "opacity-70")}
 					>
 						{loading ? "Aguarde..." : confirmLabel}

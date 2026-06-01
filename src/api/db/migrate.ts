@@ -78,8 +78,6 @@ function deduplicateNamedEntities(
 		).run(canonical.id, row.id);
 		db.query(`DELETE FROM ${params.table} WHERE id = ?`).run(row.id);
 	}
-
-	resequenceDisplayOrder(db, params.table);
 }
 
 /**

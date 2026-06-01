@@ -20,8 +20,6 @@ const priorityConfig = {
 	entityName: "prioridade",
 	entityNamePlural: "Prioridades",
 	minOneMessage: "Você precisa ter pelo menos uma prioridade",
-	migrationHelp:
-		"Se a prioridade tiver tarefas associadas, escolha uma prioridade de destino antes de remover.",
 	hasLevel: true,
 };
 

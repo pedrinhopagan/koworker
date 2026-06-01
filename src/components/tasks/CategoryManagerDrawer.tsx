@@ -19,8 +19,6 @@ const categoryConfig = {
 	entityName: "categoria",
 	entityNamePlural: "Categorias",
 	minOneMessage: "Você precisa ter pelo menos uma categoria",
-	migrationHelp:
-		"Se a categoria tiver tarefas associadas, escolha uma categoria de destino antes de remover.",
 	hasLevel: false,
 };
 

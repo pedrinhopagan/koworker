@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { ManageDrawer } from "@/components/ui/manage-drawer";
@@ -32,7 +33,6 @@ type EntityConfig = {
 	entityName: string;
 	entityNamePlural: string;
 	minOneMessage: string;
-	migrationHelp: string;
 	hasLevel?: boolean;
 };
 
@@ -55,7 +55,8 @@ export function EntityManagerDrawer<T extends BaseEntity>({
 	const [newName, setNewName] = useState("");
 	const [newColor, setNewColor] = useState("#000000");
 	const [newLevel, setNewLevel] = useState("1");
-	const [deleteTargetById, setDeleteTargetById] = useState<Record<string, string>>({});
+	const [pendingDelete, setPendingDelete] = useState<{ item: T; hasTasks: boolean } | null>(null);
+	const [migrateTargetId, setMigrateTargetId] = useState("");
 
 	// biome-ignore lint/suspicious/noExplicitAny: ORPC mutations have complex types
 	const createMutation = useMutation<any, Error, { name: string; color: string; level?: number }>({
@@ -83,6 +84,7 @@ export function EntityManagerDrawer<T extends BaseEntity>({
 	const deleteMutation = useMutation<any, Error, { id: string }>({
 		...hooks.delete.mutationOptions(),
 		onSuccess: async () => {
+			setPendingDelete(null);
 			await queryClient.invalidateQueries({ queryKey });
 		},
 	});
@@ -94,7 +96,8 @@ export function EntityManagerDrawer<T extends BaseEntity>({
 	const migrateAndDeleteMutation = useMutation<any, Error, { sourceId: string; targetId: string }>({
 		...hooks.migrateAndDelete.mutationOptions(),
 		onSuccess: async () => {
-			setDeleteTargetById({});
+			setPendingDelete(null);
+			setMigrateTargetId("");
 			await queryClient.invalidateQueries({ queryKey });
 			await queryClient.invalidateQueries({
 				predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "tasks",
@@ -214,17 +217,11 @@ export function EntityManagerDrawer<T extends BaseEntity>({
 				<Button
 					variant="ghost"
 					size="icon"
-					disabled={deleting || sorted.length <= 1}
+					disabled={deleting || hasTasksMutation.isPending || sorted.length <= 1}
 					onClick={async () => {
 						const hasTasks = await hasTasksMutation.mutateAsync({ id: item.id });
-						if (!hasTasks) {
-							deleteMutation.mutate({ id: item.id });
-							return;
-						}
-
-						const targetId = deleteTargetById[item.id];
-						if (!targetId) return;
-						migrateAndDeleteMutation.mutate({ sourceId: item.id, targetId });
+						setMigrateTargetId("");
+						setPendingDelete({ item, hasTasks });
 					}}
 					title={sorted.length <= 1 ? config.minOneMessage : `Remover ${config.entityName}`}
 				>
@@ -297,43 +294,62 @@ export function EntityManagerDrawer<T extends BaseEntity>({
 							renderItem={renderItem}
 						/>
 					)}
-
-					<div className="mt-3 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-						{config.migrationHelp}
-					</div>
-
-					<div className="mt-2 space-y-2">
-						{sorted.map((item) => (
-							<div key={item.id} className="flex items-center justify-between gap-2">
-								<span className="text-xs text-muted-foreground truncate">{item.name}</span>
-								<CustomSelect
-									items={sorted
-										.filter((x) => x.id !== item.id)
-										.map((x) => ({ id: x.id, name: x.name, color: x.color }))}
-									value={deleteTargetById[item.id] || undefined}
-									onValueChange={(newValue) =>
-										setDeleteTargetById((s) => ({ ...s, [item.id]: newValue }))
-									}
-									label="Destino (se necessário)"
-									placeholder="Destino (se necessário)"
-									variant="default"
-									size="sm"
-									triggerClassName="min-w-[220px]"
-									renderItem={(selectItem) => (
-										<div className="w-full px-3 py-2 flex items-center gap-2 text-sm text-foreground">
-											<span
-												className="size-2 rounded-full shrink-0"
-												style={{ backgroundColor: selectItem.color ?? "#6b7280" }}
-											/>
-											<span className="truncate">{selectItem.name}</span>
-										</div>
-									)}
-								/>
-							</div>
-						))}
-					</div>
 				</div>
 			</div>
+
+			<ConfirmDialog
+				open={pendingDelete !== null}
+				onClose={() => {
+					setPendingDelete(null);
+					setMigrateTargetId("");
+				}}
+				onConfirm={() => {
+					if (!pendingDelete) return;
+					if (!pendingDelete.hasTasks) {
+						deleteMutation.mutate({ id: pendingDelete.item.id });
+						return;
+					}
+					if (!migrateTargetId) return;
+					migrateAndDeleteMutation.mutate({
+						sourceId: pendingDelete.item.id,
+						targetId: migrateTargetId,
+					});
+				}}
+				title={`Remover ${config.entityName} "${pendingDelete?.item.name ?? ""}"?`}
+				description={
+					pendingDelete?.hasTasks
+						? `Esta ${config.entityName} tem tarefas associadas. Para qual ${config.entityName} as tarefas devem ir?`
+						: "Esta ação não pode ser desfeita."
+				}
+				confirmLabel="Remover"
+				variant="danger"
+				loading={deleteMutation.isPending || migrateAndDeleteMutation.isPending}
+				confirmDisabled={Boolean(pendingDelete?.hasTasks) && !migrateTargetId}
+			>
+				{pendingDelete?.hasTasks && (
+					<CustomSelect
+						items={sorted
+							.filter((x) => x.id !== pendingDelete.item.id)
+							.map((x) => ({ id: x.id, name: x.name, color: x.color }))}
+						value={migrateTargetId || undefined}
+						onValueChange={setMigrateTargetId}
+						label={`${config.entityNamePlural} de destino`}
+						placeholder={`Escolha a ${config.entityName} de destino`}
+						variant="default"
+						size="md"
+						triggerClassName="w-full"
+						renderItem={(selectItem) => (
+							<div className="w-full px-3 py-2 flex items-center gap-2 text-sm text-foreground">
+								<span
+									className="size-2 rounded-full shrink-0"
+									style={{ backgroundColor: selectItem.color ?? "#6b7280" }}
+								/>
+								<span className="truncate">{selectItem.name}</span>
+							</div>
+						)}
+					/>
+				)}
+			</ConfirmDialog>
 		</ManageDrawer>
 	);
 }

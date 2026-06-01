@@ -17,7 +17,10 @@ import { defaultProjectColor, projectColorOptions } from "@/constants/colors";
 import { cn } from "@/lib/utils";
 import { useAgendaStore } from "@/stores/agenda";
 
-const NO_TASK = { id: "", displayTitle: "— Evento pessoal —" };
+// Sentinela não-vazio: o Radix Select proíbe value="" (reservado p/ limpar seleção). "Evento
+// pessoal" = sem task → mapeado de/para undefined nas bordas do select.
+const NO_TASK_VALUE = "__none__";
+const NO_TASK = { id: NO_TASK_VALUE, displayTitle: "— Evento pessoal —" };
 
 function invalidateAgenda(queryClient: ReturnType<typeof useQueryClient>) {
 	// Invalida events (chips) e tasks (backlog): linkar/desvincular tarefa muda os dois.
@@ -63,7 +66,7 @@ export function EventDrawer() {
 		NO_TASK,
 		...(tasksQuery.data ?? []).map((t) => ({ id: t.id, displayTitle: t.displayTitle })),
 	];
-	const selectedTask = taskItems.find((t) => t.id === (taskId ?? ""));
+	const selectedTask = taskItems.find((t) => t.id === (taskId ?? NO_TASK_VALUE));
 
 	const createMutation = useMutation({
 		...orpc.events.create.mutationOptions(),
@@ -193,8 +196,8 @@ export function EventDrawer() {
 					</Text>
 					<CustomSelect
 						items={taskItems}
-						value={taskId ?? ""}
-						onValueChange={(value) => setTaskId(value || undefined)}
+						value={taskId ?? NO_TASK_VALUE}
+						onValueChange={(value) => setTaskId(value === NO_TASK_VALUE ? undefined : value)}
 						triggerClassName="border border-input"
 						renderTrigger={() => (
 							<span className="truncate text-sm">
