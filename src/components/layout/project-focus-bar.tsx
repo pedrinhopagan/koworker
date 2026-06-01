@@ -149,6 +149,7 @@ const DISABLED_PATHS = new Set<LinkProps<RegisteredRouter>["to"]>([
 	"/projetos/$projetoId",
 	"/projetos/novo",
 	"/tarefas/$taskId",
+	"/tarefas/$taskId/$file",
 ]);
 
 export function ProjectFocusBar() {

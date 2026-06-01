@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { DocSessionSwitcher } from "@/components/doc-session-switcher";
 import { ProjectFocusBar } from "@/components/layout/project-focus-bar";
 import { StatusBar } from "@/components/layout/status-bar";
 import { TabBar } from "@/components/layout/tab-bar";
@@ -63,6 +64,8 @@ export function AppShell({ children }: AppShellProps) {
 
 				<StatusBar />
 			</div>
+
+			<DocSessionSwitcher />
 		</div>
 	);
 }

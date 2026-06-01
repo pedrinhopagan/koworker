@@ -1,11 +1,13 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { toast } from "sonner";
 
 import { MarkdownEditor, type MarkdownEditorHandle } from "@/components/markdown-doc";
 import { Text } from "@/components/typography";
 import { useDebouncedWrite } from "@/hooks/use-debounced-write";
 import { copyToClipboard } from "@/lib/build-prompt";
+import type { HeadingAnchor } from "@/lib/heading-anchor";
 import { cn } from "@/lib/utils";
+import { useDocSessionsStore } from "@/stores/doc-sessions";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 
 // Superfície de edição compartilhada por tarefa e vault: o editor markdown, o salvamento em
@@ -23,6 +25,8 @@ export type DocEditorPaneHandle = {
 type DocEditorPaneProps = {
 	// Identidade do arquivo aberto: remonta o editor e nomeia o alvo do salvamento/prompt.
 	fileName: string | null;
+	// Chave estável do documento (independente da URL) pra indexar a memória de ponto de leitura.
+	sessionKey: string;
 	content: string;
 	folderPath: string;
 	writeFile: (payload: { name: string; content: string }) => Promise<unknown>;
@@ -35,12 +39,22 @@ type DocEditorPaneProps = {
 
 export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>(
 	function DocEditorPane(
-		{ fileName, content, folderPath, writeFile, emptyState, reading, onExitReading },
+		{ fileName, sessionKey, content, folderPath, writeFile, emptyState, reading, onExitReading },
 		ref,
 	) {
 		const editorRef = useRef<MarkdownEditorHandle>(null);
 
 		const { schedule, flush } = useDebouncedWrite(writeFile);
+
+		// Lido uma vez por remount (o editor é keyado por arquivo); `getState` evita re-render reativo.
+		const initialAnchor = useMemo(
+			() => useDocSessionsStore.getState().getAnchor(sessionKey),
+			[sessionKey],
+		);
+		const saveAnchor = useCallback(
+			(anchor: HeadingAnchor) => useDocSessionsStore.getState().saveAnchor(sessionKey, anchor),
+			[sessionKey],
+		);
 
 		useEffect(() => {
 			if (!reading) return;
@@ -103,6 +117,8 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 							ref={editorRef}
 							initialContent={content}
 							fontSize={reading ? "1.25rem" : "1rem"}
+							initialAnchor={initialAnchor}
+							onAnchorChange={saveAnchor}
 							onChange={(next) => schedule({ name: fileName, content: next })}
 							onInlineCodeClick={(text) => void handleInlineCodeCopy(text)}
 							onHeadingMention={(text) => usePromptBarStore.getState().appendMention(text)}

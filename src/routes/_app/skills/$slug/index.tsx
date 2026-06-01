@@ -22,9 +22,11 @@ import { Dialog } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
 import { useProjectFocus } from "@/hooks/use-project-focus";
+import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { useSkillQuery } from "@/hooks/use-skills";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
+import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
 import type { SkillVariant, TaskSkill } from "@/types/skills";
 import { SkillAppearanceDialog } from "../-components/skill-appearance-dialog";
@@ -40,6 +42,7 @@ function SkillPage() {
 	const { slug } = Route.useParams();
 	const { selectedProject } = useProjectFocus();
 	const projectName = selectedProject?.name;
+	const projectId = selectedProject?.id;
 
 	const skillQuery = useSkillQuery(slug, projectName);
 
@@ -75,6 +78,7 @@ function SkillPage() {
 			skill={skillQuery.skill}
 			variants={skillQuery.variants}
 			projectName={projectName}
+			projectId={projectId}
 		/>
 	);
 }
@@ -100,10 +104,12 @@ function SkillEditor({
 	skill,
 	variants,
 	projectName,
+	projectId,
 }: {
 	skill: TaskSkill;
 	variants: SkillVariant[];
 	projectName?: string;
+	projectId?: string;
 }) {
 	const navigate = useNavigate();
 	const paneRef = useRef<DocEditorPaneHandle>(null);
@@ -115,6 +121,22 @@ function SkillEditor({
 	const [confirmingStandardize, setConfirmingStandardize] = useState(false);
 	const [appearanceOpen, setAppearanceOpen] = useState(false);
 	const [activeVariantPath, setActiveVariantPath] = useState(skill.primaryPath);
+
+	const { pinned, togglePin } = useRecordDocSession({
+		key: docSessionKey({
+			kind: "skill",
+			projectName: projectName ?? "",
+			variantPath: activeVariantPath,
+		}),
+		kind: "skill",
+		title: skill.label,
+		subtitle: skill.slug,
+		icon: skill.icon,
+		iconColor: skill.color,
+		projectName,
+		projectId,
+		nav: { to: "/skills/$slug", params: { slug: skill.slug } },
+	});
 
 	const settingsMutation = useSkillSettingsMutation();
 	const { updateContent, standardize, standardizing, removeSkill, removeAllSkill, removing } =
@@ -288,6 +310,8 @@ function SkillEditor({
 								onCopyContent={() => void paneRef.current?.copyContent()}
 								onCopyPath={() => void paneRef.current?.copyPath()}
 								onReading={() => setReading(true)}
+								pinned={pinned}
+								onTogglePin={togglePin}
 							/>
 							<Button
 								type="button"
@@ -375,6 +399,11 @@ function SkillEditor({
 					key={activeVariantPath}
 					ref={paneRef}
 					fileName="SKILL.md"
+					sessionKey={docSessionKey({
+						kind: "skill",
+						projectName: projectName ?? "",
+						variantPath: activeVariantPath,
+					})}
 					content={activeVariant?.content ?? skill.instructions}
 					folderPath={activeVariant?.dir ?? skill.primaryDir}
 					writeFile={({ content }) => persist({ description, content, metadata })}

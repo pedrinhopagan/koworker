@@ -8,6 +8,9 @@ import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor
 import { DocToolbar } from "@/components/doc-toolbar";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
+import { useProjectFocus } from "@/hooks/use-project-focus";
+import { useRecordDocSession } from "@/hooks/use-record-doc-session";
+import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
 
 export const Route = createFileRoute("/_app/projetos/$projetoId/docs/$")({
@@ -18,6 +21,7 @@ function ProjectDocPage() {
 	const { projetoId, _splat } = Route.useParams();
 	const docPath = _splat ?? "";
 	const queryClient = useQueryClient();
+	const { projects } = useProjectFocus();
 	const paneRef = useRef<DocEditorPaneHandle>(null);
 	const reading = useReadingModeStore((s) => s.reading);
 	const setReading = useReadingModeStore((s) => s.setReading);
@@ -28,6 +32,19 @@ function ProjectDocPage() {
 	const docsQuery = useQuery(docsQueryOptions);
 
 	const file = docsQuery.data?.find((entry) => entry.path === docPath) ?? null;
+
+	const { pinned, togglePin } = useRecordDocSession(
+		file
+			? {
+					key: docSessionKey({ kind: "docs", projectId: projetoId, path: docPath }),
+					kind: "docs",
+					title: file.name,
+					subtitle: file.dirLabel || undefined,
+					projectName: projects.find((project) => project.id === projetoId)?.name,
+					nav: { to: "/projetos/$projetoId/docs/$", params: { projetoId, _splat: docPath } },
+				}
+			: null,
+	);
 
 	const writeMutation = useMutation({
 		...orpc.projects.writeDoc.mutationOptions(),
@@ -87,6 +104,8 @@ function ProjectDocPage() {
 							onCopyContent={() => void paneRef.current?.copyContent()}
 							onCopyPath={() => void paneRef.current?.copyPath()}
 							onReading={() => setReading(true)}
+							pinned={pinned}
+							onTogglePin={togglePin}
 						/>
 					</div>
 				</div>
@@ -96,6 +115,7 @@ function ProjectDocPage() {
 				<DocEditorPane
 					ref={paneRef}
 					fileName={file.name}
+					sessionKey={docSessionKey({ kind: "docs", projectId: projetoId, path: docPath })}
 					content={file.content}
 					folderPath={dir}
 					writeFile={(payload) =>

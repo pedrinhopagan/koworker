@@ -3,6 +3,7 @@ import * as LucideIcons from "lucide-react";
 type LucideIconProps = {
 	name?: string;
 	className?: string;
+	style?: React.CSSProperties;
 };
 
 export function LucideIcon({ name, className, ...props }: LucideIconProps) {
@@ -10,6 +11,7 @@ export function LucideIcon({ name, className, ...props }: LucideIconProps) {
 		name && name in LucideIcons
 			? (LucideIcons[name as keyof typeof LucideIcons] as React.ComponentType<{
 					className?: string;
+					style?: React.CSSProperties;
 				}>)
 			: LucideIcons.FolderOpen;
 

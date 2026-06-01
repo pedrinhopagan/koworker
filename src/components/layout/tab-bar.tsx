@@ -5,12 +5,14 @@
  */
 
 import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
-import { RefreshCw, Settings, X } from "lucide-react";
+import { Layers, RefreshCw, Settings, X } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { tv } from "tailwind-variants";
 import { getAppEnv } from "@/lib/env";
 import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
+import { useDocSessionsStore } from "@/stores/doc-sessions";
+import { useDocSwitcherStore } from "@/stores/doc-switcher";
 
 // Navigation tabs configuration
 type TabPath = "/" | "/projetos" | "/tarefas" | "/vault" | "/agenda" | "/skills";
@@ -97,6 +99,9 @@ export function TabBar() {
 		window.location.reload();
 	}, []);
 
+	const openSwitcher = useDocSwitcherStore((s) => s.open);
+	const sessionCount = useDocSessionsStore((s) => s.recents.length);
+
 	// Current route path for debug display (optional)
 	const currentRoutePath = routerState.matches.at(-1)?.fullPath ?? "/";
 
@@ -136,6 +141,22 @@ export function TabBar() {
 			<div className="flex-1 text-center">
 				<span className="text-xs text-muted-foreground opacity-30">{currentRoutePath}</span>
 			</div>
+
+			{/* Switcher de sessões de leitura (Ctrl+Tab). O contador sobe quando uma página é gravada
+			    automaticamente no MRU (após o dwell), sinalizando que ela entrou nas sessões. */}
+			<button
+				type="button"
+				onClick={openSwitcher}
+				className={cn(iconButton({ active: false }), "relative")}
+				title="Sessões de leitura (Ctrl+Tab)"
+			>
+				<Layers size={16} />
+				{sessionCount > 0 ? (
+					<span className="absolute top-0.5 right-0.5 z-10 min-w-3.5 rounded-[3px] bg-[var(--project-accent,var(--primary))]/30 px-1 text-center font-semibold text-[10px] text-[var(--project-accent,var(--primary))] leading-[14px]">
+						{sessionCount}
+					</span>
+				) : null}
+			</button>
 
 			{/* Settings button */}
 			<button

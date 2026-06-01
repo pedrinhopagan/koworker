@@ -19,6 +19,61 @@ import {
 	expandAllHeadings,
 	markdownLivePreview,
 } from "@/components/markdown-live-preview";
+import {
+	anchorAtLine,
+	type HeadingAnchor,
+	lineForAnchor,
+	offsetOfLine,
+} from "@/lib/heading-anchor";
+
+// Lê o ponto de leitura atual a partir do scroll do CodeMirror e o traduz em âncora resiliente
+// (heading + offset). A matemática de heading mora no lib; aqui só tocamos o `view`.
+function captureAnchor(view: EditorView): HeadingAnchor {
+	const scrollTop = view.scrollDOM.scrollTop;
+	const topBlock = view.lineBlockAtHeight(scrollTop);
+	const topLine = view.state.doc.lineAt(topBlock.from).number;
+	const doc = view.state.doc.toString();
+
+	const at = anchorAtLine(doc, topLine);
+	if (!at) {
+		return { headingText: null, level: 0, occurrence: 0, offsetPx: scrollTop };
+	}
+
+	const headingTop = view.lineBlockAt(view.state.doc.line(at.headingLine).from).top;
+	return {
+		headingText: at.headingText,
+		level: at.level,
+		occurrence: at.occurrence,
+		offsetPx: scrollTop - headingTop,
+	};
+}
+
+// Posiciona o scroll na âncora salva. Roda em `requestMeasure` (depois do layout) pra vencer o
+// scroll-pro-fim que o `selection` inicial provoca — ver landmine #1 do plano.
+function restoreAnchor(view: EditorView, anchor: HeadingAnchor) {
+	if (anchor.headingText === null) {
+		view.requestMeasure({
+			read: () => 0,
+			write: () => {
+				view.scrollDOM.scrollTop = anchor.offsetPx;
+			},
+		});
+		return;
+	}
+
+	const line = lineForAnchor(view.state.doc.toString(), anchor);
+	if (line === null) {
+		return;
+	}
+
+	const from = view.state.doc.line(line).from;
+	view.requestMeasure({
+		read: () => view.lineBlockAt(from).top,
+		write: (top) => {
+			view.scrollDOM.scrollTop = top + anchor.offsetPx;
+		},
+	});
+}
 
 const highlightStyle = HighlightStyle.define([
 	{ tag: t.strong, fontWeight: "700" },
@@ -234,6 +289,10 @@ type MarkdownEditorProps = {
 	onHeadingMention?: (text: string) => void;
 	// Tamanho base da fonte; títulos e demais elementos usam `em`, então escalam junto.
 	fontSize?: string;
+	// Ponto de leitura salvo deste documento: ao montar, restaura o scroll para essa âncora.
+	initialAnchor?: HeadingAnchor | null;
+	// Captura debounced do ponto de leitura ao rolar (e na desmontagem) — alimenta a memória.
+	onAnchorChange?: (anchor: HeadingAnchor) => void;
 };
 
 // Editor markdown sempre editável com live preview estilo Obsidian: o `.md` cru fica
@@ -241,21 +300,70 @@ type MarkdownEditorProps = {
 // marcadores de sintaxe somem quando o cursor sai da linha.
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
 	function MarkdownEditor(
-		{ initialContent, onChange, onInlineCodeClick, onHeadingMention, fontSize = "1rem" },
+		{
+			initialContent,
+			onChange,
+			onInlineCodeClick,
+			onHeadingMention,
+			fontSize = "1rem",
+			initialAnchor,
+			onAnchorChange,
+		},
 		ref,
 	) {
 		const [draft, setDraft] = useState(initialContent);
 		const cmRef = useRef<ReactCodeMirrorRef>(null);
+		// View vinda do `onCreateEditor` (garantida no momento da criação). O `cmRef.current.view`
+		// só é populado num commit posterior, então é tarde demais pra um efeito de mount.
+		const [view, setView] = useState<EditorView | null>(null);
+
+		// Posição da seleção inicial: na âncora salva quando há uma resolvível, senão no fim do
+		// conteúdo (comportamento original). Pôr a seleção na linha-alvo faz o scroll-to-selection
+		// nativo do CM concordar com o restore, em vez de brigar com ele (landmine #1).
+		const [initialSelection] = useState(() => {
+			if (!initialAnchor) {
+				return initialContent.length;
+			}
+			if (initialAnchor.headingText === null) {
+				return 0;
+			}
+			const line = lineForAnchor(initialContent, initialAnchor);
+			return line === null ? initialContent.length : offsetOfLine(initialContent, line);
+		});
 
 		// Refs que guardam os callbacks mais recentes sem invalidar o useMemo de extensions.
 		// Sem isso, cada re-render do pai (ex: digitação no prompt) cria novas referências,
 		// o CodeMirror reconfgura e todos os marks aparecem por um frame.
 		const onInlineCodeClickRef = useRef(onInlineCodeClick);
 		const onHeadingMentionRef = useRef(onHeadingMention);
+		const onAnchorChangeRef = useRef(onAnchorChange);
 		useEffect(() => {
 			onInlineCodeClickRef.current = onInlineCodeClick;
 			onHeadingMentionRef.current = onHeadingMention;
+			onAnchorChangeRef.current = onAnchorChange;
 		});
+
+		// Captura do ponto de leitura: listener de scroll com debounce, mais uma captura final na
+		// desmontagem (troca de arquivo/saída da página). Lê o `view` direto — o store fica sempre
+		// fresco sem depender de ler o handle no unmount (quando o ref já pode estar nulo).
+		useEffect(() => {
+			if (!view) return;
+
+			const scroller = view.scrollDOM;
+			let timer: ReturnType<typeof setTimeout> | null = null;
+			const emit = () => onAnchorChangeRef.current?.(captureAnchor(view));
+			const onScroll = () => {
+				if (timer) clearTimeout(timer);
+				timer = setTimeout(emit, 200);
+			};
+
+			scroller.addEventListener("scroll", onScroll, { passive: true });
+			return () => {
+				scroller.removeEventListener("scroll", onScroll);
+				if (timer) clearTimeout(timer);
+				emit();
+			};
+		}, [view]);
 
 		// Qualquer clique DENTRO do DOM do editor foca o texto (o CodeMirror cuida disso sozinho), mesmo
 		// em linha vazia ou no vão lateral da linha. Cliques FORA (toolbar, descrição, gutters da página)
@@ -324,7 +432,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 				className="min-h-0 flex-1"
 				basicSetup={basicSetup}
 				extensions={extensions}
-				selection={{ anchor: initialContent.length }}
+				selection={{ anchor: initialSelection }}
+				onCreateEditor={(created) => {
+					setView(created);
+					if (initialAnchor) restoreAnchor(created, initialAnchor);
+				}}
 				onChange={(value) => {
 					setDraft(value);
 					onChange(value);

@@ -182,6 +182,20 @@
 		-ms-overflow-style: none; /* IE/Edge antigo */
 		scrollbar-width: none; /* Firefox */
 	}
+
+	/* Com o switcher de sessões aberto, trava o overflow dos scrollers da página. O backdrop opaco
+	   cobre o conteúdo, mas no WebKitGTK (Tauri/Linux) a scrollbar de overlay é pintada ACIMA do
+	   conteúdo e ignora ::-webkit-scrollbar/scrollbar-width — z-index/opacidade não a cobrem. Sem
+	   overflow rolável não existe barra, em qualquer engine. O overlay cobre tudo, então o reflow
+	   não aparece; ao fechar, o overflow volta. */
+	.doc-switcher-open .cm-scroller,
+	.doc-switcher-open main,
+	.doc-switcher-open [class*="overflow-y-auto"],
+	.doc-switcher-open [class*="overflow-auto"],
+	.doc-switcher-open [class*="overflow-y-scroll"],
+	.doc-switcher-open [class*="overflow-scroll"] {
+		overflow: hidden !important;
+	}
 }
 
 /* ============================================================================

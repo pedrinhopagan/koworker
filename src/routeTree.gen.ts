@@ -25,6 +25,7 @@ import { Route as AppTarefasTaskIdIndexRouteImport } from './routes/_app/tarefas
 import { Route as AppSkillsSlugIndexRouteImport } from './routes/_app/skills/$slug/index'
 import { Route as AppProjetosNovoIndexRouteImport } from './routes/_app/projetos/novo/index'
 import { Route as AppProjetosProjetoIdIndexRouteImport } from './routes/_app/projetos/$projetoId/index'
+import { Route as AppTarefasTaskIdFileRouteImport } from './routes/_app/tarefas/$taskId/$file'
 import { Route as AppProjetosProjetoIdDocsSplatRouteImport } from './routes/_app/projetos/$projetoId/docs/$'
 
 const LoginRoute = LoginRouteImport.update({
@@ -107,6 +108,11 @@ const AppProjetosProjetoIdIndexRoute =
     path: '/projetos/$projetoId/',
     getParentRoute: () => AppRoute,
   } as any)
+const AppTarefasTaskIdFileRoute = AppTarefasTaskIdFileRouteImport.update({
+  id: '/tarefas/$taskId/$file',
+  path: '/tarefas/$taskId/$file',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppProjetosProjetoIdDocsSplatRoute =
   AppProjetosProjetoIdDocsSplatRouteImport.update({
     id: '/projetos/$projetoId/docs/$',
@@ -125,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/skills/': typeof AppSkillsIndexRoute
   '/tarefas/': typeof AppTarefasIndexRoute
   '/vault/': typeof AppVaultIndexRoute
+  '/tarefas/$taskId/$file': typeof AppTarefasTaskIdFileRoute
   '/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo/': typeof AppProjetosNovoIndexRoute
   '/skills/$slug/': typeof AppSkillsSlugIndexRoute
@@ -143,6 +150,7 @@ export interface FileRoutesByTo {
   '/skills': typeof AppSkillsIndexRoute
   '/tarefas': typeof AppTarefasIndexRoute
   '/vault': typeof AppVaultIndexRoute
+  '/tarefas/$taskId/$file': typeof AppTarefasTaskIdFileRoute
   '/projetos/$projetoId': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo': typeof AppProjetosNovoIndexRoute
   '/skills/$slug': typeof AppSkillsSlugIndexRoute
@@ -163,6 +171,7 @@ export interface FileRoutesById {
   '/_app/skills/': typeof AppSkillsIndexRoute
   '/_app/tarefas/': typeof AppTarefasIndexRoute
   '/_app/vault/': typeof AppVaultIndexRoute
+  '/_app/tarefas/$taskId/$file': typeof AppTarefasTaskIdFileRoute
   '/_app/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/_app/projetos/novo/': typeof AppProjetosNovoIndexRoute
   '/_app/skills/$slug/': typeof AppSkillsSlugIndexRoute
@@ -183,6 +192,7 @@ export interface FileRouteTypes {
     | '/skills/'
     | '/tarefas/'
     | '/vault/'
+    | '/tarefas/$taskId/$file'
     | '/projetos/$projetoId/'
     | '/projetos/novo/'
     | '/skills/$slug/'
@@ -201,6 +211,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/tarefas'
     | '/vault'
+    | '/tarefas/$taskId/$file'
     | '/projetos/$projetoId'
     | '/projetos/novo'
     | '/skills/$slug'
@@ -220,6 +231,7 @@ export interface FileRouteTypes {
     | '/_app/skills/'
     | '/_app/tarefas/'
     | '/_app/vault/'
+    | '/_app/tarefas/$taskId/$file'
     | '/_app/projetos/$projetoId/'
     | '/_app/projetos/novo/'
     | '/_app/skills/$slug/'
@@ -347,6 +359,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjetosProjetoIdIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/tarefas/$taskId/$file': {
+      id: '/_app/tarefas/$taskId/$file'
+      path: '/tarefas/$taskId/$file'
+      fullPath: '/tarefas/$taskId/$file'
+      preLoaderRoute: typeof AppTarefasTaskIdFileRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/projetos/$projetoId/docs/$': {
       id: '/_app/projetos/$projetoId/docs/$'
       path: '/projetos/$projetoId/docs/$'
@@ -367,6 +386,7 @@ interface AppRouteChildren {
   AppSkillsIndexRoute: typeof AppSkillsIndexRoute
   AppTarefasIndexRoute: typeof AppTarefasIndexRoute
   AppVaultIndexRoute: typeof AppVaultIndexRoute
+  AppTarefasTaskIdFileRoute: typeof AppTarefasTaskIdFileRoute
   AppProjetosProjetoIdIndexRoute: typeof AppProjetosProjetoIdIndexRoute
   AppProjetosNovoIndexRoute: typeof AppProjetosNovoIndexRoute
   AppSkillsSlugIndexRoute: typeof AppSkillsSlugIndexRoute
@@ -385,6 +405,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSkillsIndexRoute: AppSkillsIndexRoute,
   AppTarefasIndexRoute: AppTarefasIndexRoute,
   AppVaultIndexRoute: AppVaultIndexRoute,
+  AppTarefasTaskIdFileRoute: AppTarefasTaskIdFileRoute,
   AppProjetosProjetoIdIndexRoute: AppProjetosProjetoIdIndexRoute,
   AppProjetosNovoIndexRoute: AppProjetosNovoIndexRoute,
   AppSkillsSlugIndexRoute: AppSkillsSlugIndexRoute,

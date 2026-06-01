@@ -78,8 +78,12 @@ export async function readSkillFile(filePath: string): Promise<SkillFile | null>
 		const file = Bun.file(filePath);
 		const content = await file.text();
 		return parseSkillMd(content);
-	} catch (error) {
-		console.error(`Falha ao ler arquivo de skill ${filePath}:`, error);
+	} catch (error: any) {
+		// Arquivo ausente é fluxo normal: o resolvedor sonda todos os roots conhecidos por slug e a
+		// maioria não tem a skill. Só erro real (parse, permissão) merece log — ENOENT é silencioso.
+		if (error?.code !== "ENOENT") {
+			console.error(`Falha ao ler arquivo de skill ${filePath}:`, error);
+		}
 		return null;
 	}
 }

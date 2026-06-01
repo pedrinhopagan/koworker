@@ -24,7 +24,8 @@ routes/
 │   │   └── -utils/
 │   ├── tarefas/
 │   │   ├── index.tsx
-│   │   ├── $taskId/index.tsx
+│   │   ├── $taskId/index.tsx   (só redirect → $file)
+│   │   ├── $taskId/$file.tsx   (detalhe da tarefa; arquivo .md ativo na URL)
 │   │   ├── -components/
 │   │   └── -utils/
 │   └── projetos/
@@ -41,7 +42,8 @@ routes/
 - `/login`
 - `/`
 - `/tarefas`
-- `/tarefas/$taskId`
+- `/tarefas/$taskId` (redirect → `/tarefas/$taskId/$file`)
+- `/tarefas/$taskId/$file`
 - `/projetos`
 - `/projetos/novo`
 - `/projetos/$projetoId`
@@ -54,7 +56,7 @@ routes/
 - `__root.tsx`: layout global + `ErrorBoundary`.
 - `_app.tsx`: layout autenticado (pathless), valida sessão (`orpc.auth.me`) e redireciona para `/login` sem autenticação.
 - Rotas internas usam `AppShell`; páginas usam `PageShell` quando aplicável.
-- Exceção: `/tarefas/$taskId` usa layout próprio (`TaskPageLayout`).
+- Exceção: detalhe de tarefa (`/tarefas/$taskId/$file`) usa header próprio (sem `PageShell`); `/tarefas/$taskId` só redireciona para o arquivo ativo.
 
 ## REGRAS
 

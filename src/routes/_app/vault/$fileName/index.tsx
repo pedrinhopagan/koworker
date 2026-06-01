@@ -10,6 +10,8 @@ import { DocToolbar } from "@/components/doc-toolbar";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { useProjectFocus } from "@/hooks/use-project-focus";
+import { useRecordDocSession } from "@/hooks/use-record-doc-session";
+import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
 import { LinkTaskPopover, type NewTaskPayload } from "../-components/link-task-popover";
 
@@ -19,7 +21,7 @@ export const Route = createFileRoute("/_app/vault/$fileName/")({
 
 function VaultFilePage() {
 	const { fileName } = Route.useParams();
-	const { selectedProjectId } = useProjectFocus();
+	const { selectedProjectId, selectedProject } = useProjectFocus();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const paneRef = useRef<DocEditorPaneHandle>(null);
@@ -39,6 +41,21 @@ function VaultFilePage() {
 	});
 
 	const file = looseQuery.data?.find((entry) => entry.name === fileName) ?? null;
+
+	const { pinned, togglePin } = useRecordDocSession(
+		file
+			? {
+					key: docSessionKey({ kind: "vault", projectId, fileName }),
+					kind: "vault",
+					title: file.title,
+					subtitle: file.name,
+					projectName: selectedProject?.name,
+					projectId,
+					nav: { to: "/vault/$fileName", params: { fileName } },
+				}
+			: null,
+	);
+
 	const taskOptions = (tasksQuery.data ?? []).map((task) => ({
 		id: task.id,
 		displayTitle: task.displayTitle,
@@ -187,6 +204,8 @@ function VaultFilePage() {
 							onCopyContent={() => void paneRef.current?.copyContent()}
 							onCopyPath={() => void paneRef.current?.copyPath()}
 							onReading={() => setReading(true)}
+							pinned={pinned}
+							onTogglePin={togglePin}
 						/>
 					</div>
 				</div>
@@ -199,6 +218,7 @@ function VaultFilePage() {
 				<DocEditorPane
 					ref={paneRef}
 					fileName={file.name}
+					sessionKey={docSessionKey({ kind: "vault", projectId, fileName })}
 					content={file.content}
 					folderPath=".koworker"
 					writeFile={(payload) => writeMutation.mutateAsync({ projectId, ...payload })}
