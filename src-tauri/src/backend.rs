@@ -42,6 +42,9 @@ fn server_script() -> Option<PathBuf> {
     script.exists().then_some(script)
 }
 
+// O backend é instalado por scripts/desktop/deploy.ts (installLocally) em
+// ~/.local/lib/kowork/bin/kowork-backend, e o dist em <app_data>/dist. Esse é o único par
+// canônico: ler de outro lugar arrisca rodar um backend defasado contra um frontend novo.
 fn release_backend_binary(app: &AppHandle) -> Option<(PathBuf, PathBuf)> {
     let data_dir = app
         .path()
@@ -50,25 +53,10 @@ fn release_backend_binary(app: &AppHandle) -> Option<(PathBuf, PathBuf)> {
         .or_else(|| app.path().app_data_dir().ok())?;
 
     let home = std::env::var("HOME").ok()?;
+    let binary = PathBuf::from(&home).join(".local/lib/kowork/bin/kowork-backend");
+    let dist_dir = data_dir.join("dist");
 
-    let candidates: Vec<(PathBuf, PathBuf)> = vec![
-        (
-            data_dir.join("bin").join("kowork-backend"),
-            data_dir.join("dist"),
-        ),
-        (
-            PathBuf::from(&home).join(".local/lib/kowork/bin/kowork-backend"),
-            data_dir.join("dist"),
-        ),
-    ];
-
-    for (binary, dist_dir) in candidates {
-        if binary.exists() && dist_dir.exists() {
-            return Some((binary, dist_dir));
-        }
-    }
-
-    None
+    (binary.exists() && dist_dir.exists()).then_some((binary, dist_dir))
 }
 
 fn runtime_dir(app: &AppHandle) -> Option<PathBuf> {
