@@ -1,5 +1,5 @@
 // oxlint-disable max-classes-per-file -- vários WidgetType coesos do mesmo plugin CodeMirror
-import { syntaxTree } from "@codemirror/language";
+import { syntaxTree, syntaxTreeAvailable } from "@codemirror/language";
 import { type EditorState, type Range, StateEffect, StateField } from "@codemirror/state";
 import {
 	Decoration,
@@ -153,6 +153,8 @@ const CURSOR_HIDDEN_MARKS = new Set([
 	"CodeMark",
 	"CodeInfo",
 ]);
+
+const blockquoteLine = Decoration.line({ class: "cm-md-blockquote" });
 
 const codeBlockLine = Decoration.line({ class: "cm-md-code-block" });
 const codeBlockFirst = Decoration.line({ class: "cm-md-code-block cm-md-code-block-first" });
@@ -765,6 +767,15 @@ function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet
 					return false;
 				}
 
+				if (node.name === "Blockquote") {
+					const firstLine = doc.lineAt(node.from);
+					const lastLine = doc.lineAt(node.to);
+					for (let n = firstLine.number; n <= lastLine.number; n++) {
+						ranges.push(blockquoteLine.range(doc.line(n).from));
+					}
+					return;
+				}
+
 				if (node.name === "HorizontalRule") {
 					// Delimitador de frontmatter no topo → não é divider, fica como está.
 					if (node.from <= frontmatterTo) return false;
@@ -821,15 +832,20 @@ function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet
 
 				if (!CURSOR_HIDDEN_MARKS.has(node.name)) return;
 
+				// HeaderMark (`#`, `##`, `###`…): só visível quando o cursor está dentro do
+				// próprio marcador — estar em qualquer ponto da linha do heading não basta.
+				if (node.name === "HeaderMark") {
+					const markEnd = doc.sliceString(node.to, node.to + 1) === " " ? node.to + 1 : node.to;
+					const cursorOnMark =
+						view.hasFocus && selection.from <= markEnd && selection.to >= node.from;
+					if (!cursorOnMark) ranges.push(hidden.range(node.from, markEnd));
+					return;
+				}
+
 				// Cursor na linha do marcador → mantém o markup visível para edição.
 				if (node.to >= activeFrom && node.from <= activeTo) return;
 
-				// `# ` come também o espaço logo depois do marcador.
-				const end =
-					node.name === "HeaderMark" && doc.sliceString(node.to, node.to + 1) === " "
-						? node.to + 1
-						: node.to;
-				ranges.push(hidden.range(node.from, end));
+				ranges.push(hidden.range(node.from, node.to));
 			},
 		});
 	}
@@ -857,6 +873,15 @@ function livePreviewPlugin(callbacks: Callbacks) {
 					update.focusChanged ||
 					collapsedChanged
 				) {
+					// Quando o documento muda (undo, paste, etc.) e a syntax tree ainda não foi
+					// re-parseada, remapeia as decorações antigas para as novas posições em vez
+					// de reconstruir com uma árvore vazia — evita o flash onde todos os marks
+					// aparecem por um frame. A reconstrução real acontece no próximo update
+					// (viewportChanged) quando a tree estiver pronta.
+					if (update.docChanged && !syntaxTreeAvailable(update.state, update.view.viewport.to)) {
+						this.decorations = this.decorations.map(update.changes);
+						return;
+					}
 					this.decorations = buildDecorations(update.view, callbacks);
 				}
 			}
@@ -1001,6 +1026,12 @@ const baseTheme = EditorView.baseTheme({
 		background: "color-mix(in oklab, #facc15 30%, transparent)",
 		color: "var(--foreground)",
 		boxDecorationBreak: "clone",
+	},
+	".cm-md-blockquote": {
+		background: "color-mix(in oklab, var(--muted) 45%, transparent)",
+		borderLeft: "3px solid var(--muted-foreground)",
+		paddingLeft: "0.9em !important",
+		marginRight: "0.5rem",
 	},
 	".cm-md-task-checkbox": {
 		display: "inline-flex",

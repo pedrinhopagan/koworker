@@ -83,7 +83,6 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
 			requestAnimationFrame(() => {
 				const el = textareaRef.current;
 				if (!el) return;
-				el.focus();
 				el.setSelectionRange(nextCaret, nextCaret);
 			});
 		},

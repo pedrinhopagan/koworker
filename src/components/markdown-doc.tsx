@@ -247,6 +247,16 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 		const [draft, setDraft] = useState(initialContent);
 		const cmRef = useRef<ReactCodeMirrorRef>(null);
 
+		// Refs que guardam os callbacks mais recentes sem invalidar o useMemo de extensions.
+		// Sem isso, cada re-render do pai (ex: digitação no prompt) cria novas referências,
+		// o CodeMirror reconfgura e todos os marks aparecem por um frame.
+		const onInlineCodeClickRef = useRef(onInlineCodeClick);
+		const onHeadingMentionRef = useRef(onHeadingMention);
+		useEffect(() => {
+			onInlineCodeClickRef.current = onInlineCodeClick;
+			onHeadingMentionRef.current = onHeadingMention;
+		});
+
 		// Qualquer clique DENTRO do DOM do editor foca o texto (o CodeMirror cuida disso sozinho), mesmo
 		// em linha vazia ou no vão lateral da linha. Cliques FORA (toolbar, descrição, gutters da página)
 		// tiram o foco, deixando o markdown "limpo" porque o live preview esconde os marcadores ao perder
@@ -265,6 +275,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 			return () => document.removeEventListener("mousedown", onMouseDown, true);
 		}, []);
 
+		const stableCallbacks = useMemo(
+			() => ({
+				onInlineCodeClick: (text: string) => onInlineCodeClickRef.current?.(text),
+				onHeadingMention: (text: string) => onHeadingMentionRef.current?.(text),
+			}),
+			[],
+		);
+
 		const extensions = useMemo(
 			() => [
 				markdown({
@@ -273,13 +291,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 					codeLanguages: resolveCodeLanguage,
 				}),
 				syntaxHighlighting(highlightStyle),
-				markdownLivePreview({ onInlineCodeClick, onHeadingMention }),
+				markdownLivePreview(stableCallbacks),
 				formattingKeymap,
 				createEditorTheme(fontSize),
 				EditorView.lineWrapping,
 				placeholder("Comece a escrever…"),
 			],
-			[onInlineCodeClick, onHeadingMention, fontSize],
+			[stableCallbacks, fontSize],
 		);
 
 		useImperativeHandle(ref, () => ({
