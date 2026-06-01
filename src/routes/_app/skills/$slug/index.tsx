@@ -25,6 +25,7 @@ import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useSkillQuery } from "@/hooks/use-skills";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
+import { useReadingModeStore } from "@/stores/reading-mode";
 import type { SkillVariant, TaskSkill } from "@/types/skills";
 import { SkillAppearanceDialog } from "../-components/skill-appearance-dialog";
 import { SkillMetadataControls } from "../-components/skill-metadata-controls";
@@ -107,7 +108,8 @@ function SkillEditor({
 	const navigate = useNavigate();
 	const paneRef = useRef<DocEditorPaneHandle>(null);
 
-	const [reading, setReading] = useState(false);
+	const reading = useReadingModeStore((s) => s.reading);
+	const setReading = useReadingModeStore((s) => s.setReading);
 	const [editingLabel, setEditingLabel] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [confirmingStandardize, setConfirmingStandardize] = useState(false);
@@ -117,6 +119,8 @@ function SkillEditor({
 	const settingsMutation = useSkillSettingsMutation();
 	const { updateContent, standardize, standardizing, removeSkill, removeAllSkill, removing } =
 		useSkillMutations();
+
+	useEffect(() => () => setReading(false), [setReading]);
 
 	const activeVariant =
 		variants.find((variant) => variant.path === activeVariantPath) ?? variants[0];
@@ -370,7 +374,6 @@ function SkillEditor({
 				<DocEditorPane
 					key={activeVariantPath}
 					ref={paneRef}
-					showPrompt={false}
 					fileName="SKILL.md"
 					content={activeVariant?.content ?? skill.instructions}
 					folderPath={activeVariant?.dir ?? skill.primaryDir}

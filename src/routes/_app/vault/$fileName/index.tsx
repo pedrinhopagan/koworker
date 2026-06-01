@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowUpRight, Link2, Loader2, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
@@ -10,6 +10,7 @@ import { DocToolbar } from "@/components/doc-toolbar";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { useProjectFocus } from "@/hooks/use-project-focus";
+import { useReadingModeStore } from "@/stores/reading-mode";
 import { LinkTaskPopover, type NewTaskPayload } from "../-components/link-task-popover";
 
 export const Route = createFileRoute("/_app/vault/$fileName/")({
@@ -18,11 +19,14 @@ export const Route = createFileRoute("/_app/vault/$fileName/")({
 
 function VaultFilePage() {
 	const { fileName } = Route.useParams();
-	const { selectedProjectId, selectedProject } = useProjectFocus();
+	const { selectedProjectId } = useProjectFocus();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const paneRef = useRef<DocEditorPaneHandle>(null);
-	const [reading, setReading] = useState(false);
+	const reading = useReadingModeStore((s) => s.reading);
+	const setReading = useReadingModeStore((s) => s.setReading);
+
+	useEffect(() => () => setReading(false), [setReading]);
 
 	const projectId = selectedProjectId ?? "";
 	const enabled = Boolean(selectedProjectId);
@@ -197,7 +201,6 @@ function VaultFilePage() {
 					fileName={file.name}
 					content={file.content}
 					folderPath=".koworker"
-					projectName={selectedProject?.name}
 					writeFile={(payload) => writeMutation.mutateAsync({ projectId, ...payload })}
 					reading={reading}
 					onExitReading={() => setReading(false)}

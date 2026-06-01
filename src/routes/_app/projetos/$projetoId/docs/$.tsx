@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import { orpc } from "@/client";
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
 import { DocToolbar } from "@/components/doc-toolbar";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
+import { useReadingModeStore } from "@/stores/reading-mode";
 
 export const Route = createFileRoute("/_app/projetos/$projetoId/docs/$")({
 	component: ProjectDocPage,
@@ -18,11 +19,13 @@ function ProjectDocPage() {
 	const docPath = _splat ?? "";
 	const queryClient = useQueryClient();
 	const paneRef = useRef<DocEditorPaneHandle>(null);
-	const [reading, setReading] = useState(false);
+	const reading = useReadingModeStore((s) => s.reading);
+	const setReading = useReadingModeStore((s) => s.setReading);
+
+	useEffect(() => () => setReading(false), [setReading]);
 
 	const docsQueryOptions = orpc.projects.listDocs.queryOptions({ input: { id: projetoId } });
 	const docsQuery = useQuery(docsQueryOptions);
-	const projectQuery = useQuery(orpc.projects.getById.queryOptions({ input: { id: projetoId } }));
 
 	const file = docsQuery.data?.find((entry) => entry.path === docPath) ?? null;
 
@@ -95,11 +98,9 @@ function ProjectDocPage() {
 					fileName={file.name}
 					content={file.content}
 					folderPath={dir}
-					projectName={projectQuery.data?.name}
 					writeFile={(payload) =>
 						writeMutation.mutateAsync({ id: projetoId, path: docPath, content: payload.content })
 					}
-					showPrompt={false}
 					reading={reading}
 					onExitReading={() => setReading(false)}
 				/>

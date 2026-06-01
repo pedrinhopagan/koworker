@@ -37,7 +37,8 @@ import { RECENCY_HIGHLIGHT_DEPTH, recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
-import { FileDateFooter } from "./-components/file-date-footer";
+import { useReadingModeStore } from "@/stores/reading-mode";
+import { FileDatePopover } from "./-components/file-date-popover";
 
 export const Route = createFileRoute("/_app/tarefas/$taskId/")({
 	component: TaskDetailPage,
@@ -136,7 +137,8 @@ function TaskDetailPage() {
 
 	const [activeFile, setActiveFile] = useState<string | null>(null);
 	const [editing, setEditing] = useState(false);
-	const [reading, setReading] = useState(false);
+	const reading = useReadingModeStore((s) => s.reading);
+	const setReading = useReadingModeStore((s) => s.setReading);
 	const [renamingFile, setRenamingFile] = useState<string | null>(null);
 	const [deletingFile, setDeletingFile] = useState<string | null>(null);
 	const [renameValue, setRenameValue] = useState("");
@@ -146,6 +148,9 @@ function TaskDetailPage() {
 	const newFileInputRef = useRef<HTMLInputElement>(null);
 	const headerRef = useRef<HTMLDivElement>(null);
 	const paneRef = useRef<DocEditorPaneHandle>(null);
+
+	// O modo leitura vive num store (o footer global o lê pra ficar sutil); reseta ao sair da página.
+	useEffect(() => () => setReading(false), [setReading]);
 
 	useClickOutside(headerRef, () => setEditing(false), {
 		enabled: editing,
@@ -361,6 +366,17 @@ function TaskDetailPage() {
 							onCopyPath={() => void paneRef.current?.copyPath()}
 							onReading={() => setReading(true)}
 						/>
+						{current ? (
+							<FileDatePopover
+								taskId={taskId}
+								file={current}
+								onChanged={() =>
+									queryClient.invalidateQueries(
+										orpc.tasks.getFull.queryOptions({ input: { id: taskId } }),
+									)
+								}
+							/>
+						) : null}
 					</div>
 				</div>
 			)}
@@ -454,7 +470,6 @@ function TaskDetailPage() {
 					fileName={creatingFile ? null : activeFile}
 					content={creatingFile ? "" : (current?.content ?? "")}
 					folderPath={task.folderPath}
-					projectName={task.project?.name}
 					writeFile={(payload) => writeFileMutation.mutateAsync({ id: taskId, ...payload })}
 					emptyState={
 						creatingFile
@@ -465,18 +480,6 @@ function TaskDetailPage() {
 					onExitReading={() => setReading(false)}
 				/>
 			</div>
-
-			{current && !reading ? (
-				<FileDateFooter
-					taskId={taskId}
-					file={current}
-					onChanged={() =>
-						queryClient.invalidateQueries(
-							orpc.tasks.getFull.queryOptions({ input: { id: taskId } }),
-						)
-					}
-				/>
-			) : null}
 
 			<ConfirmDialog
 				open={deletingFile !== null}
