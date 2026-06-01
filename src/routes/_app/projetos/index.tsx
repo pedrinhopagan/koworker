@@ -37,7 +37,7 @@ function ProjetosPage() {
 				<ProjectList projects={data.projects} selectedId={selectedId} loading={loading} />
 			</div>
 
-			<section className="space-y-4 min-h-0 min-w-0 h-full overflow-y-auto px-4 pr-2 pb-6">
+			<section className="min-h-0 min-w-0 h-full overflow-hidden">
 				<ProjectSummary project={selectedProject} />
 			</section>
 		</PageShell>

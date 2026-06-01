@@ -71,83 +71,87 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 	const displayPath = project.mainRoute.replace(/^\/home\/[^/]+/, "");
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-start justify-between gap-4">
-				<div className="flex min-w-0 items-start gap-3">
-					<div className="mt-0.5 size-9 shrink-0" style={{ backgroundColor: project.color }} />
-					<div className="min-w-0">
-						<Title size="lg" className="truncate">
-							{project.name}
-						</Title>
-						{project.description && (
-							<Text size="sm" tone="muted" className="mt-0.5 line-clamp-2">
-								{project.description}
-							</Text>
-						)}
-						<div className="mt-1.5 flex items-center gap-1.5 text-muted-foreground">
-							<FolderOpen className="size-3.5 shrink-0" />
-							<span className="truncate font-mono text-xs">{displayPath}</span>
+		<div className="flex flex-col h-full min-h-0">
+			<div className="shrink-0 space-y-6 px-4 pt-4 pb-4">
+				<div className="flex items-start justify-between gap-4">
+					<div className="flex min-w-0 items-start gap-3">
+						<div className="mt-0.5 size-9 shrink-0" style={{ backgroundColor: project.color }} />
+						<div className="min-w-0">
+							<Title size="lg" className="truncate">
+								{project.name}
+							</Title>
+							{project.description && (
+								<Text size="sm" tone="muted" className="mt-0.5 line-clamp-2">
+									{project.description}
+								</Text>
+							)}
+							<div className="mt-1.5 flex items-center gap-1.5 text-muted-foreground">
+								<FolderOpen className="size-3.5 shrink-0" />
+								<span className="truncate font-mono text-xs">{displayPath}</span>
+							</div>
 						</div>
 					</div>
+					<Button variant="outline" size="sm" asChild>
+						<Link to="/projetos/$projetoId" params={{ projetoId: project.id }}>
+							Editar
+						</Link>
+					</Button>
 				</div>
-				<Button variant="outline" size="sm" asChild>
-					<Link to="/projetos/$projetoId" params={{ projetoId: project.id }}>
-						Editar
-					</Link>
-				</Button>
-			</div>
 
-			<div className="grid grid-cols-3 gap-px border border-border bg-border">
-				<MetricCell label="Total" value={total} />
-				<MetricCell label="Pendentes" value={pending} />
-				<MetricCell label="Concluídas" value={done} accentColor={project.color} />
-			</div>
-
-			<div>
-				<div className="mb-2 flex items-center justify-between">
-					<Text size="xs" tone="muted" className="uppercase tracking-[0.18em]">
-						Progresso
-					</Text>
-					<Text size="xs" tone="muted" className="tabular-nums">
-						{progress}%
-					</Text>
+				<div className="grid grid-cols-3 gap-px border border-border bg-border">
+					<MetricCell label="Total" value={total} />
+					<MetricCell label="Pendentes" value={pending} />
+					<MetricCell label="Concluídas" value={done} accentColor={project.color} />
 				</div>
-				<div className="h-2 w-full bg-muted">
-					<div
-						className="h-2 transition-all"
-						style={{ width: `${progress}%`, backgroundColor: project.color }}
-					/>
-				</div>
-			</div>
 
-			<label className="flex cursor-pointer items-center justify-between gap-4 border border-border bg-card px-4 py-3">
-				<div className="flex items-center gap-2.5">
-					<TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
-					<div>
-						<Text size="sm" as="div">
-							Mostrar terminal
+				<div>
+					<div className="mb-2 flex items-center justify-between">
+						<Text size="xs" tone="muted" className="uppercase tracking-[0.18em]">
+							Progresso
 						</Text>
-						<Text size="xs" tone="muted">
-							Botão de terminal do projeto na barra de foco.
+						<Text size="xs" tone="muted" className="tabular-nums">
+							{progress}%
 						</Text>
 					</div>
+					<div className="h-2 w-full bg-muted">
+						<div
+							className="h-2 transition-all"
+							style={{ width: `${progress}%`, backgroundColor: project.color }}
+						/>
+					</div>
 				</div>
-				<Switch
-					checked={!project.hideTerminal}
-					disabled={updateMutation.isPending}
-					onCheckedChange={(checked) =>
-						updateMutation.mutate({ id: project.id, hideTerminal: !checked })
-					}
+
+				<label className="flex cursor-pointer items-center justify-between gap-4 border border-border bg-card px-4 py-3">
+					<div className="flex items-center gap-2.5">
+						<TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
+						<div>
+							<Text size="sm" as="div">
+								Mostrar terminal
+							</Text>
+							<Text size="xs" tone="muted">
+								Botão de terminal do projeto na barra de foco.
+							</Text>
+						</div>
+					</div>
+					<Switch
+						checked={!project.hideTerminal}
+						disabled={updateMutation.isPending}
+						onCheckedChange={(checked) =>
+							updateMutation.mutate({ id: project.id, hideTerminal: !checked })
+						}
+					/>
+				</label>
+			</div>
+
+			<div className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable] px-4 pb-6 space-y-6">
+				<SummaryRoutes
+					key={project.id}
+					routes={project.routes}
+					onReorder={(orderedIds) => reorderRoutesMutation.mutate({ orderedIds })}
 				/>
-			</label>
 
-			<SummaryRoutes
-				key={project.id}
-				routes={project.routes}
-				onReorder={(orderedIds) => reorderRoutesMutation.mutate({ orderedIds })}
-			/>
-
-			<SummaryDocs projectId={project.id} />
+				<SummaryDocs projectId={project.id} />
+			</div>
 		</div>
 	);
 }
@@ -193,24 +197,28 @@ function SummaryDocs({ projectId }: SummaryDocsProps) {
 				Documentos ({docs.length})
 			</Text>
 
-			{groups.map((group) => (
-				<div key={group.dirLabel} className="space-y-1">
-					<Text size="xs" tone="muted" className="truncate font-mono">
-						{group.dirLabel}
-					</Text>
-					{group.files.map((doc) => (
-						<Link
-							key={doc.path}
-							to="/projetos/$projetoId/docs/$"
-							params={{ projetoId: projectId, _splat: doc.path }}
-							className="flex items-center gap-2.5 border border-border bg-card px-3 py-2 transition-colors hover:bg-accent"
-						>
-							<FileText className="size-4 shrink-0 text-muted-foreground" />
-							<span className="truncate font-mono text-sm font-medium">{doc.name}</span>
-						</Link>
-					))}
-				</div>
-			))}
+			<div className="space-y-4">
+				{groups.map((group) => (
+					<div key={group.dirLabel} className="space-y-0.5">
+						{group.files.map((doc) => (
+							<Link
+								key={doc.path}
+								to="/projetos/$projetoId/docs/$"
+								params={{ projetoId: projectId, _splat: doc.path }}
+								className="flex items-center gap-2.5 border border-border bg-card px-3 py-2 transition-colors hover:bg-accent"
+							>
+								<FileText className="size-4 shrink-0 text-muted-foreground" />
+								<span className="min-w-0 flex-1 truncate font-mono text-sm font-medium">
+									{doc.name}
+								</span>
+								<span className="ml-3 max-w-[45%] truncate font-mono text-xs text-muted-foreground/50">
+									{group.dirLabel}
+								</span>
+							</Link>
+						))}
+					</div>
+				))}
+			</div>
 		</div>
 	);
 }
