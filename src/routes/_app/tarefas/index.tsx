@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
-import { useState } from "react";
 import { z } from "zod";
 
 import { PageShell } from "@/components/layout/page-shell";
+import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
 import { GroupedTaskList, NO_GROUP } from "./-components/grouped-task-list";
 import { TaskForm } from "./-components/task-form";
 import { TaskListControls, useSortMode } from "./-components/task-groups-controls";
@@ -53,9 +53,9 @@ function TarefasPage() {
 	const { data, loading } = useTasksData(search);
 	const { createTask, loading: createLoading } = useCreateTask();
 	const [sortMode, setSortMode] = useSortMode();
-	// Colapso por grupo, chaveado por `id ?? NO_GROUP`. Vive na sessão e é compartilhado entre a
-	// barra de controles (atalhos globais) e a lista (toggle por cabeçalho).
-	const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set());
+	// Colapso por grupo (chaveado por `id ?? NO_GROUP`) e ordem do "Sem grupo" vivem no store
+	// persistido; a lista lê o mesmo store. Aqui só os atalhos globais de colapsar/expandir tudo.
+	const setCollapsed = useTaskGroupsUiStore((state) => state.setCollapsed);
 
 	function handleSearchChange(next: {
 		q?: string;
@@ -72,18 +72,6 @@ function TarefasPage() {
 				includeCompleted: next.includeCompleted,
 			}),
 			replace: true,
-		});
-	}
-
-	function toggleCollapse(key: string) {
-		setCollapsedKeys((prev) => {
-			const next = new Set(prev);
-			if (next.has(key)) {
-				next.delete(key);
-			} else {
-				next.add(key);
-			}
-			return next;
 		});
 	}
 
@@ -110,10 +98,8 @@ function TarefasPage() {
 					priorities={data.priorities}
 					sortMode={sortMode}
 					onSortModeChange={setSortMode}
-					onCollapseAll={() =>
-						setCollapsedKeys(new Set([...data.groups.map((group) => group.id), NO_GROUP]))
-					}
-					onExpandAll={() => setCollapsedKeys(new Set())}
+					onCollapseAll={() => setCollapsed([...data.groups.map((group) => group.id), NO_GROUP])}
+					onExpandAll={() => setCollapsed([])}
 				/>
 
 				<div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2 pb-6">
@@ -124,8 +110,6 @@ function TarefasPage() {
 						priorities={data.priorities}
 						loading={loading}
 						sortMode={sortMode}
-						collapsedKeys={collapsedKeys}
-						onToggleCollapse={toggleCollapse}
 					/>
 				</div>
 			</div>

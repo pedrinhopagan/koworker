@@ -6,7 +6,6 @@ import {
 	type DragStartEvent,
 	KeyboardSensor,
 	PointerSensor,
-	useDroppable,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
@@ -26,6 +25,8 @@ import { orpc } from "@/client";
 import { TaskItem } from "@/components/tasks";
 import { Text } from "@/components/typography";
 import { RECENCY_FRESH_WINDOW_MS, RECENCY_HIGHLIGHT_DEPTH } from "@/constants/tasks";
+import { cn } from "@/lib/utils";
+import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
 import type { TaskGroup, TaskWithMeta } from "@/types/tasks";
 import { type SortMode, TaskGroupHeader } from "./task-groups-controls";
 
@@ -46,6 +47,13 @@ function parseBucketKey(key: string): { groupId: string | null; categoryId: stri
 // resolveTargetBucket já entende para drop de tarefas sobre um cabeçalho.
 function groupDropId(groupId: string | null) {
 	return `group::${groupId ?? NO_GROUP}`;
+}
+
+// Inverso de groupDropId: extrai o slot (`groupId` real ou null para "Sem grupo") de um id de
+// drop/sortable de grupo.
+function slotFromGroupDropId(dropId: string): string | null {
+	const raw = dropId.startsWith("group::") ? dropId.slice("group::".length) : dropId;
+	return raw === NO_GROUP ? null : raw;
 }
 
 function isTasksQueryKey(queryKey: QueryKey) {
@@ -135,8 +143,6 @@ type GroupedTaskListProps = {
 	priorities: { id: string; level: number }[];
 	loading: boolean;
 	sortMode: SortMode;
-	collapsedKeys: Set<string>;
-	onToggleCollapse: (key: string) => void;
 };
 
 export function GroupedTaskList({
@@ -146,11 +152,13 @@ export function GroupedTaskList({
 	priorities,
 	loading,
 	sortMode,
-	collapsedKeys,
-	onToggleCollapse,
 }: GroupedTaskListProps) {
 	const queryClient = useQueryClient();
 	const [activeId, setActiveId] = useState<string | null>(null);
+	const collapsedKeys = useTaskGroupsUiStore((state) => state.collapsedKeys);
+	const toggleCollapsed = useTaskGroupsUiStore((state) => state.toggleCollapsed);
+	const noGroupOrder = useTaskGroupsUiStore((state) => state.noGroupOrder);
+	const setNoGroupOrder = useTaskGroupsUiStore((state) => state.setNoGroupOrder);
 
 	const sortCtx = useMemo<SortContext>(
 		() => ({
@@ -164,6 +172,35 @@ export function GroupedTaskList({
 
 	const buckets = useMemo(() => buildBuckets(tasks, sortCtx), [tasks, sortCtx]);
 	const highlightLevels = useMemo(() => buildHighlightLevels(tasks), [tasks]);
+
+	// Ordem de render dos slots de grupo: grupos reais (ordem do banco) com o "Sem grupo" (id null)
+	// encaixado em `noGroupOrder` (default 0 = topo). Já filtra o "Sem grupo" vazio, então é a fonte
+	// única tanto pro render quanto pro `items` do SortableContext e pra reordenação no drop.
+	const renderableGroups = useMemo(() => {
+		const slots: { id: string | null; group?: TaskGroup }[] = groups.map((group) => ({
+			id: group.id,
+			group,
+		}));
+		const index = Math.min(Math.max(noGroupOrder, 0), slots.length);
+		slots.splice(index, 0, { id: null });
+
+		return (
+			slots
+				.map(({ id, group }) => {
+					const bucketKeys = Object.keys(buckets)
+						.filter((key) => parseBucketKey(key).groupId === id)
+						.sort(
+							(a, b) =>
+								(sortCtx.categoryOrder.get(parseBucketKey(a).categoryId) ?? 0) -
+								(sortCtx.categoryOrder.get(parseBucketKey(b).categoryId) ?? 0),
+						);
+					const count = bucketKeys.reduce((sum, key) => sum + buckets[key].length, 0);
+					return { id, group, bucketKeys, count };
+				})
+				// "Sem grupo" só aparece quando tem task; grupos nomeados sempre aparecem.
+				.filter((slot) => !(slot.id === null && slot.count === 0))
+		);
+	}, [groups, noGroupOrder, buckets, sortCtx]);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -265,26 +302,29 @@ export function GroupedTaskList({
 		});
 	}
 
-	// Sobre qual grupo está o `over.id`: cabeçalho de grupo resolve direto; sobre uma task usa o
-	// grupo dela. "Sem grupo" (null) não entra na reordenação — é virtual e fica fixo ao final.
-	function resolveOverGroupId(overId: string): string | null {
-		if (overId.startsWith("group::")) {
-			const raw = overId.slice("group::".length);
-			return raw === NO_GROUP ? null : raw;
-		}
-		return taskMap.get(overId)?.groupId ?? null;
-	}
+	// Reordena os slots de grupo. O arraste de grupo só colide com cabeçalhos de grupo, então ambos
+	// os ids chegam como `group::<x>`. O "Sem grupo" (slot null) participa: a posição dele vira
+	// preferência de UI (`noGroupOrder`) e os grupos reais persistem o display_order no banco.
+	function handleGroupDragEnd(activeDropId: string, overDropId: string) {
+		const activeSlot = slotFromGroupDropId(activeDropId);
+		const overSlot = slotFromGroupDropId(overDropId);
+		if (activeSlot === overSlot) return;
 
-	function handleGroupDragEnd(activeGroupId: string, overId: string) {
-		const overGroupId = resolveOverGroupId(overId);
-		if (!overGroupId || overGroupId === activeGroupId) return;
-
-		const orderedIds = groups.map((group) => group.id);
-		const oldIndex = orderedIds.indexOf(activeGroupId);
-		const newIndex = orderedIds.indexOf(overGroupId);
+		const order = renderableGroups.map((slot) => slot.id);
+		const oldIndex = order.indexOf(activeSlot);
+		const newIndex = order.indexOf(overSlot);
 		if (oldIndex < 0 || newIndex < 0) return;
 
-		groupReorderMutation.mutate({ orderedIds: arrayMove(orderedIds, oldIndex, newIndex) });
+		const moved = arrayMove(order, oldIndex, newIndex);
+
+		const nullIndex = moved.indexOf(null);
+		if (nullIndex >= 0) setNoGroupOrder(nullIndex);
+
+		const realOrder = moved.filter((id): id is string => id !== null);
+		const prevRealOrder = groups.map((group) => group.id);
+		if (realOrder.some((id, index) => id !== prevRealOrder[index])) {
+			groupReorderMutation.mutate({ orderedIds: realOrder });
+		}
 	}
 
 	function handleDragStart(event: DragStartEvent) {
@@ -300,7 +340,7 @@ export function GroupedTaskList({
 		if (!over || String(over.id) === String(active.id)) return;
 
 		if (active.data.current?.type === "group") {
-			handleGroupDragEnd(String(active.id).slice("group::".length), String(over.id));
+			handleGroupDragEnd(String(active.id), String(over.id));
 			return;
 		}
 
@@ -337,14 +377,13 @@ export function GroupedTaskList({
 		);
 	}
 
-	const groupOrder: { id: string | null; group?: TaskGroup }[] = [
-		...groups.map((group) => ({ id: group.id, group })),
-		{ id: null },
-	];
-	const sortableGroupIds = groups.map((group) => groupDropId(group.id));
-	const activeGroup =
-		activeId?.startsWith("group::") &&
-		groups.find((group) => group.id === activeId.slice("group::".length));
+	// `items` precisa casar 1:1 com os nós sortable montados — vem de renderableGroups (já sem o
+	// "Sem grupo" vazio), nunca do conjunto bruto.
+	const sortableGroupIds = renderableGroups.map((slot) => groupDropId(slot.id));
+	const isGroupDrag = !!activeId?.startsWith("group::");
+	const activeGroup = isGroupDrag
+		? groups.find((group) => groupDropId(group.id) === activeId)
+		: undefined;
 
 	return (
 		<DndContext
@@ -367,40 +406,23 @@ export function GroupedTaskList({
 		>
 			<SortableContext items={sortableGroupIds} strategy={verticalListSortingStrategy}>
 				<div className="flex flex-col gap-5">
-					{groupOrder.map(({ id, group }) => {
-						const groupBucketKeys = Object.keys(buckets)
-							.filter((key) => parseBucketKey(key).groupId === id)
-							.sort(
-								(a, b) =>
-									(sortCtx.categoryOrder.get(parseBucketKey(a).categoryId) ?? 0) -
-									(sortCtx.categoryOrder.get(parseBucketKey(b).categoryId) ?? 0),
-							);
-						const groupTaskCount = groupBucketKeys.reduce(
-							(sum, key) => sum + buckets[key].length,
-							0,
-						);
-
-						// "Sem grupo" só aparece quando tem task; grupos nomeados sempre aparecem.
-						if (id === null && groupTaskCount === 0) return null;
-
+					{renderableGroups.map(({ id, group, bucketKeys, count }) => {
 						const key = id ?? NO_GROUP;
-						const sectionProps = {
-							groupId: id,
-							group,
-							count: groupTaskCount,
-							bucketKeys: groupBucketKeys,
-							buckets,
-							taskMap,
-							highlightLevels,
-							collapsed: collapsedKeys.has(key),
-							onToggleCollapse: () => onToggleCollapse(key),
-						};
 
-						// "Sem grupo" recebe tasks mas não reordena; grupos nomeados arrastam.
-						return id === null ? (
-							<DroppableGroupSection key={key} {...sectionProps} />
-						) : (
-							<SortableGroupSection key={key} {...sectionProps} />
+						// Todo slot (inclusive "Sem grupo") arrasta para reordenar e recebe tasks.
+						return (
+							<SortableGroupSection
+								key={key}
+								groupId={id}
+								group={group}
+								count={count}
+								bucketKeys={bucketKeys}
+								buckets={buckets}
+								taskMap={taskMap}
+								highlightLevels={highlightLevels}
+								collapsed={collapsedKeys.includes(key)}
+								onToggleCollapse={() => toggleCollapsed(key)}
+							/>
 						);
 					})}
 
@@ -413,15 +435,20 @@ export function GroupedTaskList({
 			</SortableContext>
 
 			<DragOverlay dropAnimation={null}>
-				{activeGroup ? (
+				{isGroupDrag ? (
 					<div className="rounded-md border border-border/60 bg-background px-3 py-1.5 shadow-lg">
 						<div className="flex items-center gap-2">
-							<span
-								className="size-2.5 shrink-0 rounded-full"
-								style={{ backgroundColor: activeGroup.color }}
-							/>
-							<Text size="sm" className="truncate font-medium">
-								{activeGroup.name}
+							{activeGroup && (
+								<span
+									className="size-2.5 shrink-0 rounded-full"
+									style={{ backgroundColor: activeGroup.color }}
+								/>
+							)}
+							<Text
+								size="sm"
+								className={cn("truncate font-medium", !activeGroup && "text-muted-foreground")}
+							>
+								{activeGroup?.name ?? "Sem grupo"}
 							</Text>
 						</div>
 					</div>
@@ -476,12 +503,6 @@ function SortableGroupSection({ groupId, ...rest }: GroupSectionProps) {
 	return (
 		<GroupSectionBody {...rest} setNodeRef={setNodeRef} style={style} dragHandle={dragHandle} />
 	);
-}
-
-// "Sem grupo": recebe tasks mas não reordena.
-function DroppableGroupSection({ groupId, ...rest }: GroupSectionProps) {
-	const { setNodeRef } = useDroppable({ id: groupDropId(groupId) });
-	return <GroupSectionBody {...rest} setNodeRef={setNodeRef} />;
 }
 
 function GroupSectionBody({
