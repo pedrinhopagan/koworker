@@ -40,6 +40,12 @@ pub fn run() {
             }
             shortcut::register(app.handle())?;
             tray::setup(app)?;
+            // O app sobe oculto na tray (visible:false) tanto no autostart quanto no launch normal.
+            // O hot-deploy seta esta env ao relancar pra que, apos um build, a janela ja apareca
+            // com a versao nova em vez de ficar escondida.
+            if std::env::var_os("KOWORK_SHOW_ON_START").is_some() {
+                window::show(app.handle());
+            }
             eprintln!(
                 "[KOWORK] Setup completo. Atalho: {}",
                 shortcut::toggle_shortcut_label()

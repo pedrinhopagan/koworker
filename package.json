@@ -24,6 +24,7 @@
 		"desktop:build": "bun run desktop:prepare && cargo tauri build",
 		"desktop:update": "bash ./scripts/desktop/update-and-build.sh",
 		"deploy": "bun run scripts/desktop/deploy.ts",
+		"deploy:fast": "bun run scripts/desktop/hot-deploy.ts",
 		"tauri": "cargo tauri",
 		"tauri:dev": "cargo tauri dev",
 		"tauri:build": "cargo tauri build",
