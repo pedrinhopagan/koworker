@@ -224,6 +224,7 @@ function VaultFilePage() {
 					writeFile={(payload) => writeMutation.mutateAsync({ projectId, ...payload })}
 					reading={reading}
 					onExitReading={() => setReading(false)}
+					onExit={() => navigate({ to: "/vault" })}
 				/>
 				{reading ? (
 					<Button

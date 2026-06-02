@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 
@@ -21,6 +21,7 @@ function ProjectDocPage() {
 	const { projetoId, _splat } = Route.useParams();
 	const docPath = _splat ?? "";
 	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 	const { projects } = useProjectFocus();
 	const paneRef = useRef<DocEditorPaneHandle>(null);
 	const reading = useReadingModeStore((s) => s.reading);
@@ -123,6 +124,7 @@ function ProjectDocPage() {
 					}
 					reading={reading}
 					onExitReading={() => setReading(false)}
+					onExit={() => navigate({ to: "/projetos", search: { projetoId } })}
 				/>
 				{reading ? (
 					<Button

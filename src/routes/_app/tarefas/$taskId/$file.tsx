@@ -505,6 +505,7 @@ function TaskFilePage() {
 					}
 					reading={reading}
 					onExitReading={() => setReading(false)}
+					onExit={() => navigate({ to: "/tarefas/$taskId", params: { taskId } })}
 				/>
 			</div>
 

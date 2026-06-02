@@ -42,7 +42,6 @@ function SkillPage() {
 	const { slug } = Route.useParams();
 	const { selectedProject } = useProjectFocus();
 	const projectName = selectedProject?.name;
-	const projectId = selectedProject?.id;
 
 	const skillQuery = useSkillQuery(slug, projectName);
 
@@ -78,7 +77,6 @@ function SkillPage() {
 			skill={skillQuery.skill}
 			variants={skillQuery.variants}
 			projectName={projectName}
-			projectId={projectId}
 		/>
 	);
 }
@@ -104,12 +102,10 @@ function SkillEditor({
 	skill,
 	variants,
 	projectName,
-	projectId,
 }: {
 	skill: TaskSkill;
 	variants: SkillVariant[];
 	projectName?: string;
-	projectId?: string;
 }) {
 	const navigate = useNavigate();
 	const paneRef = useRef<DocEditorPaneHandle>(null);
@@ -122,19 +118,15 @@ function SkillEditor({
 	const [appearanceOpen, setAppearanceOpen] = useState(false);
 	const [activeVariantPath, setActiveVariantPath] = useState(skill.primaryPath);
 
+	// Skill é global: a sessão não carrega projeto (não troca o projeto selecionado ao abrir pelo switcher)
+	// e a chave ignora o projeto, então a mesma skill grava uma vez só no MRU. Sem subtitle: o slug já é o
+	// título, repeti-lo embaixo era ruído.
 	const { pinned, togglePin } = useRecordDocSession({
-		key: docSessionKey({
-			kind: "skill",
-			projectName: projectName ?? "",
-			variantPath: activeVariantPath,
-		}),
+		key: docSessionKey({ kind: "skill", variantPath: activeVariantPath }),
 		kind: "skill",
 		title: skill.label,
-		subtitle: skill.slug,
 		icon: skill.icon,
 		iconColor: skill.color,
-		projectName,
-		projectId,
 		nav: { to: "/skills/$slug", params: { slug: skill.slug } },
 	});
 
@@ -399,16 +391,13 @@ function SkillEditor({
 					key={activeVariantPath}
 					ref={paneRef}
 					fileName="SKILL.md"
-					sessionKey={docSessionKey({
-						kind: "skill",
-						projectName: projectName ?? "",
-						variantPath: activeVariantPath,
-					})}
+					sessionKey={docSessionKey({ kind: "skill", variantPath: activeVariantPath })}
 					content={activeVariant?.content ?? skill.instructions}
 					folderPath={activeVariant?.dir ?? skill.primaryDir}
 					writeFile={({ content }) => persist({ description, content, metadata })}
 					reading={reading}
 					onExitReading={() => setReading(false)}
+					onExit={() => navigate({ to: "/skills" })}
 				/>
 				{reading ? (
 					<Button
