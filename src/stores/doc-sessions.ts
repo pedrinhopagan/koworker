@@ -10,7 +10,7 @@ export type DocSessionParams =
 	| { kind: "task"; taskId: string; file: string }
 	| { kind: "vault"; projectId: string; fileName: string }
 	| { kind: "docs"; projectId: string; path: string }
-	| { kind: "skill"; projectName: string; variantPath: string };
+	| { kind: "skill"; variantPath: string };
 
 export function docSessionKey(params: DocSessionParams): string {
 	switch (params.kind) {
@@ -21,7 +21,7 @@ export function docSessionKey(params: DocSessionParams): string {
 		case "docs":
 			return `docs:${params.projectId}:${params.path}`;
 		case "skill":
-			return `skill:${params.projectName}:${params.variantPath}`;
+			return `skill:${params.variantPath}`;
 	}
 }
 
@@ -57,30 +57,67 @@ function taskIdFromKey(key: string): string | null {
 	return sep === -1 ? null : rest.slice(0, sep);
 }
 
-export type SessionGroupCard = DocSessionMeta & { isCurrent: boolean };
+// `flatIndex` é a posição do card na sequência achatada `cards` (== ordem de render). Realce e hover
+// são por posição, não por chave: um fixado aparece duas vezes (seção "Fixadas" + grupo do projeto),
+// então a chave repete — cada ocorrência é um objeto distinto com seu próprio flatIndex.
+export type SessionGroupCard = DocSessionMeta & { isCurrent: boolean; flatIndex: number };
 
-// Um bloco dentro de um projeto: uma tarefa com seus arquivos, ou um doc avulso (vault/docs/skill).
+// Toda caixa do overlay é um bloco com cabeçalho + cards: uma tarefa (cabeçalho = título da tarefa,
+// arquivos juntos) ou um kind avulso (cabeçalho = "Vault"/"Docs"/"Skills", os cards daquele kind no
+// projeto colapsados numa caixa). Não há mais card nu — todo card vive dentro de uma caixa.
 export type SessionBlock =
 	| { type: "task"; taskId: string; title: string; cards: SessionGroupCard[] }
-	| { type: "doc"; card: SessionGroupCard };
+	| { type: "kind"; kind: DocSessionParams["kind"]; cards: SessionGroupCard[] };
 
 export type SessionProjectGroup = { projectName: string | null; blocks: SessionBlock[] };
 
-// Agrupa o MRU pro switcher em projeto → (tarefa com seus arquivos | doc avulso) → cards. A entrada
-// já vem em ordem MRU (mais recente primeiro), então a primeira aparição de cada projeto/tarefa/card
-// define a ordem — o trabalho mais recente flutua pro topo. `cards` é a mesma sequência achatada na
-// ordem em que é renderizada: é por ela que o teclado cicla.
+// Agrupa o MRU pro switcher em projeto → (caixa de tarefa | caixa de kind) → cards. A entrada já vem
+// em ordem MRU (mais recente primeiro), então a primeira aparição de cada projeto/tarefa/kind define a
+// ordem — o trabalho mais recente flutua pro topo. A caixa de kind colapsa os cards do mesmo kind na
+// posição do PRIMEIRO deles, então cards soltos não-contíguos do mesmo kind sobem pra caixa: o achatado
+// reordena de propósito. `cards` é a mesma sequência achatada na ordem renderizada — é por ela que o
+// teclado cicla, e ordem-de-render == ordem-do-flatten vale por construção (ambas derivam de `blocks`).
 export function groupSessions(
 	list: DocSessionMeta[],
 	currentKey: string | null,
-): { groups: SessionProjectGroup[]; cards: SessionGroupCard[] } {
+): {
+	pinned: SessionGroupCard[];
+	skills: SessionGroupCard[];
+	groups: SessionProjectGroup[];
+	cards: SessionGroupCard[];
+} {
 	const groups: SessionProjectGroup[] = [];
 	const byProject = new Map<string | null, SessionProjectGroup>();
 	// Chaveado só pelo taskId: uma tarefa pertence a um único projeto, sem colisão entre eles.
 	const byTask = new Map<string, Extract<SessionBlock, { type: "task" }>>();
+	// A caixa de kind é por projeto — o mesmo kind ("Vault"/"Docs") reaparece em projetos diferentes —,
+	// então o índice é por grupo. Chaveado pelo objeto do grupo: byProject já garante um grupo por projeto.
+	const byKind = new Map<
+		SessionProjectGroup,
+		Map<string, Extract<SessionBlock, { type: "kind" }>>
+	>();
+
+	// Skills são globais (sem vínculo de projeto): saem dos grupos pra uma seção própria, FLAT. Dedupe por
+	// slug porque a mesma skill visitada sob projetos diferentes deixou chaves distintas no MRU (legado).
+	const skills: SessionGroupCard[] = [];
+	const seenSkill = new Set<string>();
+
+	function toCard(meta: DocSessionMeta): SessionGroupCard {
+		return { ...meta, isCurrent: meta.key === currentKey, flatIndex: 0 };
+	}
 
 	for (const meta of list) {
-		const card: SessionGroupCard = { ...meta, isCurrent: meta.key === currentKey };
+		const card = toCard(meta);
+
+		if (meta.kind === "skill") {
+			const slug = meta.nav.params.slug ?? meta.key;
+			if (!seenSkill.has(slug)) {
+				seenSkill.add(slug);
+				skills.push(card);
+			}
+			continue;
+		}
+
 		const projectName = meta.projectName ?? null;
 
 		let group = byProject.get(projectName);
@@ -91,24 +128,49 @@ export function groupSessions(
 		}
 
 		const taskId = taskIdFromKey(meta.key);
-		if (!taskId) {
-			group.blocks.push({ type: "doc", card });
+		if (taskId) {
+			let block = byTask.get(taskId);
+			if (!block) {
+				block = { type: "task", taskId, title: meta.title, cards: [] };
+				byTask.set(taskId, block);
+				group.blocks.push(block);
+			}
+			block.cards.push(card);
 			continue;
 		}
 
-		let block = byTask.get(taskId);
-		if (!block) {
-			block = { type: "task", taskId, title: meta.title, cards: [] };
-			byTask.set(taskId, block);
-			group.blocks.push(block);
+		let kindMap = byKind.get(group);
+		if (!kindMap) {
+			kindMap = new Map();
+			byKind.set(group, kindMap);
 		}
-		block.cards.push(card);
+		let kindBlock = kindMap.get(meta.kind);
+		if (!kindBlock) {
+			kindBlock = { type: "kind", kind: meta.kind, cards: [] };
+			kindMap.set(meta.kind, kindBlock);
+			group.blocks.push(kindBlock);
+		}
+		kindBlock.cards.push(card);
 	}
 
-	const cards = groups.flatMap((group) =>
-		group.blocks.flatMap((block) => (block.type === "task" ? block.cards : [block.card])),
-	);
-	return { groups, cards };
+	// Seção "Fixadas" no topo: os fixados em ordem MRU, FLAT (sem caixas por kind — é cross-cutting de
+	// projetos/kinds). Duplica de propósito: o mesmo card também segue no grupo do projeto dele. A
+	// ocorrência aqui é um objeto distinto da do grupo, então cada uma carrega seu próprio flatIndex.
+	const pinned = list.filter((meta) => meta.pinned).map(toCard);
+
+	// Ordem de render = Fixadas, grupos de projeto, Skills (seção global, no fim). `cards` é o achatamento
+	// nessa ordem; o flatIndex de cada card é sua posição, então realce e navegação por posição distinguem
+	// as duas ocorrências de um fixado. findIndex-por-chave resolve pra 1ª ocorrência (Fixadas).
+	const cards = [
+		...pinned,
+		...groups.flatMap((group) => group.blocks.flatMap((block) => block.cards)),
+		...skills,
+	];
+	cards.forEach((card, index) => {
+		card.flatIndex = index;
+	});
+
+	return { pinned, skills, groups, cards };
 }
 
 // Índice inicial da seleção do teclado no switcher: o doc anterior — o primeiro não-atual na ordem MRU
@@ -120,6 +182,58 @@ export function initialSwitcherIndex(list: DocSessionMeta[], currentKey: string 
 	const previousKey = list.find((r) => r.key !== currentKey)?.key;
 	const index = cards.findIndex((c) => c.key === previousKey);
 	return Math.max(index, 0);
+}
+
+// Índice (em `cards`) do primeiro card de cada bloco/caixa, em ordem de render: a seção Fixadas (se
+// houver) e depois cada bloco de cada grupo. Cada bloco ocupa uma faixa contígua no achatado, então o
+// "começo" basta pra mapear posição→caixa — é por aqui que o ↑↓ pula entre caixas.
+export function blockStartIndices(list: DocSessionMeta[], currentKey: string | null): number[] {
+	const { pinned, skills, groups } = groupSessions(list, currentKey);
+	const starts: number[] = [];
+	let index = 0;
+	if (pinned.length > 0) {
+		starts.push(index);
+		index += pinned.length;
+	}
+	for (const group of groups) {
+		for (const block of group.blocks) {
+			starts.push(index);
+			index += block.cards.length;
+		}
+	}
+	if (skills.length > 0) {
+		starts.push(index);
+	}
+	return starts;
+}
+
+// Salta a seleção uma caixa pra frente/trás: acha a caixa que contém o índice atual (o maior começo
+// ≤ índice) e vai pro começo da vizinha, clampando nas pontas (sem wrap, ao contrário do ←→).
+export function jumpToBlock(starts: number[], index: number, direction: 1 | -1): number {
+	let pos = 0;
+	for (let k = 0; k < starts.length; k++) {
+		if (starts[k] <= index) {
+			pos = k;
+		} else {
+			break;
+		}
+	}
+	const next = Math.min(Math.max(pos + direction, 0), starts.length - 1);
+	return starts[next] ?? index;
+}
+
+// Cards distintos por chave (1ª ocorrência), na ordem do achatado — o mapeamento dos atalhos 1–9. O
+// fixado duplicado conta uma vez, e o dígito leva à sua 1ª ocorrência (a da seção Fixadas).
+export function distinctCards(cards: SessionGroupCard[]): SessionGroupCard[] {
+	const seen = new Set<string>();
+	const distinct: SessionGroupCard[] = [];
+	for (const card of cards) {
+		if (!seen.has(card.key)) {
+			seen.add(card.key);
+			distinct.push(card);
+		}
+	}
+	return distinct;
 }
 
 // Teto do mapa de âncoras pra não inchar o localStorage. Re-salvar reordena pro fim (LRU);
