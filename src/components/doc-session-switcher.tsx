@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	FileText,
@@ -11,13 +12,17 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { orpc } from "@/client";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import {
+	blockStartIndices,
+	distinctCards,
 	type DocSessionMeta,
 	groupSessions,
 	initialSwitcherIndex,
+	jumpToBlock,
 	type SessionGroupCard,
 	useDocSessionsStore,
 } from "@/stores/doc-sessions";
@@ -38,6 +43,15 @@ const KIND_LABEL = {
 	skill: "Skill",
 } as const;
 
+// Rótulo plural pro cabeçalho da caixa de kind ("Skills"/"Vault"/"Docs"). `task` nunca vira caixa de
+// kind (tarefas têm caixa própria com o título), mas a chave existe pra cobrir a união.
+const KIND_BOX_LABEL = {
+	task: "Tarefas",
+	vault: "Vault",
+	docs: "Docs",
+	skill: "Skills",
+} as const;
+
 // O switcher congela um instantâneo do MRU ao abrir (`list`), pra o dwell de gravação e as edições não
 // reordenarem os cards sob o cursor. `currentKey` é a sessão aberta agora; o agrupamento a marca como
 // "Sessão atual" e o `index` parte sempre do primeiro card que NÃO é ela. `index` aponta na sequência
@@ -52,8 +66,8 @@ type SwitcherView = {
 };
 
 // Instantâneo do MRU com a sessão atual sempre presente: se ela ainda não entrou no MRU (dwell em
-// curso), é prefixada como card sintético e marcada como `pendingCurrent` pro timer. Devolve null
-// quando só sobraria a própria sessão atual — aí não há pra onde trocar e o overlay não deve abrir.
+// curso), é prefixada como card sintético e marcada como `pendingCurrent` pro timer. O overlay abre
+// mesmo só com a sessão atual (mostra só ela); devolve null apenas quando não há nada pra mostrar.
 function buildList(): Omit<SwitcherView, "index"> | null {
 	const { recents } = useDocSessionsStore.getState();
 	const { current, currentRecordAt } = useDocSwitcherStore.getState();
@@ -62,7 +76,7 @@ function buildList(): Omit<SwitcherView, "index"> | null {
 	const isPending = current ? !recents.some((r) => r.key === current.key) : false;
 	const list = current && isPending ? [current, ...recents] : recents;
 
-	if (!list.some((r) => r.key !== currentKey)) {
+	if (list.length === 0) {
 		return null;
 	}
 
@@ -78,10 +92,11 @@ function flatCards(view: SwitcherView): SessionGroupCard[] {
 }
 
 // Reancora o `index` à mesma chave ativa depois de uma edição que muda a lista; se a chave sumiu,
-// fixa no antigo offset (clampado). Fecha o overlay quando não resta nenhum card pra trocar.
+// fixa no antigo offset (clampado). Fecha o overlay só quando não resta nenhum card — "vazio" agora é
+// realmente vazio (a sessão atual sozinha mantém o overlay aberto, mostrando só ela).
 function reanchor(view: SwitcherView, nextList: DocSessionMeta[]): SwitcherView | null {
 	const { cards } = groupSessions(nextList, view.currentKey);
-	if (!cards.some((c) => !c.isCurrent)) {
+	if (cards.length === 0) {
 		return null;
 	}
 	const activeKey = flatCards(view)[view.index]?.key;
@@ -106,20 +121,15 @@ export function DocSessionSwitcher() {
 	const removeRecent = useDocSessionsStore((s) => s.removeRecent);
 	const clearLoose = useDocSessionsStore((s) => s.clearLoose);
 
+	// Cor de cada projeto pra pintar o acento por seção: os grupos são chaveados por nome, então o
+	// mapa nome→cor casa direto. Sem efeito colateral (não sincroniza o projeto selecionado).
+	const projects = useQuery(orpc.projects.list.queryOptions()).data ?? [];
+	const projectColor = (name: string | null): string | undefined =>
+		name ? projects.find((project) => project.name === name)?.color : undefined;
+
 	const [view, setView] = useState<SwitcherView | null>(null);
 	const viewRef = useRef<SwitcherView | null>(null);
 	viewRef.current = view;
-
-	// Re-renderiza a cada tick enquanto a sessão atual conta o dwell, pra atualizar o "registra em Ns".
-	const [, setTick] = useState(0);
-	const pendingKey = view?.pendingCurrent?.key ?? null;
-	useEffect(() => {
-		if (!pendingKey) {
-			return;
-		}
-		const id = setInterval(() => setTick((n) => n + 1), 500);
-		return () => clearInterval(id);
-	}, [pendingKey]);
 
 	const open = view !== null || mouseOpen;
 
@@ -149,7 +159,8 @@ export function DocSessionSwitcher() {
 	);
 
 	// Abre o overlay com a seleção do teclado no primeiro card que não é a sessão atual (o doc anterior,
-	// como o Alt+Tab). Devolve false quando não há pra onde trocar.
+	// como o Alt+Tab); só com a sessão atual, a seleção cai nela mesma. Devolve false quando não há nada
+	// pra mostrar (sem sessão atual e MRU vazio).
 	const openSwitcher = useCallback((): boolean => {
 		const built = buildList();
 		if (!built) {
@@ -195,7 +206,8 @@ export function DocSessionSwitcher() {
 				return;
 			}
 
-			// Aberto, o teclado também navega: setas/Tab ciclam, Enter confirma.
+			// Aberto, o teclado também navega: ←→/Tab ciclam todos os cards (wrap circular), ↑↓ pulam
+			// entre caixas, 1–9 saltam pro N-ésimo card distinto, Enter confirma.
 			const cards = flatCards(current);
 			const len = cards.length;
 			if (event.key === "ArrowRight" || event.key === "Tab") {
@@ -206,6 +218,21 @@ export function DocSessionSwitcher() {
 				event.preventDefault();
 				event.stopPropagation();
 				setView({ ...current, index: (current.index - 1 + len) % len });
+			} else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+				event.preventDefault();
+				event.stopPropagation();
+				const starts = blockStartIndices(current.list, current.currentKey);
+				setView({
+					...current,
+					index: jumpToBlock(starts, current.index, event.key === "ArrowDown" ? 1 : -1),
+				});
+			} else if (event.key >= "1" && event.key <= "9") {
+				const target = distinctCards(cards)[Number(event.key) - 1];
+				if (target) {
+					event.preventDefault();
+					event.stopPropagation();
+					setView({ ...current, index: target.flatIndex });
+				}
 			} else if (event.key === "Enter") {
 				event.preventDefault();
 				event.stopPropagation();
@@ -213,9 +240,11 @@ export function DocSessionSwitcher() {
 			}
 		}
 
-		// Perder o foco da janela com o overlay aberto: fecha sem navegar.
+		// Perder o foco da JANELA com o overlay aberto: fecha sem navegar. `document.hasFocus()` separa
+		// isso de um blur espúrio quando o foco só anda entre os cards do overlay (roving tabindex) —
+		// aí a janela ainda tem foco e o overlay não deve fechar.
 		function onBlur() {
-			if (viewRef.current) {
+			if (viewRef.current && !document.hasFocus()) {
 				close();
 			}
 		}
@@ -268,13 +297,13 @@ export function DocSessionSwitcher() {
 			if (!current) {
 				return;
 			}
-			// Fixar não reordena os grupos nem a sequência achatada — o índice ativo segue válido.
-			setView({
-				...current,
-				list: current.list.map((r) =>
-					r.key === key ? Object.assign({}, r, { pinned: !r.pinned }) : r,
-				),
-			});
+			// Fixar/desafixar muda a seção Fixadas (uma ocorrência some/aparece no topo), então a
+			// sequência achatada se desloca — reancora o índice à mesma chave ativa.
+			const nextList = current.list.map((r) =>
+				r.key === key ? Object.assign({}, r, { pinned: !r.pinned }) : r,
+			);
+			const next = reanchor(current, nextList);
+			setView(next ?? { ...current, list: nextList });
 		},
 		[togglePin],
 	);
@@ -301,90 +330,163 @@ export function DocSessionSwitcher() {
 		return null;
 	}
 
-	const { groups, cards } = groupSessions(view.list, view.currentKey);
-	const activeKey = cards[view.index]?.key ?? null;
+	const { pinned, skills, groups, cards } = groupSessions(view.list, view.currentKey);
 	const getAnchor = useDocSessionsStore.getState().getAnchor;
 	const hasLoose = view.list.some((r) => !r.pinned && r.key !== view.currentKey);
+	const activeCard = cards[view.index] ?? null;
 
+	// Sessão mais recente = 1º não-atual na ordem MRU (== o card onde o teclado começa). Ganha o selo
+	// "Mais recente", espelhando o "Sessão atual". Marca por chave: um fixado mais-recente acende as duas
+	// ocorrências, igual ao card atual quando fixado.
+	const mostRecentKey = view.list.find((r) => r.key !== view.currentKey)?.key ?? null;
+
+	// Instante em que o dwell grava a sessão pendente; null pros demais cards. O countdown ao vivo (que
+	// tiquetaqueia a cada 500ms) vive no subcomponente `Countdown`, então o overlay não re-renderiza por ele.
 	const pending = view.pendingCurrent;
-	const countdownFor = (key: string): number | null => {
-		if (!pending || pending.key !== key) {
-			return null;
-		}
-		return Math.max(0, Math.ceil((pending.recordAt - Date.now()) / 1000));
-	};
+	const recordAtFor = (key: string): number | null =>
+		pending && pending.key === key ? pending.recordAt : null;
 
 	return (
 		// Backdrop como div (não button) pra não aninhar interativos dentro de interativos — os cards
 		// também são divs clicáveis com botões de fixar/remover dentro. Clicar no fundo fecha.
 		/** biome-ignore lint/a11y/noStaticElementInteractions: backdrop só fecha no clique; Esc também fecha. */
 		<div
-			// Backdrop opaco e acima de tudo (z-[100]): translúcido, a scrollbar do conteúdo atrás
-			// vazava pelos vãos entre os cards.
-			className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background px-6 py-8"
+			// Backdrop translúcido com blur (z-[100]). A scrollbar do CodeMirror (WebKitGTK) vazava pelos
+			// vãos quando translúcido — por isso o hack `.doc-switcher-open` esconde as scrollbars da
+			// página enquanto o overlay está aberto. Se voltar a vazar, reverter pra `bg-background` opaco.
+			className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background/80 px-6 py-8 backdrop-blur-sm"
 			onClick={close}
 		>
+			{/* Anuncia o card sob a seleção do teclado pra leitores de tela, sem ocupar espaço visual. */}
+			<div className="sr-only" aria-live="polite">
+				{activeCard
+					? `${KIND_LABEL[activeCard.kind]}: ${activeCard.title}${activeCard.isCurrent ? " — sessão atual" : ""}`
+					: ""}
+			</div>
+
 			<div
+				role="listbox"
+				aria-label="Sessões de leitura"
 				className="flex max-h-full w-full max-w-5xl flex-col gap-5 overflow-y-auto"
 				// O overlay fecha no clique de fundo; clicar na área dos cards não deve fechar.
 				onClick={(event) => event.stopPropagation()}
 			>
-				{groups.map((group) => (
-					<section key={group.projectName ?? "__sem-projeto__"} className="flex flex-col gap-2.5">
+				{pinned.length > 0 ? (
+					<section className="flex flex-col gap-2.5">
 						<header className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-							<span className="size-1.5 rounded-full bg-[var(--project-accent,var(--primary))]" />
-							{group.projectName ?? "Sem projeto"}
+							<Pin className="size-3 fill-current" />
+							Fixadas
 						</header>
-
+						{/* Flat, sem caixas por kind: é uma seção cross-cutting. Os cards duplicam — cada
+						    fixado também segue no grupo do projeto. `boxed={false}` mostra o rótulo do kind
+						    (sem cabeçalho de caixa pra contextualizar). */}
 						<div className="flex flex-wrap items-start gap-3">
-							{group.blocks.map((block) => {
-								if (block.type === "doc") {
-									return (
-										<Card
-											key={block.card.key}
-											card={block.card}
-											active={block.card.key === activeKey}
-											countdown={countdownFor(block.card.key)}
-											heading={getAnchor(block.card.key)?.headingText ?? null}
-											onConfirm={confirm}
-											onHover={() => focusCard(setView, cards, block.card.key)}
-											onTogglePin={togglePinCard}
-											onRemove={removeCard}
-										/>
-									);
-								}
-								return (
-									<div
-										key={block.taskId}
-										className="flex flex-col gap-1.5 border border-dashed border-border/60 bg-card/30 p-2"
-									>
-										{/* A largura do cluster é ditada pelos cards (arquivos). O título da tarefa preenche
-										    essa largura e trunca nela: w-0 não empurra a largura, min-w-full a iguala. */}
-										<span className="block w-0 min-w-full truncate px-0.5 text-xs font-medium text-foreground/70">
-											{block.title}
-										</span>
-										<div className="flex flex-wrap items-start gap-2">
-											{block.cards.map((card) => (
-												<Card
-													key={card.key}
-													card={card}
-													inTask
-													active={card.key === activeKey}
-													countdown={countdownFor(card.key)}
-													heading={getAnchor(card.key)?.headingText ?? null}
-													onConfirm={confirm}
-													onHover={() => focusCard(setView, cards, card.key)}
-													onTogglePin={togglePinCard}
-													onRemove={removeCard}
-												/>
-											))}
-										</div>
-									</div>
-								);
-							})}
+							{pinned.map((card) => (
+								<Card
+									key={`pinned:${card.key}`}
+									card={card}
+									boxed={false}
+									active={card.flatIndex === view.index}
+									isMostRecent={card.key === mostRecentKey}
+									recordAt={recordAtFor(card.key)}
+									heading={getAnchor(card.key)?.headingText ?? null}
+									onConfirm={confirm}
+									onHover={() => focusCard(setView, card.flatIndex)}
+									onTogglePin={togglePinCard}
+									onRemove={removeCard}
+								/>
+							))}
 						</div>
 					</section>
-				))}
+				) : null}
+
+				{groups.map((group) => {
+					const accentColor = projectColor(group.projectName);
+					return (
+						<section
+							key={group.projectName ?? "__sem-projeto__"}
+							className="flex flex-col gap-2.5"
+							// Acento do projeto desta seção: o dot do cabeçalho e os ícones/realces dos cards
+							// herdam `--project-accent` daqui. Sem cor (ou "Sem projeto"), cai no `--primary`.
+							style={
+								accentColor
+									? ({ "--project-accent": accentColor } as React.CSSProperties)
+									: undefined
+							}
+						>
+							<header className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+								<span className="size-1.5 rounded-full bg-[var(--project-accent,var(--primary))]" />
+								{group.projectName ?? "Sem projeto"}
+							</header>
+
+							<div className="flex flex-wrap items-start gap-3">
+								{group.blocks.map((block) => {
+									const isTask = block.type === "task";
+									return (
+										<div
+											key={isTask ? `task:${block.taskId}` : `kind:${block.kind}`}
+											className="flex flex-col gap-1.5 border border-dashed border-border/60 bg-card/30 p-2"
+										>
+											{/* Caixa de kind (Vault/Docs) leva o rótulo no cabeçalho — a largura é ditada pelos
+											    cards, e o cabeçalho trunca nela (w-0 não empurra, min-w-full iguala). Caixa de
+											    tarefa NÃO tem cabeçalho: cada card já carrega o nome da tarefa em negrito. */}
+											{isTask ? null : (
+												<span className="block w-0 min-w-full truncate px-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													{KIND_BOX_LABEL[block.kind]}
+												</span>
+											)}
+											<div className="flex flex-wrap items-start gap-2">
+												{block.cards.map((card) => (
+													<Card
+														key={card.key}
+														card={card}
+														boxed={!isTask}
+														active={card.flatIndex === view.index}
+														isMostRecent={card.key === mostRecentKey}
+														recordAt={recordAtFor(card.key)}
+														heading={getAnchor(card.key)?.headingText ?? null}
+														onConfirm={confirm}
+														onHover={() => focusCard(setView, card.flatIndex)}
+														onTogglePin={togglePinCard}
+														onRemove={removeCard}
+													/>
+												))}
+											</div>
+										</div>
+									);
+								})}
+							</div>
+						</section>
+					);
+				})}
+
+				{skills.length > 0 ? (
+					<section className="flex flex-col gap-2.5">
+						<header className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+							<Sparkles className="size-3" />
+							Skills
+						</header>
+						{/* Skills são globais e únicas: seção flat, sem caixa tracejada. `boxed` esconde o rótulo
+						    "SKILL" do card (o cabeçalho da seção já diz "Skills"); o ícone próprio da skill fica. */}
+						<div className="flex flex-wrap items-start gap-3">
+							{skills.map((card) => (
+								<Card
+									key={`skill:${card.key}`}
+									card={card}
+									boxed
+									active={card.flatIndex === view.index}
+									isMostRecent={card.key === mostRecentKey}
+									recordAt={recordAtFor(card.key)}
+									heading={getAnchor(card.key)?.headingText ?? null}
+									onConfirm={confirm}
+									onHover={() => focusCard(setView, card.flatIndex)}
+									onTogglePin={togglePinCard}
+									onRemove={removeCard}
+								/>
+							))}
+						</div>
+					</section>
+				) : null}
 			</div>
 
 			{hasLoose ? (
@@ -405,16 +507,12 @@ export function DocSessionSwitcher() {
 	);
 }
 
-// Move a seleção do teclado pro card sob o mouse, casando o índice na sequência achatada pela chave.
+// Move a seleção do teclado pro card sob o mouse. Recebe o flatIndex do próprio card (não a chave):
+// um fixado aparece duas vezes e cada ocorrência tem seu índice, então o hover casa a ocorrência exata.
 function focusCard(
 	setView: React.Dispatch<React.SetStateAction<SwitcherView | null>>,
-	cards: SessionGroupCard[],
-	key: string,
+	index: number,
 ) {
-	const index = cards.findIndex((c) => c.key === key);
-	if (index < 0) {
-		return;
-	}
 	setView((v) => (v ? { ...v, index } : v));
 }
 
@@ -422,9 +520,14 @@ type CardProps = {
 	card: SessionGroupCard;
 	active: boolean;
 	heading: string | null;
-	// Segundos até o dwell gravar a sessão atual no MRU; null quando o card não é a sessão pendente.
-	countdown: number | null;
-	inTask?: boolean;
+	// Instante em que o dwell grava a sessão atual no MRU; null quando o card não é a sessão pendente.
+	// O countdown ao vivo é renderizado por `Countdown`, que tiquetaqueia sozinho.
+	recordAt: number | null;
+	// Sessão mais recente não-atual: ganha o selo "Mais recente" (espelha o "Sessão atual").
+	isMostRecent: boolean;
+	// Em caixa com cabeçalho de kind (Vault/Docs) ou na seção Skills, o contexto já está no cabeçalho → o
+	// card some com o texto do KIND_LABEL (mantém o ícone). Fixadas e cards de tarefa mantêm o rótulo.
+	boxed: boolean;
 	onConfirm: (meta: DocSessionMeta) => void;
 	onHover: () => void;
 	onTogglePin: (key: string) => void;
@@ -433,36 +536,54 @@ type CardProps = {
 
 const ACCENT = "var(--project-accent, var(--primary))";
 
-// Card de sessão. Em um cluster de tarefa (`inTask`), o título da tarefa já está no cabeçalho do
-// cluster, então o card destaca o ARQUIVO; avulso, destaca o título do doc. A sessão atual ganha o
-// selo "Sessão atual", o ícone na cor de acento e uma barra à esquerda; enquanto o dwell não grava,
-// o rodapé conta "registra em Ns". O card sob o teclado (`active`) ganha a borda e o realce — os
-// estilos podem coexistir.
+// Card de sessão, com a mesma anatomia da fixada: o nome (título da tarefa/doc/skill) em negrito e, abaixo,
+// o arquivo em menor. A sessão atual ganha o selo "Sessão atual", o ícone na cor de acento e uma barra à
+// esquerda; a mais recente ganha o selo "Mais recente". Enquanto o dwell não grava, o rodapé conta
+// "registra em Ns". O card sob o teclado (`active`) ganha a borda e o realce — os estilos coexistem.
 function Card({
 	card,
 	active,
 	heading,
-	countdown,
-	inTask,
+	recordAt,
+	isMostRecent,
+	boxed,
 	onConfirm,
 	onHover,
 	onTogglePin,
 	onRemove,
 }: CardProps) {
 	const KindIcon = KIND_ICON[card.kind];
-	const primary = inTask ? (card.subtitle ?? card.title) : card.title;
-	const secondary = inTask ? null : card.subtitle;
-	const iconColor = card.isCurrent ? ACCENT : card.iconColor;
-	const counting = countdown !== null;
+	const primary = card.title;
+	const secondary = card.subtitle;
+	// Skill mantém a cor própria do ícone (salvo na sessão atual, que vai pro acento); as demais
+	// superfícies pintam o ícone com o acento do projeto (herdado por seção). O KIND_LABEL textual só
+	// aparece fora de caixa e quando nenhum selo (atual/recente) já ocupa o espaço à direita.
+	const skillColor = card.icon && !card.isCurrent ? card.iconColor : undefined;
+	const showKindLabel = !boxed && !card.isCurrent && !isMostRecent;
+	const counting = recordAt !== null;
+
+	// Acompanha a seleção do teclado: ao virar o card ativo, rola pra dentro da viewport e recebe o foco
+	// (roving tabindex). `nearest` não salta se já está visível; `preventScroll` evita brigar com o rolar.
+	const ref = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (active) {
+			ref.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+			ref.current?.focus({ preventScroll: true });
+		}
+	}, [active]);
 
 	return (
-		/** biome-ignore lint/a11y/noStaticElementInteractions: card clicável; o teclado já navega pelo listener global. */
+		/** biome-ignore lint/a11y/noStaticElementInteractions: card clicável; o teclado navega pelo listener global. */
 		<div
+			ref={ref}
+			role="option"
+			aria-selected={active}
+			tabIndex={active ? 0 : -1}
 			onClick={() => onConfirm(card)}
 			onMouseEnter={onHover}
 			className={cn(
-				"group relative flex cursor-pointer flex-col gap-3 border bg-card p-4 text-left transition-colors",
-				inTask ? "w-52" : "w-60",
+				"group relative flex cursor-pointer flex-col gap-3 border bg-card p-4 text-left transition-colors outline-none",
+				"w-52",
 				active
 					? "border-[var(--project-accent,var(--primary))] bg-secondary shadow-lg"
 					: "border-border hover:bg-secondary/50",
@@ -506,22 +627,34 @@ function Card({
 				{card.icon ? (
 					<LucideIcon
 						name={card.icon}
-						className={cn("size-3.5 shrink-0", counting && countdown > 0 && "animate-pulse")}
-						style={iconColor ? { color: iconColor } : undefined}
+						className={cn(
+							"size-3.5 shrink-0 text-[var(--project-accent,var(--primary))]",
+							counting && "motion-safe:animate-pulse",
+						)}
+						style={skillColor ? { color: skillColor } : undefined}
 					/>
 				) : (
 					<KindIcon
 						size={14}
-						className={cn("shrink-0", counting && countdown > 0 && "animate-pulse")}
-						style={iconColor ? { color: iconColor } : undefined}
+						className={cn(
+							"shrink-0 text-[var(--project-accent,var(--primary))]",
+							counting && "motion-safe:animate-pulse",
+						)}
 					/>
 				)}
-				<span className="truncate font-medium uppercase tracking-wide">
-					{KIND_LABEL[card.kind]}
-				</span>
+				{showKindLabel ? (
+					<span className="truncate font-medium uppercase tracking-wide">
+						{KIND_LABEL[card.kind]}
+					</span>
+				) : null}
 				{card.isCurrent ? (
-					<span className="ml-auto truncate font-semibold uppercase tracking-wide text-[var(--project-accent,var(--primary))]">
+					<span className="ml-auto shrink-0 whitespace-nowrap font-semibold uppercase tracking-wide text-[var(--project-accent,var(--primary))]">
 						Sessão atual
+					</span>
+				) : null}
+				{isMostRecent ? (
+					<span className="ml-auto shrink-0 whitespace-nowrap font-semibold uppercase tracking-wide text-muted-foreground">
+						Mais recente
 					</span>
 				) : null}
 			</div>
@@ -529,8 +662,7 @@ function Card({
 			<div className="flex min-w-0 flex-col gap-0.5">
 				<span
 					className={cn(
-						"line-clamp-2 font-semibold leading-tight",
-						inTask ? "text-sm" : "text-base",
+						"line-clamp-2 text-base font-semibold leading-tight",
 						active ? "text-foreground" : "text-foreground/90",
 					)}
 				>
@@ -545,22 +677,42 @@ function Card({
 				{heading ? (
 					<span className="truncate text-xs text-foreground/70">▸ {heading}</span>
 				) : (
-					<span className="truncate text-xs italic text-muted-foreground/60">sem ponto salvo</span>
+					<span className="truncate text-xs italic text-muted-foreground">sem ponto salvo</span>
 				)}
-				{counting ? (
-					<span
-						className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide"
-						style={{ color: ACCENT }}
-					>
-						<Hourglass className={cn("size-3", countdown > 0 && "animate-pulse")} />
-						{countdown > 0 ? `registra em ${countdown}s` : "registrada"}
-					</span>
-				) : (
-					<span className="text-[10px] uppercase tracking-wide text-muted-foreground/60">
+				{recordAt === null ? (
+					<span className="text-[10px] uppercase tracking-wide text-muted-foreground">
 						{relativeTimeFrom(card.lastVisited)}
 					</span>
+				) : (
+					<Countdown recordAt={recordAt} />
 				)}
 			</div>
 		</div>
+	);
+}
+
+// Conta o dwell até a gravação no MRU, tiquetaqueando sozinho a cada 500ms. Isolar o tick aqui mantém
+// o overlay estável: só este selo re-renderiza, não a lista inteira de cards.
+function Countdown({ recordAt }: { recordAt: number }) {
+	const [seconds, setSeconds] = useState(() =>
+		Math.max(0, Math.ceil((recordAt - Date.now()) / 1000)),
+	);
+
+	useEffect(() => {
+		setSeconds(Math.max(0, Math.ceil((recordAt - Date.now()) / 1000)));
+		const id = setInterval(() => {
+			setSeconds(Math.max(0, Math.ceil((recordAt - Date.now()) / 1000)));
+		}, 500);
+		return () => clearInterval(id);
+	}, [recordAt]);
+
+	return (
+		<span
+			className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide"
+			style={{ color: ACCENT }}
+		>
+			<Hourglass className={cn("size-3", seconds > 0 && "motion-safe:animate-pulse")} />
+			{seconds > 0 ? `registra em ${seconds}s` : "registrada"}
+		</span>
 	);
 }

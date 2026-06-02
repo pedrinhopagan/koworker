@@ -35,11 +35,24 @@ type DocEditorPaneProps = {
 	// aqui ele só amplia a fonte/largura e atende o Esc pra sair.
 	reading: boolean;
 	onExitReading: () => void;
+	// Esc fora da leitura "sai pra valer": volta uma rota (a página informa o alvo do pop). O pane cuida
+	// do resto do modelo §5 — salva o que estava pendente e remove a sessão do MRU (salvo se fixada).
+	onExit: () => void;
 };
 
 export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>(
 	function DocEditorPane(
-		{ fileName, sessionKey, content, folderPath, writeFile, emptyState, reading, onExitReading },
+		{
+			fileName,
+			sessionKey,
+			content,
+			folderPath,
+			writeFile,
+			emptyState,
+			reading,
+			onExitReading,
+			onExit,
+		},
 		ref,
 	) {
 		const editorRef = useRef<MarkdownEditorHandle>(null);
@@ -56,14 +69,39 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 			[sessionKey],
 		);
 
+		// Esc em dois estágios, num único listener (sem dois handlers competindo pelo mesmo Esc):
+		//   1. no modo leitura → sai da leitura e fica na página.
+		//   2. fora da leitura → "saí pra valer": salva o pendente, remove a sessão do MRU (salvo fixada)
+		//      e volta uma rota. Só dispara quando o Esc está livre — foco no editor ou em nada; um campo
+		//      de formulário (renomear, novo arquivo, título) ou um popover trata o próprio Esc.
+		// O Esc que FECHA o overlay do switcher não chega aqui: aquele listener é em capture e faz
+		// stopPropagation enquanto o overlay está aberto.
 		useEffect(() => {
-			if (!reading) return;
-			function onKey(event: KeyboardEvent) {
-				if (event.key === "Escape") onExitReading();
+			async function onKey(event: KeyboardEvent) {
+				if (event.key !== "Escape") return;
+
+				if (reading) {
+					onExitReading();
+					return;
+				}
+
+				const active = document.activeElement;
+				const escFree =
+					!active || active === document.body || Boolean(active.closest(".cm-editor"));
+				if (!escFree) return;
+
+				event.preventDefault();
+				await flush();
+				const store = useDocSessionsStore.getState();
+				const session = store.recents.find((entry) => entry.key === sessionKey);
+				if (!session?.pinned) {
+					store.removeRecent(sessionKey);
+				}
+				onExit();
 			}
 			window.addEventListener("keydown", onKey);
 			return () => window.removeEventListener("keydown", onKey);
-		}, [reading, onExitReading]);
+		}, [reading, onExitReading, onExit, flush, sessionKey]);
 
 		useImperativeHandle(ref, () => ({
 			flush,
