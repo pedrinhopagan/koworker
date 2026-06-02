@@ -45,6 +45,83 @@ export type DocSessionMeta = {
 	pinned?: boolean;
 };
 
+// Inverso parcial de `docSessionKey`, só pro agrupamento do switcher: arquivos da mesma tarefa
+// compartilham o taskId entre os dois primeiros `:`. As outras superfícies não têm entidade-pai e
+// entram como cards soltos, então devolvem null.
+function taskIdFromKey(key: string): string | null {
+	if (!key.startsWith("task:")) {
+		return null;
+	}
+	const rest = key.slice("task:".length);
+	const sep = rest.indexOf(":");
+	return sep === -1 ? null : rest.slice(0, sep);
+}
+
+export type SessionGroupCard = DocSessionMeta & { isCurrent: boolean };
+
+// Um bloco dentro de um projeto: uma tarefa com seus arquivos, ou um doc avulso (vault/docs/skill).
+export type SessionBlock =
+	| { type: "task"; taskId: string; title: string; cards: SessionGroupCard[] }
+	| { type: "doc"; card: SessionGroupCard };
+
+export type SessionProjectGroup = { projectName: string | null; blocks: SessionBlock[] };
+
+// Agrupa o MRU pro switcher em projeto → (tarefa com seus arquivos | doc avulso) → cards. A entrada
+// já vem em ordem MRU (mais recente primeiro), então a primeira aparição de cada projeto/tarefa/card
+// define a ordem — o trabalho mais recente flutua pro topo. `cards` é a mesma sequência achatada na
+// ordem em que é renderizada: é por ela que o teclado cicla.
+export function groupSessions(
+	list: DocSessionMeta[],
+	currentKey: string | null,
+): { groups: SessionProjectGroup[]; cards: SessionGroupCard[] } {
+	const groups: SessionProjectGroup[] = [];
+	const byProject = new Map<string | null, SessionProjectGroup>();
+	// Chaveado só pelo taskId: uma tarefa pertence a um único projeto, sem colisão entre eles.
+	const byTask = new Map<string, Extract<SessionBlock, { type: "task" }>>();
+
+	for (const meta of list) {
+		const card: SessionGroupCard = { ...meta, isCurrent: meta.key === currentKey };
+		const projectName = meta.projectName ?? null;
+
+		let group = byProject.get(projectName);
+		if (!group) {
+			group = { projectName, blocks: [] };
+			byProject.set(projectName, group);
+			groups.push(group);
+		}
+
+		const taskId = taskIdFromKey(meta.key);
+		if (!taskId) {
+			group.blocks.push({ type: "doc", card });
+			continue;
+		}
+
+		let block = byTask.get(taskId);
+		if (!block) {
+			block = { type: "task", taskId, title: meta.title, cards: [] };
+			byTask.set(taskId, block);
+			group.blocks.push(block);
+		}
+		block.cards.push(card);
+	}
+
+	const cards = groups.flatMap((group) =>
+		group.blocks.flatMap((block) => (block.type === "task" ? block.cards : [block.card])),
+	);
+	return { groups, cards };
+}
+
+// Índice inicial da seleção do teclado no switcher: o doc anterior — o primeiro não-atual na ordem MRU
+// — mapeado pra sua posição na sequência agrupada. O agrupamento reordena, então "primeiro não-atual
+// na ordem de render" não serve: seria um doc mais velho do mesmo projeto. Isto preserva o flick-pro-
+// anterior do Alt+Tab. Cai em 0 se a lista só tiver a sessão atual (o switcher não abre nesse caso).
+export function initialSwitcherIndex(list: DocSessionMeta[], currentKey: string | null): number {
+	const { cards } = groupSessions(list, currentKey);
+	const previousKey = list.find((r) => r.key !== currentKey)?.key;
+	const index = cards.findIndex((c) => c.key === previousKey);
+	return Math.max(index, 0);
+}
+
 // Teto do mapa de âncoras pra não inchar o localStorage. Re-salvar reordena pro fim (LRU);
 // ao exceder, descarta as mais antigas.
 const ANCHOR_CAP = 200;

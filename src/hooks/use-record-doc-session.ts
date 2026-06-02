@@ -12,7 +12,8 @@ const DWELL_MS = 10_000;
 const DWELL_MS_DONE = 20_000;
 
 // Liga uma página de doc ao switcher de sessões. Duas coisas, com tempos diferentes:
-//   1. `currentKey` é marcada IMEDIATAMENTE (o switcher filtra "o doc atual" da lista).
+//   1. a sessão atual (`current`) é marcada IMEDIATAMENTE: o switcher a mostra como card "Sessão
+//      atual" e começa a seleção do teclado no doc anterior.
 //   2. a entrada no MRU só é gravada após o dwell — ou na hora, se o usuário fixar.
 // As páginas passam `meta` só quando os dados de título carregaram (`null` antes), pra não gravar
 // rótulos em branco. Retorna o estado/ação de fixar pra toolbar oferecer o botão.
@@ -22,7 +23,7 @@ export function useRecordDocSession(
 ) {
 	const recordVisit = useDocSessionsStore((s) => s.recordVisit);
 	const togglePinInStore = useDocSessionsStore((s) => s.togglePin);
-	const setCurrentKey = useDocSwitcherStore((s) => s.setCurrentKey);
+	const setCurrent = useDocSwitcherStore((s) => s.setCurrent);
 
 	const key = meta?.key ?? null;
 	const completed = options?.completed ?? false;
@@ -41,23 +42,27 @@ export function useRecordDocSession(
 		if (!meta) {
 			return;
 		}
-		setCurrentKey(meta.key);
 
 		const sameSession = prevKeyRef.current === meta.key;
 		const justCompleted = sameSession && completed && !prevCompletedRef.current;
 		prevKeyRef.current = meta.key;
 		prevCompletedRef.current = completed;
 
+		// Concluir vendo: a sessão é fechada, não re-gravada — sem dwell, então o card não mostra timer.
 		if (justCompleted) {
-			return () => setCurrentKey(null);
+			setCurrent(meta, 0);
+			return () => setCurrent(null);
 		}
-		const timer = setTimeout(() => recordVisit(meta), completed ? DWELL_MS_DONE : DWELL_MS);
+
+		const dwell = completed ? DWELL_MS_DONE : DWELL_MS;
+		setCurrent(meta, dwell);
+		const timer = setTimeout(() => recordVisit(meta), dwell);
 		return () => {
 			clearTimeout(timer);
-			setCurrentKey(null);
+			setCurrent(null);
 		};
 		// biome-ignore lint/correctness/useExhaustiveDependencies: re-avalia ao trocar de doc ou concluir.
-	}, [key, completed, recordVisit, setCurrentKey]);
+	}, [key, completed, recordVisit, setCurrent]);
 
 	const togglePin = useCallback(() => {
 		if (!meta) {
