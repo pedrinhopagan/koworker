@@ -1,6 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { FolderInput, Library, Link2, Loader2, Unlink, X } from "lucide-react";
+import {
+	CheckSquare,
+	ChevronsDownUp,
+	ChevronsUpDown,
+	FolderInput,
+	LayoutGrid,
+	Library,
+	Link2,
+	ListTree,
+	Loader2,
+	Search,
+	Unlink,
+	X,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -10,13 +23,33 @@ import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useProjectFocus } from "@/hooks/use-project-focus";
+import { cn } from "@/lib/utils";
 import { LinkTaskPopover, type NewTaskPayload } from "./-components/link-task-popover";
-import { folderFileKey, linkedFileKey, VaultBrowser } from "./-components/vault-browser";
+import { VaultBrowser } from "./-components/vault-browser";
+import {
+	EMPTY_VAULT_FILTERS,
+	filterEntries,
+	type VaultFilterState,
+	VaultFilters,
+} from "./-components/vault-filters";
+import { VaultGroupedView } from "./-components/vault-grouped-view";
 
 export const Route = createFileRoute("/_app/vault/")({
 	component: VaultPage,
 });
+
+// Adiciona/remove uma chave de um Set imutável (toggle de seleção).
+function toggleKey(set: Set<string>, key: string): Set<string> {
+	const next = new Set(set);
+	if (next.has(key)) {
+		next.delete(key);
+	} else {
+		next.add(key);
+	}
+	return next;
+}
 
 function VaultPage() {
 	const { selectedProjectId, selectedProject } = useProjectFocus();
@@ -25,7 +58,8 @@ function VaultPage() {
 
 	// Três seleções mutuamente exclusivas: notas soltas (por nome), arquivos dentro de uma pasta
 	// solta (por pasta/nome) e arquivos já vinculados a tarefas (por taskId/nome). Cada uma habilita
-	// ações diferentes, então mexer numa zera as outras.
+	// ações diferentes, então mexer numa zera as outras. (Fatia 1: a lista plana só abre arquivos;
+	// estas seleções e as barras de lote ficam inertes até o modo "organizar" da Fatia 4.)
 	const [selected, setSelected] = useState<Set<string>>(new Set());
 	const [folderSelected, setFolderSelected] = useState<Set<string>>(new Set());
 	const [linkedSelected, setLinkedSelected] = useState<Set<string>>(new Set());
@@ -35,11 +69,27 @@ function VaultPage() {
 	const [renaming, setRenaming] = useState<{ name: string; value: string } | null>(null);
 	const [deleting, setDeleting] = useState<string | null>(null);
 
-	// Pasta solta sendo adotada como tarefa: trava os botões de adoção enquanto a request corre.
-	const [adoptingFolder, setAdoptingFolder] = useState<string | null>(null);
-
 	// Criação de nota solta: o dialog pede só um título e deriva o nome do arquivo.
 	const [creatingTitle, setCreatingTitle] = useState<string | null>(null);
+
+	// Busca: filtra entries por nome+título no cliente. Enquanto há termo, a lista colapsa pra
+	// plano (visão de resultados), ignorando o agrupamento.
+	const [search, setSearch] = useState("");
+
+	// Grupos colapsados na visão agrupada (chave `folder:<nome>` ou `task:<id>`). Preferência local,
+	// sem persistência — recompõe a cada montagem.
+	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+	// Filtros das 4 dimensões (Fatia 2). Padrão = pendentes (concluídas ocultas).
+	const [filters, setFilters] = useState<VaultFilterState>(EMPTY_VAULT_FILTERS);
+
+	// Modo de agrupamento (Fatia 3). Padrão = "grouped" (visão da Fatia 1); "flat" é a grade única
+	// sem cabeçalhos. Com termo de busca, a lista cai pra plana independente do toggle.
+	const [grouping, setGrouping] = useState<"grouped" | "flat">("grouped");
+
+	// Modo "organizar" (Fatia 4): fora dele o clique abre o arquivo; dentro, seleciona pra lote. As
+	// barras flutuantes (vincular/mover/soltar) só aparecem aqui.
+	const [organizing, setOrganizing] = useState(false);
 
 	useEffect(() => {
 		setSelected(new Set());
@@ -47,43 +97,175 @@ function VaultPage() {
 		setLinkedSelected(new Set());
 		setRenaming(null);
 		setDeleting(null);
+		setSearch("");
+		setCollapsed(new Set());
+		setFilters(EMPTY_VAULT_FILTERS);
+		setGrouping("grouped");
+		setOrganizing(false);
 	}, [selectedProjectId]);
+
+	// Sair do modo organizar limpa as três seleções: senão as barras lingerem ou reentrar mostraria
+	// uma seleção velha.
+	function toggleOrganizing() {
+		setOrganizing((prev) => {
+			if (prev) {
+				setSelected(new Set());
+				setFolderSelected(new Set());
+				setLinkedSelected(new Set());
+			}
+			return !prev;
+		});
+	}
+
+	// Seleção de um arquivo no modo organizar. As três seleções são mutuamente exclusivas (cada
+	// origem habilita ações diferentes), então mexer numa zera as outras. As chaves seguem o formato
+	// que os parsers já esperam: loose = nome puro; folder/task = `<groupKey>/<nome>`.
+	function selectEntry(entry: { name: string; origin: string; groupKey: string | null }) {
+		if (entry.origin === "loose") {
+			setFolderSelected(new Set());
+			setLinkedSelected(new Set());
+			setSelected((prev) => toggleKey(prev, entry.name));
+			return;
+		}
+		if (!entry.groupKey) return;
+
+		const key = `${entry.groupKey}/${entry.name}`;
+		if (entry.origin === "folder") {
+			setSelected(new Set());
+			setLinkedSelected(new Set());
+			// A barra de mover-pasta resolve uma única pasta de origem; selecionar arquivo de outra
+			// pasta recomeça a seleção em vez de misturar duas origens.
+			setFolderSelected((prev) => {
+				const sameFolder = [...prev].every((k) => k.slice(0, k.indexOf("/")) === entry.groupKey);
+				return toggleKey(sameFolder ? prev : new Set(), key);
+			});
+			return;
+		}
+		setSelected(new Set());
+		setFolderSelected(new Set());
+		setLinkedSelected((prev) => toggleKey(prev, key));
+	}
+
+	function isEntrySelected(entry: {
+		name: string;
+		origin: string;
+		groupKey: string | null;
+	}): boolean {
+		if (entry.origin === "loose") return selected.has(entry.name);
+		if (!entry.groupKey) return false;
+		const key = `${entry.groupKey}/${entry.name}`;
+		return entry.origin === "folder" ? folderSelected.has(key) : linkedSelected.has(key);
+	}
+
+	// "Selecionar todos" de um grupo (cabeçalho): substitui a seleção da origem do grupo pelos seus
+	// arquivos e zera as outras duas (a exclusividade por origem vale também aqui). Um grupo é
+	// homogêneo em origem, então o primeiro item decide o destino.
+	function selectGroup(groupEntries: { name: string; origin: string; groupKey: string | null }[]) {
+		const first = groupEntries[0];
+		if (!first) return;
+
+		if (first.origin === "loose") {
+			setFolderSelected(new Set());
+			setLinkedSelected(new Set());
+			setSelected(new Set(groupEntries.map((entry) => entry.name)));
+			return;
+		}
+
+		const keys = new Set(groupEntries.map((entry) => `${entry.groupKey}/${entry.name}`));
+		if (first.origin === "folder") {
+			setSelected(new Set());
+			setLinkedSelected(new Set());
+			setFolderSelected(keys);
+			return;
+		}
+		setSelected(new Set());
+		setFolderSelected(new Set());
+		setLinkedSelected(keys);
+	}
+
+	function toggleCollapsed(key: string) {
+		setCollapsed((prev) => {
+			const next = new Set(prev);
+			if (next.has(key)) {
+				next.delete(key);
+			} else {
+				next.add(key);
+			}
+			return next;
+		});
+	}
 
 	const projectId = selectedProjectId ?? "";
 	const enabled = Boolean(selectedProjectId);
 
-	const looseQuery = useQuery({
-		...orpc.vault.list.queryOptions({ input: { projectId } }),
+	// Endpoint agregador do vault: lista plana de arquivos (entries, metadata-only) + os grupos
+	// (pastas soltas e tasks). Cobre as três fontes que antes vinham de queries separadas.
+	const entriesQuery = useQuery({
+		...orpc.vault.listEntries.queryOptions({ input: { projectId } }),
 		enabled,
 	});
-	const foldersQuery = useQuery({
-		...orpc.vault.listFolders.queryOptions({ input: { projectId } }),
-		enabled,
-	});
-	// listByProject não filtra `done`, então já traz as concluídas — o vault mostra os .md de
-	// todas as tarefas, não só das pendentes.
+
+	// Todas as tasks do projeto (inclusive vazias) — alvo de "mover/redirecionar" nas barras de lote.
+	// O agregador do vault só devolve grupos com arquivo, então uma task vazia não apareceria como
+	// destino sem esta lista separada.
 	const tasksQuery = useQuery({
 		...orpc.tasks.listByProject.queryOptions({ input: { projectId } }),
 		enabled,
 	});
 
-	const loose = looseQuery.data ?? [];
-	const folders = foldersQuery.data ?? [];
-	const allTasks = tasksQuery.data ?? [];
-	const taskGroups = useMemo(
-		() =>
-			allTasks
-				.filter((task) => task.fileNames.length > 0)
-				.map((task) => ({
-					taskId: task.id,
-					displayTitle: task.displayTitle,
-					fileNames: task.fileNames,
-				})),
-		[allTasks],
+	const entries = entriesQuery.data?.entries ?? [];
+	const groups = entriesQuery.data?.groups ?? [];
+
+	const looseNames = useMemo(
+		() => new Set(entries.filter((entry) => entry.origin === "loose").map((entry) => entry.name)),
+		[entries],
 	);
+	const taskGroups = useMemo(() => groups.filter((group) => group.kind === "task"), [groups]);
+	const folderGroups = useMemo(() => groups.filter((group) => group.kind === "folder"), [groups]);
+
+	// Pipeline de filtros (Fatia 2): predicados sobre a lista plana, antes do agrupamento. O estado
+	// "pendentes" (padrão) é o que mantém as concluídas ocultas — o chip de estado as revela.
+	const taskGroupByKey = useMemo(
+		() => new Map(taskGroups.map((group) => [group.key, group])),
+		[taskGroups],
+	);
+	const filteredEntries = useMemo(
+		() => filterEntries(entries, filters, taskGroupByKey),
+		[entries, filters, taskGroupByKey],
+	);
+	// Grupos recompostos a partir das entries que sobreviveram: um grupo só aparece se tem arquivo
+	// no resultado filtrado.
+	const survivingKeys = useMemo(
+		() => new Set(filteredEntries.map((entry) => entry.groupKey).filter((key) => key !== null)),
+		[filteredEntries],
+	);
+	const visibleTaskGroups = useMemo(
+		() => taskGroups.filter((group) => survivingKeys.has(group.key)),
+		[taskGroups, survivingKeys],
+	);
+	const visibleFolderGroups = useMemo(
+		() => folderGroups.filter((group) => survivingKeys.has(group.key)),
+		[folderGroups, survivingKeys],
+	);
+
+	// Atalhos de colapsar/expandir tudo (só na visão agrupada). As chaves seguem o formato que
+	// VaultGroupedView usa: `folder:<key>` e `task:<key>`.
+	function collapseAllGroups() {
+		const keys = new Set<string>();
+		for (const group of visibleFolderGroups) keys.add(`folder:${group.key}`);
+		for (const group of visibleTaskGroups) keys.add(`task:${group.key}`);
+		setCollapsed(keys);
+	}
+
+	function expandAllGroups() {
+		setCollapsed(new Set());
+	}
+	const looseCount = looseNames.size;
+	// Opções de destino das barras de lote: todas as tasks do projeto, inclusive as vazias (alvo de
+	// redirecionar), via tasksQuery — não só os grupos com arquivo.
 	const taskOptions = useMemo(
-		() => allTasks.map((task) => ({ id: task.id, displayTitle: task.displayTitle })),
-		[allTasks],
+		() => (tasksQuery.data ?? []).map((task) => ({ id: task.id, displayTitle: task.displayTitle })),
+		[tasksQuery.data],
 	);
 
 	async function invalidateVaultAndTasks() {
@@ -156,21 +338,19 @@ function VaultPage() {
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível soltar"),
 	});
 
-	const adoptMutation = useMutation({
-		...orpc.vault.adoptFolder.mutationOptions(),
-		onSuccess: async (result) => {
-			await invalidateVaultAndTasks();
-			setAdoptingFolder(null);
-			toast.success("Pasta transformada em tarefa");
-			navigate({ to: "/tarefas/$taskId", params: { taskId: result.id } });
-		},
-		onError: (err) => {
-			setAdoptingFolder(null);
-			toast.error(err instanceof Error ? err.message : "Não foi possível transformar a pasta");
-		},
-	});
-
 	const createTaskMutation = useMutation(orpc.tasks.create.mutationOptions());
+
+	// Transforma uma pasta solta em tarefa (aponta a task nova pra pasta existente, sem mover
+	// arquivo). A pasta deixa de ser grupo "folder" e passa a aparecer como grupo "task".
+	const adoptFolderMutation = useMutation({
+		...orpc.vault.adoptFolder.mutationOptions(),
+		onSuccess: async () => {
+			await invalidateVaultAndTasks();
+			toast.success("Pasta transformada em tarefa");
+		},
+		onError: (err) =>
+			toast.error(err instanceof Error ? err.message : "Não foi possível transformar a pasta"),
+	});
 
 	// Cria um `.md` solto na raiz do vault com um H1 inicial e abre a nota pra editar.
 	const createNoteMutation = useMutation({
@@ -190,7 +370,7 @@ function VaultPage() {
 		if (!base) return;
 
 		const name = `${base}.md`;
-		if (loose.some((file) => file.name === name)) {
+		if (looseNames.has(name)) {
 			toast.error("Já existe uma nota com esse nome");
 			return;
 		}
@@ -256,59 +436,6 @@ function VaultPage() {
 			return;
 		}
 		renameMutation.mutate({ projectId, oldName: renaming.name, newName });
-	}
-
-	function toggleSelect(name: string) {
-		setFolderSelected(new Set());
-		setLinkedSelected(new Set());
-		setSelected((prev) => {
-			const next = new Set(prev);
-			if (next.has(name)) {
-				next.delete(name);
-			} else {
-				next.add(name);
-			}
-			return next;
-		});
-	}
-
-	// A seleção de arquivos da pasta solta é por pasta: o move manda um único folderName. Marcar um
-	// arquivo de outra pasta recomeça a seleção naquela pasta, em vez de misturar origens.
-	function toggleFolderFile(folderName: string, name: string) {
-		setSelected(new Set());
-		setLinkedSelected(new Set());
-		const key = folderFileKey(folderName, name);
-		setFolderSelected((prev) => {
-			if (prev.has(key)) {
-				const next = new Set(prev);
-				next.delete(key);
-				return next;
-			}
-			const sameFolder = [...prev].every((k) => k.startsWith(`${folderName}/`));
-			const next = sameFolder ? new Set(prev) : new Set<string>();
-			next.add(key);
-			return next;
-		});
-	}
-
-	function toggleLinked(taskId: string, name: string) {
-		setSelected(new Set());
-		setFolderSelected(new Set());
-		setLinkedSelected((prev) => {
-			const next = new Set(prev);
-			const key = linkedFileKey(taskId, name);
-			if (next.has(key)) {
-				next.delete(key);
-			} else {
-				next.add(key);
-			}
-			return next;
-		});
-	}
-
-	function adoptFolder(folderName: string) {
-		setAdoptingFolder(folderName);
-		adoptMutation.mutate({ projectId, folderName });
 	}
 
 	function linkSelected(taskId: string, targetName?: string) {
@@ -383,6 +510,19 @@ function VaultPage() {
 		if (id) moveFolderSelected(id);
 	}
 
+	// Abre um arquivo: task → rota da aba da tarefa; loose → rota da nota solta. Arquivos de pasta
+	// solta não têm rota de edição (ficam só leitura na visão agrupada), então nunca chegam aqui.
+	function openEntry(entry: { name: string; origin: string; groupKey: string | null }) {
+		if (entry.origin === "task" && entry.groupKey) {
+			navigate({
+				to: "/tarefas/$taskId/$file",
+				params: { taskId: entry.groupKey, file: entry.name },
+			});
+			return;
+		}
+		navigate({ to: "/vault/$fileName", params: { fileName: entry.name } });
+	}
+
 	if (!selectedProjectId) {
 		return (
 			<PageShell title="Vault" icon={Library}>
@@ -394,13 +534,15 @@ function VaultPage() {
 	}
 
 	const selectedNames = [...selected];
-	const isLoading = looseQuery.isLoading || foldersQuery.isLoading || tasksQuery.isLoading;
+	const isLoading = entriesQuery.isLoading;
+	// Busca força o modo plano (resultados sobre nome+título), ignorando o toggle de agrupamento.
+	const showFlat = grouping === "flat" || Boolean(search.trim());
 
 	return (
 		<PageShell
 			title="Vault"
 			icon={Library}
-			description={`${loose.length} soltas · ${folders.length} pastas · ${taskGroups.length} em tarefas de ${selectedProject?.name ?? "projeto"}`}
+			description={`${looseCount} soltas · ${folderGroups.length} pastas · ${taskGroups.length} em tarefas de ${selectedProject?.name ?? "projeto"}`}
 		>
 			{isLoading ? (
 				<div className="flex items-center gap-2 text-muted-foreground">
@@ -411,28 +553,137 @@ function VaultPage() {
 				</div>
 			) : (
 				<div className="relative flex h-full min-h-0 flex-col">
-					<div className="min-h-0 flex-1 overflow-y-auto pr-2">
-						<VaultBrowser
-							loose={loose}
-							folders={folders}
-							taskGroups={taskGroups}
-							selected={selected}
-							folderSelected={folderSelected}
-							linkedSelected={linkedSelected}
-							onToggleSelect={toggleSelect}
-							onToggleFolderFile={toggleFolderFile}
-							onToggleLinked={toggleLinked}
-							onAdoptFolder={adoptFolder}
-							adoptingFolder={adoptingFolder}
-							onOpen={(name) => navigate({ to: "/vault/$fileName", params: { fileName: name } })}
-							onCreateLoose={() => setCreatingTitle("")}
-							onNavigateTask={(taskId) => navigate({ to: "/tarefas/$taskId", params: { taskId } })}
-							onRenameLoose={(name) => setRenaming({ name, value: name })}
-							onDeleteLoose={(name) => setDeleting(name)}
-						/>
+					<div className="mb-4 flex items-center gap-1">
+						<div className="relative flex-1">
+							<Search
+								size={15}
+								className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+							/>
+							<Input
+								value={search}
+								onChange={(e) => setSearch(e.target.value)}
+								placeholder="Buscar por nome ou título"
+								className="pl-9 font-mono text-sm"
+								aria-label="Buscar no vault"
+							/>
+						</div>
+						<Divider />
+
+						{!showFlat && (
+							<>
+								<Tooltip label="Colapsar tudo">
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon-sm"
+										aria-label="Colapsar tudo"
+										className="text-muted-foreground"
+										onClick={collapseAllGroups}
+									>
+										<ChevronsDownUp className="size-4" />
+									</Button>
+								</Tooltip>
+								<Tooltip label="Expandir tudo">
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon-sm"
+										aria-label="Expandir tudo"
+										className="text-muted-foreground"
+										onClick={expandAllGroups}
+									>
+										<ChevronsUpDown className="size-4" />
+									</Button>
+								</Tooltip>
+								<Divider />
+							</>
+						)}
+
+						<Tooltip label="Agrupar por tarefa">
+							<Button
+								type="button"
+								variant={grouping === "grouped" && !search.trim() ? "secondary" : "ghost"}
+								size="icon-sm"
+								aria-label="Agrupar por tarefa"
+								aria-pressed={grouping === "grouped" && !search.trim()}
+								className={cn(showFlat && "text-muted-foreground")}
+								onClick={() => setGrouping("grouped")}
+							>
+								<ListTree className="size-4" />
+							</Button>
+						</Tooltip>
+						<Tooltip label="Lista plana">
+							<Button
+								type="button"
+								variant={showFlat ? "secondary" : "ghost"}
+								size="icon-sm"
+								aria-label="Lista plana"
+								aria-pressed={showFlat}
+								className={cn(!showFlat && "text-muted-foreground")}
+								onClick={() => setGrouping("flat")}
+							>
+								<LayoutGrid className="size-4" />
+							</Button>
+						</Tooltip>
+
+						<Divider />
+
+						<VaultFilters filters={filters} onChange={setFilters} />
+						<Tooltip label="Selecionar vários arquivos para vincular, mover ou soltar">
+							<Button
+								type="button"
+								variant={organizing ? "secondary" : "ghost"}
+								size="sm"
+								onClick={toggleOrganizing}
+								aria-pressed={organizing}
+							>
+								<CheckSquare className="size-4" />
+								{organizing ? "Selecionando" : "Selecionar"}
+							</Button>
+						</Tooltip>
 					</div>
 
-					{folderFiles.length > 0 && (
+					<div className="min-h-0 flex-1 overflow-y-auto pr-2">
+						{showFlat ? (
+							<VaultBrowser
+								entries={filteredEntries}
+								search={search}
+								organizing={organizing}
+								onOpen={openEntry}
+								onSelect={selectEntry}
+								isSelected={isEntrySelected}
+								onCreateLoose={() => setCreatingTitle("")}
+								onRenameLoose={(name) => setRenaming({ name, value: name })}
+								onDeleteLoose={(name) => setDeleting(name)}
+							/>
+						) : (
+							<VaultGroupedView
+								entries={filteredEntries}
+								taskGroups={visibleTaskGroups}
+								folderGroups={visibleFolderGroups}
+								collapsed={collapsed}
+								organizing={organizing}
+								onToggleCollapse={toggleCollapsed}
+								onOpen={openEntry}
+								onSelect={selectEntry}
+								onSelectGroup={selectGroup}
+								isSelected={isEntrySelected}
+								onCreateLoose={() => setCreatingTitle("")}
+								onRenameLoose={(name) => setRenaming({ name, value: name })}
+								onDeleteLoose={(name) => setDeleting(name)}
+								onAdoptFolder={(folderName) =>
+									adoptFolderMutation.mutate({ projectId, folderName })
+								}
+								adoptingFolder={
+									adoptFolderMutation.isPending
+										? (adoptFolderMutation.variables?.folderName ?? null)
+										: null
+								}
+							/>
+						)}
+					</div>
+
+					{organizing && folderFiles.length > 0 && (
 						<div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
 							<div className="pointer-events-auto flex items-center gap-3 border border-border bg-card px-3 py-2 shadow-xl">
 								<Text size="sm" className="font-mono tabular-nums">
@@ -468,7 +719,7 @@ function VaultPage() {
 						</div>
 					)}
 
-					{linkedFiles.length > 0 && (
+					{organizing && linkedFiles.length > 0 && (
 						<div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
 							<div className="pointer-events-auto flex items-center gap-3 border border-border bg-card px-3 py-2 shadow-xl">
 								<Text size="sm" className="font-mono tabular-nums">
@@ -514,7 +765,7 @@ function VaultPage() {
 						</div>
 					)}
 
-					{selectedNames.length > 0 && (
+					{organizing && selectedNames.length > 0 && (
 						<div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
 							<div className="pointer-events-auto flex items-center gap-3 border border-border bg-card px-3 py-2 shadow-xl">
 								<Text size="sm" className="font-mono tabular-nums">
@@ -642,4 +893,8 @@ function VaultPage() {
 			/>
 		</PageShell>
 	);
+}
+
+function Divider() {
+	return <div className="mx-1 h-5 w-px shrink-0 bg-border" />;
 }

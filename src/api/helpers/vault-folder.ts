@@ -5,11 +5,17 @@ import { buildFolderPath } from "./task-folder";
 const KOWORKER_DIR = ".koworker";
 const PRIMARY_FILE = "index.md";
 
-export type VaultFile = {
+// Metadados por arquivo do vault: nome, título (H1) e mtime. Sem conteúdo — quem abre um
+// arquivo carrega só ele via getVaultFile.
+export type VaultFileMeta = {
 	name: string;
 	title: string;
-	content: string;
+	mtime: number;
 };
+
+// Lê só o começo do arquivo (suficiente pra achar o H1) para não carregar o .md inteiro só pelo
+// título. 4 KB cobre H1 e preâmbulo com folga.
+const TITLE_READ_BYTES = 4096;
 
 // Título = primeiro H1 do markdown; fallback = nome do arquivo sem extensão.
 function titleFromMarkdown(content: string, fallback: string): string {
@@ -17,28 +23,71 @@ function titleFromMarkdown(content: string, fallback: string): string {
 	return h1?.[1].trim() || fallback;
 }
 
+// Metadados de um único .md: mtime via stat e título lendo só os primeiros KB (não o arquivo
+// inteiro). É o leitor compartilhado pelas três fontes do vault (soltos, pastas, tasks).
+async function readMdMeta(path: string, name: string): Promise<VaultFileMeta> {
+	const [stats, head] = await Promise.all([
+		stat(path).catch(() => null),
+		Bun.file(path)
+			.slice(0, TITLE_READ_BYTES)
+			.text()
+			.catch(() => ""),
+	]);
+	return {
+		name,
+		title: titleFromMarkdown(head, name.replace(/\.md$/, "")),
+		mtime: stats?.mtimeMs ?? 0,
+	};
+}
+
 // Vault = `.md` soltos direto em `.koworker/`, fora de pasta de task. Pastas de task
-// (e seus `.md`) ficam de fora porque só listamos arquivos no nível raiz.
-export async function listVaultFiles(projectRoute: string): Promise<VaultFile[]> {
+// (e seus `.md`) ficam de fora porque só listamos arquivos no nível raiz. Metadata-only.
+export async function listVaultFiles(projectRoute: string): Promise<VaultFileMeta[]> {
 	const dir = join(projectRoute, KOWORKER_DIR);
 
-	let entries: string[];
+	let names: string[];
 	try {
-		entries = (await readdir(dir, { withFileTypes: true }))
+		names = (await readdir(dir, { withFileTypes: true }))
 			.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
 			.map((entry) => entry.name);
 	} catch {
 		return [];
 	}
 
-	entries.sort((a, b) => a.localeCompare(b));
+	names.sort((a, b) => a.localeCompare(b));
 
-	return Promise.all(
-		entries.map(async (name) => {
-			const content = await Bun.file(join(dir, name)).text();
-			return { name, title: titleFromMarkdown(content, name.replace(/\.md$/, "")), content };
-		}),
-	);
+	return Promise.all(names.map((name) => readMdMeta(join(dir, name), name)));
+}
+
+// Metadados (nome, título, mtime) dos `.md` de uma pasta qualquer relativa ao projeto — usado
+// pelo vault pra montar as entries dos arquivos dentro das pastas das tasks, sem ler conteúdo.
+export async function listMdMeta(params: {
+	projectRoute: string;
+	folderPath: string;
+}): Promise<VaultFileMeta[]> {
+	const dir = join(params.projectRoute, params.folderPath);
+	const names = [...(await listMdNames(dir))].sort((a, b) => a.localeCompare(b));
+	return Promise.all(names.map((name) => readMdMeta(join(dir, name), name)));
+}
+
+// Conteúdo de um único .md solto da raiz do vault, com seu título (H1). null quando o arquivo
+// não existe — a rota de abertura trata isso como "nota não encontrada".
+export async function getVaultFile(params: {
+	projectRoute: string;
+	name: string;
+}): Promise<{ name: string; title: string; content: string } | null> {
+	const path = join(params.projectRoute, KOWORKER_DIR, params.name);
+
+	const content = await Bun.file(path)
+		.text()
+		.catch(() => null);
+	if (content === null) return null;
+
+	return {
+		name: params.name,
+		title: titleFromMarkdown(content, params.name.replace(/\.md$/, "")),
+		content,
+	};
 }
 
 // Path de uma pasta solta relativo ao project.main_route, ex: ".koworker/notas-antigas".
@@ -59,12 +108,13 @@ export function vaultFolderExists(params: {
 }
 
 // Pastas soltas = subdiretórios de `.koworker/` que não pertencem a nenhuma task (os nomes em
-// `knownFolderNames` são as pastas das tasks vivas). Cada uma traz os nomes dos seus `.md`; pastas
-// sem `.md` ficam de fora, como na seção "Em tarefas". Devolve ordenado por nome.
+// `knownFolderNames` são as pastas das tasks vivas). Cada uma traz os metadados dos seus `.md`
+// (nome, título, mtime); pastas sem `.md` ficam de fora, como na seção "Em tarefas". Devolve
+// ordenado por nome.
 export async function listVaultFolders(params: {
 	projectRoute: string;
 	knownFolderNames: Set<string>;
-}): Promise<{ name: string; fileNames: string[] }[]> {
+}): Promise<{ name: string; files: VaultFileMeta[] }[]> {
 	const dir = join(params.projectRoute, KOWORKER_DIR);
 
 	let dirNames: string[];
@@ -78,15 +128,17 @@ export async function listVaultFolders(params: {
 
 	const folders = await Promise.all(
 		dirNames.map(async (name) => {
-			const fileNames = [...(await listMdNames(join(dir, name)))].sort((a, b) =>
-				a.localeCompare(b),
+			const folderDir = join(dir, name);
+			const fileNames = [...(await listMdNames(folderDir))].sort((a, b) => a.localeCompare(b));
+			const files = await Promise.all(
+				fileNames.map((fileName) => readMdMeta(join(folderDir, fileName), fileName)),
 			);
-			return { name, fileNames };
+			return { name, files };
 		}),
 	);
 
 	return folders
-		.filter((folder) => folder.fileNames.length > 0)
+		.filter((folder) => folder.files.length > 0)
 		.sort((a, b) => a.name.localeCompare(b.name));
 }
 

@@ -1,20 +1,25 @@
 import { basename } from "node:path";
 
 import { protectedProcedure } from "../auth/context";
+import type { tasks } from "../db/connection";
 import { dbCategories } from "../db/categories";
 import { dbPriorities } from "../db/priorities";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
+import { readFirstMarkdownContent, resolveDisplayTitle } from "../helpers/task-folder";
 import { restartTasksWatcher } from "../helpers/tasks-watcher";
 import {
 	deleteVaultFile,
+	getVaultFile,
 	linkVaultFilesToTask,
+	listMdMeta,
 	listVaultFiles,
 	listVaultFolders,
 	moveFilesToTask,
 	promoteVaultFile,
 	renameVaultFile,
 	unlinkFilesToVault,
+	type VaultFileMeta,
 	vaultFolderExists,
 	vaultFolderPath,
 	writeVaultFile,
@@ -24,6 +29,7 @@ import {
 	TaskPromoteSchema,
 	VaultAdoptFolderSchema,
 	VaultDeleteFileSchema,
+	VaultGetFileSchema,
 	VaultLinkFilesToTaskSchema,
 	VaultListSchema,
 	VaultMoveFilesToTaskSchema,
@@ -33,24 +39,79 @@ import {
 	VaultWriteFileSchema,
 } from "../schemas";
 
+type VaultEntry = {
+	name: string;
+	title: string;
+	mtime: number;
+	origin: "loose" | "folder" | "task";
+	groupKey: string | null;
+};
+
+type VaultGroup = {
+	kind: "folder" | "task";
+	key: string;
+	title: string;
+	fileCount: number;
+	lastEditedAt: number;
+	categoryId?: string;
+	priorityId?: string;
+	done?: boolean;
+};
+
 export const vaultRouter = {
-	list: protectedProcedure.input(VaultListSchema).handler(async ({ input }) => {
+	// Visão geral do vault: todos os `.md` do projeto como lista plana (entries, metadata-only) +
+	// os grupos (pastas soltas e tasks) que o frontend usa pra agrupar. Compõe as três fontes —
+	// soltos na raiz, pastas soltas e arquivos dentro das tasks — num único read.
+	listEntries: protectedProcedure.input(VaultListSchema).handler(async ({ input }) => {
 		const project = await dbProjects.getById(input.projectId);
-		if (!project) return [];
+		if (!project) return { entries: [], groups: [] };
 
-		return listVaultFiles(project.main_route);
-	}),
-
-	// Pastas soltas: dirs em `.koworker/` que não são pasta de nenhuma task viva. As tasks vivas
-	// dão os nomes conhecidos (basename do folder_path), o resto é solto.
-	listFolders: protectedProcedure.input(VaultListSchema).handler(async ({ input }) => {
-		const project = await dbProjects.getById(input.projectId);
-		if (!project) return [];
-
+		const route = project.main_route;
 		const tasks = await dbTasks.listByProject({ projectId: input.projectId });
 		const knownFolderNames = new Set(tasks.map((task) => basename(task.folder_path)));
 
-		return listVaultFolders({ projectRoute: project.main_route, knownFolderNames });
+		const [looseFiles, folders, taskGroups] = await Promise.all([
+			listVaultFiles(route),
+			listVaultFolders({ projectRoute: route, knownFolderNames }),
+			Promise.all(tasks.map((task) => readTaskGroup({ projectRoute: route, task }))),
+		]);
+
+		const entries: VaultEntry[] = [
+			...looseFiles.map((file) => looseEntry(file)),
+			...folders.flatMap((folder) => folder.files.map((file) => folderEntry(folder.name, file))),
+			...taskGroups.flatMap((group) => group.files.map((file) => taskEntry(group.task.id, file))),
+		];
+
+		const groups: VaultGroup[] = [
+			...folders.map((folder) => ({
+				kind: "folder" as const,
+				key: folder.name,
+				title: folder.name,
+				fileCount: folder.files.length,
+				lastEditedAt: maxMtime(folder.files),
+			})),
+			...taskGroups
+				.filter((group) => group.files.length > 0)
+				.map((group) => ({
+					kind: "task" as const,
+					key: group.task.id,
+					title: group.displayTitle,
+					fileCount: group.files.length,
+					lastEditedAt: maxMtime(group.files),
+					categoryId: group.task.category_id,
+					priorityId: group.task.priority_id,
+					done: Boolean(group.task.done),
+				})),
+		];
+
+		return { entries, groups };
+	}),
+
+	getFile: protectedProcedure.input(VaultGetFileSchema).handler(async ({ input }) => {
+		const project = await dbProjects.getById(input.projectId);
+		if (!project) return null;
+
+		return getVaultFile({ projectRoute: project.main_route, name: input.name });
 	}),
 
 	writeFile: protectedProcedure.input(VaultWriteFileSchema).handler(async ({ input }) => {
@@ -287,6 +348,58 @@ export const vaultRouter = {
 			return { targetTaskId: target.id, count: input.files.length };
 		}),
 };
+
+function looseEntry(file: VaultFileMeta): VaultEntry {
+	return { name: file.name, title: file.title, mtime: file.mtime, origin: "loose", groupKey: null };
+}
+
+function folderEntry(folderName: string, file: VaultFileMeta): VaultEntry {
+	return {
+		name: file.name,
+		title: file.title,
+		mtime: file.mtime,
+		origin: "folder",
+		groupKey: folderName,
+	};
+}
+
+function taskEntry(taskId: string, file: VaultFileMeta): VaultEntry {
+	return {
+		name: file.name,
+		title: file.title,
+		mtime: file.mtime,
+		origin: "task",
+		groupKey: taskId,
+	};
+}
+
+function maxMtime(files: VaultFileMeta[]): number {
+	return files.reduce((max, file) => Math.max(max, file.mtime), 0);
+}
+
+// Arquivos (metadata) + displayTitle de uma task pro vault. O displayTitle segue a mesma regra da
+// lista de tasks (título do banco, senão início do 1º .md), não o H1 por arquivo — eles divergem
+// em tasks sem título.
+async function readTaskGroup(params: {
+	projectRoute: string;
+	task: tasks;
+}): Promise<{ task: tasks; files: VaultFileMeta[]; displayTitle: string }> {
+	const title = params.task.title?.trim();
+	const files = await listMdMeta({
+		projectRoute: params.projectRoute,
+		folderPath: params.task.folder_path,
+	});
+
+	if (title) return { task: params.task, files, displayTitle: title };
+
+	// Sem título no banco: o displayTitle cai no início do 1º .md, como na lista de tasks.
+	const firstContent = await readFirstMarkdownContent({
+		projectRoute: params.projectRoute,
+		folderPath: params.task.folder_path,
+	});
+
+	return { task: params.task, files, displayTitle: resolveDisplayTitle({ firstContent }).title };
+}
 
 // Resolve os folder_path das tarefas de origem distintas, falhando se alguma não existir.
 async function resolveTaskFolders(taskIds: string[]): Promise<Map<string, string>> {

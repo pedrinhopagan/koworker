@@ -33,14 +33,16 @@ function VaultFilePage() {
 	const projectId = selectedProjectId ?? "";
 	const enabled = Boolean(selectedProjectId);
 
-	const looseQueryOptions = orpc.vault.list.queryOptions({ input: { projectId } });
-	const looseQuery = useQuery({ ...looseQueryOptions, enabled });
+	const fileQueryOptions = orpc.vault.getFile.queryOptions({
+		input: { projectId, name: fileName },
+	});
+	const fileQuery = useQuery({ ...fileQueryOptions, enabled });
 	const tasksQuery = useQuery({
 		...orpc.tasks.listByProject.queryOptions({ input: { projectId } }),
 		enabled,
 	});
 
-	const file = looseQuery.data?.find((entry) => entry.name === fileName) ?? null;
+	const file = fileQuery.data ?? null;
 
 	const { pinned, togglePin } = useRecordDocSession(
 		file
@@ -71,7 +73,7 @@ function VaultFilePage() {
 
 	const writeMutation = useMutation({
 		...orpc.vault.writeFile.mutationOptions(),
-		onSuccess: () => queryClient.invalidateQueries(looseQueryOptions),
+		onSuccess: () => queryClient.invalidateQueries(fileQueryOptions),
 	});
 
 	const promoteMutation = useMutation({
@@ -131,7 +133,7 @@ function VaultFilePage() {
 		);
 	}
 
-	if (looseQuery.isLoading) {
+	if (fileQuery.isLoading) {
 		return (
 			<div className="flex h-full items-center justify-center">
 				<div className="flex items-center gap-2 text-muted-foreground">

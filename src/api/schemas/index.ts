@@ -66,6 +66,7 @@ export {
 	TaskWriteFileSchema,
 	VaultAdoptFolderSchema,
 	VaultDeleteFileSchema,
+	VaultGetFileSchema,
 	VaultLinkFilesToTaskSchema,
 	VaultListSchema,
 	VaultMoveFilesToTaskSchema,
