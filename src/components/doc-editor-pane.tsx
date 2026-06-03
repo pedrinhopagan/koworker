@@ -57,6 +57,10 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 	) {
 		const editorRef = useRef<MarkdownEditorHandle>(null);
 
+		// Na leitura o footer do prompt é fixo sobre o conteúdo; este respiro inferior (a altura que o
+		// footer publica) garante que o scroll alcance o texto que ficaria atrás do drawer.
+		const promptHeight = usePromptBarStore((s) => s.height);
+
 		const { schedule, flush } = useDebouncedWrite(writeFile);
 
 		// Lido uma vez por remount (o editor é keyado por arquivo); `getState` evita re-render reativo.
@@ -148,6 +152,7 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 							? "max-w-4xl px-6 py-10 lg:max-w-5xl lg:px-10 2xl:max-w-6xl"
 							: "max-w-3xl pt-6 pr-6 pb-6 pl-4 xl:max-w-4xl",
 					)}
+					style={reading ? { paddingBottom: `calc(2.5rem + ${promptHeight}px)` } : undefined}
 				>
 					{fileName ? (
 						<MarkdownEditor

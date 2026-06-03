@@ -25,7 +25,7 @@ export function docSessionKey(params: DocSessionParams): string {
 	}
 }
 
-// Entrada no MRU (most-recently-used) de sessões — alimenta o switcher Ctrl+Tab. `nav` reconstrói a
+// Entrada no MRU (most-recently-used) de sessões — alimenta o switcher Alt+`. `nav` reconstrói a
 // rota; `projectId` restaura o foco de projeto nas superfícies que dependem dele (vault/skill) e não
 // da URL. A âncora de leitura não vive aqui: o switcher a lê do mapa `anchors` pela mesma `key`.
 export type DocSessionMeta = {

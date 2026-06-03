@@ -1,15 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import {
-	FileText,
-	Hourglass,
-	ListChecks,
-	NotebookText,
-	Pin,
-	Sparkles,
-	Trash2,
-	X,
-} from "lucide-react";
+import { FileText, ListChecks, NotebookText, Pin, Sparkles, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { orpc } from "@/client";
@@ -55,36 +46,25 @@ const KIND_BOX_LABEL = {
 // O switcher congela um instantâneo do MRU ao abrir (`list`), pra o dwell de gravação e as edições não
 // reordenarem os cards sob o cursor. `currentKey` é a sessão aberta agora; o agrupamento a marca como
 // "Sessão atual" e o `index` parte sempre do primeiro card que NÃO é ela. `index` aponta na sequência
-// achatada (`cards`) que o teclado percorre, alinhada à ordem de render. `pendingCurrent` existe só
-// enquanto a sessão atual ainda não foi gravada no MRU (dwell em curso): o card dela mostra a contagem
-// regressiva até `recordAt`.
+// achatada (`cards`) que o teclado percorre, alinhada à ordem de render.
 type SwitcherView = {
 	list: DocSessionMeta[];
 	currentKey: string | null;
-	pendingCurrent: { key: string; recordAt: number } | null;
 	index: number;
 };
 
-// Instantâneo do MRU com a sessão atual sempre presente: se ela ainda não entrou no MRU (dwell em
-// curso), é prefixada como card sintético e marcada como `pendingCurrent` pro timer. O overlay abre
-// mesmo só com a sessão atual (mostra só ela); devolve null apenas quando não há nada pra mostrar.
+// Instantâneo do MRU ao abrir. A sessão atual já foi gravada no MRU por `openSwitcher`, então entra como
+// qualquer recente (marcada "Sessão atual" pela `currentKey`) — não há mais card sintético nem dwell em
+// curso a exibir. Devolve null só quando não há nada pra mostrar (sem sessão atual e MRU vazio).
 function buildList(): Omit<SwitcherView, "index"> | null {
 	const { recents } = useDocSessionsStore.getState();
-	const { current, currentRecordAt } = useDocSwitcherStore.getState();
-	const currentKey = current?.key ?? null;
+	const currentKey = useDocSwitcherStore.getState().current?.key ?? null;
 
-	const isPending = current ? !recents.some((r) => r.key === current.key) : false;
-	const list = current && isPending ? [current, ...recents] : recents;
-
-	if (list.length === 0) {
+	if (recents.length === 0) {
 		return null;
 	}
 
-	const pendingCurrent =
-		current && isPending && currentRecordAt
-			? { key: current.key, recordAt: currentRecordAt }
-			: null;
-	return { list, currentKey, pendingCurrent };
+	return { list: recents, currentKey };
 }
 
 function flatCards(view: SwitcherView): SessionGroupCard[] {
@@ -105,9 +85,9 @@ function reanchor(view: SwitcherView, nextList: DocSessionMeta[]): SwitcherView 
 	return { ...view, list: nextList, index };
 }
 
-// Switcher global de sessões de leitura. Ctrl+Tab é um TOGGLE: abre o overlay e o mantém aberto pra
+// Switcher global de sessões de leitura. Alt+` é um TOGGLE: abre o overlay e o mantém aberto pra
 // navegar com o mouse (clicar num card salta pro doc, caindo no ponto de leitura salvo — a âncora é
-// restaurada pelo DocEditorPane na chave da sessão); Ctrl+Tab de novo (ou Esc, ou clicar no fundo)
+// restaurada pelo DocEditorPane na chave da sessão); Alt+` de novo (ou Esc, ou clicar no fundo)
 // fecha. Setas/Tab/Enter também navegam pelo teclado enquanto está aberto. A afordância na TabBar abre
 // o mesmo overlay. Listener em CAPTURE no window pra vencer o keymap Prec.high do CodeMirror, que come
 // o Tab. Os cards ficam agrupados por projeto e, dentro, por tarefa (arquivos da mesma tarefa juntos),
@@ -162,6 +142,12 @@ export function DocSessionSwitcher() {
 	// como o Alt+Tab); só com a sessão atual, a seleção cai nela mesma. Devolve false quando não há nada
 	// pra mostrar (sem sessão atual e MRU vazio).
 	const openSwitcher = useCallback((): boolean => {
+		// Abrir o switcher grava a sessão atual no MRU na hora (sem esperar o dwell): o doc em foco entra
+		// sempre na lista de sessões. Só se ainda não estiver lá — `recordVisit` já dedupe por chave.
+		const { current } = useDocSwitcherStore.getState();
+		if (current && !useDocSessionsStore.getState().recents.some((r) => r.key === current.key)) {
+			useDocSessionsStore.getState().recordVisit(current);
+		}
 		const built = buildList();
 		if (!built) {
 			return false;
@@ -182,8 +168,9 @@ export function DocSessionSwitcher() {
 		function onKeyDown(event: KeyboardEvent) {
 			const current = viewRef.current;
 
-			// Ctrl+Tab é toggle: abre e deixa aberto pra navegar com o mouse; de novo fecha.
-			if (event.ctrlKey && event.key === "Tab") {
+			// Alt+` é toggle: abre e deixa aberto pra navegar com o mouse; de novo fecha. Usa `code`
+			// (tecla física) porque ` é dead key em vários layouts — `event.key` só resolveria no 2º toque.
+			if (event.altKey && event.code === "Backquote") {
 				event.preventDefault();
 				event.stopPropagation();
 
@@ -340,12 +327,6 @@ export function DocSessionSwitcher() {
 	// ocorrências, igual ao card atual quando fixado.
 	const mostRecentKey = view.list.find((r) => r.key !== view.currentKey)?.key ?? null;
 
-	// Instante em que o dwell grava a sessão pendente; null pros demais cards. O countdown ao vivo (que
-	// tiquetaqueia a cada 500ms) vive no subcomponente `Countdown`, então o overlay não re-renderiza por ele.
-	const pending = view.pendingCurrent;
-	const recordAtFor = (key: string): number | null =>
-		pending && pending.key === key ? pending.recordAt : null;
-
 	return (
 		// Backdrop como div (não button) pra não aninhar interativos dentro de interativos — os cards
 		// também são divs clicáveis com botões de fixar/remover dentro. Clicar no fundo fecha.
@@ -362,6 +343,35 @@ export function DocSessionSwitcher() {
 				{activeCard
 					? `${KIND_LABEL[activeCard.kind]}: ${activeCard.title}${activeCard.isCurrent ? " — sessão atual" : ""}`
 					: ""}
+			</div>
+
+			<div className="absolute top-4 right-6 flex items-center gap-2">
+				{hasLoose ? (
+					<button
+						type="button"
+						onClick={(event) => {
+							event.stopPropagation();
+							clearLooseCards();
+						}}
+						className="flex items-center gap-1.5 border border-border bg-card/80 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
+						title="Remove as sessões não fixadas do histórico"
+					>
+						<Trash2 className="size-3.5" />
+						Limpar recentes
+					</button>
+				) : null}
+				<button
+					type="button"
+					onClick={(event) => {
+						event.stopPropagation();
+						close();
+					}}
+					className="flex items-center justify-center border border-border bg-card/80 p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+					title="Fechar (Esc)"
+					aria-label="Fechar"
+				>
+					<X className="size-4" />
+				</button>
 			</div>
 
 			<div
@@ -388,7 +398,6 @@ export function DocSessionSwitcher() {
 									boxed={false}
 									active={card.flatIndex === view.index}
 									isMostRecent={card.key === mostRecentKey}
-									recordAt={recordAtFor(card.key)}
 									heading={getAnchor(card.key)?.headingText ?? null}
 									onConfirm={confirm}
 									onHover={() => focusCard(setView, card.flatIndex)}
@@ -443,7 +452,6 @@ export function DocSessionSwitcher() {
 														boxed={!isTask}
 														active={card.flatIndex === view.index}
 														isMostRecent={card.key === mostRecentKey}
-														recordAt={recordAtFor(card.key)}
 														heading={getAnchor(card.key)?.headingText ?? null}
 														onConfirm={confirm}
 														onHover={() => focusCard(setView, card.flatIndex)}
@@ -476,7 +484,6 @@ export function DocSessionSwitcher() {
 									boxed
 									active={card.flatIndex === view.index}
 									isMostRecent={card.key === mostRecentKey}
-									recordAt={recordAtFor(card.key)}
 									heading={getAnchor(card.key)?.headingText ?? null}
 									onConfirm={confirm}
 									onHover={() => focusCard(setView, card.flatIndex)}
@@ -488,21 +495,6 @@ export function DocSessionSwitcher() {
 					</section>
 				) : null}
 			</div>
-
-			{hasLoose ? (
-				<button
-					type="button"
-					onClick={(event) => {
-						event.stopPropagation();
-						clearLooseCards();
-					}}
-					className="flex shrink-0 items-center gap-1.5 border border-border bg-card/80 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
-					title="Remove as sessões não fixadas do histórico"
-				>
-					<Trash2 className="size-3.5" />
-					Limpar recentes
-				</button>
-			) : null}
 		</div>
 	);
 }
@@ -520,9 +512,6 @@ type CardProps = {
 	card: SessionGroupCard;
 	active: boolean;
 	heading: string | null;
-	// Instante em que o dwell grava a sessão atual no MRU; null quando o card não é a sessão pendente.
-	// O countdown ao vivo é renderizado por `Countdown`, que tiquetaqueia sozinho.
-	recordAt: number | null;
 	// Sessão mais recente não-atual: ganha o selo "Mais recente" (espelha o "Sessão atual").
 	isMostRecent: boolean;
 	// Em caixa com cabeçalho de kind (Vault/Docs) ou na seção Skills, o contexto já está no cabeçalho → o
@@ -534,17 +523,14 @@ type CardProps = {
 	onRemove: (key: string) => void;
 };
 
-const ACCENT = "var(--project-accent, var(--primary))";
-
 // Card de sessão, com a mesma anatomia da fixada: o nome (título da tarefa/doc/skill) em negrito e, abaixo,
 // o arquivo em menor. A sessão atual ganha o selo "Sessão atual", o ícone na cor de acento e uma barra à
-// esquerda; a mais recente ganha o selo "Mais recente". Enquanto o dwell não grava, o rodapé conta
-// "registra em Ns". O card sob o teclado (`active`) ganha a borda e o realce — os estilos coexistem.
+// esquerda; a mais recente ganha o selo "Mais recente". O card sob o teclado (`active`) ganha a borda e o
+// realce — os estilos coexistem.
 function Card({
 	card,
 	active,
 	heading,
-	recordAt,
 	isMostRecent,
 	boxed,
 	onConfirm,
@@ -560,7 +546,6 @@ function Card({
 	// aparece fora de caixa e quando nenhum selo (atual/recente) já ocupa o espaço à direita.
 	const skillColor = card.icon && !card.isCurrent ? card.iconColor : undefined;
 	const showKindLabel = !boxed && !card.isCurrent && !isMostRecent;
-	const counting = recordAt !== null;
 
 	// Acompanha a seleção do teclado: ao virar o card ativo, rola pra dentro da viewport e recebe o foco
 	// (roving tabindex). `nearest` não salta se já está visível; `preventScroll` evita brigar com o rolar.
@@ -627,20 +612,11 @@ function Card({
 				{card.icon ? (
 					<LucideIcon
 						name={card.icon}
-						className={cn(
-							"size-3.5 shrink-0 text-[var(--project-accent,var(--primary))]",
-							counting && "motion-safe:animate-pulse",
-						)}
+						className="size-3.5 shrink-0 text-[var(--project-accent,var(--primary))]"
 						style={skillColor ? { color: skillColor } : undefined}
 					/>
 				) : (
-					<KindIcon
-						size={14}
-						className={cn(
-							"shrink-0 text-[var(--project-accent,var(--primary))]",
-							counting && "motion-safe:animate-pulse",
-						)}
-					/>
+					<KindIcon size={14} className="shrink-0 text-[var(--project-accent,var(--primary))]" />
 				)}
 				{showKindLabel ? (
 					<span className="truncate font-medium uppercase tracking-wide">
@@ -679,40 +655,10 @@ function Card({
 				) : (
 					<span className="truncate text-xs italic text-muted-foreground">sem ponto salvo</span>
 				)}
-				{recordAt === null ? (
-					<span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-						{relativeTimeFrom(card.lastVisited)}
-					</span>
-				) : (
-					<Countdown recordAt={recordAt} />
-				)}
+				<span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+					{relativeTimeFrom(card.lastVisited)}
+				</span>
 			</div>
 		</div>
-	);
-}
-
-// Conta o dwell até a gravação no MRU, tiquetaqueando sozinho a cada 500ms. Isolar o tick aqui mantém
-// o overlay estável: só este selo re-renderiza, não a lista inteira de cards.
-function Countdown({ recordAt }: { recordAt: number }) {
-	const [seconds, setSeconds] = useState(() =>
-		Math.max(0, Math.ceil((recordAt - Date.now()) / 1000)),
-	);
-
-	useEffect(() => {
-		setSeconds(Math.max(0, Math.ceil((recordAt - Date.now()) / 1000)));
-		const id = setInterval(() => {
-			setSeconds(Math.max(0, Math.ceil((recordAt - Date.now()) / 1000)));
-		}, 500);
-		return () => clearInterval(id);
-	}, [recordAt]);
-
-	return (
-		<span
-			className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide"
-			style={{ color: ACCENT }}
-		>
-			<Hourglass className={cn("size-3", seconds > 0 && "motion-safe:animate-pulse")} />
-			{seconds > 0 ? `registra em ${seconds}s` : "registrada"}
-		</span>
 	);
 }

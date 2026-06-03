@@ -8,10 +8,14 @@ interface PromptBarState {
 	expanded: boolean;
 	interactWithRoute: boolean;
 	history: string[];
+	// Altura medida do footer (efêmera, não persiste). O modo leitura a usa como respiro inferior
+	// no scroll pra não esconder conteúdo atrás do drawer fixo. Dono: o próprio footer se mede.
+	height: number;
 
 	setText: (text: string) => void;
 	setExpanded: (expanded: boolean) => void;
 	toggleExpanded: () => void;
+	setHeight: (height: number) => void;
 	setInteractWithRoute: (value: boolean) => void;
 	clear: () => void;
 	// Insere `text` em nova linha no fim do rascunho e abre o footer (mention de título do .md).
@@ -27,10 +31,12 @@ export const usePromptBarStore = create<PromptBarState>()(
 			expanded: false,
 			interactWithRoute: true,
 			history: [],
+			height: 0,
 
 			setText: (text) => set({ text }),
 			setExpanded: (expanded) => set({ expanded }),
 			toggleExpanded: () => set((state) => ({ expanded: !state.expanded })),
+			setHeight: (height) => set({ height }),
 			setInteractWithRoute: (interactWithRoute) => set({ interactWithRoute }),
 			clear: () => set({ text: "" }),
 

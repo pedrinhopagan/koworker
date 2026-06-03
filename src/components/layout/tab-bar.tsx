@@ -100,7 +100,11 @@ export function TabBar() {
 	}, []);
 
 	const openSwitcher = useDocSwitcherStore((s) => s.open);
-	const sessionCount = useDocSessionsStore((s) => s.recents.length);
+	const recents = useDocSessionsStore((s) => s.recents);
+	const sessionCount = recents.length;
+	// Ícone na cor do projeto quando o doc em foco já entrou nas sessões — espelha o acento do badge.
+	const currentKey = useDocSwitcherStore((s) => s.current?.key ?? null);
+	const currentInList = currentKey !== null && recents.some((r) => r.key === currentKey);
 
 	// Current route path for debug display (optional)
 	const currentRoutePath = routerState.matches.at(-1)?.fullPath ?? "/";
@@ -142,15 +146,18 @@ export function TabBar() {
 				<span className="text-xs text-muted-foreground opacity-30">{currentRoutePath}</span>
 			</div>
 
-			{/* Switcher de sessões de leitura (Ctrl+Tab). O contador sobe quando uma página é gravada
-			    automaticamente no MRU (após o dwell), sinalizando que ela entrou nas sessões. */}
+			{/* Switcher de sessões de leitura (Alt+`). O contador conta o MRU; abrir o switcher (ou o
+			    dwell) grava o doc em foco, e aí o ícone também assume o acento do projeto. */}
 			<button
 				type="button"
 				onClick={openSwitcher}
 				className={cn(iconButton({ active: false }), "relative")}
-				title="Sessões de leitura (Ctrl+Tab)"
+				title="Sessões de leitura (Alt+`)"
 			>
-				<Layers size={16} />
+				<Layers
+					size={16}
+					className={currentInList ? "text-[var(--project-accent,var(--primary))]" : undefined}
+				/>
 				{sessionCount > 0 ? (
 					<span className="absolute top-0.5 right-0.5 z-10 min-w-3.5 rounded-[3px] bg-[var(--project-accent,var(--primary))]/30 px-1 text-center font-semibold text-[10px] text-[var(--project-accent,var(--primary))] leading-[14px]">
 						{sessionCount}

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 // Controles do editor markdown que aparecem igual no header de tarefa e de vault. Apenas
 // dispara as ações no DocEditorPane; nenhum estado próprio. O par `pinned`/`onTogglePin` é opcional:
-// quando presente, mostra o botão de fixar a sessão de leitura no switcher (Ctrl+Tab).
+// quando presente, mostra o botão de fixar a sessão de leitura no switcher (Alt+`).
 export function DocToolbar({
 	onCollapse,
 	onExpand,
@@ -31,7 +31,7 @@ export function DocToolbar({
 					variant="ghost"
 					size="icon-sm"
 					onClick={onTogglePin}
-					title={pinned ? "Desafixar sessão de leitura" : "Fixar sessão de leitura (Ctrl+Tab)"}
+					title={pinned ? "Desafixar sessão de leitura" : "Fixar sessão de leitura (Alt+`)"}
 					aria-label={pinned ? "Desafixar sessão de leitura" : "Fixar sessão de leitura"}
 					aria-pressed={pinned}
 					className={cn(

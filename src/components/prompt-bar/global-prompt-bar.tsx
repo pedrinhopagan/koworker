@@ -70,6 +70,7 @@ export function GlobalPromptBar() {
 	const setExpanded = usePromptBarStore((s) => s.setExpanded);
 	const toggleExpanded = usePromptBarStore((s) => s.toggleExpanded);
 	const setInteractWithRoute = usePromptBarStore((s) => s.setInteractWithRoute);
+	const setHeight = usePromptBarStore((s) => s.setHeight);
 	const clear = usePromptBarStore((s) => s.clear);
 	const pushHistory = usePromptBarStore((s) => s.pushHistory);
 
@@ -81,6 +82,17 @@ export function GlobalPromptBar() {
 	const lastPathname = useRef(pathname);
 
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const rootRef = useRef<HTMLDivElement>(null);
+
+	// O footer se mede e publica a altura: na leitura ele é fixo e o conteúdo precisa desse respiro
+	// inferior pra não ficar escondido atrás do drawer. ResizeObserver acompanha o textarea crescendo.
+	useEffect(() => {
+		const node = rootRef.current;
+		if (!node) return;
+		const observer = new ResizeObserver(([entry]) => setHeight(entry.contentRect.height));
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, [setHeight]);
 
 	const [trigger, setTrigger] = useState<SlashTrigger | null>(null);
 	const [activeIndex, setActiveIndex] = useState(0);
@@ -215,7 +227,15 @@ export function GlobalPromptBar() {
 	const hasText = text.trim().length > 0;
 
 	return (
-		<div className={cn("border-t border-border bg-chrome", reading && "relative z-50")}>
+		<div
+			ref={rootRef}
+			className={cn(
+				"border-t border-border bg-chrome",
+				// Na leitura a rota vira um overlay `fixed inset-0 z-50`; o footer precisa sair do fluxo
+				// e encostar no fim da janela (sobre o lugar da StatusBar), com z acima do overlay.
+				reading && "fixed inset-x-0 bottom-0 z-[60]",
+			)}
+		>
 			<div
 				className={cn(
 					"transition-opacity",

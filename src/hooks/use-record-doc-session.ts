@@ -48,14 +48,14 @@ export function useRecordDocSession(
 		prevKeyRef.current = meta.key;
 		prevCompletedRef.current = completed;
 
-		// Concluir vendo: a sessão é fechada, não re-gravada — sem dwell, então o card não mostra timer.
+		// Concluir vendo: a sessão é fechada, não re-gravada — o dwell não re-arma.
 		if (justCompleted) {
-			setCurrent(meta, 0);
+			setCurrent(meta);
 			return () => setCurrent(null);
 		}
 
 		const dwell = completed ? DWELL_MS_DONE : DWELL_MS;
-		setCurrent(meta, dwell);
+		setCurrent(meta);
 		const timer = setTimeout(() => recordVisit(meta), dwell);
 		return () => {
 			clearTimeout(timer);
