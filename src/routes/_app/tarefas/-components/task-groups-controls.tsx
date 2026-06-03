@@ -182,19 +182,45 @@ function FiltersPopover({
 				<Button
 					type="button"
 					variant={activeFilters > 0 ? "secondary" : "ghost"}
-					size="icon-sm"
+					size="sm"
 					aria-label="Filtros"
 					className="relative"
 				>
 					<SlidersHorizontal className="size-4" />
+					Filtros
 					{activeFilters > 0 && (
-						<span className="-right-1 -top-1 absolute flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+						<span className="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
 							{activeFilters}
 						</span>
 					)}
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-64 space-y-3 p-3">
+				<div className="flex items-center justify-between">
+					<Text size="sm" className="font-medium">
+						Filtros
+					</Text>
+					{activeFilters > 0 && (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-6 px-2 text-muted-foreground"
+							onClick={() =>
+								onChange({
+									...value,
+									taskTypeId: undefined,
+									priorityId: undefined,
+									includeCompleted: undefined,
+								})
+							}
+						>
+							<X className="size-3.5" />
+							Limpar
+						</Button>
+					)}
+				</div>
+
 				<div className="space-y-1">
 					<Text size="xs" tone="muted">
 						Tipo
