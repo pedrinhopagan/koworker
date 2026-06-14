@@ -1,9 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	parseSkillMd,
-	serializeSkillMd,
-	type SkillFile,
-} from "./parser";
+import { parseSkillMd, serializeSkillMd, type SkillFile } from "./parser";
 
 describe("parseSkillMd", () => {
 	it("should parse valid SKILL.md with frontmatter and body", () => {
@@ -98,9 +94,7 @@ Body text here.`;
 		const reparsed = parseSkillMd(serialized);
 
 		expect(reparsed.frontmatter.name).toBe(parsed.frontmatter.name);
-		expect(reparsed.frontmatter.description).toBe(
-			parsed.frontmatter.description,
-		);
+		expect(reparsed.frontmatter.description).toBe(parsed.frontmatter.description);
 		expect(reparsed.body).toBe(parsed.body);
 	});
 });

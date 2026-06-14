@@ -48,7 +48,6 @@ function ConfiguracoesPage() {
 							/>
 						</div>
 						<ConfigCard
-							id="tipografia"
 							icon={Type}
 							title="Tipografia"
 							description="Escolha a fonte da interface e a fonte de leitura de .md."
@@ -65,14 +64,12 @@ function ConfiguracoesPage() {
 					</Title>
 					<div className="grid gap-4 sm:grid-cols-2">
 						<ConfigCard
-							id="categorias"
 							icon={Tags}
 							title="Gerenciar categorias"
 							description="Gerencie categorias para organizar tarefas."
 							onClick={() => openManageDrawer("categories")}
 						/>
 						<ConfigCard
-							id="prioridades"
 							icon={Flag}
 							title="Gerenciar prioridades"
 							description="Ajuste os níveis de prioridade e a ordem exibida."
@@ -89,7 +86,6 @@ function ConfiguracoesPage() {
 					</Title>
 					<div className="grid gap-4 sm:grid-cols-2">
 						<ConfigCard
-							id="fontes-skills"
 							icon={FolderTree}
 							title="Fontes de skills"
 							description="Pastas extras de onde ler skills."
