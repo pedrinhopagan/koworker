@@ -5,16 +5,18 @@ export type SkillSettingsInput = {
 	label?: string;
 	icon?: string;
 	color?: string;
+	categoryId?: string | null;
 };
 
 export const dbSkillSettings = {
 	getAll: () => db.selectFrom("skill_settings").selectAll().execute(),
 
-	upsert: ({ slug, label, icon, color }: SkillSettingsInput) => {
+	upsert: ({ slug, label, icon, color, categoryId }: SkillSettingsInput) => {
 		const values = {
 			...(label !== undefined && { label }),
 			...(icon !== undefined && { icon }),
 			...(color !== undefined && { color }),
+			...(categoryId !== undefined && { category_id: categoryId }),
 		};
 
 		return db

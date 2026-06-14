@@ -57,6 +57,7 @@ export const SkillSettingsSchema = z.object({
 	label: z.string().min(1).optional(),
 	icon: z.string().min(1).optional(),
 	color: z.string().min(1).optional(),
+	categoryId: z.string().min(1).nullable().optional(),
 });
 
 export type SkillCreateInput = z.infer<typeof SkillCreateSchema>;
