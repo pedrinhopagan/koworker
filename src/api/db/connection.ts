@@ -106,6 +106,15 @@ const categoriesSchema = type({
 	"updated_at?": "number.integer",
 });
 
+const skillCategoriesSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	name: "string",
+	color: type("string").configure({ default: "#000000" }),
+	display_order: type("number.integer").configure({ default: 0 }),
+	created_at: type("number.integer").configure({ default: "now" }),
+	"updated_at?": "number.integer",
+});
+
 const prioritiesSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	name: "string",
@@ -124,6 +133,10 @@ const skillSettingsSchema = type({
 	"label?": "string",
 	"icon?": "string",
 	"color?": "string",
+	"category_id?": type("string").configure({
+		references: "skill_categories.id",
+		onDelete: "set null",
+	}),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 });
@@ -131,6 +144,27 @@ const skillSettingsSchema = type({
 // Caminhos extras do computador do usuário de onde ler skills, somados aos diretórios padrão
 // dos agents. `tool` marca a qual agent o caminho pertence, pra os chips ficarem corretos.
 const skillSourcePathsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	tool: "string",
+	path: "string",
+	created_at: type("number.integer").configure({ default: "now" }),
+});
+
+// Metadados internos do koworker para agents do disco. A chave é o slug do agent
+// (nome do arquivo .md), que é o que une as várias fontes num único registro. Nada aqui
+// toca o .md: são apenas overrides de apresentação (nome, ícone, cor).
+const agentSettingsSchema = type({
+	slug: type("string").configure({ primaryKey: true }),
+	"label?": "string",
+	"icon?": "string",
+	"color?": "string",
+	created_at: type("number.integer").configure({ default: "now" }),
+	"updated_at?": "number.integer",
+});
+
+// Caminhos extras do computador do usuário de onde ler agents, somados aos diretórios padrão
+// das ferramentas. `tool` marca a qual ferramenta o caminho pertence, pra os chips ficarem corretos.
+const agentSourcePathsSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	tool: "string",
 	path: "string",
@@ -148,8 +182,11 @@ const database = new Database({
 		task_groups: taskGroupsSchema,
 		tasks: tasksSchema,
 		events: eventsSchema,
+		skill_categories: skillCategoriesSchema,
 		skill_settings: skillSettingsSchema,
 		skill_source_paths: skillSourcePathsSchema,
+		agent_settings: agentSettingsSchema,
+		agent_source_paths: agentSourcePathsSchema,
 	},
 });
 
@@ -170,8 +207,11 @@ export type events = DB["events"];
 export type task_groups = DB["task_groups"];
 export type categories = DB["categories"];
 export type priorities = DB["priorities"];
+export type skill_categories = DB["skill_categories"];
 export type skill_settings = DB["skill_settings"];
 export type skill_source_paths = DB["skill_source_paths"];
+export type agent_settings = DB["agent_settings"];
+export type agent_source_paths = DB["agent_source_paths"];
 
 export {
 	user_type,
@@ -183,6 +223,9 @@ export {
 	eventsSchema,
 	categoriesSchema,
 	prioritiesSchema,
+	skillCategoriesSchema,
 	skillSettingsSchema,
 	skillSourcePathsSchema,
+	agentSettingsSchema,
+	agentSourcePathsSchema,
 };

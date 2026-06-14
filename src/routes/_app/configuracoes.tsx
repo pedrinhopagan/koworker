@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Flag, FolderTree, Palette, Settings, Tags, Type } from "lucide-react";
+import { Bot, Flag, FolderTree, Palette, Settings, Tags, Type } from "lucide-react";
 
 import { ConfigCard } from "@/components/settings/config-card";
 import { CategoryManagerDrawer } from "@/components/tasks/CategoryManagerDrawer";
@@ -48,7 +48,6 @@ function ConfiguracoesPage() {
 							/>
 						</div>
 						<ConfigCard
-							id="tipografia"
 							icon={Type}
 							title="Tipografia"
 							description="Escolha a fonte da interface e a fonte de leitura de .md."
@@ -65,14 +64,12 @@ function ConfiguracoesPage() {
 					</Title>
 					<div className="grid gap-4 sm:grid-cols-2">
 						<ConfigCard
-							id="categorias"
 							icon={Tags}
 							title="Gerenciar categorias"
 							description="Gerencie categorias para organizar tarefas."
 							onClick={() => openManageDrawer("categories")}
 						/>
 						<ConfigCard
-							id="prioridades"
 							icon={Flag}
 							title="Gerenciar prioridades"
 							description="Ajuste os níveis de prioridade e a ordem exibida."
@@ -89,11 +86,26 @@ function ConfiguracoesPage() {
 					</Title>
 					<div className="grid gap-4 sm:grid-cols-2">
 						<ConfigCard
-							id="fontes-skills"
 							icon={FolderTree}
 							title="Fontes de skills"
 							description="Pastas extras de onde ler skills."
 							onClick={() => navigate({ to: "/fontes-skills" })}
+						/>
+					</div>
+				</section>
+
+				<div className="border-t border-border" />
+
+				<section className="space-y-3">
+					<Title as="h2" size="xs" className="text-muted-foreground uppercase tracking-wide">
+						Agents
+					</Title>
+					<div className="grid gap-4 sm:grid-cols-2">
+						<ConfigCard
+							icon={Bot}
+							title="Fontes de agents"
+							description="Pastas extras de onde ler agents."
+							onClick={() => navigate({ to: "/fontes-agents" })}
 						/>
 					</div>
 				</section>

@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-export const SkillListSchema = z.object({
+export const AgentListSchema = z.object({
 	projectName: z.string().optional(),
 });
 
-export const SkillCreateSchema = z.object({
+export const AgentCreateSchema = z.object({
 	slug: z
 		.string()
 		.min(1)
@@ -14,51 +14,50 @@ export const SkillCreateSchema = z.object({
 	metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-export const SkillUpdateSchema = z.object({
+export const AgentUpdateSchema = z.object({
 	path: z.string().min(1),
 	description: z.string().min(1),
 	content: z.string().optional(),
 	metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-export const SkillGetSchema = z.object({
+export const AgentGetSchema = z.object({
 	slug: z.string().min(1),
 	projectName: z.string().optional(),
 });
 
-export const SkillStandardizeSchema = z.object({
+export const AgentStandardizeSchema = z.object({
 	slug: z.string().min(1),
 	projectName: z.string().optional(),
 	sourcePath: z.string().min(1),
 });
 
-export const SkillDeleteSchema = z.object({
+export const AgentDeleteSchema = z.object({
 	path: z.string().min(1),
 });
 
-export const SkillDeleteAllSchema = z.object({
+export const AgentDeleteAllSchema = z.object({
 	slug: z.string().min(1),
 	projectName: z.string().optional(),
 });
 
-const SkillToolSchema = z.enum(["opencode", "claude-code", "codex", "agents", "koworker"]);
+const AgentToolSchema = z.enum(["claude-code", "opencode", "codex", "koworker"]);
 
-export const SkillPathAddSchema = z.object({
-	tool: SkillToolSchema,
+export const AgentPathAddSchema = z.object({
+	tool: AgentToolSchema,
 	path: z.string().min(1),
 });
 
-export const SkillPathRemoveSchema = z.object({
+export const AgentPathRemoveSchema = z.object({
 	id: z.string().min(1),
 });
 
-export const SkillSettingsSchema = z.object({
+export const AgentSettingsSchema = z.object({
 	slug: z.string().min(1),
 	label: z.string().min(1).optional(),
 	icon: z.string().min(1).optional(),
 	color: z.string().min(1).optional(),
-	categoryId: z.string().min(1).nullable().optional(),
 });
 
-export type SkillCreateInput = z.infer<typeof SkillCreateSchema>;
-export type SkillUpdateInput = z.infer<typeof SkillUpdateSchema>;
+export type AgentCreateInput = z.infer<typeof AgentCreateSchema>;
+export type AgentUpdateInput = z.infer<typeof AgentUpdateSchema>;

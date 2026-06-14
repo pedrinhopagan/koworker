@@ -60,15 +60,4 @@ This is a test skill for end-to-end validation.
 		// Cleanup: Remover diretório de teste
 		await rm(TEST_DIR, { recursive: true, force: true });
 	});
-
-	it("should read existing koworker skills from config", async () => {
-		const skillPath = "/home/pedro/.config/opencode/skills/koworker-structure/SKILL.md";
-		const skill = await readSkillFile(skillPath);
-
-		expect(skill).not.toBeNull();
-		expect(skill?.frontmatter.name).toBe("koworker-structure");
-		expect(skill?.frontmatter.title).toBe("Estruturar");
-		expect(skill?.frontmatter.description).toBeTruthy();
-		expect(skill?.body).toBeTruthy();
-	});
 });

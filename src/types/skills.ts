@@ -5,6 +5,7 @@ export type SkillSource = SkillRecord["sources"][number];
 export type SkillDetail = NonNullable<RouterOutputs["skills"]["get"]>;
 export type SkillVariant = SkillDetail["variants"][number];
 export type SkillSourcePath = RouterOutputs["skills"]["listPaths"][number];
+export type SkillCategory = RouterOutputs["skillCategories"]["list"][number];
 
 export type TaskSkill = {
 	id: string;
@@ -14,6 +15,7 @@ export type TaskSkill = {
 	instructions: string;
 	icon: string;
 	color: string;
+	categoryId: string | null;
 	source: "builtin" | "custom";
 	sources: SkillSource[];
 	conflict: boolean;

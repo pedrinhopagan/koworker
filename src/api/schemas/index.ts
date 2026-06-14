@@ -35,12 +35,24 @@ export {
 	ProjectUpdateSchema,
 } from "./projects";
 export {
+	SkillCategoryCreateSchema,
+	SkillCategoryIdSchema,
+	SkillCategoryUpdateSchema,
+} from "./skill-categories";
+export {
 	SkillCreateSchema,
 	SkillDeleteSchema,
 	SkillListSchema,
 	SkillSettingsSchema,
 	SkillUpdateSchema,
 } from "./skills";
+export {
+	AgentCreateSchema,
+	AgentDeleteSchema,
+	AgentListSchema,
+	AgentSettingsSchema,
+	AgentUpdateSchema,
+} from "./agents";
 export {
 	TaskGroupCreateSchema,
 	TaskGroupIdSchema,

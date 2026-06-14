@@ -3,6 +3,7 @@ import { Book } from "lucide-react";
 
 import { PageShell } from "@/components/layout/page-shell";
 import { useProjectFocus } from "@/hooks/use-project-focus";
+import { useSkillCategoriesQuery } from "@/hooks/use-skill-categories";
 import { useSkillsQuery } from "@/hooks/use-skills";
 import { SkillsGrid } from "./-components/skills-grid";
 
@@ -13,6 +14,7 @@ export const Route = createFileRoute("/_app/skills/")({
 function SkillsPage() {
 	const { selectedProject } = useProjectFocus();
 	const skillsQuery = useSkillsQuery(selectedProject?.name);
+	const categoriesQuery = useSkillCategoriesQuery();
 
 	return (
 		<PageShell
@@ -21,7 +23,11 @@ function SkillsPage() {
 			icon={Book}
 		>
 			<div className="h-full min-h-0 pb-4">
-				<SkillsGrid skills={skillsQuery.taskSkills} loading={skillsQuery.isLoading} />
+				<SkillsGrid
+					skills={skillsQuery.taskSkills}
+					categories={categoriesQuery.data ?? []}
+					loading={skillsQuery.isLoading}
+				/>
 			</div>
 		</PageShell>
 	);

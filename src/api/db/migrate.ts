@@ -317,5 +317,16 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		}
 	}
 
+	// skill_settings.category_id: a tabela skill_categories é criada pelo constructor do
+	// @lobomfz/db (CREATE TABLE IF NOT EXISTS) no boot; aqui só garantimos a coluna nova em
+	// skill_settings nos bancos já existentes. ALTER do SQLite não anexa a FK, mas a referência
+	// só é exigida em bancos novos (via CREATE TABLE) — "SET NULL" cobre só os recém-criados.
+	{
+		const cols = tableInfo(sqlite, "skill_settings");
+		if (!hasColumn(cols, "category_id")) {
+			ensureColumn(sqlite, "skill_settings", "category_id TEXT");
+		}
+	}
+
 	sqlite.close();
 }

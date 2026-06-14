@@ -20,63 +20,62 @@ import { Chip } from "@/components/ui/chip";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { SKILL_TOOL_LABEL } from "@/constants/skills";
+import { AGENT_TOOL_LABEL } from "@/constants/agents";
+import { useAgentQuery } from "@/hooks/use-agents";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useRecordDocSession } from "@/hooks/use-record-doc-session";
-import { useSkillCategoriesQuery } from "@/hooks/use-skill-categories";
-import { useSkillQuery } from "@/hooks/use-skills";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
-import type { SkillVariant, TaskSkill } from "@/types/skills";
-import { SkillAppearanceDialog } from "../-components/skill-appearance-dialog";
-import { SkillMetadataControls } from "../-components/skill-metadata-controls";
-import { useSkillMutations } from "../-utils/use-skill-mutations";
-import { useSkillSettingsMutation } from "../-utils/use-skill-settings";
+import type { AgentVariant, TaskAgent } from "@/types/agents";
+import { AgentAppearanceDialog } from "../-components/agent-appearance-dialog";
+import { AgentMetadataControls } from "../-components/agent-metadata-controls";
+import { useAgentMutations } from "../-utils/use-agent-mutations";
+import { useAgentSettingsMutation } from "../-utils/use-agent-settings";
 
-export const Route = createFileRoute("/_app/skills/$slug/")({
-	component: SkillPage,
+export const Route = createFileRoute("/_app/agents/$slug/")({
+	component: AgentPage,
 });
 
-function SkillPage() {
+function AgentPage() {
 	const { slug } = Route.useParams();
 	const { selectedProject } = useProjectFocus();
 	const projectName = selectedProject?.name;
 
-	const skillQuery = useSkillQuery(slug, projectName);
+	const agentQuery = useAgentQuery(slug, projectName);
 
-	if (skillQuery.isLoading) {
+	if (agentQuery.isLoading) {
 		return (
 			<div className="flex h-full items-center justify-center">
 				<div className="flex items-center gap-2 text-muted-foreground">
 					<Loader2 size={18} className="animate-spin" />
 					<Text size="sm" tone="muted">
-						Carregando skill...
+						Carregando agent...
 					</Text>
 				</div>
 			</div>
 		);
 	}
 
-	if (!skillQuery.skill) {
+	if (!agentQuery.agent) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center gap-4">
 				<Text size="sm" tone="muted">
-					Skill não encontrada.
+					Agent não encontrado.
 				</Text>
 				<Button variant="outline" asChild>
-					<Link to="/skills">Voltar para skills</Link>
+					<Link to="/agents">Voltar para agents</Link>
 				</Button>
 			</div>
 		);
 	}
 
 	return (
-		<SkillEditor
-			key={skillQuery.skill.slug}
-			skill={skillQuery.skill}
-			variants={skillQuery.variants}
+		<AgentEditor
+			key={agentQuery.agent.slug}
+			agent={agentQuery.agent}
+			variants={agentQuery.variants}
 			projectName={projectName}
 		/>
 	);
@@ -91,21 +90,21 @@ const GROUP_DOT = [
 	"bg-violet-500",
 ];
 
-function scopeSuffix(scope: SkillVariant["scope"]): string {
+function scopeSuffix(scope: AgentVariant["scope"]): string {
 	if (scope === "project") return " · projeto";
 	if (scope === "custom") return " · custom";
 	return "";
 }
 
-// Remonta por slug (`key` no parent): navegar skill→skill troca o param sem remontar a rota, e o
-// editor markdown só lê `initialContent` no mount — sem o remount o corpo da skill anterior vazaria.
-function SkillEditor({
-	skill,
+// Remonta por slug (`key` no parent): navegar agent→agent troca o param sem remontar a rota, e o
+// editor markdown só lê `initialContent` no mount — sem o remount o corpo do agent anterior vazaria.
+function AgentEditor({
+	agent,
 	variants,
 	projectName,
 }: {
-	skill: TaskSkill;
-	variants: SkillVariant[];
+	agent: TaskAgent;
+	variants: AgentVariant[];
 	projectName?: string;
 }) {
 	const navigate = useNavigate();
@@ -117,24 +116,23 @@ function SkillEditor({
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [confirmingStandardize, setConfirmingStandardize] = useState(false);
 	const [appearanceOpen, setAppearanceOpen] = useState(false);
-	const [activeVariantPath, setActiveVariantPath] = useState(skill.primaryPath);
+	const [activeVariantPath, setActiveVariantPath] = useState(agent.primaryPath);
 
-	// Skill é global: a sessão não carrega projeto (não troca o projeto selecionado ao abrir pelo switcher)
-	// e a chave ignora o projeto, então a mesma skill grava uma vez só no MRU. Sem subtitle: o slug já é o
-	// título, repeti-lo embaixo era ruído.
+	// Agent é global: a sessão não carrega projeto (não troca o projeto selecionado ao abrir pelo
+	// switcher) e a chave ignora o projeto, então o mesmo agent grava uma vez só no MRU. Sem subtitle:
+	// o slug já é o título, repeti-lo embaixo era ruído.
 	const { pinned, togglePin } = useRecordDocSession({
-		key: docSessionKey({ kind: "skill", variantPath: activeVariantPath }),
-		kind: "skill",
-		title: skill.label,
-		icon: skill.icon,
-		iconColor: skill.color,
-		nav: { to: "/skills/$slug", params: { slug: skill.slug } },
+		key: docSessionKey({ kind: "agent", variantPath: activeVariantPath }),
+		kind: "agent",
+		title: agent.label,
+		icon: agent.icon,
+		iconColor: agent.color,
+		nav: { to: "/agents/$slug", params: { slug: agent.slug } },
 	});
 
-	const settingsMutation = useSkillSettingsMutation();
-	const categoriesQuery = useSkillCategoriesQuery();
-	const { updateContent, standardize, standardizing, removeSkill, removeAllSkill, removing } =
-		useSkillMutations();
+	const settingsMutation = useAgentSettingsMutation();
+	const { updateContent, standardize, standardizing, removeAgent, removeAllAgent, removing } =
+		useAgentMutations();
 
 	useEffect(() => () => setReading(false), [setReading]);
 
@@ -142,7 +140,7 @@ function SkillEditor({
 		variants.find((variant) => variant.path === activeVariantPath) ?? variants[0];
 	const hasConflict = new Set(variants.map((variant) => variant.group)).size > 1;
 
-	const [description, setDescription] = useState(activeVariant?.description ?? skill.description);
+	const [description, setDescription] = useState(activeVariant?.description ?? agent.description);
 	const [metadata, setMetadata] = useState<Record<string, unknown>>(activeVariant?.metadata ?? {});
 
 	// Se a variante ativa some (ex.: removeu só esta cópia), cai pra primeira restante. Troca o path
@@ -160,7 +158,7 @@ function SkillEditor({
 		setMetadata(activeVariant?.metadata ?? {});
 	}, [activeVariantPath]);
 
-	// `skills.update` reescreve o arquivo da VARIANTE ATIVA: os três gatilhos (descrição, corpo,
+	// `agents.update` reescreve o arquivo da VARIANTE ATIVA: os três gatilhos (descrição, corpo,
 	// metadados) sempre enviam o trio completo. Descrição e metadados vêm do estado local; o corpo,
 	// ao vivo do editor. Assim um switch de metadado não atropela uma edição de texto pendente.
 	function persist(next: {
@@ -197,8 +195,8 @@ function SkillEditor({
 	function saveLabel(value: string) {
 		const next = value.trim();
 		setEditingLabel(false);
-		if (!next || next === skill.label) return;
-		settingsMutation.mutate({ slug: skill.slug, label: next });
+		if (!next || next === agent.label) return;
+		settingsMutation.mutate({ slug: agent.slug, label: next });
 	}
 
 	async function selectVariant(path: string) {
@@ -207,23 +205,23 @@ function SkillEditor({
 		setActiveVariantPath(path);
 	}
 
-	const multiSource = skill.sources.length > 1;
+	const multiSource = agent.sources.length > 1;
 
 	function deleteActiveCopy() {
 		setConfirmingDelete(false);
-		removeSkill(activeVariantPath);
-		// Última (ou única) cópia → a skill some de vez; senão fica nas fontes restantes.
-		if (!multiSource) navigate({ to: "/skills" });
+		removeAgent(activeVariantPath);
+		// Última (ou única) cópia → o agent some de vez; senão fica nas fontes restantes.
+		if (!multiSource) navigate({ to: "/agents" });
 	}
 
 	function deleteEverywhere() {
 		setConfirmingDelete(false);
-		removeAllSkill({ slug: skill.slug, projectName });
-		navigate({ to: "/skills" });
+		removeAllAgent({ slug: agent.slug, projectName });
+		navigate({ to: "/agents" });
 	}
 
 	function confirmStandardize() {
-		standardize({ slug: skill.slug, projectName, sourcePath: activeVariantPath });
+		standardize({ slug: agent.slug, projectName, sourcePath: activeVariantPath });
 		setConfirmingStandardize(false);
 	}
 
@@ -234,23 +232,23 @@ function SkillEditor({
 					<div className="w-full border-b border-border">
 						<div className="mx-auto flex h-10 w-full max-w-6xl items-center gap-2 px-2">
 							<Link
-								to="/skills"
+								to="/agents"
 								className="flex items-center px-2 text-muted-foreground transition-colors hover:text-foreground"
-								aria-label="Voltar para skills"
+								aria-label="Voltar para agents"
 							>
 								<ArrowLeft size={16} />
 							</Link>
 							<div
 								className="flex size-6 shrink-0 items-center justify-center border"
-								style={{ borderColor: skill.color, color: skill.color }}
+								style={{ borderColor: agent.color, color: agent.color }}
 							>
-								<LucideIcon name={skill.icon} className="size-3.5" />
+								<LucideIcon name={agent.icon} className="size-3.5" />
 							</div>
 							{editingLabel ? (
 								<div className="min-w-0 flex-1">
 									<TaskTitleInput
-										initialValue={skill.label}
-										placeholder={skill.slug}
+										initialValue={agent.label}
+										placeholder={agent.slug}
 										onSave={saveLabel}
 										onCancel={() => setEditingLabel(false)}
 									/>
@@ -260,22 +258,22 @@ function SkillEditor({
 									type="button"
 									onClick={() => setEditingLabel(true)}
 									className="group flex min-w-0 flex-1 items-center gap-1.5 text-left"
-									title="Renomear skill"
+									title="Renomear agent"
 								>
 									<Text size="sm" className="min-w-0 truncate font-display font-semibold">
-										{skill.label}
+										{agent.label}
 									</Text>
 									<PencilLine className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
 								</button>
 							)}
 
 							<div className="flex shrink-0 items-center gap-1">
-								<Chip size="xs" variant={skill.source === "builtin" ? "primary" : "outline"}>
-									{skill.source === "builtin" ? "Koworker" : "Personalizada"}
+								<Chip size="xs" variant={agent.source === "builtin" ? "primary" : "outline"}>
+									{agent.source === "builtin" ? "Koworker" : "Personalizado"}
 								</Chip>
-								{skill.sources.map((source) => (
+								{agent.sources.map((source) => (
 									<Chip key={source.path} size="xs" variant="ghost">
-										{SKILL_TOOL_LABEL[source.tool]}
+										{AGENT_TOOL_LABEL[source.tool]}
 										{scopeSuffix(source.scope)}
 									</Chip>
 								))}
@@ -287,7 +285,7 @@ function SkillEditor({
 								)}
 							</div>
 
-							<SkillMetadataControls metadata={metadata} onChange={changeMetadata} />
+							<AgentMetadataControls metadata={metadata} onChange={changeMetadata} />
 							<Button
 								type="button"
 								variant="outline"
@@ -312,8 +310,8 @@ function SkillEditor({
 								variant="ghost"
 								size="icon-sm"
 								onClick={() => setConfirmingDelete(true)}
-								title="Remover skill"
-								aria-label="Remover skill"
+								title="Remover agent"
+								aria-label="Remover agent"
 								className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-destructive"
 							>
 								<Trash2 className="size-3.5" />
@@ -327,7 +325,7 @@ function SkillEditor({
 								value={description}
 								onChange={(event) => setDescription(event.target.value)}
 								onBlur={saveDescription}
-								placeholder="Descrição da skill"
+								placeholder="Descrição do agent"
 								rows={1}
 								className="min-h-0 max-h-32 resize-none border-0 bg-transparent px-2 py-1 text-sm leading-relaxed shadow-none field-sizing-content focus-visible:ring-0"
 							/>
@@ -363,7 +361,7 @@ function SkillEditor({
 													aria-hidden
 												/>
 												<span className="truncate">
-													{SKILL_TOOL_LABEL[variant.tool]}
+													{AGENT_TOOL_LABEL[variant.tool]}
 													{scopeSuffix(variant.scope)}
 												</span>
 											</button>
@@ -392,14 +390,14 @@ function SkillEditor({
 				<DocEditorPane
 					key={activeVariantPath}
 					ref={paneRef}
-					fileName="SKILL.md"
-					sessionKey={docSessionKey({ kind: "skill", variantPath: activeVariantPath })}
-					content={activeVariant?.content ?? skill.instructions}
-					folderPath={activeVariant?.dir ?? skill.primaryDir}
+					fileName={`${agent.slug}.md`}
+					sessionKey={docSessionKey({ kind: "agent", variantPath: activeVariantPath })}
+					content={activeVariant?.content ?? agent.instructions}
+					folderPath={activeVariant?.dir ?? agent.primaryDir}
 					writeFile={({ content }) => persist({ description, content, metadata })}
 					reading={reading}
 					onExitReading={() => setReading(false)}
-					onExit={() => navigate({ to: "/skills" })}
+					onExit={() => navigate({ to: "/agents" })}
 				/>
 				{reading ? (
 					<Button
@@ -418,11 +416,11 @@ function SkillEditor({
 			<Dialog
 				open={confirmingDelete}
 				onClose={() => setConfirmingDelete(false)}
-				title="Remover skill"
+				title="Remover agent"
 				description={
 					multiSource
-						? `“${skill.label}” existe em ${skill.sources.length} fontes. Escolha o que apagar do disco.`
-						: `A pasta de “${skill.label}” será apagada permanentemente do disco.`
+						? `“${agent.label}” existe em ${agent.sources.length} fontes. Escolha o que apagar do disco.`
+						: `O arquivo de “${agent.label}” será apagado permanentemente do disco.`
 				}
 				className="max-w-md"
 				footer={
@@ -439,7 +437,7 @@ function SkillEditor({
 									disabled={removing}
 									className="text-destructive"
 								>
-									Só esta cópia ({activeVariant ? SKILL_TOOL_LABEL[activeVariant.tool] : ""}
+									Só esta cópia ({activeVariant ? AGENT_TOOL_LABEL[activeVariant.tool] : ""}
 									{activeVariant ? scopeSuffix(activeVariant.scope) : ""})
 								</Button>
 								<Button
@@ -448,7 +446,7 @@ function SkillEditor({
 									onClick={deleteEverywhere}
 									disabled={removing}
 								>
-									Todas as {skill.sources.length} fontes
+									Todas as {agent.sources.length} fontes
 								</Button>
 							</>
 						) : (
@@ -466,14 +464,13 @@ function SkillEditor({
 			>
 				<Text size="sm" tone="muted">
 					{multiSource
-						? "“Só esta cópia” remove apenas a pasta da fonte selecionada; “todas as fontes” apaga a skill de todos os lugares."
+						? "“Só esta cópia” remove apenas o arquivo da fonte selecionada; “todas as fontes” apaga o agent de todos os lugares."
 						: "Esta ação não pode ser desfeita."}
 				</Text>
 			</Dialog>
 
-			<SkillAppearanceDialog
-				skill={appearanceOpen ? skill : null}
-				categories={categoriesQuery.data ?? []}
+			<AgentAppearanceDialog
+				agent={appearanceOpen ? agent : null}
 				onClose={() => setAppearanceOpen(false)}
 			/>
 
@@ -482,7 +479,7 @@ function SkillEditor({
 				onClose={() => setConfirmingStandardize(false)}
 				onConfirm={confirmStandardize}
 				title="Padronizar variantes"
-				description={`A versão de “${activeVariant ? SKILL_TOOL_LABEL[activeVariant.tool] : ""}${activeVariant ? scopeSuffix(activeVariant.scope) : ""}” será gravada por cima das outras ${variants.length - 1} cópias no disco. As versões divergentes serão perdidas.`}
+				description={`A versão de “${activeVariant ? AGENT_TOOL_LABEL[activeVariant.tool] : ""}${activeVariant ? scopeSuffix(activeVariant.scope) : ""}” será gravada por cima das outras ${variants.length - 1} cópias no disco. As versões divergentes serão perdidas.`}
 				confirmLabel="Padronizar"
 				variant="danger"
 				loading={standardizing}
