@@ -156,7 +156,31 @@ describe("groupSessions", () => {
 		expect(cards.map((c) => c.key)).toEqual(["task:b:x.md", "task:a:x.md"]);
 	});
 
-	it("duplica o fixado na seção Fixadas e no grupo, com flatIndex distinto por ocorrência", () => {
+	it("com projectOrder, ordena as seções pela ordem do app e mantém MRU dentro do grupo", () => {
+		// MRU poria Proj B antes de Proj A (mais recente primeiro). O projectOrder força A, B; um projeto
+		// ausente do projectOrder ("Proj Z") cai depois dos conhecidos, e "Sem projeto" (null) por último.
+		const list = [
+			meta({ key: "task:b:x.md", title: "B", projectName: "Proj B" }),
+			meta({ key: "task:a1:x.md", title: "A1", projectName: "Proj A" }),
+			meta({ key: "vault:n:n.md", kind: "vault", title: "N" }),
+			meta({ key: "task:z:x.md", title: "Z", projectName: "Proj Z" }),
+			meta({ key: "task:a2:x.md", title: "A2", projectName: "Proj A" }),
+		];
+
+		const { groups, cards } = groupSessions(list, null, ["Proj A", "Proj B"]);
+
+		expect(groups.map((g) => g.projectName)).toEqual(["Proj A", "Proj B", "Proj Z", null]);
+		// Dentro de Proj A, MRU preservado: a1 (mais recente) antes de a2.
+		expect(cards.map((c) => c.key)).toEqual([
+			"task:a1:x.md",
+			"task:a2:x.md",
+			"task:b:x.md",
+			"task:z:x.md",
+			"vault:n:n.md",
+		]);
+	});
+
+	it("tira o fixado do geral: ele fica só na seção Fixadas, sem duplicar no grupo", () => {
 		const list = [
 			meta({ key: "task:t1:plan.md", title: "Tarefa 1", projectName: "P", pinned: true }),
 			meta({ key: "vault:p:notes.md", kind: "vault", title: "Notas", projectName: "P" }),
@@ -166,17 +190,12 @@ describe("groupSessions", () => {
 
 		// Fixadas: flat, só o fixado, no topo.
 		expect(pinned.map((c) => c.key)).toEqual(["task:t1:plan.md"]);
-		// O grupo ainda tem a tarefa (não move) + a caixa de vault.
-		expect(groups[0].blocks[0]).toMatchObject({ type: "task", taskId: "t1" });
-		// A chave do fixado entra duas vezes no achatado; cada ocorrência tem seu flatIndex = posição.
-		expect(cards.map((c) => c.key)).toEqual([
-			"task:t1:plan.md",
-			"task:t1:plan.md",
-			"vault:p:notes.md",
-		]);
-		expect(cards.map((c) => c.flatIndex)).toEqual([0, 1, 2]);
-		// A 1ª ocorrência (canônica pra findIndex-por-chave) é a de Fixadas.
-		expect(cards.findIndex((c) => c.key === "task:t1:plan.md")).toBe(0);
+		// O grupo NÃO tem mais a tarefa fixada — só a caixa de vault.
+		expect(groups[0].blocks).toHaveLength(1);
+		expect(groups[0].blocks[0]).toMatchObject({ type: "kind", kind: "vault" });
+		// A chave do fixado aparece uma única vez no achatado (Fixadas), com flatIndex = posição.
+		expect(cards.map((c) => c.key)).toEqual(["task:t1:plan.md", "vault:p:notes.md"]);
+		expect(cards.map((c) => c.flatIndex)).toEqual([0, 1]);
 	});
 
 	it("sem fixados, a seção Fixadas é vazia e o achatado não duplica", () => {
@@ -273,8 +292,8 @@ describe("initialSwitcherIndex", () => {
 });
 
 describe("navegação por caixas (blockStartIndices / jumpToBlock / distinctCards)", () => {
-	// Fixadas(plan) · P[tarefa t1: plan, index][vault: n] · Q[docs: d]
-	// achatado: [plan@0(fixada), plan@1, index@2, vault-n@3, docs-d@4]  → starts [0,1,3,4]
+	// Fixadas(plan) · P[tarefa t1: index][vault: n] · Q[docs: d]   (plan está fixada → sai do grupo)
+	// achatado: [plan@0(fixada), index@1, vault-n@2, docs-d@3]  → starts [0,1,2,3]
 	const list = [
 		meta({ key: "task:t1:plan.md", title: "T1", projectName: "P", pinned: true }),
 		meta({ key: "task:t1:index.md", title: "T1", projectName: "P" }),
@@ -283,22 +302,22 @@ describe("navegação por caixas (blockStartIndices / jumpToBlock / distinctCard
 	];
 
 	it("blockStartIndices marca o começo de Fixadas e de cada bloco", () => {
-		expect(blockStartIndices(list, null)).toEqual([0, 1, 3, 4]);
+		expect(blockStartIndices(list, null)).toEqual([0, 1, 2, 3]);
 	});
 
 	it("jumpToBlock pula pra caixa vizinha e clampa nas pontas", () => {
 		const starts = blockStartIndices(list, null);
-		// de Fixadas (0) pra baixo → começo da tarefa (1)
+		// de Fixadas (0) pra baixo → caixa da tarefa (1)
 		expect(jumpToBlock(starts, 0, 1)).toBe(1);
-		// de dentro da tarefa (2) pra baixo → caixa vault (3); pra cima → Fixadas (0)
-		expect(jumpToBlock(starts, 2, 1)).toBe(3);
-		expect(jumpToBlock(starts, 2, -1)).toBe(0);
-		// clamp: topo não passa de 0, fundo não passa da última caixa (4)
+		// de dentro da tarefa (1) pra baixo → caixa vault (2); pra cima → Fixadas (0)
+		expect(jumpToBlock(starts, 1, 1)).toBe(2);
+		expect(jumpToBlock(starts, 1, -1)).toBe(0);
+		// clamp: topo não passa de 0, fundo não passa da última caixa (3)
 		expect(jumpToBlock(starts, 0, -1)).toBe(0);
-		expect(jumpToBlock(starts, 4, 1)).toBe(4);
+		expect(jumpToBlock(starts, 3, 1)).toBe(3);
 	});
 
-	it("distinctCards dedupa por chave e aponta o dígito pra 1ª ocorrência (a fixada)", () => {
+	it("distinctCards dedupa por chave, sem repetição entre Fixadas e grupos", () => {
 		const { cards } = groupSessions(list, null);
 		const distinct = distinctCards(cards);
 
@@ -308,7 +327,6 @@ describe("navegação por caixas (blockStartIndices / jumpToBlock / distinctCard
 			"vault:p:n.md",
 			"docs:q:d.md",
 		]);
-		// o "1" leva ao flatIndex 0 — a ocorrência de Fixadas, não a do grupo (flatIndex 1).
 		expect(distinct[0].flatIndex).toBe(0);
 	});
 });
@@ -345,6 +363,17 @@ describe("togglePin / removeRecent / clearLoose", () => {
 		removeRecentsByPrefix("task:t1:");
 
 		expect(useDocSessionsStore.getState().recents.map((r) => r.key)).toEqual(["task:t2:plan.md"]);
+	});
+
+	it("removeRecentsByKeys tira em lote pelas chaves exatas (fixadas inclusive)", () => {
+		const { recordVisit, togglePin, removeRecentsByKeys } = useDocSessionsStore.getState();
+		recordVisit(visit("a"));
+		recordVisit(visit("b"));
+		recordVisit(visit("c"));
+		togglePin("a");
+		removeRecentsByKeys(["a", "c"]);
+
+		expect(useDocSessionsStore.getState().recents.map((r) => r.key)).toEqual(["b"]);
 	});
 
 	it("clearLoose remove só as não-fixadas", () => {

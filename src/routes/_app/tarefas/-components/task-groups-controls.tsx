@@ -113,7 +113,7 @@ function FilterSelect<T extends { id: string; name: string; color: string; level
 			onValueChange={(newValue) => onValueChange(newValue === allId ? undefined : newValue)}
 			renderTrigger={() => (
 				<>
-					<span className="flex min-w-0 items-center gap-2">
+					<span className="flex min-w-0 items-center gap-2 text-foreground">
 						<span
 							className={cn("size-2 shrink-0 rounded-full", !selected && "bg-muted-foreground")}
 							style={selected ? { backgroundColor: selected.color } : undefined}
@@ -222,7 +222,7 @@ function FiltersPopover({
 				</div>
 
 				<div className="space-y-1">
-					<Text size="xs" tone="muted">
+					<Text size="xs" className="font-medium">
 						Tipo
 					</Text>
 					<FilterSelect
@@ -235,7 +235,7 @@ function FiltersPopover({
 				</div>
 
 				<div className="space-y-1">
-					<Text size="xs" tone="muted">
+					<Text size="xs" className="font-medium">
 						Prioridade
 					</Text>
 					<FilterSelect
@@ -248,7 +248,7 @@ function FiltersPopover({
 				</div>
 
 				<label className="flex cursor-pointer items-center justify-between gap-2">
-					<Text size="xs" tone="muted">
+					<Text size="xs" className="font-medium">
 						Ver concluídas
 					</Text>
 					<Switch
@@ -388,7 +388,7 @@ export function TaskListControls({
 								if (e.key === "Enter") submit();
 								if (e.key === "Escape") setCreating(false);
 							}}
-							placeholder="Nome do grupo"
+							placeholder="Nome da feature"
 							className="h-8 w-40"
 						/>
 						<Button size="sm" className="h-8" onClick={submit} disabled={createMutation.isPending}>
@@ -401,7 +401,7 @@ export function TaskListControls({
 				) : (
 					<Button variant="outline" size="sm" className="h-8" onClick={() => setCreating(true)}>
 						<Plus className="size-4" />
-						Novo grupo
+						Nova feature
 					</Button>
 				))}
 		</div>
@@ -465,7 +465,7 @@ export function TaskGroupHeader({
 				) : null}
 				{editing && group ? null : (
 					<Text size="sm" className={cn("truncate font-medium", !group && "text-muted-foreground")}>
-						{group?.name ?? "Sem grupo"}
+						{group?.name ?? "Sem feature"}
 					</Text>
 				)}
 				<Text size="xs" tone="muted" className="shrink-0">
@@ -499,7 +499,7 @@ export function TaskGroupHeader({
 					<Button
 						variant="ghost"
 						size="icon-sm"
-						aria-label="Renomear grupo"
+						aria-label="Renomear feature"
 						onClick={() => {
 							setName(group.name);
 							setEditing(true);
@@ -510,7 +510,7 @@ export function TaskGroupHeader({
 					<Button
 						variant="ghost"
 						size="icon-sm"
-						aria-label="Remover grupo"
+						aria-label="Remover feature"
 						onClick={() => setConfirmDelete(true)}
 					>
 						<Trash2 className="size-3.5" />
@@ -526,8 +526,8 @@ export function TaskGroupHeader({
 						deleteMutation.mutate({ id: group.id });
 						setConfirmDelete(false);
 					}}
-					title={`Remover o grupo "${group.name}"?`}
-					description="As tarefas dele voltam para “Sem grupo”. Esta ação não pode ser desfeita."
+					title={`Remover a feature "${group.name}"?`}
+					description="As tarefas dela voltam para “Sem feature”. Esta ação não pode ser desfeita."
 					confirmLabel="Remover"
 					variant="danger"
 				/>

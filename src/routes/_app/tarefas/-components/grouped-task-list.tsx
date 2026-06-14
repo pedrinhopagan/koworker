@@ -420,6 +420,7 @@ export function GroupedTaskList({
 								buckets={buckets}
 								taskMap={taskMap}
 								highlightLevels={highlightLevels}
+								features={groups}
 								collapsed={collapsedKeys.includes(key)}
 								onToggleCollapse={() => toggleCollapsed(key)}
 							/>
@@ -448,7 +449,7 @@ export function GroupedTaskList({
 								size="sm"
 								className={cn("truncate font-medium", !activeGroup && "text-muted-foreground")}
 							>
-								{activeGroup?.name ?? "Sem grupo"}
+								{activeGroup?.name ?? "Sem feature"}
 							</Text>
 						</div>
 					</div>
@@ -470,6 +471,7 @@ type GroupSectionProps = {
 	buckets: Record<string, string[]>;
 	taskMap: Map<string, TaskWithMeta>;
 	highlightLevels: Map<string, number>;
+	features: TaskGroup[];
 	collapsed: boolean;
 	onToggleCollapse: () => void;
 };
@@ -491,7 +493,7 @@ function SortableGroupSection({ groupId, ...rest }: GroupSectionProps) {
 	const dragHandle = (
 		<button
 			type="button"
-			aria-label="Arrastar grupo"
+			aria-label="Arrastar feature"
 			className="cursor-grab touch-none p-0.5 text-muted-foreground/40 opacity-0 transition-opacity hover:text-foreground group-hover/header:opacity-100"
 			{...attributes}
 			{...(listeners as React.HTMLAttributes<HTMLButtonElement>)}
@@ -512,6 +514,7 @@ function GroupSectionBody({
 	buckets,
 	taskMap,
 	highlightLevels,
+	features,
 	collapsed,
 	onToggleCollapse,
 	setNodeRef,
@@ -546,6 +549,7 @@ function GroupSectionBody({
 										key={taskId}
 										task={task}
 										highlight={highlightLevels.get(taskId)}
+										features={features}
 									/>
 								);
 							}),
@@ -562,7 +566,15 @@ function GroupSectionBody({
 	);
 }
 
-function SortableTaskRow({ task, highlight }: { task: TaskWithMeta; highlight?: number }) {
+function SortableTaskRow({
+	task,
+	highlight,
+	features,
+}: {
+	task: TaskWithMeta;
+	highlight?: number;
+	features: TaskGroup[];
+}) {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
 		id: task.id,
 		data: { task },
@@ -586,7 +598,7 @@ function SortableTaskRow({ task, highlight }: { task: TaskWithMeta; highlight?: 
 				<GripVertical className="size-4" />
 			</button>
 			<div className="min-w-0 flex-1">
-				<TaskItem task={task} variant="default" highlight={highlight} />
+				<TaskItem task={task} variant="default" highlight={highlight} features={features} />
 			</div>
 		</div>
 	);

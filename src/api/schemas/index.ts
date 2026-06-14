@@ -56,6 +56,7 @@ export {
 	TaskIdSchema,
 	TaskListByProjectSchema,
 	TaskMetricsSchema,
+	TaskMoveToProjectSchema,
 	TaskPromoteSchema,
 	TaskRenameFileSchema,
 	TaskReorderFilesSchema,

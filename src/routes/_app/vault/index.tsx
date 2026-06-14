@@ -1,15 +1,27 @@
+import {
+	DndContext,
+	type DragEndEvent,
+	DragOverlay,
+	type DragStartEvent,
+	PointerSensor,
+	pointerWithin,
+	useDroppable,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
-	CheckSquare,
 	ChevronsDownUp,
 	ChevronsUpDown,
-	FolderInput,
+	CircleCheck,
+	Clock,
+	Files,
+	Flame,
 	LayoutGrid,
 	Library,
-	Link2,
-	ListTree,
 	Loader2,
+	Plus,
 	Search,
 	Unlink,
 	X,
@@ -25,30 +37,44 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useProjectFocus } from "@/hooks/use-project-focus";
+import { useSkillsQuery } from "@/hooks/use-skills";
 import { cn } from "@/lib/utils";
-import { LinkTaskPopover, type NewTaskPayload } from "./-components/link-task-popover";
-import { VaultBrowser } from "./-components/vault-browser";
+import { type ClickModifiers, Tree } from "./-components/tree";
+import { TreeBatchMenu, type TreeActions, TreeNodeMenu } from "./-components/tree-node-menu";
 import {
-	EMPTY_VAULT_FILTERS,
-	filterEntries,
-	type VaultFilterState,
-	VaultFilters,
-} from "./-components/vault-filters";
-import { VaultGroupedView } from "./-components/vault-grouped-view";
+	buildVaultTree,
+	collectFileLeaves,
+	collectFolderKeys,
+	collectTaskFolders,
+	DEFAULT_EXPANDED,
+	filterTree,
+	flattenVisibleLeaves,
+	TAREFAS_KEY,
+	type TaskSortMode,
+	type TreeNode,
+	type VaultEntry,
+} from "./-utils/build-vault-tree";
+
+// Id do droppable da faixa "soltar no vault" (unlink). Único, fora do espaço de chaves da árvore.
+const ROOT_DROP_ID = "root:loose";
+
+type DragPayload = { entries: VaultEntry[]; origin: SelectionOrigin; folderName: string | null };
+
+type SelectionOrigin = "loose" | "task" | "folder";
+type Selection = { origin: SelectionOrigin; folderName: string | null; keys: Set<string> };
+
+function emptySelection(): Selection {
+	return { origin: "loose", folderName: null, keys: new Set() };
+}
 
 export const Route = createFileRoute("/_app/vault/")({
 	component: VaultPage,
 });
 
-// Adiciona/remove uma chave de um Set imutável (toggle de seleção).
-function toggleKey(set: Set<string>, key: string): Set<string> {
-	const next = new Set(set);
-	if (next.has(key)) {
-		next.delete(key);
-	} else {
-		next.add(key);
-	}
-	return next;
+// Entries dos arquivos `.md` diretos de uma pasta (looseFolder) — payload do movimento em lote.
+function folderEntries(node: TreeNode): VaultEntry[] {
+	if (!("children" in node)) return [];
+	return node.children.flatMap((child) => (child.kind === "fileLeaf" ? [child.entry] : []));
 }
 
 function VaultPage() {
@@ -56,135 +82,153 @@ function VaultPage() {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
-	// Três seleções mutuamente exclusivas: notas soltas (por nome), arquivos dentro de uma pasta
-	// solta (por pasta/nome) e arquivos já vinculados a tarefas (por taskId/nome). Cada uma habilita
-	// ações diferentes, então mexer numa zera as outras. (Fatia 1: a lista plana só abre arquivos;
-	// estas seleções e as barras de lote ficam inertes até o modo "organizar" da Fatia 4.)
-	const [selected, setSelected] = useState<Set<string>>(new Set());
-	const [folderSelected, setFolderSelected] = useState<Set<string>>(new Set());
-	const [linkedSelected, setLinkedSelected] = useState<Set<string>>(new Set());
+	// Pastas expandidas (inclui os nós virtuais). Sem persistência: reseta ao trocar de projeto.
+	const [expanded, setExpanded] = useState<Set<string>>(() => new Set(DEFAULT_EXPANDED));
+	const [search, setSearch] = useState("");
+	// Esconde tarefas concluídas por default — substitui o painel de 4 filtros da visão antiga.
+	const [hideCompleted, setHideCompleted] = useState(true);
+	// Ordenação das pastas de tarefa (controle inline na linha "Tarefas"). Local do vault — não
+	// acopla ao `useSortMode` do /tarefas.
+	const [taskSort, setTaskSort] = useState<TaskSortMode>("recente");
 
-	// Nota solta sob ação do menu de contexto: renomear abre um diálogo com input, deletar
-	// abre a confirmação. Só uma fica ativa por vez.
+	// Diálogos de arquivo: criar nota solta (só título), renomear e deletar. Um por vez.
+	const [creatingTitle, setCreatingTitle] = useState<string | null>(null);
 	const [renaming, setRenaming] = useState<{ name: string; value: string } | null>(null);
 	const [deleting, setDeleting] = useState<string | null>(null);
+	// Diálogos da pasta de tarefa: renomear (título da tarefa) e excluir.
+	const [renamingTask, setRenamingTask] = useState<{ id: string; value: string } | null>(null);
+	const [deletingTask, setDeletingTask] = useState<{ id: string; title: string } | null>(null);
 
-	// Criação de nota solta: o dialog pede só um título e deriva o nome do arquivo.
-	const [creatingTitle, setCreatingTitle] = useState<string | null>(null);
+	// Multi-seleção origin-exclusiva: arquivos de uma única origem por vez (loose/task/folder), com
+	// `folderName` fixo quando folder. `anchorKey` é a âncora do range com Shift. As ações de lote
+	// vivem no menu de contexto de um nó selecionado.
+	const [selection, setSelection] = useState<Selection>(emptySelection);
+	const [anchorKey, setAnchorKey] = useState<string | null>(null);
 
-	// Busca: filtra entries por nome+título no cliente. Enquanto há termo, a lista colapsa pra
-	// plano (visão de resultados), ignorando o agrupamento.
-	const [search, setSearch] = useState("");
+	// Arraste em curso: arrastar um nó selecionado leva a seleção inteira; senão, só ele.
+	const [drag, setDrag] = useState<DragPayload | null>(null);
+	// `distance` evita que o arraste engula o clique (selecionar/abrir) das rows-botão.
+	const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-	// Grupos colapsados na visão agrupada (chave `folder:<nome>` ou `task:<id>`). Preferência local,
-	// sem persistência — recompõe a cada montagem.
-	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-
-	// Filtros das 4 dimensões (Fatia 2). Padrão = pendentes (concluídas ocultas).
-	const [filters, setFilters] = useState<VaultFilterState>(EMPTY_VAULT_FILTERS);
-
-	// Modo de agrupamento (Fatia 3). Padrão = "grouped" (visão da Fatia 1); "flat" é a grade única
-	// sem cabeçalhos. Com termo de busca, a lista cai pra plana independente do toggle.
-	const [grouping, setGrouping] = useState<"grouped" | "flat">("grouped");
-
-	// Modo "organizar" (Fatia 4): fora dele o clique abre o arquivo; dentro, seleciona pra lote. As
-	// barras flutuantes (vincular/mover/soltar) só aparecem aqui.
-	const [organizing, setOrganizing] = useState(false);
+	function clearSelection() {
+		setSelection(emptySelection());
+		setAnchorKey(null);
+	}
 
 	useEffect(() => {
-		setSelected(new Set());
-		setFolderSelected(new Set());
-		setLinkedSelected(new Set());
+		setExpanded(new Set(DEFAULT_EXPANDED));
+		setSearch("");
+		setHideCompleted(true);
+		setTaskSort("recente");
+		setCreatingTitle(null);
 		setRenaming(null);
 		setDeleting(null);
-		setSearch("");
-		setCollapsed(new Set());
-		setFilters(EMPTY_VAULT_FILTERS);
-		setGrouping("grouped");
-		setOrganizing(false);
+		setRenamingTask(null);
+		setDeletingTask(null);
+		setSelection(emptySelection());
+		setAnchorKey(null);
+		setDrag(null);
 	}, [selectedProjectId]);
 
-	// Sair do modo organizar limpa as três seleções: senão as barras lingerem ou reentrar mostraria
-	// uma seleção velha.
-	function toggleOrganizing() {
-		setOrganizing((prev) => {
-			if (prev) {
-				setSelected(new Set());
-				setFolderSelected(new Set());
-				setLinkedSelected(new Set());
-			}
-			return !prev;
-		});
-	}
+	const projectId = selectedProjectId ?? "";
+	const enabled = Boolean(selectedProjectId);
 
-	// Seleção de um arquivo no modo organizar. As três seleções são mutuamente exclusivas (cada
-	// origem habilita ações diferentes), então mexer numa zera as outras. As chaves seguem o formato
-	// que os parsers já esperam: loose = nome puro; folder/task = `<groupKey>/<nome>`.
-	function selectEntry(entry: { name: string; origin: string; groupKey: string | null }) {
-		if (entry.origin === "loose") {
-			setFolderSelected(new Set());
-			setLinkedSelected(new Set());
-			setSelected((prev) => toggleKey(prev, entry.name));
-			return;
-		}
-		if (!entry.groupKey) return;
+	const entriesQuery = useQuery({
+		...orpc.vault.listEntries.queryOptions({ input: { projectId } }),
+		enabled,
+	});
+	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
+	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
+	// Todas as tasks do projeto (inclusive vazias) — alvo dos pickers do menu de contexto. O
+	// agregador do vault só traz grupos com arquivo, então uma task vazia não apareceria sem esta.
+	const tasksQuery = useQuery({
+		...orpc.tasks.listByProject.queryOptions({ input: { projectId } }),
+		enabled,
+	});
+	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
+	const { taskSkills } = useSkillsQuery(selectedProject?.name);
 
-		const key = `${entry.groupKey}/${entry.name}`;
-		if (entry.origin === "folder") {
-			setSelected(new Set());
-			setLinkedSelected(new Set());
-			// A barra de mover-pasta resolve uma única pasta de origem; selecionar arquivo de outra
-			// pasta recomeça a seleção em vez de misturar duas origens.
-			setFolderSelected((prev) => {
-				const sameFolder = [...prev].every((k) => k.slice(0, k.indexOf("/")) === entry.groupKey);
-				return toggleKey(sameFolder ? prev : new Set(), key);
-			});
-			return;
-		}
-		setSelected(new Set());
-		setFolderSelected(new Set());
-		setLinkedSelected((prev) => toggleKey(prev, key));
-	}
+	const entries = entriesQuery.data?.entries ?? [];
+	const groups = entriesQuery.data?.groups ?? [];
 
-	function isEntrySelected(entry: {
-		name: string;
-		origin: string;
-		groupKey: string | null;
-	}): boolean {
-		if (entry.origin === "loose") return selected.has(entry.name);
-		if (!entry.groupKey) return false;
-		const key = `${entry.groupKey}/${entry.name}`;
-		return entry.origin === "folder" ? folderSelected.has(key) : linkedSelected.has(key);
-	}
+	const looseNames = useMemo(
+		() => new Set(entries.filter((entry) => entry.origin === "loose").map((entry) => entry.name)),
+		[entries],
+	);
+	const taskOptions = useMemo(
+		() => (tasksQuery.data ?? []).map((task) => ({ id: task.id, displayTitle: task.displayTitle })),
+		[tasksQuery.data],
+	);
 
-	// "Selecionar todos" de um grupo (cabeçalho): substitui a seleção da origem do grupo pelos seus
-	// arquivos e zera as outras duas (a exclusividade por origem vale também aqui). Um grupo é
-	// homogêneo em origem, então o primeiro item decide o destino.
-	function selectGroup(groupEntries: { name: string; origin: string; groupKey: string | null }[]) {
-		const first = groupEntries[0];
-		if (!first) return;
+	// Dados dos submenus do menu de tarefa: projetos de destino (exclui o atual), prioridades e
+	// categorias. Memoizado pra não recriar a lista a cada render do menu.
+	const taskMenuData = useMemo(
+		() => ({
+			projects: (projectsQuery.data ?? [])
+				.filter((project) => project.id !== selectedProjectId)
+				.map((project) => ({ id: project.id, name: project.name, color: project.color })),
+			priorities: (prioritiesQuery.data ?? []).map((priority) => ({
+				id: priority.id,
+				name: priority.name,
+				color: priority.color,
+			})),
+			categories: (categoriesQuery.data ?? []).map((category) => ({
+				id: category.id,
+				name: category.name,
+				color: category.color,
+			})),
+		}),
+		[projectsQuery.data, prioritiesQuery.data, categoriesQuery.data, selectedProjectId],
+	);
 
-		if (first.origin === "loose") {
-			setFolderSelected(new Set());
-			setLinkedSelected(new Set());
-			setSelected(new Set(groupEntries.map((entry) => entry.name)));
-			return;
-		}
+	const tree = useMemo(
+		() =>
+			buildVaultTree({
+				entries,
+				groups,
+				skills: taskSkills,
+				priorities: prioritiesQuery.data ?? [],
+				categories: categoriesQuery.data ?? [],
+				projectColor: selectedProject?.color ?? null,
+				hideCompleted,
+				taskSort,
+			}),
+		[
+			entries,
+			groups,
+			taskSkills,
+			prioritiesQuery.data,
+			categoriesQuery.data,
+			selectedProject?.color,
+			hideCompleted,
+			taskSort,
+		],
+	);
 
-		const keys = new Set(groupEntries.map((entry) => `${entry.groupKey}/${entry.name}`));
-		if (first.origin === "folder") {
-			setSelected(new Set());
-			setLinkedSelected(new Set());
-			setFolderSelected(keys);
-			return;
-		}
-		setSelected(new Set());
-		setFolderSelected(new Set());
-		setLinkedSelected(keys);
-	}
+	// Lookup nodeKey→entry: um nó selecionado pode estar sob pasta colapsada, então varre a árvore
+	// inteira (não só as folhas visíveis).
+	const entryByKey = useMemo(
+		() => new Map(collectFileLeaves(tree).map((leaf) => [leaf.key, leaf.entry])),
+		[tree],
+	);
 
-	function toggleCollapsed(key: string) {
-		setCollapsed((prev) => {
+	// Lookup do destino do drop: chave da pasta de tarefa → taskId.
+	const taskFolderByKey = useMemo(
+		() => new Map(collectTaskFolders(tree).map((folder) => [folder.key, folder.taskId])),
+		[tree],
+	);
+
+	// Busca poda a árvore e força os ancestrais dos acertos abertos, sem mexer no estado base.
+	const searching = Boolean(search.trim());
+	const filtered = useMemo(() => filterTree(tree, search), [tree, search]);
+	const visibleNodes = searching ? filtered.nodes : tree;
+	const visibleExpanded = useMemo(
+		() => (searching ? new Set([...expanded, ...filtered.forcedOpen]) : expanded),
+		[searching, expanded, filtered.forcedOpen],
+	);
+
+	function toggle(key: string) {
+		setExpanded((prev) => {
 			const next = new Set(prev);
 			if (next.has(key)) {
 				next.delete(key);
@@ -195,77 +239,99 @@ function VaultPage() {
 		});
 	}
 
-	const projectId = selectedProjectId ?? "";
-	const enabled = Boolean(selectedProjectId);
+	function openFile(entry: VaultEntry) {
+		if (entry.origin === "task" && entry.groupKey) {
+			navigate({
+				to: "/tarefas/$taskId/$file",
+				params: { taskId: entry.groupKey, file: entry.name },
+			});
+			return;
+		}
+		navigate({ to: "/vault/$fileName", params: { fileName: entry.name } });
+	}
 
-	// Endpoint agregador do vault: lista plana de arquivos (entries, metadata-only) + os grupos
-	// (pastas soltas e tasks). Cobre as três fontes que antes vinham de queries separadas.
-	const entriesQuery = useQuery({
-		...orpc.vault.listEntries.queryOptions({ input: { projectId } }),
-		enabled,
-	});
+	function openSkill(slug: string) {
+		navigate({ to: "/skills/$slug", params: { slug } });
+	}
 
-	// Todas as tasks do projeto (inclusive vazias) — alvo de "mover/redirecionar" nas barras de lote.
-	// O agregador do vault só devolve grupos com arquivo, então uma task vazia não apareceria como
-	// destino sem esta lista separada.
-	const tasksQuery = useQuery({
-		...orpc.tasks.listByProject.queryOptions({ input: { projectId } }),
-		enabled,
-	});
+	// Clique num arquivo: Shift = range, Ctrl/Cmd = toggle, simples = limpa seleção e abre (o
+	// inerte não abre, mas ainda deseleciona).
+	function onActivateFile(node: TreeNode, mods: ClickModifiers) {
+		if (node.kind !== "fileLeaf") return;
 
-	const entries = entriesQuery.data?.entries ?? [];
-	const groups = entriesQuery.data?.groups ?? [];
+		const origin = node.entry.origin;
+		const folderName = origin === "folder" ? node.entry.groupKey : null;
 
-	const looseNames = useMemo(
-		() => new Set(entries.filter((entry) => entry.origin === "loose").map((entry) => entry.name)),
-		[entries],
-	);
-	const taskGroups = useMemo(() => groups.filter((group) => group.kind === "task"), [groups]);
-	const folderGroups = useMemo(() => groups.filter((group) => group.kind === "folder"), [groups]);
+		if (mods.shift && anchorKey) {
+			rangeSelect(node, origin, folderName);
+			return;
+		}
+		if (mods.ctrl) {
+			toggleSelect(node, origin, folderName);
+			return;
+		}
+		clearSelection();
+		if (origin !== "folder") {
+			openFile(node.entry);
+		}
+	}
 
-	// Pipeline de filtros (Fatia 2): predicados sobre a lista plana, antes do agrupamento. O estado
-	// "pendentes" (padrão) é o que mantém as concluídas ocultas — o chip de estado as revela.
-	const taskGroupByKey = useMemo(
-		() => new Map(taskGroups.map((group) => [group.key, group])),
-		[taskGroups],
-	);
-	const filteredEntries = useMemo(
-		() => filterEntries(entries, filters, taskGroupByKey),
-		[entries, filters, taskGroupByKey],
-	);
-	// Grupos recompostos a partir das entries que sobreviveram: um grupo só aparece se tem arquivo
-	// no resultado filtrado.
-	const survivingKeys = useMemo(
-		() => new Set(filteredEntries.map((entry) => entry.groupKey).filter((key) => key !== null)),
-		[filteredEntries],
-	);
-	const visibleTaskGroups = useMemo(
-		() => taskGroups.filter((group) => survivingKeys.has(group.key)),
-		[taskGroups, survivingKeys],
-	);
-	const visibleFolderGroups = useMemo(
-		() => folderGroups.filter((group) => survivingKeys.has(group.key)),
-		[folderGroups, survivingKeys],
-	);
+	function toggleSelect(node: TreeNode, origin: SelectionOrigin, folderName: string | null) {
+		setSelection((prev) => {
+			const compatible =
+				prev.keys.size > 0 &&
+				prev.origin === origin &&
+				(origin !== "folder" || prev.folderName === folderName);
+			const keys = compatible ? new Set(prev.keys) : new Set<string>();
+			if (keys.has(node.key)) {
+				keys.delete(node.key);
+			} else {
+				keys.add(node.key);
+			}
+			return { origin, folderName, keys };
+		});
+		setAnchorKey(node.key);
+	}
 
-	// Atalhos de colapsar/expandir tudo (só na visão agrupada). As chaves seguem o formato que
-	// VaultGroupedView usa: `folder:<key>` e `task:<key>`.
-	function collapseAllGroups() {
+	// Range sobre as folhas visíveis (ordem de exibição). Mantém a âncora fixa entre Shift-cliques.
+	// Task pode atravessar várias tarefas (mover/soltar carregam o taskId por arquivo); folder fica
+	// presa à mesma pasta. Âncora de origem incompatível vira seleção única nova.
+	function rangeSelect(node: TreeNode, origin: SelectionOrigin, folderName: string | null) {
+		if (node.kind !== "fileLeaf") return;
+
+		const leaves = flattenVisibleLeaves(visibleNodes, visibleExpanded);
+		const anchorIndex = leaves.findIndex((leaf) => leaf.key === anchorKey);
+		const anchorLeaf = anchorIndex === -1 ? null : leaves[anchorIndex];
+		const incompatibleAnchor =
+			!anchorLeaf ||
+			anchorLeaf.entry.origin !== origin ||
+			(origin === "folder" && anchorLeaf.entry.groupKey !== folderName);
+
+		if (incompatibleAnchor) {
+			setSelection({ origin, folderName, keys: new Set([node.key]) });
+			setAnchorKey(node.key);
+			return;
+		}
+
+		const targetIndex = leaves.findIndex((leaf) => leaf.key === node.key);
+		const [lo, hi] =
+			anchorIndex <= targetIndex ? [anchorIndex, targetIndex] : [targetIndex, anchorIndex];
 		const keys = new Set<string>();
-		for (const group of visibleFolderGroups) keys.add(`folder:${group.key}`);
-		for (const group of visibleTaskGroups) keys.add(`task:${group.key}`);
-		setCollapsed(keys);
+		for (const leaf of leaves.slice(lo, hi + 1)) {
+			if (leaf.entry.origin !== origin) continue;
+			if (origin === "folder" && leaf.entry.groupKey !== folderName) continue;
+			keys.add(leaf.key);
+		}
+		setSelection({ origin, folderName, keys });
 	}
 
-	function expandAllGroups() {
-		setCollapsed(new Set());
-	}
-	const looseCount = looseNames.size;
-	// Opções de destino das barras de lote: todas as tasks do projeto, inclusive as vazias (alvo de
-	// redirecionar), via tasksQuery — não só os grupos com arquivo.
-	const taskOptions = useMemo(
-		() => (tasksQuery.data ?? []).map((task) => ({ id: task.id, displayTitle: task.displayTitle })),
-		[tasksQuery.data],
+	const selectedEntries = useMemo(
+		() =>
+			[...selection.keys].flatMap((key) => {
+				const entry = entryByKey.get(key);
+				return entry ? [entry] : [];
+			}),
+		[selection.keys, entryByKey],
 	);
 
 	async function invalidateVaultAndTasks() {
@@ -280,17 +346,10 @@ function VaultPage() {
 		...orpc.vault.linkToTask.mutationOptions(),
 		onSuccess: async (result) => {
 			await invalidateVaultAndTasks();
-			if (result.renamed.length > 0) {
-				const renames = result.renamed.map((file) => `${file.name} → ${file.finalName}`).join(", ");
-				toast.success(`${result.count} arquivada(s) — renomeada(s) por conflito: ${renames}`);
-			} else {
-				toast.success(
-					result.count === 1
-						? "Nota arquivada na tarefa"
-						: `${result.count} notas arquivadas na tarefa`,
-				);
-			}
-			setSelected(new Set());
+			clearSelection();
+			toast.success(
+				result.count === 1 ? "Nota vinculada à tarefa" : `${result.count} notas vinculadas`,
+			);
 		},
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível vincular"),
 	});
@@ -299,10 +358,10 @@ function VaultPage() {
 		...orpc.vault.moveToTask.mutationOptions(),
 		onSuccess: async (result) => {
 			await invalidateVaultAndTasks();
+			clearSelection();
 			toast.success(
 				result.count === 1 ? "Arquivo movido para a tarefa" : `${result.count} arquivos movidos`,
 			);
-			setLinkedSelected(new Set());
 		},
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível mover"),
 	});
@@ -311,10 +370,10 @@ function VaultPage() {
 		...orpc.vault.moveFolderFilesToTask.mutationOptions(),
 		onSuccess: async (result) => {
 			await invalidateVaultAndTasks();
+			clearSelection();
 			toast.success(
 				result.count === 1 ? "Arquivo movido para a tarefa" : `${result.count} arquivos movidos`,
 			);
-			setFolderSelected(new Set());
 		},
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível mover"),
 	});
@@ -323,25 +382,14 @@ function VaultPage() {
 		...orpc.vault.unlink.mutationOptions(),
 		onSuccess: async (result) => {
 			await invalidateVaultAndTasks();
-			if (result.renamed.length > 0) {
-				const renames = result.renamed.map((file) => `${file.name} → ${file.finalName}`).join(", ");
-				toast.success(`${result.count} soltas — renomeadas por conflito: ${renames}`);
-			} else {
-				toast.success(
-					result.count === 1
-						? "Arquivo solto no vault"
-						: `${result.count} arquivos soltos no vault`,
-				);
-			}
-			setLinkedSelected(new Set());
+			clearSelection();
+			toast.success(
+				result.count === 1 ? "Arquivo solto no vault" : `${result.count} arquivos soltos no vault`,
+			);
 		},
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível soltar"),
 	});
 
-	const createTaskMutation = useMutation(orpc.tasks.create.mutationOptions());
-
-	// Transforma uma pasta solta em tarefa (aponta a task nova pra pasta existente, sem mover
-	// arquivo). A pasta deixa de ser grupo "folder" e passa a aparecer como grupo "task".
 	const adoptFolderMutation = useMutation({
 		...orpc.vault.adoptFolder.mutationOptions(),
 		onSuccess: async () => {
@@ -352,7 +400,37 @@ function VaultPage() {
 			toast.error(err instanceof Error ? err.message : "Não foi possível transformar a pasta"),
 	});
 
-	// Cria um `.md` solto na raiz do vault com um H1 inicial e abre a nota pra editar.
+	const promoteMutation = useMutation({
+		...orpc.vault.promote.mutationOptions(),
+		onSuccess: async (result) => {
+			await invalidateVaultAndTasks();
+			toast.success("Nota transformada em tarefa");
+			navigate({ to: "/tarefas/$taskId", params: { taskId: result.id } });
+		},
+		onError: (err) =>
+			toast.error(err instanceof Error ? err.message : "Não foi possível transformar a nota"),
+	});
+
+	const renameMutation = useMutation({
+		...orpc.vault.renameFile.mutationOptions(),
+		onSuccess: async () => {
+			await invalidateVaultAndTasks();
+			setRenaming(null);
+			toast.success("Nota renomeada");
+		},
+		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível renomear"),
+	});
+
+	const deleteMutation = useMutation({
+		...orpc.vault.deleteFile.mutationOptions(),
+		onSuccess: async () => {
+			await invalidateVaultAndTasks();
+			setDeleting(null);
+			toast.success("Nota deletada");
+		},
+		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível deletar"),
+	});
+
 	const createNoteMutation = useMutation({
 		...orpc.vault.writeFile.mutationOptions(),
 		onSuccess: async (_result, variables) => {
@@ -364,6 +442,215 @@ function VaultPage() {
 			toast.error(err instanceof Error ? err.message : "Não foi possível criar a nota"),
 	});
 
+	const updateTaskMutation = useMutation({
+		...orpc.tasks.update.mutationOptions(),
+		onSuccess: async () => {
+			await invalidateVaultAndTasks();
+			setRenamingTask(null);
+		},
+		onError: (err) =>
+			toast.error(err instanceof Error ? err.message : "Não foi possível atualizar a tarefa"),
+	});
+
+	const setTaskDoneMutation = useMutation({
+		...orpc.tasks.setDone.mutationOptions(),
+		onSuccess: async (task) => {
+			await invalidateVaultAndTasks();
+			toast.success(task?.done ? "Tarefa concluída" : "Tarefa reaberta");
+		},
+		onError: (err) =>
+			toast.error(err instanceof Error ? err.message : "Não foi possível atualizar a tarefa"),
+	});
+
+	const removeTaskMutation = useMutation({
+		...orpc.tasks.remove.mutationOptions(),
+		onSuccess: async () => {
+			await invalidateVaultAndTasks();
+			setDeletingTask(null);
+			toast.success("Tarefa excluída");
+		},
+		onError: (err) =>
+			toast.error(err instanceof Error ? err.message : "Não foi possível excluir a tarefa"),
+	});
+
+	const moveTaskToProjectMutation = useMutation({
+		...orpc.tasks.moveToProject.mutationOptions(),
+		onSuccess: async () => {
+			await invalidateVaultAndTasks();
+			toast.success("Tarefa movida para o projeto");
+		},
+		onError: (err) =>
+			toast.error(err instanceof Error ? err.message : "Não foi possível mover a tarefa"),
+	});
+
+	// Despacho único de movimento: o par (origem, destino) escolhe a mutation. Mesmo caminho pro
+	// menu de contexto (single/lote) e pro drag-and-drop. `dest` = tarefa alvo ou a raiz solta.
+	function dispatchMove(
+		entries: VaultEntry[],
+		origin: SelectionOrigin,
+		folderName: string | null,
+		dest: { taskId: string } | "root",
+	) {
+		if (entries.length === 0) return;
+
+		if (dest === "root") {
+			if (origin !== "task") return;
+			unlinkMutation.mutate({
+				projectId,
+				files: entries.flatMap((entry) =>
+					entry.groupKey ? [{ taskId: entry.groupKey, name: entry.name }] : [],
+				),
+			});
+			return;
+		}
+
+		const taskId = dest.taskId;
+		if (origin === "loose") {
+			linkMutation.mutate({
+				projectId,
+				taskId,
+				files: entries.map((entry) => ({ name: entry.name })),
+			});
+			return;
+		}
+		if (origin === "task") {
+			// Pula arquivos que já estão na tarefa alvo (drop na própria tarefa = no-op parcial).
+			const files = entries.flatMap((entry) =>
+				entry.groupKey && entry.groupKey !== taskId
+					? [{ taskId: entry.groupKey, name: entry.name }]
+					: [],
+			);
+			if (files.length === 0) return;
+			moveMutation.mutate({ projectId, targetTaskId: taskId, files });
+			return;
+		}
+		// origin === "folder"
+		if (!folderName) return;
+		moveFolderMutation.mutate({
+			projectId,
+			folderName,
+			targetTaskId: taskId,
+			files: entries.map((entry) => entry.name),
+		});
+	}
+
+	// Picker de tarefa de um nó só: monta o payload e cai no dispatch.
+	function pickTask(node: TreeNode, taskId: string) {
+		if (node.kind === "looseFolder") {
+			dispatchMove(folderEntries(node), "folder", node.folderName, { taskId });
+			return;
+		}
+		if (node.kind !== "fileLeaf") return;
+
+		const origin = node.entry.origin;
+		const folderName = origin === "folder" ? node.entry.groupKey : null;
+		dispatchMove([node.entry], origin, folderName, { taskId });
+	}
+
+	const actions: TreeActions = {
+		onRename: (node) => {
+			if (node.kind === "fileLeaf") setRenaming({ name: node.entry.name, value: node.entry.name });
+		},
+		onDelete: (node) => {
+			if (node.kind === "fileLeaf") setDeleting(node.entry.name);
+		},
+		onPromote: (node) => {
+			if (node.kind === "fileLeaf") promoteMutation.mutate({ projectId, name: node.entry.name });
+		},
+		onAdopt: (node) => {
+			if (node.kind === "looseFolder") {
+				adoptFolderMutation.mutate({ projectId, folderName: node.folderName });
+			}
+		},
+		onUnlink: (node) => {
+			if (node.kind === "fileLeaf" && node.entry.origin === "task") {
+				dispatchMove([node.entry], "task", null, "root");
+			}
+		},
+		onPickTask: pickTask,
+		onOpenTask: (node) => navigate({ to: "/tarefas/$taskId", params: { taskId: node.taskId } }),
+		onRenameTask: (node) => {
+			// Pré-preenche com o título cru (não o displayTitle derivado do conteúdo): renomear edita o
+			// título de verdade. A task sem título abre o input vazio.
+			const task = tasksQuery.data?.find((item) => item.id === node.taskId);
+			setRenamingTask({ id: node.taskId, value: task?.title ?? "" });
+		},
+		onSetTaskPriority: (node, priorityId) =>
+			updateTaskMutation.mutate({ id: node.taskId, priorityId }),
+		onSetTaskCategory: (node, categoryId) =>
+			updateTaskMutation.mutate({ id: node.taskId, categoryId }),
+		onToggleTaskDone: (node) => setTaskDoneMutation.mutate({ id: node.taskId, done: !node.done }),
+		onMoveTaskToProject: (node, projectId) =>
+			moveTaskToProjectMutation.mutate({ id: node.taskId, targetProjectId: projectId }),
+		onDeleteTask: (node) => setDeletingTask({ id: node.taskId, title: node.label }),
+	};
+
+	// Picker do menu de lote: pra task, exclui TODAS as tarefas de origem (não só uma).
+	const selectedSourceTaskIds = useMemo(
+		() =>
+			selection.origin === "task"
+				? new Set(selectedEntries.map((entry) => entry.groupKey))
+				: new Set<string | null>(),
+		[selection.origin, selectedEntries],
+	);
+	const batchTaskOptions =
+		selection.origin === "task"
+			? taskOptions.filter((task) => !selectedSourceTaskIds.has(task.id))
+			: taskOptions;
+
+	function batchPickTask(taskId: string) {
+		dispatchMove(selectedEntries, selection.origin, selection.folderName, { taskId });
+	}
+
+	function batchUnlink() {
+		dispatchMove(selectedEntries, "task", null, "root");
+	}
+
+	function onDragStart(event: DragStartEvent) {
+		const key = String(event.active.id);
+		const entry = entryByKey.get(key);
+		if (!entry) {
+			setDrag(null);
+			return;
+		}
+		if (selection.keys.has(key)) {
+			setDrag({
+				entries: selectedEntries,
+				origin: selection.origin,
+				folderName: selection.folderName,
+			});
+			return;
+		}
+		const origin = entry.origin;
+		setDrag({ entries: [entry], origin, folderName: origin === "folder" ? entry.groupKey : null });
+	}
+
+	function onDragEnd(event: DragEndEvent) {
+		const payload = drag;
+		const overId = event.over ? String(event.over.id) : null;
+		setDrag(null);
+		if (!payload || !overId) return;
+
+		if (overId === ROOT_DROP_ID) {
+			dispatchMove(payload.entries, payload.origin, payload.folderName, "root");
+			return;
+		}
+		const taskId = taskFolderByKey.get(overId);
+		if (taskId) {
+			dispatchMove(payload.entries, payload.origin, payload.folderName, { taskId });
+		}
+	}
+
+	// Pasta de tarefa é destino válido enquanto há arraste. Filtra a própria tarefa só quando a
+	// origem é task e a seleção inteira vem dela (drop nela seria no-op).
+	function canDrop(node: TreeNode) {
+		if (!drag || node.kind !== "taskFolder") return false;
+		if (drag.origin === "task" && drag.entries.every((entry) => entry.groupKey === node.taskId)) {
+			return false;
+		}
+		return true;
+	}
+
 	function confirmCreateNote() {
 		if (creatingTitle === null) return;
 		const base = creatingTitle.trim().replaceAll(/[/\\]/g, "-").replace(/^\.+/, "");
@@ -374,55 +661,8 @@ function VaultPage() {
 			toast.error("Já existe uma nota com esse nome");
 			return;
 		}
-
 		createNoteMutation.mutate({ projectId, name, content: `# ${base}\n\n` });
 	}
-
-	// Cria a tarefa de destino com a pasta vazia (seed: false), pra os arquivos redirecionados
-	// entrarem sem colidir com um index.md de boilerplate. Devolve o id pra encadear o redirect.
-	async function createTaskForRedirect(payload: NewTaskPayload): Promise<string | null> {
-		try {
-			const task = await createTaskMutation.mutateAsync({ projectId, ...payload, seed: false });
-			if (!task) throw new Error("Não foi possível criar a tarefa");
-			return task.id;
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Não foi possível criar a tarefa");
-			return null;
-		}
-	}
-
-	const renameMutation = useMutation({
-		...orpc.vault.renameFile.mutationOptions(),
-		onSuccess: async (result) => {
-			await invalidateVaultAndTasks();
-			setSelected((prev) => {
-				if (!prev.has(result.oldName)) return prev;
-				const next = new Set(prev);
-				next.delete(result.oldName);
-				next.add(result.newName);
-				return next;
-			});
-			setRenaming(null);
-			toast.success("Nota renomeada");
-		},
-		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível renomear"),
-	});
-
-	const deleteMutation = useMutation({
-		...orpc.vault.deleteFile.mutationOptions(),
-		onSuccess: async (result) => {
-			await invalidateVaultAndTasks();
-			setSelected((prev) => {
-				if (!prev.has(result.name)) return prev;
-				const next = new Set(prev);
-				next.delete(result.name);
-				return next;
-			});
-			setDeleting(null);
-			toast.success("Nota deletada");
-		},
-		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível deletar"),
-	});
 
 	function confirmRename() {
 		if (!renaming) return;
@@ -438,91 +678,6 @@ function VaultPage() {
 		renameMutation.mutate({ projectId, oldName: renaming.name, newName });
 	}
 
-	function linkSelected(taskId: string, targetName?: string) {
-		const names = [...selected];
-		linkMutation.mutate({
-			projectId,
-			taskId,
-			files: names.map((name, index) => ({
-				name,
-				targetName: names.length === 1 && index === 0 ? targetName : undefined,
-			})),
-		});
-	}
-
-	async function linkSelectedToNew(payload: NewTaskPayload, targetName?: string) {
-		const id = await createTaskForRedirect(payload);
-		if (id) linkSelected(id, targetName);
-	}
-
-	// Reverte a chave taskId/name de volta pra { taskId, name }. Só o primeiro "/" separa:
-	// nomes de arquivo nunca têm "/" (bloqueado pelo schema), mas o split limitado é defensivo.
-	const linkedFiles = useMemo(
-		() =>
-			[...linkedSelected].map((key) => {
-				const slash = key.indexOf("/");
-				return { taskId: key.slice(0, slash), name: key.slice(slash + 1) };
-			}),
-		[linkedSelected],
-	);
-
-	const linkedSourceTaskIds = useMemo(
-		() => new Set(linkedFiles.map((file) => file.taskId)),
-		[linkedFiles],
-	);
-
-	function moveSelected(targetTaskId: string) {
-		moveMutation.mutate({ projectId, targetTaskId, files: linkedFiles });
-	}
-
-	async function moveSelectedToNew(payload: NewTaskPayload) {
-		const id = await createTaskForRedirect(payload);
-		if (id) moveSelected(id);
-	}
-
-	function unlinkSelected() {
-		unlinkMutation.mutate({ projectId, files: linkedFiles });
-	}
-
-	// Arquivos da pasta solta selecionados, com a pasta de origem (única por seleção).
-	const folderFiles = useMemo(
-		() =>
-			[...folderSelected].map((key) => {
-				const slash = key.indexOf("/");
-				return { folderName: key.slice(0, slash), name: key.slice(slash + 1) };
-			}),
-		[folderSelected],
-	);
-	const activeFolderName = folderFiles[0]?.folderName ?? null;
-
-	function moveFolderSelected(targetTaskId: string) {
-		if (!activeFolderName) return;
-		moveFolderMutation.mutate({
-			projectId,
-			folderName: activeFolderName,
-			targetTaskId,
-			files: folderFiles.map((file) => file.name),
-		});
-	}
-
-	async function moveFolderSelectedToNew(payload: NewTaskPayload) {
-		const id = await createTaskForRedirect(payload);
-		if (id) moveFolderSelected(id);
-	}
-
-	// Abre um arquivo: task → rota da aba da tarefa; loose → rota da nota solta. Arquivos de pasta
-	// solta não têm rota de edição (ficam só leitura na visão agrupada), então nunca chegam aqui.
-	function openEntry(entry: { name: string; origin: string; groupKey: string | null }) {
-		if (entry.origin === "task" && entry.groupKey) {
-			navigate({
-				to: "/tarefas/$taskId/$file",
-				params: { taskId: entry.groupKey, file: entry.name },
-			});
-			return;
-		}
-		navigate({ to: "/vault/$fileName", params: { fileName: entry.name } });
-	}
-
 	if (!selectedProjectId) {
 		return (
 			<PageShell title="Vault" icon={Library}>
@@ -533,18 +688,17 @@ function VaultPage() {
 		);
 	}
 
-	const selectedNames = [...selected];
-	const isLoading = entriesQuery.isLoading;
-	// Busca força o modo plano (resultados sobre nome+título), ignorando o toggle de agrupamento.
-	const showFlat = grouping === "flat" || Boolean(search.trim());
+	const looseCount = looseNames.size;
+	const folderCount = groups.filter((group) => group.kind === "folder").length;
+	const taskCount = groups.filter((group) => group.kind === "task").length;
 
 	return (
 		<PageShell
 			title="Vault"
 			icon={Library}
-			description={`${looseCount} soltas · ${folderGroups.length} pastas · ${taskGroups.length} em tarefas de ${selectedProject?.name ?? "projeto"}`}
+			description={`${looseCount} soltas · ${folderCount} pastas · ${taskCount} em tarefas de ${selectedProject?.name ?? "projeto"}`}
 		>
-			{isLoading ? (
+			{entriesQuery.isLoading ? (
 				<div className="flex items-center gap-2 text-muted-foreground">
 					<Loader2 size={16} className="animate-spin" />
 					<Text size="sm" tone="muted">
@@ -552,7 +706,7 @@ function VaultPage() {
 					</Text>
 				</div>
 			) : (
-				<div className="relative flex h-full min-h-0 flex-col">
+				<div className="flex h-full min-h-0 flex-col">
 					<div className="mb-4 flex items-center gap-1">
 						<div className="relative flex-1">
 							<Search
@@ -569,234 +723,133 @@ function VaultPage() {
 						</div>
 						<Divider />
 
-						{!showFlat && (
-							<>
-								<Tooltip label="Colapsar tudo">
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon-sm"
-										aria-label="Colapsar tudo"
-										className="text-muted-foreground"
-										onClick={collapseAllGroups}
-									>
-										<ChevronsDownUp className="size-4" />
-									</Button>
-								</Tooltip>
-								<Tooltip label="Expandir tudo">
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon-sm"
-										aria-label="Expandir tudo"
-										className="text-muted-foreground"
-										onClick={expandAllGroups}
-									>
-										<ChevronsUpDown className="size-4" />
-									</Button>
-								</Tooltip>
-								<Divider />
-							</>
-						)}
-
-						<Tooltip label="Agrupar por tarefa">
+						<Tooltip label="Colapsar tudo">
 							<Button
 								type="button"
-								variant={grouping === "grouped" && !search.trim() ? "secondary" : "ghost"}
+								variant="ghost"
 								size="icon-sm"
-								aria-label="Agrupar por tarefa"
-								aria-pressed={grouping === "grouped" && !search.trim()}
-								className={cn(showFlat && "text-muted-foreground")}
-								onClick={() => setGrouping("grouped")}
+								aria-label="Colapsar tudo"
+								className="text-muted-foreground"
+								onClick={() => setExpanded(new Set())}
 							>
-								<ListTree className="size-4" />
+								<ChevronsDownUp className="size-4" />
 							</Button>
 						</Tooltip>
-						<Tooltip label="Lista plana">
+						<Tooltip label="Expandir tudo">
 							<Button
 								type="button"
-								variant={showFlat ? "secondary" : "ghost"}
+								variant="ghost"
 								size="icon-sm"
-								aria-label="Lista plana"
-								aria-pressed={showFlat}
-								className={cn(!showFlat && "text-muted-foreground")}
-								onClick={() => setGrouping("flat")}
+								aria-label="Expandir tudo"
+								className="text-muted-foreground"
+								onClick={() => setExpanded(new Set(collectFolderKeys(tree)))}
 							>
-								<LayoutGrid className="size-4" />
+								<ChevronsUpDown className="size-4" />
 							</Button>
 						</Tooltip>
-
 						<Divider />
 
-						<VaultFilters filters={filters} onChange={setFilters} />
-						<Tooltip label="Selecionar vários arquivos para vincular, mover ou soltar">
+						<Tooltip label={hideCompleted ? "Mostrar concluídas" : "Ocultar concluídas"}>
 							<Button
 								type="button"
-								variant={organizing ? "secondary" : "ghost"}
-								size="sm"
-								onClick={toggleOrganizing}
-								aria-pressed={organizing}
+								variant={hideCompleted ? "secondary" : "ghost"}
+								size="icon-sm"
+								aria-label="Ocultar tarefas concluídas"
+								aria-pressed={hideCompleted}
+								className={hideCompleted ? undefined : "text-muted-foreground"}
+								onClick={() => setHideCompleted((prev) => !prev)}
 							>
-								<CheckSquare className="size-4" />
-								{organizing ? "Selecionando" : "Selecionar"}
+								<CircleCheck className="size-4" />
+							</Button>
+						</Tooltip>
+						<Divider />
+
+						<Tooltip label="Nova nota solta">
+							<Button type="button" variant="ghost" size="sm" onClick={() => setCreatingTitle("")}>
+								<Plus className="size-4" />
+								Nova nota
 							</Button>
 						</Tooltip>
 					</div>
 
-					<div className="min-h-0 flex-1 overflow-y-auto pr-2">
-						{showFlat ? (
-							<VaultBrowser
-								entries={filteredEntries}
-								search={search}
-								organizing={organizing}
-								onOpen={openEntry}
-								onSelect={selectEntry}
-								isSelected={isEntrySelected}
-								onCreateLoose={() => setCreatingTitle("")}
-								onRenameLoose={(name) => setRenaming({ name, value: name })}
-								onDeleteLoose={(name) => setDeleting(name)}
-							/>
-						) : (
-							<VaultGroupedView
-								entries={filteredEntries}
-								taskGroups={visibleTaskGroups}
-								folderGroups={visibleFolderGroups}
-								collapsed={collapsed}
-								organizing={organizing}
-								onToggleCollapse={toggleCollapsed}
-								onOpen={openEntry}
-								onSelect={selectEntry}
-								onSelectGroup={selectGroup}
-								isSelected={isEntrySelected}
-								onCreateLoose={() => setCreatingTitle("")}
-								onRenameLoose={(name) => setRenaming({ name, value: name })}
-								onDeleteLoose={(name) => setDeleting(name)}
-								onAdoptFolder={(folderName) =>
-									adoptFolderMutation.mutate({ projectId, folderName })
-								}
-								adoptingFolder={
-									adoptFolderMutation.isPending
-										? (adoptFolderMutation.variables?.folderName ?? null)
-										: null
-								}
-							/>
-						)}
-					</div>
-
-					{organizing && folderFiles.length > 0 && (
-						<div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
-							<div className="pointer-events-auto flex items-center gap-3 border border-border bg-card px-3 py-2 shadow-xl">
-								<Text size="sm" className="font-mono tabular-nums">
-									{folderFiles.length} de {activeFolderName}
-								</Text>
-								<LinkTaskPopover
-									tasks={taskOptions}
-									loading={tasksQuery.isLoading}
-									fileNames={folderFiles.map((file) => file.name)}
-									pending={moveFolderMutation.isPending || createTaskMutation.isPending}
-									allowRename={false}
-									verb="mover"
-									onConfirm={(taskId) => moveFolderSelected(taskId)}
-									onConfirmNew={(payload) => void moveFolderSelectedToNew(payload)}
-								>
-									<Button
-										size="sm"
-										disabled={moveFolderMutation.isPending || createTaskMutation.isPending}
-									>
-										{moveFolderMutation.isPending ? (
-											<Loader2 size={14} className="animate-spin" />
-										) : (
-											<FolderInput size={14} />
-										)}
-										Mover para tarefa
-									</Button>
-								</LinkTaskPopover>
-								<Button variant="ghost" size="sm" onClick={() => setFolderSelected(new Set())}>
-									<X size={14} />
-									Limpar
-								</Button>
-							</div>
+					{selection.keys.size > 0 && (
+						<div className="mb-2 flex items-center justify-between border border-border bg-card px-3 py-1.5">
+							<Text size="sm" className="font-mono tabular-nums">
+								{selection.keys.size} selecionada{selection.keys.size > 1 ? "s" : ""} · botão
+								direito para ações
+							</Text>
+							<Button variant="ghost" size="sm" onClick={clearSelection}>
+								<X className="size-4" />
+								Limpar
+							</Button>
 						</div>
 					)}
 
-					{organizing && linkedFiles.length > 0 && (
-						<div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
-							<div className="pointer-events-auto flex items-center gap-3 border border-border bg-card px-3 py-2 shadow-xl">
-								<Text size="sm" className="font-mono tabular-nums">
-									{linkedFiles.length} vinculada{linkedFiles.length > 1 ? "s" : ""}
-								</Text>
-								<LinkTaskPopover
-									tasks={taskOptions.filter((task) => !linkedSourceTaskIds.has(task.id))}
-									loading={tasksQuery.isLoading}
-									fileNames={linkedFiles.map((file) => file.name)}
-									pending={moveMutation.isPending || createTaskMutation.isPending}
-									allowRename={false}
-									verb="mover"
-									onConfirm={(taskId) => moveSelected(taskId)}
-									onConfirmNew={(payload) => void moveSelectedToNew(payload)}
-								>
-									<Button size="sm" disabled={moveMutation.isPending || unlinkMutation.isPending}>
-										{moveMutation.isPending ? (
-											<Loader2 size={14} className="animate-spin" />
-										) : (
-											<FolderInput size={14} />
-										)}
-										Mover para tarefa
-									</Button>
-								</LinkTaskPopover>
-								<Button
-									variant="outline"
-									size="sm"
-									disabled={moveMutation.isPending || unlinkMutation.isPending}
-									onClick={unlinkSelected}
-								>
-									{unlinkMutation.isPending ? (
-										<Loader2 size={14} className="animate-spin" />
-									) : (
-										<Unlink size={14} />
-									)}
-									Soltar
-								</Button>
-								<Button variant="ghost" size="sm" onClick={() => setLinkedSelected(new Set())}>
-									<X size={14} />
-									Limpar
-								</Button>
-							</div>
-						</div>
-					)}
+					<DndContext
+						sensors={sensors}
+						collisionDetection={pointerWithin}
+						onDragStart={onDragStart}
+						onDragEnd={onDragEnd}
+						onDragCancel={() => setDrag(null)}
+					>
+						{drag?.origin === "task" && <RootDropZone />}
 
-					{organizing && selectedNames.length > 0 && (
-						<div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
-							<div className="pointer-events-auto flex items-center gap-3 border border-border bg-card px-3 py-2 shadow-xl">
-								<Text size="sm" className="font-mono tabular-nums">
-									{selectedNames.length} selecionada{selectedNames.length > 1 ? "s" : ""}
+						<div className="min-h-0 flex-1 overflow-y-auto pr-2">
+							{searching && visibleNodes.length === 0 ? (
+								<Text size="sm" tone="muted" className="px-2 py-1 font-mono">
+									Nada encontrado para “{search.trim()}”.
 								</Text>
-								<LinkTaskPopover
-									tasks={taskOptions}
-									loading={tasksQuery.isLoading}
-									fileNames={selectedNames}
-									pending={linkMutation.isPending || createTaskMutation.isPending}
-									onConfirm={linkSelected}
-									onConfirmNew={(payload, targetName) =>
-										void linkSelectedToNew(payload, targetName)
+							) : (
+								<Tree
+									nodes={visibleNodes}
+									expanded={visibleExpanded}
+									selectedKeys={selection.keys}
+									onToggle={toggle}
+									onActivateFile={onActivateFile}
+									onOpenSkill={openSkill}
+									canDrop={canDrop}
+									renderAccessory={(node) =>
+										node.key === TAREFAS_KEY ? (
+											<TaskSortControl mode={taskSort} onChange={setTaskSort} />
+										) : null
 									}
-								>
-									<Button size="sm" disabled={linkMutation.isPending}>
-										{linkMutation.isPending ? (
-											<Loader2 size={14} className="animate-spin" />
+									wrapNode={(node, row) =>
+										node.kind === "fileLeaf" && selection.keys.has(node.key) ? (
+											<TreeBatchMenu
+												origin={selection.origin}
+												count={selection.keys.size}
+												tasks={batchTaskOptions}
+												onPickTask={batchPickTask}
+												onUnlink={batchUnlink}
+											>
+												{row}
+											</TreeBatchMenu>
 										) : (
-											<Link2 size={14} />
-										)}
-										Vincular a tarefa
-									</Button>
-								</LinkTaskPopover>
-								<Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
-									<X size={14} />
-									Limpar
-								</Button>
-							</div>
+											<TreeNodeMenu
+												node={node}
+												tasks={taskOptions}
+												taskMenuData={taskMenuData}
+												actions={actions}
+											>
+												{row}
+											</TreeNodeMenu>
+										)
+									}
+								/>
+							)}
 						</div>
-					)}
+
+						<DragOverlay dropAnimation={null}>
+							{drag ? (
+								<div className="pointer-events-none flex items-center gap-1.5 border border-primary bg-card px-2 py-1 shadow-lg">
+									<Files className="size-3.5 text-primary" />
+									<Text size="xs" className="font-mono">
+										{drag.entries.length} arquivo{drag.entries.length > 1 ? "s" : ""}
+									</Text>
+								</div>
+							) : null}
+						</DragOverlay>
+					</DndContext>
 				</div>
 			)}
 
@@ -891,10 +944,128 @@ function VaultPage() {
 				variant="danger"
 				loading={deleteMutation.isPending}
 			/>
+
+			{renamingTask && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center">
+					<button
+						type="button"
+						aria-label="Fechar"
+						onClick={() => setRenamingTask(null)}
+						className="absolute inset-0 bg-black/50"
+					/>
+					<form
+						onSubmit={(e) => {
+							e.preventDefault();
+							updateTaskMutation.mutate({ id: renamingTask.id, title: renamingTask.value.trim() });
+						}}
+						className="relative z-10 w-full max-w-md border border-border bg-background p-6 shadow-lg animate-in fade-in-0 zoom-in-95"
+					>
+						<Text size="sm" tone="muted" className="mb-3">
+							Renomear tarefa
+						</Text>
+						<Input
+							autoFocus
+							value={renamingTask.value}
+							onChange={(e) => setRenamingTask({ id: renamingTask.id, value: e.target.value })}
+							placeholder="Título da tarefa"
+							className="text-sm"
+							aria-label="Novo título"
+						/>
+						<div className="mt-6 flex justify-end gap-3">
+							<Button type="button" variant="outline" onClick={() => setRenamingTask(null)}>
+								Cancelar
+							</Button>
+							<Button type="submit" disabled={updateTaskMutation.isPending}>
+								{updateTaskMutation.isPending ? "Aguarde..." : "Renomear"}
+							</Button>
+						</div>
+					</form>
+				</div>
+			)}
+
+			<ConfirmDialog
+				open={deletingTask !== null}
+				onClose={() => setDeletingTask(null)}
+				onConfirm={() => deletingTask && removeTaskMutation.mutate({ id: deletingTask.id })}
+				title="Excluir tarefa"
+				description={
+					deletingTask
+						? `“${deletingTask.title}” e todos os seus arquivos serão removidos permanentemente.`
+						: undefined
+				}
+				confirmLabel="Excluir"
+				variant="danger"
+				loading={removeTaskMutation.isPending}
+			/>
 		</PageShell>
 	);
 }
 
 function Divider() {
 	return <div className="mx-1 h-5 w-px shrink-0 bg-border" />;
+}
+
+const SORT_OPTIONS: { mode: TaskSortMode; label: string; icon: typeof Clock }[] = [
+	{ mode: "recente", label: "Mais recentes", icon: Clock },
+	{ mode: "prioridade", label: "Por prioridade", icon: Flame },
+	{ mode: "categoria", label: "Por categoria", icon: LayoutGrid },
+];
+
+// Ordenação inline das pastas de tarefa, irmã do botão da linha "Tarefas". `stopPropagation` evita
+// que o clique colapse/expanda a pasta.
+function TaskSortControl({
+	mode,
+	onChange,
+}: {
+	mode: TaskSortMode;
+	onChange: (mode: TaskSortMode) => void;
+}) {
+	return (
+		<div className="flex shrink-0 items-center gap-0.5 pr-2">
+			{SORT_OPTIONS.map((option) => {
+				const active = option.mode === mode;
+				return (
+					<Tooltip key={option.mode} label={option.label}>
+						<Button
+							type="button"
+							variant={active ? "secondary" : "ghost"}
+							size="icon-sm"
+							aria-label={option.label}
+							aria-pressed={active}
+							className={active ? undefined : "text-muted-foreground"}
+							onClick={(event) => {
+								event.stopPropagation();
+								onChange(option.mode);
+							}}
+						>
+							<option.icon className="size-3.5" />
+						</Button>
+					</Tooltip>
+				);
+			})}
+		</div>
+	);
+}
+
+// Zona de drop pra soltar arquivos de uma tarefa de volta no vault (unlink). Fixa no rodapé e fora
+// do fluxo (não empurra a lista); só renderiza durante um arraste de origem task.
+function RootDropZone() {
+	const { setNodeRef, isOver } = useDroppable({ id: ROOT_DROP_ID });
+
+	return (
+		<div
+			ref={setNodeRef}
+			className={cn(
+				"fixed inset-x-0 bottom-0 z-50 flex items-center justify-center gap-3 border-t-2 border-dashed py-6 backdrop-blur-sm transition-colors",
+				isOver
+					? "border-primary bg-primary/15 text-primary"
+					: "border-border bg-background/80 text-muted-foreground",
+			)}
+		>
+			<Unlink className={cn("size-6 transition-transform", isOver && "scale-110")} />
+			<Text size="lg" className="font-mono font-medium">
+				Soltar aqui para tirar da tarefa
+			</Text>
+		</div>
+	);
 }

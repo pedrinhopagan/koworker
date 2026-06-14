@@ -1,5 +1,5 @@
-import { mkdir, readdir, rename, rm, stat, utimes } from "node:fs/promises";
-import { join } from "node:path";
+import { cp, mkdir, readdir, rename, rm, stat, utimes } from "node:fs/promises";
+import { dirname, join } from "node:path";
 
 // Garante que `.koworker/` está no `.gitignore` do projeto. O conteúdo das tasks é
 // canônico no FS mas nunca deve ir pro git. Idempotente: só faz append se faltar.
@@ -39,13 +39,16 @@ function compareMarkdownNames(a: string, b: string): number {
 	return a.localeCompare(b);
 }
 
-// Aplica a ordem manual das abas: os nomes em `order` vêm primeiro, na ordem gravada; os de fora
-// (arquivos novos, criados no disco pelo agente ou ainda sem reorder) entram depois por birthtime
-// crescente — o mais recente sempre à direita. Com `order` vazio, cai inteiramente no birthtime,
-// que mantém index.md à esquerda (semeado primeiro) sem caso especial.
+// index.md fica sempre na primeira aba, sem exceção — nem a ordem manual nem o birthtime o
+// deslocam (o agente recria o arquivo e ele nasceria com birthtime novo, indo parar à direita).
+// Depois dele: os nomes em `order` na ordem gravada; os de fora (arquivos novos, ainda sem reorder)
+// entram por birthtime crescente — o mais recente à direita.
 function orderTaskFiles(files: TaskFile[], order: string[]): TaskFile[] {
 	const index = new Map(order.map((name, i) => [name, i] as const));
 	return [...files].sort((a, b) => {
+		if (a.name === PRIMARY_FILE) return -1;
+		if (b.name === PRIMARY_FILE) return 1;
+
 		const ia = index.get(a.name);
 		const ib = index.get(b.name);
 		if (ia !== undefined && ib !== undefined) return ia - ib;
@@ -270,6 +273,35 @@ export async function deleteTaskFile(params: {
 	name: string;
 }): Promise<void> {
 	await rm(join(params.projectRoute, params.folderPath, params.name), { force: true });
+}
+
+// Move a pasta da task de um projeto para outro: o folder_path (relativo) é o mesmo, muda só a raiz.
+// Garante o `.gitignore` do destino e cria o `.koworker/` se ainda não existir lá. Recusa se o
+// destino já tiver uma pasta com esse nome — colisão do id curto não pode mesclar tarefas. Projetos
+// podem viver em mounts distintos, então rename pode dar EXDEV: nesse caso copia e remove a origem.
+export async function moveTaskFolderToProject(params: {
+	fromRoute: string;
+	toRoute: string;
+	folderPath: string;
+}): Promise<void> {
+	await ensureKoworkerGitignored(params.toRoute);
+
+	const from = join(params.fromRoute, params.folderPath);
+	const to = join(params.toRoute, params.folderPath);
+
+	const exists = await stat(to)
+		.then(() => true)
+		.catch(() => false);
+	if (exists) throw new Error("Já existe uma tarefa com esse identificador no projeto de destino");
+
+	await mkdir(dirname(to), { recursive: true });
+	try {
+		await rename(from, to);
+	} catch (err: any) {
+		if (err?.code !== "EXDEV") throw err;
+		await cp(from, to, { recursive: true });
+		await rm(from, { recursive: true, force: true });
+	}
 }
 
 export async function removeTaskFolder(params: {
