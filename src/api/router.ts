@@ -1,6 +1,7 @@
 import { protectedProcedure, publicProcedure } from "./auth/context";
 import { Auth } from "./auth/login";
 import { PubSub } from "./pubsub";
+import { agentsRouter } from "./routers/agents";
 import { categoriesRouter } from "./routers/categories";
 import { eventsRouter } from "./routers/events";
 import { prioritiesRouter } from "./routers/priorities";
@@ -31,6 +32,7 @@ export const router = {
 	categories: categoriesRouter,
 	priorities: prioritiesRouter,
 	skills: skillsRouter,
+	agents: agentsRouter,
 	terminal: terminalRouter,
 	vault: vaultRouter,
 

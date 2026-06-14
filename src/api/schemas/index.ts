@@ -42,6 +42,13 @@ export {
 	SkillUpdateSchema,
 } from "./skills";
 export {
+	AgentCreateSchema,
+	AgentDeleteSchema,
+	AgentListSchema,
+	AgentSettingsSchema,
+	AgentUpdateSchema,
+} from "./agents";
+export {
 	TaskGroupCreateSchema,
 	TaskGroupIdSchema,
 	TaskGroupListSchema,
