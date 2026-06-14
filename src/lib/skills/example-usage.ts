@@ -12,9 +12,7 @@ const SKILLS_DIR = join(homedir(), ".config/opencode/skills");
 /**
  * Example: Read an existing koworker skill
  */
-export async function readKoworkerSkill(
-	skillName: string,
-): Promise<SkillFile | null> {
+export async function readKoworkerSkill(skillName: string): Promise<SkillFile | null> {
 	const skillPath = join(SKILLS_DIR, skillName, "SKILL.md");
 	return await readSkillFile(skillPath);
 }
@@ -70,9 +68,7 @@ export async function listAllSkills(): Promise<string[]> {
 
 	try {
 		const entries = await readdir(SKILLS_DIR, { withFileTypes: true });
-		return entries
-			.filter((entry) => entry.isDirectory())
-			.map((entry) => entry.name);
+		return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
 	} catch (error) {
 		console.error("Failed to list skills:", error);
 		return [];

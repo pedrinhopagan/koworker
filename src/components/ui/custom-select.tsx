@@ -49,7 +49,7 @@ const customSelectItemVariants = tv({
 		"bg-background text-muted-foreground",
 		"data-[highlighted]:bg-muted data-[highlighted]:text-foreground",
 		"data-[state=checked]:bg-muted data-[state=checked]:text-foreground",
-		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 	),
 });
 
@@ -62,8 +62,9 @@ type CustomSelectTriggerRenderContext = {
 	error: string | null;
 };
 
-interface CustomSelectProps<T extends { id: string }>
-	extends VariantProps<typeof customSelectTriggerVariants> {
+interface CustomSelectProps<T extends { id: string }> extends VariantProps<
+	typeof customSelectTriggerVariants
+> {
 	items: T[];
 	value?: string;
 	onValueChange: (value: string, item: T) => void;
@@ -152,7 +153,7 @@ function CustomSelect<T extends { id: string }>({
 					className={cn(
 						customSelectTriggerVariants({ variant, size }),
 						className,
-						triggerClassName
+						triggerClassName,
 					)}
 					style={triggerStyle}
 				>
@@ -294,7 +295,7 @@ function CustomSelectInlineEditInput({
 				"w-full min-w-0 bg-transparent outline-none truncate",
 				// keep the input from expanding the row
 				"text-ellipsis",
-				className
+				className,
 			)}
 			onPointerDown={(e) => {
 				// Prevent selecting the item / closing the select when trying to edit.
