@@ -2,10 +2,12 @@ import { Link } from "@tanstack/react-router";
 import { Search, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { PrinciplesFindings } from "@/components/principles/principles-findings";
 import { Text } from "@/components/typography";
 import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
+import { lintPrinciples } from "@/lib/principles/lint";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
 import type { SkillCategory, TaskSkill } from "@/types/skills";
@@ -209,6 +211,19 @@ type SkillTileProps = {
 };
 
 function SkillTile({ skill, index, onAppearance }: SkillTileProps) {
+	const findings = useMemo(
+		() =>
+			lintPrinciples({
+				kind: "skill",
+				slug: skill.slug,
+				name: skill.label,
+				description: skill.description,
+				body: skill.instructions,
+				metadata: skill.metadata,
+			}),
+		[skill.slug, skill.label, skill.description, skill.instructions, skill.metadata],
+	);
+
 	return (
 		<Link
 			to="/skills/$slug"
@@ -269,6 +284,15 @@ function SkillTile({ skill, index, onAppearance }: SkillTileProps) {
 						conflito
 					</Chip>
 				)}
+				{/* O badge abre um popover dentro do card-link: o clique no badge não deve navegar. */}
+				<span
+					onClick={(event) => {
+						event.preventDefault();
+						event.stopPropagation();
+					}}
+				>
+					<PrinciplesFindings findings={findings} />
+				</span>
 			</div>
 		</Link>
 	);

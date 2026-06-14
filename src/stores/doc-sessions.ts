@@ -10,7 +10,8 @@ export type DocSessionParams =
 	| { kind: "task"; taskId: string; file: string }
 	| { kind: "vault"; projectId: string; fileName: string }
 	| { kind: "docs"; projectId: string; path: string }
-	| { kind: "skill"; variantPath: string };
+	| { kind: "skill"; variantPath: string }
+	| { kind: "agent"; variantPath: string };
 
 export function docSessionKey(params: DocSessionParams): string {
 	switch (params.kind) {
@@ -22,6 +23,8 @@ export function docSessionKey(params: DocSessionParams): string {
 			return `docs:${params.projectId}:${params.path}`;
 		case "skill":
 			return `skill:${params.variantPath}`;
+		case "agent":
+			return `agent:${params.variantPath}`;
 	}
 }
 
@@ -83,6 +86,7 @@ export function groupSessions(
 ): {
 	pinned: SessionGroupCard[];
 	skills: SessionGroupCard[];
+	agents: SessionGroupCard[];
 	groups: SessionProjectGroup[];
 	cards: SessionGroupCard[];
 } {
@@ -102,6 +106,10 @@ export function groupSessions(
 	const skills: SessionGroupCard[] = [];
 	const seenSkill = new Set<string>();
 
+	// Agents são globais e únicos como as skills: mesma seção FLAT, mesmo dedupe por slug.
+	const agents: SessionGroupCard[] = [];
+	const seenAgent = new Set<string>();
+
 	function toCard(meta: DocSessionMeta): SessionGroupCard {
 		return { ...meta, isCurrent: meta.key === currentKey, flatIndex: 0 };
 	}
@@ -114,6 +122,15 @@ export function groupSessions(
 			if (!seenSkill.has(slug)) {
 				seenSkill.add(slug);
 				skills.push(card);
+			}
+			continue;
+		}
+
+		if (meta.kind === "agent") {
+			const slug = meta.nav.params.slug ?? meta.key;
+			if (!seenAgent.has(slug)) {
+				seenAgent.add(slug);
+				agents.push(card);
 			}
 			continue;
 		}
@@ -158,19 +175,20 @@ export function groupSessions(
 	// ocorrência aqui é um objeto distinto da do grupo, então cada uma carrega seu próprio flatIndex.
 	const pinned = list.filter((meta) => meta.pinned).map(toCard);
 
-	// Ordem de render = Fixadas, grupos de projeto, Skills (seção global, no fim). `cards` é o achatamento
-	// nessa ordem; o flatIndex de cada card é sua posição, então realce e navegação por posição distinguem
-	// as duas ocorrências de um fixado. findIndex-por-chave resolve pra 1ª ocorrência (Fixadas).
+	// Ordem de render = Fixadas, grupos de projeto, Skills e Agents (seções globais, no fim). `cards` é o
+	// achatamento nessa ordem; o flatIndex de cada card é sua posição, então realce e navegação por posição
+	// distinguem as duas ocorrências de um fixado. findIndex-por-chave resolve pra 1ª ocorrência (Fixadas).
 	const cards = [
 		...pinned,
 		...groups.flatMap((group) => group.blocks.flatMap((block) => block.cards)),
 		...skills,
+		...agents,
 	];
 	cards.forEach((card, index) => {
 		card.flatIndex = index;
 	});
 
-	return { pinned, skills, groups, cards };
+	return { pinned, skills, agents, groups, cards };
 }
 
 // Índice inicial da seleção do teclado no switcher: o doc anterior — o primeiro não-atual na ordem MRU
@@ -188,7 +206,7 @@ export function initialSwitcherIndex(list: DocSessionMeta[], currentKey: string 
 // houver) e depois cada bloco de cada grupo. Cada bloco ocupa uma faixa contígua no achatado, então o
 // "começo" basta pra mapear posição→caixa — é por aqui que o ↑↓ pula entre caixas.
 export function blockStartIndices(list: DocSessionMeta[], currentKey: string | null): number[] {
-	const { pinned, skills, groups } = groupSessions(list, currentKey);
+	const { pinned, skills, agents, groups } = groupSessions(list, currentKey);
 	const starts: number[] = [];
 	let index = 0;
 	if (pinned.length > 0) {
@@ -202,6 +220,10 @@ export function blockStartIndices(list: DocSessionMeta[], currentKey: string | n
 		}
 	}
 	if (skills.length > 0) {
+		starts.push(index);
+		index += skills.length;
+	}
+	if (agents.length > 0) {
 		starts.push(index);
 	}
 	return starts;

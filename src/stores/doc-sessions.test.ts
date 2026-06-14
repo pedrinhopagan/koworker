@@ -23,6 +23,7 @@ describe("docSessionKey", () => {
 			"docs:p1:guia/intro.md",
 		);
 		expect(docSessionKey({ kind: "skill", variantPath: "/a/SKILL.md" })).toBe("skill:/a/SKILL.md");
+		expect(docSessionKey({ kind: "agent", variantPath: "/a/x.md" })).toBe("agent:/a/x.md");
 	});
 });
 
@@ -246,6 +247,60 @@ describe("seção Skills (global, deduplicada)", () => {
 
 		// cards: [task@0, skill@1] → starts [0 (tarefa), 1 (Skills)]
 		expect(blockStartIndices(list, null)).toEqual([0, 1]);
+	});
+});
+
+describe("seção Agents (global, deduplicada)", () => {
+	it("tira agents dos grupos pra seção própria e deduplica por slug", () => {
+		// O mesmo agent (slug "revisor") visitado sob dois projetos deixou chaves distintas no MRU.
+		const list = [
+			meta({
+				key: "agent:/x/revisor.md",
+				kind: "agent",
+				title: "revisor",
+				projectName: "P",
+				nav: { to: "/agents/$slug", params: { slug: "revisor" } },
+			}),
+			meta({ key: "task:t1:plan.md", title: "T1", projectName: "P" }),
+			meta({
+				key: "agent:/y/revisor.md",
+				kind: "agent",
+				title: "revisor",
+				projectName: "Q",
+				nav: { to: "/agents/$slug", params: { slug: "revisor" } },
+			}),
+		];
+
+		const { agents, groups, cards } = groupSessions(list, null);
+
+		// Um só agent (1ª ocorrência = mais recente), fora de qualquer grupo de projeto.
+		expect(agents.map((c) => c.key)).toEqual(["agent:/x/revisor.md"]);
+		expect(
+			groups.every((g) => g.blocks.every((b) => b.type !== "kind" || b.kind !== "agent")),
+		).toBe(true);
+		// Achatado = grupos primeiro, Agents no fim.
+		expect(cards.map((c) => c.key)).toEqual(["task:t1:plan.md", "agent:/x/revisor.md"]);
+	});
+
+	it("blockStartIndices inclui o bloco de Agents após o de Skills", () => {
+		const list = [
+			meta({ key: "task:t1:plan.md", title: "T1", projectName: "P" }),
+			meta({
+				key: "skill:/x",
+				kind: "skill",
+				title: "S",
+				nav: { to: "/skills/$slug", params: { slug: "s" } },
+			}),
+			meta({
+				key: "agent:/y",
+				kind: "agent",
+				title: "A",
+				nav: { to: "/agents/$slug", params: { slug: "a" } },
+			}),
+		];
+
+		// cards: [task@0, skill@1, agent@2] → starts [0 (tarefa), 1 (Skills), 2 (Agents)]
+		expect(blockStartIndices(list, null)).toEqual([0, 1, 2]);
 	});
 });
 
