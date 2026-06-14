@@ -1,8 +1,5 @@
 {
-    "$schema": "./node_modules/oxfmt/configuration_schema.json",
-    "useTabs": true,
-    "ignorePatterns": [
-        "routeTree.gen.ts",
-        "generated"
-    ]
+	"$schema": "./node_modules/oxfmt/configuration_schema.json",
+	"useTabs": true,
+	"ignorePatterns": ["routeTree.gen.ts", "generated", "**/*.md", "**/*.css", "**/*.html"]
 }
