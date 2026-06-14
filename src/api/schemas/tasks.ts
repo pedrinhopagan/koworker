@@ -128,7 +128,7 @@ const vaultFolderName = z
 	.refine((name) => name !== "." && name !== "..", "Invalid folder name");
 
 export const VaultListSchema = z.object({
-	projectId: z.string().trim().min(1),
+	projectId: z.string().trim().min(1).optional(),
 });
 
 // Conteúdo de um único arquivo do vault, pra rota de abertura — carrega só o arquivo aberto,

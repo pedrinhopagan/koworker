@@ -76,13 +76,19 @@ export const TAREFAS_KEY = "feature:tarefas";
 export const SKILLS_KEY = "feature:skills";
 export const AGENTS_KEY = "feature:agents";
 
-// Chaves abertas por default: workspace e Tarefas. Skills/Agents nascem fechadas (grill).
-export const DEFAULT_EXPANDED = new Set([ROOT_KEY, TAREFAS_KEY]);
+// Chaves de expansão default com prefixo — em "Todos" cada projeto vira uma subárvore namespaceada.
+// Sem prefixo, abre workspace e Tarefas (Skills/Agents nascem fechadas).
+export function defaultExpandedKeys(keyPrefix = ""): string[] {
+	return [`${keyPrefix}${ROOT_KEY}`, `${keyPrefix}${TAREFAS_KEY}`];
+}
 
-function fileLeaf(entry: VaultEntry): TreeNode {
+// Chaves abertas por default no modo single: workspace e Tarefas.
+export const DEFAULT_EXPANDED = new Set(defaultExpandedKeys());
+
+function fileLeaf(entry: VaultEntry, keyPrefix: string): TreeNode {
 	return {
 		kind: "fileLeaf",
-		key: `file:${entry.origin}:${entry.groupKey ?? ""}:${entry.name}`,
+		key: `${keyPrefix}file:${entry.origin}:${entry.groupKey ?? ""}:${entry.name}`,
 		label: entry.name,
 		title: entry.title,
 		entry,
@@ -90,13 +96,17 @@ function fileLeaf(entry: VaultEntry): TreeNode {
 }
 
 // Arquivos de um grupo, mais recente primeiro — espelha a ordem da visão antiga.
-function filesOf(entries: VaultEntry[], groupKey: string): TreeNode[] {
+function filesOf(entries: VaultEntry[], groupKey: string, keyPrefix: string): TreeNode[] {
 	return entries
 		.filter((entry) => entry.groupKey === groupKey)
 		.sort((a, b) => b.mtime - a.mtime)
-		.map(fileLeaf);
+		.map((entry) => fileLeaf(entry, keyPrefix));
 }
 
+// `keyPrefix` namespaceia as chaves dos nós montados aqui (não os dados crus: entry/taskId/
+// folderName seguem intactos pra navegação/mutations/drop). Omitido → chaves idênticas às de hoje,
+// então o modo single-project não regride. `includeSkillsAgents` false omite os nós Skills/Agents
+// (em "Todos" skills são por nome de projeto, fora do escopo).
 export function buildVaultTree({
 	entries,
 	groups,
@@ -106,6 +116,8 @@ export function buildVaultTree({
 	projectColor,
 	hideCompleted,
 	taskSort,
+	keyPrefix = "",
+	includeSkillsAgents = true,
 }: {
 	entries: VaultEntry[];
 	groups: VaultGroup[];
@@ -115,6 +127,8 @@ export function buildVaultTree({
 	projectColor: string | null;
 	hideCompleted: boolean;
 	taskSort: TaskSortMode;
+	keyPrefix?: string;
+	includeSkillsAgents?: boolean;
 }): TreeNode[] {
 	const priorityColor = new Map(priorities.map((priority) => [priority.id, priority.color]));
 	const priorityName = new Map(priorities.map((priority) => [priority.id, priority.name]));
@@ -162,7 +176,7 @@ export function buildVaultTree({
 		.sort(compareTaskGroups)
 		.map((group, index) => ({
 			kind: "taskFolder",
-			key: `task:${group.key}`,
+			key: `${keyPrefix}task:${group.key}`,
 			label: group.title,
 			taskId: group.key,
 			color: folderColor(group, index),
@@ -174,14 +188,14 @@ export function buildVaultTree({
 			categoryName: (group.categoryId ? categoryName.get(group.categoryId) : null) ?? null,
 			categoryColor: (group.categoryId ? categoryColor.get(group.categoryId) : null) ?? null,
 			lastEditedAt: group.lastEditedAt,
-			children: filesOf(entries, group.key),
+			children: filesOf(entries, group.key, keyPrefix),
 		}));
 
 	const skillFolders: TreeNode[] = [...skills]
 		.sort((a, b) => a.label.localeCompare(b.label))
 		.map((skill) => ({
 			kind: "skillFolder",
-			key: `skill:${skill.slug}`,
+			key: `${keyPrefix}skill:${skill.slug}`,
 			label: skill.label,
 			slug: skill.slug,
 			icon: skill.icon,
@@ -192,7 +206,7 @@ export function buildVaultTree({
 			conflict: skill.conflict,
 			children: skill.sources.map((source, index) => ({
 				kind: "skillSourceLeaf",
-				key: `skillsrc:${skill.slug}:${source.tool}:${source.scope}:${index}`,
+				key: `${keyPrefix}skillsrc:${skill.slug}:${source.tool}:${source.scope}:${index}`,
 				label: `${source.tool} · ${source.scope}`,
 				slug: skill.slug,
 			})),
@@ -203,32 +217,48 @@ export function buildVaultTree({
 		.sort((a, b) => a.title.localeCompare(b.title))
 		.map((group) => ({
 			kind: "looseFolder",
-			key: `folder:${group.key}`,
+			key: `${keyPrefix}folder:${group.key}`,
 			label: group.title,
 			folderName: group.key,
-			children: filesOf(entries, group.key),
+			children: filesOf(entries, group.key, keyPrefix),
 		}));
 
 	const looseFiles: TreeNode[] = entries
 		.filter((entry) => entry.origin === "loose")
 		.sort((a, b) => b.mtime - a.mtime)
-		.map(fileLeaf);
+		.map((entry) => fileLeaf(entry, keyPrefix));
 
-	return [
-		{
-			kind: "feature",
-			key: ROOT_KEY,
-			label: ROOT_KEY,
-			children: [
-				{ kind: "feature", key: TAREFAS_KEY, label: "Tarefas", children: taskFolders },
-				{ kind: "feature", key: SKILLS_KEY, label: "Skills", children: skillFolders },
+	const skillsAgentsNodes: TreeNode[] = includeSkillsAgents
+		? [
 				{
 					kind: "feature",
-					key: AGENTS_KEY,
+					key: `${keyPrefix}${SKILLS_KEY}`,
+					label: "Skills",
+					children: skillFolders,
+				},
+				{
+					kind: "feature",
+					key: `${keyPrefix}${AGENTS_KEY}`,
 					label: "Agents",
 					children: [],
 					placeholder: "Em breve",
 				},
+			]
+		: [];
+
+	return [
+		{
+			kind: "feature",
+			key: `${keyPrefix}${ROOT_KEY}`,
+			label: ROOT_KEY,
+			children: [
+				{
+					kind: "feature",
+					key: `${keyPrefix}${TAREFAS_KEY}`,
+					label: "Tarefas",
+					children: taskFolders,
+				},
+				...skillsAgentsNodes,
 				...looseFolders,
 				...looseFiles,
 			],

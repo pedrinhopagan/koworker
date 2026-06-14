@@ -34,6 +34,13 @@ export const NO_GROUP = "__none__";
 // Categoria sentinela dos buckets "achatados" (modos que não clusterizam por categoria).
 const FLAT_CAT = "__all__";
 
+// Chave de colapso do slot "Sem feature". Em "Todos os projetos" o sentinela NO_GROUP é o mesmo em
+// todos os projetos, então colapsá-lo namespaceia por projeto pra não fechar o "Sem feature" dos
+// demais. Sem projectId (modo single) é o NO_GROUP puro — idêntico ao de hoje.
+export function noGroupKey(projectId?: string) {
+	return projectId ? `${projectId}:${NO_GROUP}` : NO_GROUP;
+}
+
 function bucketKey(groupId: string | null, categoryId: string) {
 	return `${groupId ?? NO_GROUP}::${categoryId}`;
 }
@@ -143,6 +150,9 @@ type GroupedTaskListProps = {
 	priorities: { id: string; level: number }[];
 	loading: boolean;
 	sortMode: SortMode;
+	// Em "Todos os projetos" cada projeto monta uma instância; o prefixo isola só a chave de colapso
+	// do slot "Sem feature" (NO_GROUP). Omitido no modo single → chave idêntica à de hoje.
+	collapseKeyPrefix?: string;
 };
 
 export function GroupedTaskList({
@@ -152,6 +162,7 @@ export function GroupedTaskList({
 	priorities,
 	loading,
 	sortMode,
+	collapseKeyPrefix,
 }: GroupedTaskListProps) {
 	const queryClient = useQueryClient();
 	const [activeId, setActiveId] = useState<string | null>(null);
@@ -407,12 +418,14 @@ export function GroupedTaskList({
 			<SortableContext items={sortableGroupIds} strategy={verticalListSortingStrategy}>
 				<div className="flex flex-col gap-5">
 					{renderableGroups.map(({ id, group, bucketKeys, count }) => {
-						const key = id ?? NO_GROUP;
+						// Grupos reais usam o próprio id (UUID único entre projetos); só o "Sem feature"
+						// (id null) ganha o prefixo do projeto pra não colapsar junto em "Todos".
+						const collapseKey = id ?? noGroupKey(collapseKeyPrefix);
 
 						// Todo slot (inclusive "Sem grupo") arrasta para reordenar e recebe tasks.
 						return (
 							<SortableGroupSection
-								key={key}
+								key={id ?? NO_GROUP}
 								groupId={id}
 								group={group}
 								count={count}
@@ -421,8 +434,8 @@ export function GroupedTaskList({
 								taskMap={taskMap}
 								highlightLevels={highlightLevels}
 								features={groups}
-								collapsed={collapsedKeys.includes(key)}
-								onToggleCollapse={() => toggleCollapsed(key)}
+								collapsed={collapsedKeys.includes(collapseKey)}
+								onToggleCollapse={() => toggleCollapsed(collapseKey)}
 							/>
 						);
 					})}
@@ -460,6 +473,74 @@ export function GroupedTaskList({
 				) : null}
 			</DragOverlay>
 		</DndContext>
+	);
+}
+
+// Visão "Todos os projetos": projeto → feature → tasks. Cada projeto reaproveita uma instância
+// inteira de GroupedTaskList com a sua fatia de tasks/groups. Como cada GroupedTaskList monta o
+// próprio DndContext, o arraste fica confinado ao projeto (reorder/move nunca cruza projetos) e
+// os payloads de reorder carregam só os ids daquele projeto — idênticos aos do modo single.
+interface GroupedTaskListByProjectProps extends GroupedTaskListProps {
+	projects: { id: string; name: string; color: string; displayOrder: number }[];
+}
+
+export function GroupedTaskListByProject({
+	tasks,
+	groups,
+	categories,
+	priorities,
+	loading,
+	sortMode,
+	projects,
+}: GroupedTaskListByProjectProps) {
+	const tasksByProject = useMemo(() => Map.groupBy(tasks, (task) => task.projectId), [tasks]);
+	const groupsByProject = useMemo(() => Map.groupBy(groups, (group) => group.projectId), [groups]);
+
+	if (loading) {
+		return (
+			<Text size="sm" tone="muted">
+				Carregando tarefas...
+			</Text>
+		);
+	}
+
+	const visibleProjects = [...projects]
+		.sort((a, b) => a.displayOrder - b.displayOrder)
+		.filter((project) => (tasksByProject.get(project.id)?.length ?? 0) > 0);
+
+	if (visibleProjects.length === 0) {
+		return (
+			<Text size="sm" tone="muted">
+				Nenhuma tarefa encontrada. Crie uma nova acima.
+			</Text>
+		);
+	}
+
+	return (
+		<div className="flex flex-col gap-8">
+			{visibleProjects.map((project) => (
+				<section key={project.id} className="flex flex-col gap-3">
+					<div className="flex items-center gap-2">
+						<span
+							className="size-2.5 shrink-0 rounded-full"
+							style={{ backgroundColor: project.color }}
+						/>
+						<Text size="sm" className="font-semibold">
+							{project.name}
+						</Text>
+					</div>
+					<GroupedTaskList
+						tasks={tasksByProject.get(project.id) ?? []}
+						groups={groupsByProject.get(project.id) ?? []}
+						categories={categories}
+						priorities={priorities}
+						loading={false}
+						sortMode={sortMode}
+						collapseKeyPrefix={project.id}
+					/>
+				</section>
+			))}
+		</div>
 	);
 }
 

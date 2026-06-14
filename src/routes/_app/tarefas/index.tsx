@@ -4,11 +4,32 @@ import { z } from "zod";
 
 import { PageShell } from "@/components/layout/page-shell";
 import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
-import { GroupedTaskList, NO_GROUP } from "./-components/grouped-task-list";
+import {
+	GroupedTaskList,
+	GroupedTaskListByProject,
+	noGroupKey,
+} from "./-components/grouped-task-list";
 import { TaskForm } from "./-components/task-form";
 import { TaskListControls, useSortMode } from "./-components/task-groups-controls";
 import { useCreateTask } from "./-utils/use-create-task";
 import { useTasksData } from "./-utils/use-tasks-data";
+
+// Chaves de "colapsar tudo", espelhando o render: ids de grupo reais crus + o "Sem feature". Em
+// "Todos os projetos" (selectedProjectId undefined) o "Sem feature" é por projeto, então cada
+// projeto ganha a sua; no modo single é o NO_GROUP puro.
+function collapseAllKeys(data: {
+	groups: { id: string }[];
+	projects: { id: string }[];
+	selectedProjectId: string | undefined;
+}): string[] {
+	const groupIds = data.groups.map((group) => group.id);
+
+	if (data.selectedProjectId === undefined) {
+		return [...groupIds, ...data.projects.map((project) => noGroupKey(project.id))];
+	}
+
+	return [...groupIds, noGroupKey()];
+}
 
 const rawSearchSchema = z.object({
 	q: z.string().optional(),
@@ -98,19 +119,31 @@ function TarefasPage() {
 					priorities={data.priorities}
 					sortMode={sortMode}
 					onSortModeChange={setSortMode}
-					onCollapseAll={() => setCollapsed([...data.groups.map((group) => group.id), NO_GROUP])}
+					onCollapseAll={() => setCollapsed(collapseAllKeys(data))}
 					onExpandAll={() => setCollapsed([])}
 				/>
 
 				<div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2 pb-6">
-					<GroupedTaskList
-						tasks={data.tasks}
-						groups={data.groups}
-						categories={data.categories}
-						priorities={data.priorities}
-						loading={loading}
-						sortMode={sortMode}
-					/>
+					{data.selectedProjectId === undefined ? (
+						<GroupedTaskListByProject
+							tasks={data.tasks}
+							groups={data.groups}
+							projects={data.projects}
+							categories={data.categories}
+							priorities={data.priorities}
+							loading={loading}
+							sortMode={sortMode}
+						/>
+					) : (
+						<GroupedTaskList
+							tasks={data.tasks}
+							groups={data.groups}
+							categories={data.categories}
+							priorities={data.priorities}
+							loading={loading}
+							sortMode={sortMode}
+						/>
+					)}
 				</div>
 			</div>
 		</PageShell>

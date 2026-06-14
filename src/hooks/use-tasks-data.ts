@@ -25,11 +25,12 @@ export function useTasksData(filters: TasksSearchFilters) {
 	});
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
-	const projectIdForGroups = filters.projectId ?? selectedProjectId ?? null;
-	const groupsQuery = useQuery({
-		...orpc.taskGroups.list.queryOptions({ input: { projectId: projectIdForGroups ?? "" } }),
-		enabled: Boolean(projectIdForGroups),
-	});
+	// "Todos" => selectedProjectId === undefined => sem filtro => o backend devolve os grupos de
+	// todos os projetos (cada um carrega projectId). Não coagir undefined para "".
+	const projectIdForGroups = filters.projectId ?? selectedProjectId ?? undefined;
+	const groupsQuery = useQuery(
+		orpc.taskGroups.list.queryOptions({ input: { projectId: projectIdForGroups } }),
+	);
 
 	const searchQuery = filters.q?.trim();
 	const projectIdForQuery = filters.projectId ?? selectedProjectId ?? null;

@@ -47,6 +47,7 @@ import {
 	collectFolderKeys,
 	collectTaskFolders,
 	DEFAULT_EXPANDED,
+	defaultExpandedKeys,
 	filterTree,
 	flattenVisibleLeaves,
 	TAREFAS_KEY,
@@ -67,6 +68,19 @@ function emptySelection(): Selection {
 	return { origin: "loose", folderName: null, keys: new Set() };
 }
 
+// Chaves abertas por default. Single = workspace + Tarefas. "Todos" = cada nó-projeto + a workspace
+// e Tarefas namespaceadas de cada um (projetos vazios são podados da árvore, então abrir um nó vazio
+// é inócuo — evita correr contra o carregamento da query).
+function computeDefaultExpanded(allProjects: boolean, projects: { id: string }[]): Set<string> {
+	if (!allProjects) return new Set(DEFAULT_EXPANDED);
+
+	const keys = projects.flatMap((project) => [
+		`project:${project.id}`,
+		...defaultExpandedKeys(`project:${project.id}:`),
+	]);
+	return new Set(keys);
+}
+
 export const Route = createFileRoute("/_app/vault/")({
 	component: VaultPage,
 });
@@ -78,12 +92,21 @@ function folderEntries(node: TreeNode): VaultEntry[] {
 }
 
 function VaultPage() {
-	const { selectedProjectId, selectedProject } = useProjectFocus();
+	const { projects, selectedProjectId, selectedProject, setSelectedProjectId } = useProjectFocus();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
+	// "Todos os projetos": sem projeto focado, a árvore agrupa por projeto e fica somente-leitura
+	// (mutations/DnD/menu dependem de um projectId único). Abrir um arquivo foca o projeto (drill-in).
+	const allProjects = selectedProjectId === undefined;
+
 	// Pastas expandidas (inclui os nós virtuais). Sem persistência: reseta ao trocar de projeto.
-	const [expanded, setExpanded] = useState<Set<string>>(() => new Set(DEFAULT_EXPANDED));
+	const [expanded, setExpanded] = useState<Set<string>>(() =>
+		computeDefaultExpanded(allProjects, projects),
+	);
+	// Identidade estável da lista de projetos: o reset de expansão em "Todos" depende de quais
+	// projetos existem, mas não deve disparar a cada refetch que devolve um array novo.
+	const projectIdsKey = projects.map((project) => project.id).join(",");
 	const [search, setSearch] = useState("");
 	// Esconde tarefas concluídas por default — substitui o painel de 4 filtros da visão antiga.
 	const [hideCompleted, setHideCompleted] = useState(true);
@@ -115,8 +138,9 @@ function VaultPage() {
 		setAnchorKey(null);
 	}
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: projectIdsKey deriva de `projects`.
 	useEffect(() => {
-		setExpanded(new Set(DEFAULT_EXPANDED));
+		setExpanded(computeDefaultExpanded(allProjects, projects));
 		setSearch("");
 		setHideCompleted(true);
 		setTaskSort("recente");
@@ -128,24 +152,28 @@ function VaultPage() {
 		setSelection(emptySelection());
 		setAnchorKey(null);
 		setDrag(null);
-	}, [selectedProjectId]);
+	}, [selectedProjectId, allProjects, projectIdsKey]);
 
+	// projectId só é exigido pelas mutations (todas single-project, gated por !allProjects). A query
+	// de entries aceita undefined ("Todos" = sem filtro, agrega todos no servidor).
 	const projectId = selectedProjectId ?? "";
-	const enabled = Boolean(selectedProjectId);
 
+	// `null` = ainda resolvendo o projeto focado (load window); `undefined` = "Todos" (sem filtro);
+	// string = projeto. Só `null` desabilita a query — passar `null` ao schema (.optional()) quebraria
+	// e single-mode piscaria vazio no load.
 	const entriesQuery = useQuery({
-		...orpc.vault.listEntries.queryOptions({ input: { projectId } }),
-		enabled,
+		...orpc.vault.listEntries.queryOptions({ input: { projectId: selectedProjectId } }),
+		enabled: selectedProjectId !== null,
 	});
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	// Todas as tasks do projeto (inclusive vazias) — alvo dos pickers do menu de contexto. O
 	// agregador do vault só traz grupos com arquivo, então uma task vazia não apareceria sem esta.
+	// Só no modo single com projeto resolvido: em "Todos"/load o menu de contexto não aparece.
 	const tasksQuery = useQuery({
 		...orpc.tasks.listByProject.queryOptions({ input: { projectId } }),
-		enabled,
+		enabled: Boolean(selectedProjectId),
 	});
-	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
 	const { taskSkills } = useSkillsQuery(selectedProject?.name);
 
 	const entries = entriesQuery.data?.entries ?? [];
@@ -164,7 +192,7 @@ function VaultPage() {
 	// categorias. Memoizado pra não recriar a lista a cada render do menu.
 	const taskMenuData = useMemo(
 		() => ({
-			projects: (projectsQuery.data ?? [])
+			projects: projects
 				.filter((project) => project.id !== selectedProjectId)
 				.map((project) => ({ id: project.id, name: project.name, color: project.color })),
 			priorities: (prioritiesQuery.data ?? []).map((priority) => ({
@@ -178,32 +206,69 @@ function VaultPage() {
 				color: category.color,
 			})),
 		}),
-		[projectsQuery.data, prioritiesQuery.data, categoriesQuery.data, selectedProjectId],
+		[projects, prioritiesQuery.data, categoriesQuery.data, selectedProjectId],
 	);
 
-	const tree = useMemo(
-		() =>
-			buildVaultTree({
+	const tree = useMemo(() => {
+		const priorities = prioritiesQuery.data ?? [];
+		const categories = categoriesQuery.data ?? [];
+
+		if (!allProjects) {
+			return buildVaultTree({
 				entries,
 				groups,
 				skills: taskSkills,
-				priorities: prioritiesQuery.data ?? [],
-				categories: categoriesQuery.data ?? [],
+				priorities,
+				categories,
 				projectColor: selectedProject?.color ?? null,
 				hideCompleted,
 				taskSort,
-			}),
-		[
-			entries,
-			groups,
-			taskSkills,
-			prioritiesQuery.data,
-			categoriesQuery.data,
-			selectedProject?.color,
-			hideCompleted,
-			taskSort,
-		],
-	);
+			});
+		}
+
+		// "Todos": uma subárvore namespaceada por projeto (ordem de display_order), só os projetos com
+		// conteúdo. Skills/Agents ficam de fora (são por nome de projeto). O nó-projeto envolve cada
+		// subárvore como uma feature não-acionável.
+		return projects.flatMap((project) => {
+			const projectEntries = entries.filter((entry) => entry.projectId === project.id);
+			const projectGroups = groups.filter((group) => group.projectId === project.id);
+			if (projectEntries.length === 0 && projectGroups.length === 0) return [];
+
+			const keyPrefix = `project:${project.id}:`;
+			const children = buildVaultTree({
+				entries: projectEntries,
+				groups: projectGroups,
+				skills: [],
+				priorities,
+				categories,
+				projectColor: project.color,
+				hideCompleted,
+				taskSort,
+				keyPrefix,
+				includeSkillsAgents: false,
+			});
+
+			return [
+				{
+					kind: "feature" as const,
+					key: `project:${project.id}`,
+					label: project.name,
+					children,
+				},
+			];
+		});
+	}, [
+		allProjects,
+		projects,
+		entries,
+		groups,
+		taskSkills,
+		prioritiesQuery.data,
+		categoriesQuery.data,
+		selectedProject?.color,
+		hideCompleted,
+		taskSort,
+	]);
 
 	// Lookup nodeKey→entry: um nó selecionado pode estar sob pasta colapsada, então varre a árvore
 	// inteira (não só as folhas visíveis).
@@ -247,6 +312,11 @@ function VaultPage() {
 			});
 			return;
 		}
+		// /vault/$fileName resolve o projeto pelo foco; em "Todos" o foco é undefined, então focamos o
+		// projeto do arquivo antes de navegar (drill-in: abrir sai de "Todos"). Single: já está focado.
+		if (allProjects) {
+			setSelectedProjectId(entry.projectId);
+		}
 		navigate({ to: "/vault/$fileName", params: { fileName: entry.name } });
 	}
 
@@ -255,12 +325,20 @@ function VaultPage() {
 	}
 
 	// Clique num arquivo: Shift = range, Ctrl/Cmd = toggle, simples = limpa seleção e abre (o
-	// inerte não abre, mas ainda deseleciona).
+	// inerte não abre, mas ainda deseleciona). Em "Todos" não há ações de seleção (sem menu), então
+	// qualquer clique só abre.
 	function onActivateFile(node: TreeNode, mods: ClickModifiers) {
 		if (node.kind !== "fileLeaf") return;
 
 		const origin = node.entry.origin;
 		const folderName = origin === "folder" ? node.entry.groupKey : null;
+
+		if (allProjects) {
+			if (origin !== "folder") {
+				openFile(node.entry);
+			}
+			return;
+		}
 
 		if (mods.shift && anchorKey) {
 			rangeSelect(node, origin, folderName);
@@ -678,26 +756,30 @@ function VaultPage() {
 		renameMutation.mutate({ projectId, oldName: renaming.name, newName });
 	}
 
-	if (!selectedProjectId) {
+	if (projects.length === 0) {
 		return (
 			<PageShell title="Vault" icon={Library}>
 				<Text size="sm" tone="muted">
-					Selecione um projeto para ver o vault.
+					Crie um projeto para ver o vault.
 				</Text>
 			</PageShell>
 		);
 	}
 
-	const looseCount = looseNames.size;
+	// Somente-leitura em "Todos": só browse + abrir (drill-in). Mutations/DnD/menu são single-project.
+	const readOnly = allProjects;
+
+	// Conta entries soltas diretas (não o Set de nomes: em "Todos" nomes iguais em projetos distintos
+	// deduplicariam no Set e subcontariam o total agregado).
+	const looseCount = entries.filter((entry) => entry.origin === "loose").length;
 	const folderCount = groups.filter((group) => group.kind === "folder").length;
 	const taskCount = groups.filter((group) => group.kind === "task").length;
+	const description = allProjects
+		? `${looseCount} soltas · ${folderCount} pastas · ${taskCount} em tarefas · todos os projetos`
+		: `${looseCount} soltas · ${folderCount} pastas · ${taskCount} em tarefas de ${selectedProject?.name ?? "projeto"}`;
 
 	return (
-		<PageShell
-			title="Vault"
-			icon={Library}
-			description={`${looseCount} soltas · ${folderCount} pastas · ${taskCount} em tarefas de ${selectedProject?.name ?? "projeto"}`}
-		>
+		<PageShell title="Vault" icon={Library} description={description}>
 			{entriesQuery.isLoading ? (
 				<div className="flex items-center gap-2 text-muted-foreground">
 					<Loader2 size={16} className="animate-spin" />
@@ -762,14 +844,22 @@ function VaultPage() {
 								<CircleCheck className="size-4" />
 							</Button>
 						</Tooltip>
-						<Divider />
-
-						<Tooltip label="Nova nota solta">
-							<Button type="button" variant="ghost" size="sm" onClick={() => setCreatingTitle("")}>
-								<Plus className="size-4" />
-								Nova nota
-							</Button>
-						</Tooltip>
+						{!readOnly && (
+							<>
+								<Divider />
+								<Tooltip label="Nova nota solta">
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() => setCreatingTitle("")}
+									>
+										<Plus className="size-4" />
+										Nova nota
+									</Button>
+								</Tooltip>
+							</>
+						)}
 					</div>
 
 					{selection.keys.size > 0 && (
@@ -785,17 +875,11 @@ function VaultPage() {
 						</div>
 					)}
 
-					<DndContext
-						sensors={sensors}
-						collisionDetection={pointerWithin}
-						onDragStart={onDragStart}
-						onDragEnd={onDragEnd}
-						onDragCancel={() => setDrag(null)}
-					>
-						{drag?.origin === "task" && <RootDropZone />}
-
-						<div className="min-h-0 flex-1 overflow-y-auto pr-2">
-							{searching && visibleNodes.length === 0 ? (
+					{(() => {
+						// Em "Todos" (readOnly) a árvore é só browse + abrir: sem DnD nem menu de contexto,
+						// então omitimos canDrop/wrapNode/renderAccessory e não montamos o DndContext.
+						const treeView =
+							searching && visibleNodes.length === 0 ? (
 								<Text size="sm" tone="muted" className="px-2 py-1 font-mono">
 									Nada encontrado para “{search.trim()}”.
 								</Text>
@@ -807,49 +891,72 @@ function VaultPage() {
 									onToggle={toggle}
 									onActivateFile={onActivateFile}
 									onOpenSkill={openSkill}
-									canDrop={canDrop}
-									renderAccessory={(node) =>
-										node.key === TAREFAS_KEY ? (
-											<TaskSortControl mode={taskSort} onChange={setTaskSort} />
-										) : null
+									canDrop={readOnly ? undefined : canDrop}
+									renderAccessory={
+										readOnly
+											? undefined
+											: (node) =>
+													node.key === TAREFAS_KEY ? (
+														<TaskSortControl mode={taskSort} onChange={setTaskSort} />
+													) : null
 									}
-									wrapNode={(node, row) =>
-										node.kind === "fileLeaf" && selection.keys.has(node.key) ? (
-											<TreeBatchMenu
-												origin={selection.origin}
-												count={selection.keys.size}
-												tasks={batchTaskOptions}
-												onPickTask={batchPickTask}
-												onUnlink={batchUnlink}
-											>
-												{row}
-											</TreeBatchMenu>
-										) : (
-											<TreeNodeMenu
-												node={node}
-												tasks={taskOptions}
-												taskMenuData={taskMenuData}
-												actions={actions}
-											>
-												{row}
-											</TreeNodeMenu>
-										)
+									wrapNode={
+										readOnly
+											? undefined
+											: (node, row) =>
+													node.kind === "fileLeaf" && selection.keys.has(node.key) ? (
+														<TreeBatchMenu
+															origin={selection.origin}
+															count={selection.keys.size}
+															tasks={batchTaskOptions}
+															onPickTask={batchPickTask}
+															onUnlink={batchUnlink}
+														>
+															{row}
+														</TreeBatchMenu>
+													) : (
+														<TreeNodeMenu
+															node={node}
+															tasks={taskOptions}
+															taskMenuData={taskMenuData}
+															actions={actions}
+														>
+															{row}
+														</TreeNodeMenu>
+													)
 									}
 								/>
-							)}
-						</div>
+							);
 
-						<DragOverlay dropAnimation={null}>
-							{drag ? (
-								<div className="pointer-events-none flex items-center gap-1.5 border border-primary bg-card px-2 py-1 shadow-lg">
-									<Files className="size-3.5 text-primary" />
-									<Text size="xs" className="font-mono">
-										{drag.entries.length} arquivo{drag.entries.length > 1 ? "s" : ""}
-									</Text>
-								</div>
-							) : null}
-						</DragOverlay>
-					</DndContext>
+						if (readOnly) {
+							return <div className="min-h-0 flex-1 overflow-y-auto pr-2">{treeView}</div>;
+						}
+
+						return (
+							<DndContext
+								sensors={sensors}
+								collisionDetection={pointerWithin}
+								onDragStart={onDragStart}
+								onDragEnd={onDragEnd}
+								onDragCancel={() => setDrag(null)}
+							>
+								{drag?.origin === "task" && <RootDropZone />}
+
+								<div className="min-h-0 flex-1 overflow-y-auto pr-2">{treeView}</div>
+
+								<DragOverlay dropAnimation={null}>
+									{drag ? (
+										<div className="pointer-events-none flex items-center gap-1.5 border border-primary bg-card px-2 py-1 shadow-lg">
+											<Files className="size-3.5 text-primary" />
+											<Text size="xs" className="font-mono">
+												{drag.entries.length} arquivo{drag.entries.length > 1 ? "s" : ""}
+											</Text>
+										</div>
+									) : null}
+								</DragOverlay>
+							</DndContext>
+						);
+					})()}
 				</div>
 			)}
 
