@@ -98,12 +98,16 @@ const activeCellField = StateField.define<ActiveCell | null>({
 function buildTableDecorations(state: EditorState): DecorationSet {
 	const { doc } = state;
 	const active = state.field(activeCellField);
+	const hidden = collapsedHiddenLines(state);
 	const ranges: Range<Decoration>[] = [];
 	syntaxTree(state).iterate({
 		enter: (node) => {
 			if (node.name !== "Table") return;
 			const firstLine = doc.lineAt(node.from);
 			const lastLine = doc.lineAt(node.to);
+			// Tabela dentro de um heading recolhido: não renderiza o block widget para o
+			// `hiddenLine` (display:none) do plugin de view esconder as linhas cruas.
+			if (hidden.has(firstLine.number)) return false;
 			const rows: { from: number; text: string }[] = [];
 			for (let n = firstLine.number; n <= lastLine.number; n++) {
 				const line = doc.line(n);
@@ -131,7 +135,9 @@ const tableDecorationsField = StateField.define<DecorationSet>({
 	update(value, tr) {
 		const activeChanged = tr.startState.field(activeCellField) !== tr.state.field(activeCellField);
 		const treeChanged = syntaxTree(tr.startState) !== syntaxTree(tr.state);
-		if (tr.docChanged || activeChanged || treeChanged) {
+		const collapsedChanged =
+			tr.startState.field(collapsedHeadingsField) !== tr.state.field(collapsedHeadingsField);
+		if (tr.docChanged || activeChanged || treeChanged || collapsedChanged) {
 			return buildTableDecorations(tr.state);
 		}
 		return value;
@@ -614,10 +620,10 @@ type HeadingInfo = {
 	text: string;
 };
 
-function collectHeadings(view: EditorView): HeadingInfo[] {
-	const { doc } = view.state;
+function collectHeadings(state: EditorState): HeadingInfo[] {
+	const { doc } = state;
 	const out: HeadingInfo[] = [];
-	syntaxTree(view.state).iterate({
+	syntaxTree(state).iterate({
 		enter: (node) => {
 			const match = /^ATXHeading([1-6])$/.exec(node.name);
 			if (!match) return;
@@ -634,6 +640,31 @@ function collectHeadings(view: EditorView): HeadingInfo[] {
 		},
 	});
 	return out;
+}
+
+// Números das linhas escondidas pelos headings recolhidos: para cada heading colapsado,
+// esconde da linha seguinte até o próximo heading de nível igual ou superior. Compartilhado
+// pelo plugin de view (que aplica `hiddenLine`) e pelo field de tabelas (que pula o block
+// widget quando a tabela cai dentro de um trecho colapsado).
+function collapsedHiddenLines(state: EditorState): Set<number> {
+	const collapsed = state.field(collapsedHeadingsField);
+	const hidden = new Set<number>();
+	if (collapsed.size === 0) return hidden;
+	const headings = collectHeadings(state);
+	const { doc } = state;
+	for (let i = 0; i < headings.length; i++) {
+		const h = headings[i];
+		if (!collapsed.has(h.pos)) continue;
+		let endLineNum = doc.lines;
+		for (let j = i + 1; j < headings.length; j++) {
+			if (headings[j].level <= h.level) {
+				endLineNum = headings[j].lineNum - 1;
+				break;
+			}
+		}
+		for (let n = h.lineNum + 1; n <= endLineNum; n++) hidden.add(n);
+	}
+	return hidden;
 }
 
 // `---\n…\n---` no topo do arquivo é frontmatter (metadados), não um divider. Devolve o fim do bloco
@@ -664,11 +695,8 @@ function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet
 	// Passada global pelos headings: line class, chevron, widget de mencionar e
 	// linhas escondidas pelos collapses. Roda sobre o doc inteiro porque o efeito
 	// de colapso atravessa o viewport.
-	const headings = collectHeadings(view);
-	// lineNum → endLineNum (inclusive)
-	const hideUntilLine = new Map<number, number>();
-	for (let i = 0; i < headings.length; i++) {
-		const h = headings[i];
+	const headings = collectHeadings(view.state);
+	for (const h of headings) {
 		const isCollapsed = collapsed.has(h.pos);
 		const lineClass = (isCollapsed ? headingLineCollapsed : headingLine)[`ATXHeading${h.level}`];
 		if (lineClass) ranges.push(lineClass.range(h.pos));
@@ -687,28 +715,12 @@ function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet
 				}).range(h.lineTo),
 			);
 		}
-
-		if (isCollapsed) {
-			let endLineNum = doc.lines;
-			for (let j = i + 1; j < headings.length; j++) {
-				if (headings[j].level <= h.level) {
-					endLineNum = headings[j].lineNum - 1;
-					break;
-				}
-			}
-			if (endLineNum > h.lineNum) {
-				hideUntilLine.set(h.lineNum + 1, endLineNum);
-			}
-		}
 	}
 
-	// Expande os ranges colapsados em line decorations linha-a-linha. Os intervalos
-	// nunca se sobrepõem (cada heading collapsed para no próximo de nível ≤), então
-	// um único cursor de linha basta.
-	const hiddenLines = new Set<number>();
-	for (const [start, end] of hideUntilLine) {
-		for (let n = start; n <= end; n++) hiddenLines.add(n);
-	}
+	// Linhas escondidas pelos collapses viram line decorations linha-a-linha. Os intervalos
+	// nunca se sobrepõem (cada heading collapsed para no próximo de nível ≤), então um único
+	// cursor de linha basta.
+	const hiddenLines = collapsedHiddenLines(view.state);
 	for (const n of [...hiddenLines].sort((a, b) => a - b)) {
 		ranges.push(hiddenLine.range(doc.line(n).from));
 	}

@@ -5,7 +5,7 @@ export const TaskGroupIdSchema = z.object({
 });
 
 export const TaskGroupListSchema = z.object({
-	projectId: z.string().min(1),
+	projectId: z.string().min(1).optional(),
 });
 
 export const TaskGroupCreateSchema = z.object({

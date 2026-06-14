@@ -21,7 +21,9 @@ const mapTaskGroup = (row: task_groups) => ({
 
 export const taskGroupsRouter = {
 	list: protectedProcedure.input(TaskGroupListSchema).handler(async ({ input }) => {
-		const rows = await dbTaskGroups.listByProject(input.projectId);
+		const rows = input.projectId
+			? await dbTaskGroups.listByProject(input.projectId)
+			: await dbTaskGroups.listAll();
 		return rows.map(mapTaskGroup);
 	}),
 

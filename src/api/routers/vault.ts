@@ -40,6 +40,7 @@ import {
 } from "../schemas";
 
 type VaultEntry = {
+	projectId: string;
 	name: string;
 	title: string;
 	mtime: number;
@@ -48,6 +49,7 @@ type VaultEntry = {
 };
 
 type VaultGroup = {
+	projectId: string;
 	kind: "folder" | "task";
 	key: string;
 	title: string;
@@ -59,52 +61,24 @@ type VaultGroup = {
 };
 
 export const vaultRouter = {
-	// Visão geral do vault: todos os `.md` do projeto como lista plana (entries, metadata-only) +
-	// os grupos (pastas soltas e tasks) que o frontend usa pra agrupar. Compõe as três fontes —
-	// soltos na raiz, pastas soltas e arquivos dentro das tasks — num único read.
+	// Visão geral do vault: todos os `.md` como lista plana (entries, metadata-only) + os grupos
+	// (pastas soltas e tasks) que o frontend usa pra agrupar. Cada entry/group carrega o projectId.
+	// Com projectId definido, compõe um projeto; sem ele ("Todos"), agrega todos marcando a origem.
 	listEntries: protectedProcedure.input(VaultListSchema).handler(async ({ input }) => {
-		const project = await dbProjects.getById(input.projectId);
-		if (!project) return { entries: [], groups: [] };
+		if (input.projectId) {
+			const project = await dbProjects.getById(input.projectId);
+			if (!project) return { entries: [], groups: [] };
 
-		const route = project.main_route;
-		const tasks = await dbTasks.listByProject({ projectId: input.projectId });
-		const knownFolderNames = new Set(tasks.map((task) => basename(task.folder_path)));
+			return readProjectVault(project);
+		}
 
-		const [looseFiles, folders, taskGroups] = await Promise.all([
-			listVaultFiles(route),
-			listVaultFolders({ projectRoute: route, knownFolderNames }),
-			Promise.all(tasks.map((task) => readTaskGroup({ projectRoute: route, task }))),
-		]);
+		const projects = await dbProjects.getAll();
+		const parts = await Promise.all(projects.map((project) => readProjectVault(project)));
 
-		const entries: VaultEntry[] = [
-			...looseFiles.map((file) => looseEntry(file)),
-			...folders.flatMap((folder) => folder.files.map((file) => folderEntry(folder.name, file))),
-			...taskGroups.flatMap((group) => group.files.map((file) => taskEntry(group.task.id, file))),
-		];
-
-		const groups: VaultGroup[] = [
-			...folders.map((folder) => ({
-				kind: "folder" as const,
-				key: folder.name,
-				title: folder.name,
-				fileCount: folder.files.length,
-				lastEditedAt: maxMtime(folder.files),
-			})),
-			...taskGroups
-				.filter((group) => group.files.length > 0)
-				.map((group) => ({
-					kind: "task" as const,
-					key: group.task.id,
-					title: group.displayTitle,
-					fileCount: group.files.length,
-					lastEditedAt: maxMtime(group.files),
-					categoryId: group.task.category_id,
-					priorityId: group.task.priority_id,
-					done: Boolean(group.task.done),
-				})),
-		];
-
-		return { entries, groups };
+		return {
+			entries: parts.flatMap((part) => part.entries),
+			groups: parts.flatMap((part) => part.groups),
+		};
 	}),
 
 	getFile: protectedProcedure.input(VaultGetFileSchema).handler(async ({ input }) => {
@@ -349,12 +323,74 @@ export const vaultRouter = {
 		}),
 };
 
-function looseEntry(file: VaultFileMeta): VaultEntry {
-	return { name: file.name, title: file.title, mtime: file.mtime, origin: "loose", groupKey: null };
+// Compõe o vault de um projeto: soltos na raiz, pastas soltas e arquivos dentro das tasks num
+// único read. Cada entry/group fica marcado com o id do próprio projeto (a agregação "Todos"
+// concatena os resultados de vários projetos, então o discriminador precisa vir daqui).
+async function readProjectVault(project: { id: string; main_route: string }): Promise<{
+	entries: VaultEntry[];
+	groups: VaultGroup[];
+}> {
+	const route = project.main_route;
+	const tasks = await dbTasks.listByProject({ projectId: project.id });
+	const knownFolderNames = new Set(tasks.map((task) => basename(task.folder_path)));
+
+	const [looseFiles, folders, taskGroups] = await Promise.all([
+		listVaultFiles(route),
+		listVaultFolders({ projectRoute: route, knownFolderNames }),
+		Promise.all(tasks.map((task) => readTaskGroup({ projectRoute: route, task }))),
+	]);
+
+	const entries: VaultEntry[] = [
+		...looseFiles.map((file) => looseEntry(project.id, file)),
+		...folders.flatMap((folder) =>
+			folder.files.map((file) => folderEntry(project.id, folder.name, file)),
+		),
+		...taskGroups.flatMap((group) =>
+			group.files.map((file) => taskEntry(project.id, group.task.id, file)),
+		),
+	];
+
+	const groups: VaultGroup[] = [
+		...folders.map((folder) => ({
+			projectId: project.id,
+			kind: "folder" as const,
+			key: folder.name,
+			title: folder.name,
+			fileCount: folder.files.length,
+			lastEditedAt: maxMtime(folder.files),
+		})),
+		...taskGroups
+			.filter((group) => group.files.length > 0)
+			.map((group) => ({
+				projectId: project.id,
+				kind: "task" as const,
+				key: group.task.id,
+				title: group.displayTitle,
+				fileCount: group.files.length,
+				lastEditedAt: maxMtime(group.files),
+				categoryId: group.task.category_id,
+				priorityId: group.task.priority_id,
+				done: Boolean(group.task.done),
+			})),
+	];
+
+	return { entries, groups };
 }
 
-function folderEntry(folderName: string, file: VaultFileMeta): VaultEntry {
+function looseEntry(projectId: string, file: VaultFileMeta): VaultEntry {
 	return {
+		projectId,
+		name: file.name,
+		title: file.title,
+		mtime: file.mtime,
+		origin: "loose",
+		groupKey: null,
+	};
+}
+
+function folderEntry(projectId: string, folderName: string, file: VaultFileMeta): VaultEntry {
+	return {
+		projectId,
 		name: file.name,
 		title: file.title,
 		mtime: file.mtime,
@@ -363,8 +399,9 @@ function folderEntry(folderName: string, file: VaultFileMeta): VaultEntry {
 	};
 }
 
-function taskEntry(taskId: string, file: VaultFileMeta): VaultEntry {
+function taskEntry(projectId: string, taskId: string, file: VaultFileMeta): VaultEntry {
 	return {
+		projectId,
 		name: file.name,
 		title: file.title,
 		mtime: file.mtime,

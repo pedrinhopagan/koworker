@@ -8,6 +8,7 @@ import {
 	buildFolderPath,
 	createTaskFolder,
 	deleteTaskFile,
+	moveTaskFolderToProject,
 	readFirstMarkdownContent,
 	readTaskFiles,
 	readTaskFolderMeta,
@@ -27,6 +28,7 @@ import {
 	TaskIdSchema,
 	TaskListByProjectSchema,
 	TaskMetricsSchema,
+	TaskMoveToProjectSchema,
 	TaskRenameFileSchema,
 	TaskReorderFilesSchema,
 	TaskReorderSchema,
@@ -307,6 +309,8 @@ export const tasksRouter = {
 			id: input.id,
 			done: input.done ? 1 : 0,
 			completed_at: input.done ? Date.now() : null,
+			// undefined cai fora do cleanUpdate e preserva o group_id atual.
+			group_id: input.groupId,
 		});
 
 		const row = await dbTasks.getById(input.id);
@@ -314,6 +318,56 @@ export const tasksRouter = {
 			await publishTaskEvent(row.id, row.project_id, "updated");
 		}
 		return row ? mapTaskWithDisplay(row) : null;
+	}),
+
+	moveToProject: protectedProcedure.input(TaskMoveToProjectSchema).handler(async ({ input }) => {
+		const row = await dbTasks.getById(input.id);
+		if (!row) throw new Error("Tarefa não encontrada");
+		if (row.project_id === input.targetProjectId) return mapTaskWithDisplay(row);
+
+		const [source, target] = await Promise.all([
+			dbProjects.getById(row.project_id),
+			dbProjects.getById(input.targetProjectId),
+		]);
+		if (!target) throw new Error("Projeto de destino não encontrado");
+
+		// Move a pasta primeiro (FS antes do banco). Sem `source` não há de onde mover.
+		if (source) {
+			await moveTaskFolderToProject({
+				fromRoute: source.main_route,
+				toRoute: target.main_route,
+				folderPath: row.folder_path,
+			});
+		}
+
+		// Grupos são por projeto: a tarefa cai em "Sem grupo" no destino. cleanUpdate só descarta
+		// undefined, então o group_id null é gravado de fato. Se a gravação falhar com a pasta já no
+		// destino, desfaz o movimento — senão a tarefa apontaria pra um caminho vazio (arquivos
+		// "sumidos"). O move é destrutivo, ao contrário de `create`, que só deixaria um órfão inócuo.
+		try {
+			await dbTasks.update({
+				id: row.id,
+				project_id: input.targetProjectId,
+				group_id: null,
+			});
+		} catch (err) {
+			if (source) {
+				await moveTaskFolderToProject({
+					fromRoute: target.main_route,
+					toRoute: source.main_route,
+					folderPath: row.folder_path,
+				});
+			}
+			throw err;
+		}
+
+		await publishTaskEvent(row.id, row.project_id, "deleted");
+		await publishTaskEvent(row.id, input.targetProjectId, "created");
+		// O `.koworker/` do destino pode ter acabado de nascer; ressintoniza o watcher.
+		restartTasksWatcher();
+
+		const updated = await dbTasks.getById(row.id);
+		return updated ? mapTaskWithDisplay(updated) : null;
 	}),
 
 	reorder: protectedProcedure.input(TaskReorderSchema).handler(async ({ input }) => {

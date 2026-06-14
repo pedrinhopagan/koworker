@@ -13,7 +13,8 @@ import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
-import type { TaskWithMeta } from "@/types/tasks";
+import type { TaskGroup, TaskWithMeta } from "@/types/tasks";
+import { CompleteTaskFeatureDialog } from "./CompleteTaskFeatureDialog";
 import {
 	TASK_SELECT_CONTENT_SELECTOR,
 	TaskMetaControls,
@@ -41,22 +42,29 @@ type TaskItemProps = {
 	variant?: TaskItemVariant;
 	// Destaque de recência: 1 = última editada (mais forte), 2/3 = anteriores (mais sutil).
 	highlight?: number;
+	// Features do projeto. Quando presentes, concluir uma tarefa "Sem feature" abre o dialog de
+	// vínculo em vez de concluir direto — o incentivo a classificar. A lista de Tarefas passa isto;
+	// agenda e listas genéricas não, mantendo a conclusão imediata.
+	features?: TaskGroup[];
 };
 
 function TaskItemDefault({
 	task,
 	variant,
 	highlight,
+	features,
 }: {
 	task: TaskWithMeta;
 	variant: "default" | "compact";
 	highlight?: number;
+	features?: TaskGroup[];
 }) {
 	const queryClient = useQueryClient();
 	const isDone = task.done;
 	// Modo de edição (toggle pelo lápis): libera o input de título e torna os selects
 	// clicáveis. Fora dele o item inteiro é um link para a rota da tarefa.
 	const [editing, setEditing] = useState(false);
+	const [linkingFeature, setLinkingFeature] = useState(false);
 	const cardRef = useRef<HTMLDivElement>(null);
 
 	// Clicar fora conclui a edição: o blur do input já salvou o título; o dropdown do
@@ -73,6 +81,23 @@ function TaskItemDefault({
 	}
 
 	const setDoneMutation = useSetDoneMutation();
+
+	// Tarefa sem feature, com features disponíveis: concluir abre o dialog de vínculo. Os demais
+	// casos (reabrir, já tem feature, projeto sem features) concluem direto.
+	function handleToggleDone(next: boolean) {
+		if (next && !task.groupId && features && features.length > 0) {
+			setLinkingFeature(true);
+			return;
+		}
+		setDoneMutation.mutate({ id: task.id, done: next });
+	}
+
+	function completeWithFeature(groupId: string | undefined) {
+		setDoneMutation.mutate(
+			{ id: task.id, done: true, groupId },
+			{ onSuccess: () => setLinkingFeature(false) },
+		);
+	}
 
 	const updateMutation = useMutation({
 		...orpc.tasks.update.mutationOptions(),
@@ -130,9 +155,7 @@ function TaskItemDefault({
 				<Checkbox
 					className="pointer-events-auto"
 					checked={isDone}
-					onCheckedChange={(checked) =>
-						setDoneMutation.mutate({ id: task.id, done: checked === true })
-					}
+					onCheckedChange={(checked) => handleToggleDone(checked === true)}
 					disabled={isMutating}
 					aria-label={isDone ? "Marcar como não concluída" : "Marcar como concluída"}
 				/>
@@ -199,10 +222,23 @@ function TaskItemDefault({
 				onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
 				onDelete={() => removeTaskMutation.mutate({ id: task.id })}
 			/>
+
+			{features && (
+				<CompleteTaskFeatureDialog
+					open={linkingFeature}
+					onClose={() => setLinkingFeature(false)}
+					taskTitle={task.displayTitle}
+					features={features}
+					loading={setDoneMutation.isPending}
+					onComplete={completeWithFeature}
+				/>
+			)}
 		</div>
 	);
 }
 
-export function TaskItem({ task, variant = "default", highlight }: TaskItemProps) {
-	return <TaskItemDefault task={task} variant={variant} highlight={highlight} />;
+export function TaskItem({ task, variant = "default", highlight, features }: TaskItemProps) {
+	return (
+		<TaskItemDefault task={task} variant={variant} highlight={highlight} features={features} />
+	);
 }

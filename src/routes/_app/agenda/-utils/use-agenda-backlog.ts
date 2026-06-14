@@ -81,7 +81,7 @@ export function useAgendaBacklog(projectId: string | null | undefined) {
 				const info = meta.get(id);
 				return {
 					id,
-					name: info?.name ?? (byProject ? "Sem projeto" : "Sem grupo"),
+					name: info?.name ?? (byProject ? "Sem projeto" : "Sem feature"),
 					color: info?.color ?? FALLBACK_COLOR,
 					order: info?.order ?? Number.MAX_SAFE_INTEGER,
 					tasks: groupTasks,

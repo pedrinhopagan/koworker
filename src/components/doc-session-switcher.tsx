@@ -54,12 +54,16 @@ type SwitcherView = {
 	list: DocSessionMeta[];
 	currentKey: string | null;
 	index: number;
+	// Ordem canônica das seções de projeto (display_order de `projects.list`), congelada ao abrir junto
+	// da `list`: estabiliza a ordem das seções entre aberturas e mantém o `flatIndex` alinhado entre render
+	// e navegação por teclado (todas as chamadas de agrupamento usam a mesma ordem).
+	projectOrder: string[];
 };
 
 // Instantâneo do MRU ao abrir. A sessão atual já foi gravada no MRU por `openSwitcher`, então entra como
 // qualquer recente (marcada "Sessão atual" pela `currentKey`) — não há mais card sintético nem dwell em
 // curso a exibir. Devolve null só quando não há nada pra mostrar (sem sessão atual e MRU vazio).
-function buildList(): Omit<SwitcherView, "index"> | null {
+function buildList(): Omit<SwitcherView, "index" | "projectOrder"> | null {
 	const { recents } = useDocSessionsStore.getState();
 	const currentKey = useDocSwitcherStore.getState().current?.key ?? null;
 
@@ -71,14 +75,14 @@ function buildList(): Omit<SwitcherView, "index"> | null {
 }
 
 function flatCards(view: SwitcherView): SessionGroupCard[] {
-	return groupSessions(view.list, view.currentKey).cards;
+	return groupSessions(view.list, view.currentKey, view.projectOrder).cards;
 }
 
 // Reancora o `index` à mesma chave ativa depois de uma edição que muda a lista; se a chave sumiu,
 // fixa no antigo offset (clampado). Fecha o overlay só quando não resta nenhum card — "vazio" agora é
 // realmente vazio (a sessão atual sozinha mantém o overlay aberto, mostrando só ela).
 function reanchor(view: SwitcherView, nextList: DocSessionMeta[]): SwitcherView | null {
-	const { cards } = groupSessions(nextList, view.currentKey);
+	const { cards } = groupSessions(nextList, view.currentKey, view.projectOrder);
 	if (cards.length === 0) {
 		return null;
 	}
@@ -102,6 +106,7 @@ export function DocSessionSwitcher() {
 	const setSelectedProjectId = useSelectedProjectStore((s) => s.setSelectedProjectId);
 	const togglePin = useDocSessionsStore((s) => s.togglePin);
 	const removeRecent = useDocSessionsStore((s) => s.removeRecent);
+	const removeRecentsByKeys = useDocSessionsStore((s) => s.removeRecentsByKeys);
 	const clearLoose = useDocSessionsStore((s) => s.clearLoose);
 
 	// Cor de cada projeto pra pintar o acento por seção: os grupos são chaveados por nome, então o
@@ -109,6 +114,11 @@ export function DocSessionSwitcher() {
 	const projects = useQuery(orpc.projects.list.queryOptions()).data ?? [];
 	const projectColor = (name: string | null): string | undefined =>
 		name ? projects.find((project) => project.name === name)?.color : undefined;
+
+	// Ordem canônica das seções (display_order de `projects.list`). Via ref pra os callbacks estáveis
+	// (openSwitcher/keydown) lerem o valor atual sem entrar nas deps e recriar o listener a cada query.
+	const projectOrderRef = useRef<string[]>([]);
+	projectOrderRef.current = projects.map((project) => project.name);
 
 	const [view, setView] = useState<SwitcherView | null>(null);
 	const viewRef = useRef<SwitcherView | null>(null);
@@ -155,7 +165,12 @@ export function DocSessionSwitcher() {
 		if (!built) {
 			return false;
 		}
-		setView({ ...built, index: initialSwitcherIndex(built.list, built.currentKey) });
+		const projectOrder = projectOrderRef.current;
+		setView({
+			...built,
+			projectOrder,
+			index: initialSwitcherIndex(built.list, built.currentKey, projectOrder),
+		});
 		return true;
 	}, []);
 
@@ -211,7 +226,7 @@ export function DocSessionSwitcher() {
 			} else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
 				event.preventDefault();
 				event.stopPropagation();
-				const starts = blockStartIndices(current.list, current.currentKey);
+				const starts = blockStartIndices(current.list, current.currentKey, current.projectOrder);
 				setView({
 					...current,
 					index: jumpToBlock(starts, current.index, event.key === "ArrowDown" ? 1 : -1),
@@ -280,6 +295,29 @@ export function DocSessionSwitcher() {
 		[removeRecent, close],
 	);
 
+	// Fecha de uma vez todos os arquivos de uma tarefa ou de um projeto. Espelha o X de cada card (tira
+	// fixadas inclusive), só que sobre o conjunto de chaves do bloco/grupo, reancorando como o removeCard.
+	const removeKeys = useCallback(
+		(keys: string[]) => {
+			removeRecentsByKeys(keys);
+			const current = viewRef.current;
+			if (!current) {
+				return;
+			}
+			const drop = new Set(keys);
+			const next = reanchor(
+				current,
+				current.list.filter((r) => !drop.has(r.key)),
+			);
+			if (!next) {
+				close();
+				return;
+			}
+			setView(next);
+		},
+		[removeRecentsByKeys, close],
+	);
+
 	const togglePinCard = useCallback(
 		(key: string) => {
 			togglePin(key);
@@ -287,8 +325,8 @@ export function DocSessionSwitcher() {
 			if (!current) {
 				return;
 			}
-			// Fixar/desafixar muda a seção Fixadas (uma ocorrência some/aparece no topo), então a
-			// sequência achatada se desloca — reancora o índice à mesma chave ativa.
+			// Fixar/desafixar move o card entre a seção Fixadas e o grupo do projeto, então a sequência
+			// achatada se desloca — reancora o índice à mesma chave ativa.
 			const nextList = current.list.map((r) =>
 				r.key === key ? Object.assign({}, r, { pinned: !r.pinned }) : r,
 			);
@@ -320,7 +358,11 @@ export function DocSessionSwitcher() {
 		return null;
 	}
 
-	const { pinned, skills, agents, groups, cards } = groupSessions(view.list, view.currentKey);
+	const { pinned, skills, agents, groups, cards } = groupSessions(
+		view.list,
+		view.currentKey,
+		view.projectOrder,
+	);
 	const getAnchor = useDocSessionsStore.getState().getAnchor;
 	const hasLoose = view.list.some((r) => !r.pinned && r.key !== view.currentKey);
 	const activeCard = cards[view.index] ?? null;
@@ -380,7 +422,7 @@ export function DocSessionSwitcher() {
 			<div
 				role="listbox"
 				aria-label="Sessões de leitura"
-				className="flex max-h-full w-full max-w-5xl flex-col gap-5 overflow-y-auto"
+				className="flex max-h-full w-full max-w-5xl flex-col gap-5 overflow-y-auto px-2"
 				// O overlay fecha no clique de fundo; clicar na área dos cards não deve fechar.
 				onClick={(event) => event.stopPropagation()}
 			>
@@ -390,14 +432,15 @@ export function DocSessionSwitcher() {
 							<Pin className="size-3 fill-current" />
 							Fixadas
 						</header>
-						{/* Flat, sem caixas por kind: é uma seção cross-cutting. Os cards duplicam — cada
-						    fixado também segue no grupo do projeto. `boxed={false}` mostra o rótulo do kind
-						    (sem cabeçalho de caixa pra contextualizar). */}
+						{/* Flat, sem caixas por kind: é uma seção cross-cutting. Os fixados saem do geral e
+						    aparecem só aqui. `boxed={false}` mostra o rótulo do kind (sem cabeçalho de caixa
+						    pra contextualizar). */}
 						<div className="flex flex-wrap items-start gap-3">
 							{pinned.map((card) => (
 								<Card
 									key={`pinned:${card.key}`}
 									card={card}
+									accentColor={projectColor(card.projectName ?? null)}
 									boxed={false}
 									active={card.flatIndex === view.index}
 									isMostRecent={card.key === mostRecentKey}
@@ -417,7 +460,7 @@ export function DocSessionSwitcher() {
 					return (
 						<section
 							key={group.projectName ?? "__sem-projeto__"}
-							className="flex flex-col gap-2.5"
+							className="group/project flex flex-col gap-2.5"
 							// Acento do projeto desta seção: o dot do cabeçalho e os ícones/realces dos cards
 							// herdam `--project-accent` daqui. Sem cor (ou "Sem projeto"), cai no `--primary`.
 							style={
@@ -429,6 +472,12 @@ export function DocSessionSwitcher() {
 							<header className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 								<span className="size-1.5 rounded-full bg-[var(--project-accent,var(--primary))]" />
 								{group.projectName ?? "Sem projeto"}
+								<CloseGroupButton
+									keys={group.blocks.flatMap((block) => block.cards.map((card) => card.key))}
+									label={`Fechar tudo de ${group.projectName ?? "Sem projeto"}`}
+									revealClass="-ml-0.5 group-hover/project:opacity-100"
+									onRemove={removeKeys}
+								/>
 							</header>
 
 							<div className="flex flex-wrap items-start gap-3">
@@ -437,15 +486,31 @@ export function DocSessionSwitcher() {
 									return (
 										<div
 											key={isTask ? `task:${block.taskId}` : `kind:${block.kind}`}
-											className="flex flex-col gap-1.5 border border-dashed border-border/60 bg-card/30 p-2"
+											className="group/box relative flex flex-col gap-1.5 border border-dashed border-border/60 bg-card/30 p-2"
 										>
-											{/* Caixa de kind (Vault/Docs) leva o rótulo no cabeçalho — a largura é ditada pelos
-											    cards, e o cabeçalho trunca nela (w-0 não empurra, min-w-full iguala). Caixa de
-											    tarefa NÃO tem cabeçalho: cada card já carrega o nome da tarefa em negrito. */}
-											{isTask ? null : (
-												<span className="block w-0 min-w-full truncate px-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-													{KIND_BOX_LABEL[block.kind]}
-												</span>
+											{/* Caixa de kind (Vault/Docs): cabeçalho com o rótulo (a largura é ditada pelos cards, e o
+											    rótulo trunca nela — w-0 não empurra, min-w-full iguala) e o botão "fechar tudo" à direita.
+											    Caixa de tarefa não repete o título (cada card já o carrega em negrito): o botão fica
+											    absoluto na esquina superior esquerda da caixa, sobre os cards. Ambos revelados no hover. */}
+											{isTask ? (
+												<CloseGroupButton
+													keys={block.cards.map((card) => card.key)}
+													label={`Fechar todos os arquivos de ${block.title}`}
+													revealClass="absolute -top-2 -left-2 z-10 group-hover/box:opacity-100"
+													onRemove={removeKeys}
+												/>
+											) : (
+												<div className="flex w-0 min-w-full items-center gap-1 px-0.5">
+													<span className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+														{KIND_BOX_LABEL[block.kind]}
+													</span>
+													<CloseGroupButton
+														keys={block.cards.map((card) => card.key)}
+														label={`Fechar tudo de ${KIND_BOX_LABEL[block.kind]}`}
+														revealClass="ml-auto group-hover/box:opacity-100"
+														onRemove={removeKeys}
+													/>
+												</div>
 											)}
 											<div className="flex flex-wrap items-start gap-2">
 												{block.cards.map((card) => (
@@ -529,8 +594,42 @@ export function DocSessionSwitcher() {
 	);
 }
 
-// Move a seleção do teclado pro card sob o mouse. Recebe o flatIndex do próprio card (não a chave):
-// um fixado aparece duas vezes e cada ocorrência tem seu índice, então o hover casa a ocorrência exata.
+// Botão "fechar tudo" de um bloco (tarefa) ou grupo (projeto): tira todas as sessões do conjunto de uma
+// vez, como aplicar o X de cada card. Revelado no hover do container (`group-hover`), alinhado à direita.
+function CloseGroupButton({
+	keys,
+	label,
+	revealClass,
+	onRemove,
+}: {
+	keys: string[];
+	label: string;
+	// Variante group-hover nomeada (group-hover/project ou /box): o hover do projeto não revela os botões
+	// das caixas internas e vice-versa, já que os dois containers são `group` aninhados.
+	revealClass: string;
+	onRemove: (keys: string[]) => void;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={(event) => {
+				event.stopPropagation();
+				onRemove(keys);
+			}}
+			title={label}
+			aria-label={label}
+			className={cn(
+				"flex items-center text-muted-foreground/50 opacity-0 transition-colors hover:text-destructive",
+				revealClass,
+			)}
+		>
+			<Trash2 className="size-3.5" />
+		</button>
+	);
+}
+
+// Move a seleção do teclado pro card sob o mouse. Recebe o flatIndex do próprio card (não a chave),
+// casando a posição exata na sequência achatada.
 function focusCard(
 	setView: React.Dispatch<React.SetStateAction<SwitcherView | null>>,
 	index: number,
@@ -547,6 +646,10 @@ type CardProps = {
 	// Em caixa com cabeçalho de kind (Vault/Docs) ou na seção Skills, o contexto já está no cabeçalho → o
 	// card some com o texto do KIND_LABEL (mantém o ícone). Fixadas e cards de tarefa mantêm o rótulo.
 	boxed: boolean;
+	// Acento do projeto do próprio card. Os cards agrupados herdam `--project-accent` da `<section>` do
+	// projeto; a seção Fixadas é cross-cutting e flat, então cada fixado precisa carregar a cor do SEU
+	// projeto aqui (sem isto, cairiam no `--primary` do projeto em foco).
+	accentColor?: string;
 	onConfirm: (meta: DocSessionMeta) => void;
 	onHover: () => void;
 	onTogglePin: (key: string) => void;
@@ -563,6 +666,7 @@ function Card({
 	heading,
 	isMostRecent,
 	boxed,
+	accentColor,
 	onConfirm,
 	onHover,
 	onTogglePin,
@@ -596,6 +700,7 @@ function Card({
 			tabIndex={active ? 0 : -1}
 			onClick={() => onConfirm(card)}
 			onMouseEnter={onHover}
+			style={accentColor ? ({ "--project-accent": accentColor } as React.CSSProperties) : undefined}
 			className={cn(
 				"group relative flex cursor-pointer flex-col gap-3 border bg-card p-4 text-left transition-colors outline-none",
 				"w-52",
@@ -668,7 +773,7 @@ function Card({
 			<div className="flex min-w-0 flex-col gap-0.5">
 				<span
 					className={cn(
-						"line-clamp-2 text-base font-semibold leading-tight",
+						"line-clamp-2 min-h-[2.5rem] text-base font-semibold leading-tight",
 						active ? "text-foreground" : "text-foreground/90",
 					)}
 				>

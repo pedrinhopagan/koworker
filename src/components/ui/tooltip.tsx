@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,11 @@ type TooltipProps = {
 	side?: "top" | "right" | "bottom" | "left";
 	align?: "start" | "center" | "end";
 	className?: string;
+	// Classe do wrapper do gatilho. Default `inline-flex`; passe ex. `flex w-full` quando o gatilho
+	// for uma linha que precisa ocupar a largura toda.
+	triggerClassName?: string;
+	// Atraso (ms) antes de abrir no hover/focus. Default 0 (imediato).
+	openDelay?: number;
 };
 
 export function Tooltip({
@@ -17,18 +22,44 @@ export function Tooltip({
 	side = "top",
 	align = "center",
 	className,
+	triggerClassName,
+	openDelay = 0,
 }: TooltipProps) {
 	const [open, setOpen] = useState(false);
-	const trigger = <span className="inline-flex">{children}</span>;
+	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const trigger = <span className={triggerClassName ?? "inline-flex"}>{children}</span>;
+
+	function clearTimer() {
+		if (timer.current) {
+			clearTimeout(timer.current);
+			timer.current = null;
+		}
+	}
+
+	function openDelayed() {
+		if (!openDelay) {
+			setOpen(true);
+			return;
+		}
+		clearTimer();
+		timer.current = setTimeout(() => setOpen(true), openDelay);
+	}
+
+	function close() {
+		clearTimer();
+		setOpen(false);
+	}
+
+	useEffect(() => clearTimer, []);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger
 				asChild
-				onMouseEnter={() => setOpen(true)}
-				onMouseLeave={() => setOpen(false)}
-				onFocus={() => setOpen(true)}
-				onBlur={() => setOpen(false)}
+				onMouseEnter={openDelayed}
+				onMouseLeave={close}
+				onFocus={openDelayed}
+				onBlur={close}
 			>
 				{trigger}
 			</PopoverTrigger>

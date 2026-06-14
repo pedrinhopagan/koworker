@@ -66,6 +66,16 @@ export const TaskUpdateSchema = z.object({
 export const TaskSetDoneSchema = z.object({
 	id: z.string().trim().min(1),
 	done: z.boolean(),
+	// Concluir uma tarefa "Sem feature" pode, no mesmo gesto, vinculá-la a uma feature. Omitido
+	// (reabrir ou concluir sem feature) preserva o group_id atual.
+	groupId: z.string().trim().min(1).optional(),
+});
+
+// Migra a tarefa para outro projeto: move a pasta `.koworker/<id>` para o main_route do destino e
+// reaponta project_id. O grupo é por projeto, então a tarefa cai em "Sem grupo" no destino.
+export const TaskMoveToProjectSchema = z.object({
+	id: z.string().trim().min(1),
+	targetProjectId: z.string().trim().min(1),
 });
 
 // Reordena/recoloca um bucket inteiro. As ids vêm na ordem final desejada; o handler grava
@@ -118,7 +128,7 @@ const vaultFolderName = z
 	.refine((name) => name !== "." && name !== "..", "Invalid folder name");
 
 export const VaultListSchema = z.object({
-	projectId: z.string().trim().min(1),
+	projectId: z.string().trim().min(1).optional(),
 });
 
 // Conteúdo de um único arquivo do vault, pra rota de abertura — carrega só o arquivo aberto,

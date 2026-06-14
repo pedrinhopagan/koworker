@@ -61,8 +61,7 @@ function taskIdFromKey(key: string): string | null {
 }
 
 // `flatIndex` é a posição do card na sequência achatada `cards` (== ordem de render). Realce e hover
-// são por posição, não por chave: um fixado aparece duas vezes (seção "Fixadas" + grupo do projeto),
-// então a chave repete — cada ocorrência é um objeto distinto com seu próprio flatIndex.
+// são por posição. Cada chave aparece uma única vez: fixadas saem do geral e ficam só na seção "Fixadas".
 export type SessionGroupCard = DocSessionMeta & { isCurrent: boolean; flatIndex: number };
 
 // Toda caixa do overlay é um bloco com cabeçalho + cards: uma tarefa (cabeçalho = título da tarefa,
@@ -83,6 +82,11 @@ export type SessionProjectGroup = { projectName: string | null; blocks: SessionB
 export function groupSessions(
 	list: DocSessionMeta[],
 	currentKey: string | null,
+	// Ordem canônica das seções de projeto (nomes em display_order, vinda de `projects.list`). Sem ela,
+	// os grupos ficam na ordem de primeira aparição no MRU — que flutua a cada visita/remoção. Com ela, a
+	// ordem das seções é estável e igual à do app; nomes ausentes caem depois dos conhecidos e "Sem
+	// projeto" (null) por último. Os cards dentro de cada grupo seguem MRU em qualquer caso.
+	projectOrder?: string[],
 ): {
 	pinned: SessionGroupCard[];
 	skills: SessionGroupCard[];
@@ -116,6 +120,11 @@ export function groupSessions(
 
 	for (const meta of list) {
 		const card = toCard(meta);
+
+		// Fixadas vivem só na seção "Fixadas": saem do geral (grupos de projeto e Skills) pra não duplicar.
+		if (meta.pinned) {
+			continue;
+		}
 
 		if (meta.kind === "skill") {
 			const slug = meta.nav.params.slug ?? meta.key;
@@ -171,13 +180,25 @@ export function groupSessions(
 	}
 
 	// Seção "Fixadas" no topo: os fixados em ordem MRU, FLAT (sem caixas por kind — é cross-cutting de
-	// projetos/kinds). Duplica de propósito: o mesmo card também segue no grupo do projeto dele. A
-	// ocorrência aqui é um objeto distinto da do grupo, então cada uma carrega seu próprio flatIndex.
+	// projetos/kinds). Os fixados foram pulados no loop acima, então só aparecem aqui.
 	const pinned = list.filter((meta) => meta.pinned).map(toCard);
 
+	// Reordena as seções pela ordem canônica do app (se fornecida). `sort` é estável, então projetos de
+	// mesmo rank (ausentes do projectOrder, ou ambos null) preservam a ordem MRU de primeira aparição.
+	if (projectOrder) {
+		const rank = (name: string | null): number => {
+			if (name === null) {
+				return Number.MAX_SAFE_INTEGER;
+			}
+			const index = projectOrder.indexOf(name);
+			return index === -1 ? Number.MAX_SAFE_INTEGER - 1 : index;
+		};
+		groups.sort((a, b) => rank(a.projectName) - rank(b.projectName));
+	}
+
 	// Ordem de render = Fixadas, grupos de projeto, Skills e Agents (seções globais, no fim). `cards` é o
-	// achatamento nessa ordem; o flatIndex de cada card é sua posição, então realce e navegação por posição
-	// distinguem as duas ocorrências de um fixado. findIndex-por-chave resolve pra 1ª ocorrência (Fixadas).
+	// achatamento nessa ordem; o flatIndex de cada card é sua posição. Como fixadas não duplicam no geral,
+	// cada chave ocupa uma única posição.
 	const cards = [
 		...pinned,
 		...groups.flatMap((group) => group.blocks.flatMap((block) => block.cards)),
@@ -195,8 +216,12 @@ export function groupSessions(
 // — mapeado pra sua posição na sequência agrupada. O agrupamento reordena, então "primeiro não-atual
 // na ordem de render" não serve: seria um doc mais velho do mesmo projeto. Isto preserva o flick-pro-
 // anterior do Alt+Tab. Cai em 0 se a lista só tiver a sessão atual (o switcher não abre nesse caso).
-export function initialSwitcherIndex(list: DocSessionMeta[], currentKey: string | null): number {
-	const { cards } = groupSessions(list, currentKey);
+export function initialSwitcherIndex(
+	list: DocSessionMeta[],
+	currentKey: string | null,
+	projectOrder?: string[],
+): number {
+	const { cards } = groupSessions(list, currentKey, projectOrder);
 	const previousKey = list.find((r) => r.key !== currentKey)?.key;
 	const index = cards.findIndex((c) => c.key === previousKey);
 	return Math.max(index, 0);
@@ -205,8 +230,12 @@ export function initialSwitcherIndex(list: DocSessionMeta[], currentKey: string 
 // Índice (em `cards`) do primeiro card de cada bloco/caixa, em ordem de render: a seção Fixadas (se
 // houver) e depois cada bloco de cada grupo. Cada bloco ocupa uma faixa contígua no achatado, então o
 // "começo" basta pra mapear posição→caixa — é por aqui que o ↑↓ pula entre caixas.
-export function blockStartIndices(list: DocSessionMeta[], currentKey: string | null): number[] {
-	const { pinned, skills, agents, groups } = groupSessions(list, currentKey);
+export function blockStartIndices(
+	list: DocSessionMeta[],
+	currentKey: string | null,
+	projectOrder?: string[],
+): number[] {
+	const { pinned, skills, agents, groups } = groupSessions(list, currentKey, projectOrder);
 	const starts: number[] = [];
 	let index = 0;
 	if (pinned.length > 0) {
@@ -291,6 +320,10 @@ interface DocSessionsState {
 	removeRecent: (key: string) => void;
 	// Remove todas as sessões cuja chave começa por `prefix` — uma tarefa tem uma sessão por arquivo.
 	removeRecentsByPrefix: (prefix: string) => void;
+	// Remove em lote pelas chaves exatas — o switcher fecha de uma vez todos os arquivos de uma tarefa
+	// ou de um projeto, derivando as chaves dos cards já agrupados. Tira fixadas também, como o X de cada
+	// card; chave única cobre as duas ocorrências de um fixado (Fixadas + grupo).
+	removeRecentsByKeys: (keys: string[]) => void;
 	// Limpa só as automáticas; fixadas permanecem (é o propósito de fixar).
 	clearLoose: () => void;
 }
@@ -340,6 +373,11 @@ export const useDocSessionsStore = create<DocSessionsState>()(
 				set((state) => ({ recents: state.recents.filter((r) => r.key !== key) })),
 			removeRecentsByPrefix: (prefix) =>
 				set((state) => ({ recents: state.recents.filter((r) => !r.key.startsWith(prefix)) })),
+			removeRecentsByKeys: (keys) =>
+				set((state) => {
+					const drop = new Set(keys);
+					return { recents: state.recents.filter((r) => !drop.has(r.key)) };
+				}),
 			clearLoose: () => set((state) => ({ recents: state.recents.filter((r) => r.pinned) })),
 		}),
 		{

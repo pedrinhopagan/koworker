@@ -11,6 +11,8 @@ export const dbTaskGroups = {
 			.orderBy("display_order", "asc")
 			.execute(),
 
+	listAll: () => db.selectFrom("task_groups").selectAll().orderBy("display_order", "asc").execute(),
+
 	getById: (id: string) =>
 		db.selectFrom("task_groups").selectAll().where("id", "=", id).executeTakeFirst(),
 
