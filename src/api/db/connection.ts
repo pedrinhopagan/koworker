@@ -106,6 +106,15 @@ const categoriesSchema = type({
 	"updated_at?": "number.integer",
 });
 
+const skillCategoriesSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	name: "string",
+	color: type("string").configure({ default: "#000000" }),
+	display_order: type("number.integer").configure({ default: 0 }),
+	created_at: type("number.integer").configure({ default: "now" }),
+	"updated_at?": "number.integer",
+});
+
 const prioritiesSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	name: "string",
@@ -124,6 +133,10 @@ const skillSettingsSchema = type({
 	"label?": "string",
 	"icon?": "string",
 	"color?": "string",
+	"category_id?": type("string").configure({
+		references: "skill_categories.id",
+		onDelete: "set null",
+	}),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 });
@@ -148,6 +161,7 @@ const database = new Database({
 		task_groups: taskGroupsSchema,
 		tasks: tasksSchema,
 		events: eventsSchema,
+		skill_categories: skillCategoriesSchema,
 		skill_settings: skillSettingsSchema,
 		skill_source_paths: skillSourcePathsSchema,
 	},
@@ -170,6 +184,7 @@ export type events = DB["events"];
 export type task_groups = DB["task_groups"];
 export type categories = DB["categories"];
 export type priorities = DB["priorities"];
+export type skill_categories = DB["skill_categories"];
 export type skill_settings = DB["skill_settings"];
 export type skill_source_paths = DB["skill_source_paths"];
 
@@ -183,6 +198,7 @@ export {
 	eventsSchema,
 	categoriesSchema,
 	prioritiesSchema,
+	skillCategoriesSchema,
 	skillSettingsSchema,
 	skillSourcePathsSchema,
 };

@@ -35,6 +35,11 @@ export {
 	ProjectUpdateSchema,
 } from "./projects";
 export {
+	SkillCategoryCreateSchema,
+	SkillCategoryIdSchema,
+	SkillCategoryUpdateSchema,
+} from "./skill-categories";
+export {
 	SkillCreateSchema,
 	SkillDeleteSchema,
 	SkillListSchema,

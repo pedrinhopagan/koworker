@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useRecordDocSession } from "@/hooks/use-record-doc-session";
+import { useSkillCategoriesQuery } from "@/hooks/use-skill-categories";
 import { useSkillQuery } from "@/hooks/use-skills";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
@@ -131,6 +132,7 @@ function SkillEditor({
 	});
 
 	const settingsMutation = useSkillSettingsMutation();
+	const categoriesQuery = useSkillCategoriesQuery();
 	const { updateContent, standardize, standardizing, removeSkill, removeAllSkill, removing } =
 		useSkillMutations();
 
@@ -471,6 +473,7 @@ function SkillEditor({
 
 			<SkillAppearanceDialog
 				skill={appearanceOpen ? skill : null}
+				categories={categoriesQuery.data ?? []}
 				onClose={() => setAppearanceOpen(false)}
 			/>
 

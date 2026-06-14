@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
-import type { TaskSkill } from "@/types/skills";
+import type { SkillCategory, TaskSkill } from "@/types/skills";
 import { SkillAppearanceDialog } from "./skill-appearance-dialog";
+import { SkillCategoryCreateButton, SkillCategoryHeader } from "./skill-categories-controls";
 import { SkillCreateTile } from "./skill-create-tile";
 
 type SourceFilter = "all" | "builtin" | "custom";
@@ -20,19 +21,24 @@ const SOURCE_FILTERS: { value: SourceFilter; label: string }[] = [
 	{ value: "custom", label: "Personalizadas" },
 ];
 
+// Pseudo-id da seção "Sem categoria" no Set de colapso; nenhuma categoria real usa essa string.
+const NO_CATEGORY_KEY = "__none__";
+
 function distinctTools(skill: TaskSkill): TaskSkill["sources"][number]["tool"][] {
 	return [...new Set(skill.sources.map((source) => source.tool))];
 }
 
 type SkillsGridProps = {
 	skills: TaskSkill[];
+	categories: SkillCategory[];
 	loading: boolean;
 };
 
-export function SkillsGrid({ skills, loading }: SkillsGridProps) {
+export function SkillsGrid({ skills, categories, loading }: SkillsGridProps) {
 	const [search, setSearch] = useState("");
 	const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 	const [appearanceSlug, setAppearanceSlug] = useState<string | null>(null);
+	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
 	const filtered = useMemo(() => {
 		const term = search.trim().toLowerCase();
@@ -47,8 +53,55 @@ export function SkillsGrid({ skills, loading }: SkillsGridProps) {
 		});
 	}, [skills, search, sourceFilter]);
 
-	// Deriva a skill viva de `skills` (não um snapshot): ao trocar ícone/cor a mutation invalida a
-	// query, `skills` se atualiza e o preview do dialog reflete a mudança em tempo real.
+	// Seções: categorias nomeadas (já na ordem do banco — getAll ordena por display_order). Sem
+	// busca/filtro elas aparecem todas, mesmo vazias (a estrutura serve pra organizar); com filtro
+	// ativo, as vazias somem pra não virar uma parede de cabeçalhos por poucos resultados. "Sem
+	// categoria" só entra quando tem skill. As skills já vêm filtradas.
+	const sections = useMemo(() => {
+		const byCategory = new Map<string, TaskSkill[]>();
+		const orphans: TaskSkill[] = [];
+		for (const skill of filtered) {
+			if (skill.categoryId && categories.some((category) => category.id === skill.categoryId)) {
+				const bucket = byCategory.get(skill.categoryId);
+				if (bucket) {
+					bucket.push(skill);
+				} else {
+					byCategory.set(skill.categoryId, [skill]);
+				}
+			} else {
+				orphans.push(skill);
+			}
+		}
+
+		const filtering = search.trim().length > 0 || sourceFilter !== "all";
+		const named: { key: string; category?: SkillCategory; skills: TaskSkill[] }[] = categories
+			.filter((category) => !filtering || (byCategory.get(category.id)?.length ?? 0) > 0)
+			.map((category) => ({
+				key: category.id,
+				category,
+				skills: byCategory.get(category.id) ?? [],
+			}));
+
+		if (orphans.length > 0) {
+			named.push({ key: NO_CATEGORY_KEY, skills: orphans });
+		}
+		return named;
+	}, [filtered, categories, search, sourceFilter]);
+
+	function toggleCollapsed(key: string) {
+		setCollapsed((prev) => {
+			const next = new Set(prev);
+			if (next.has(key)) {
+				next.delete(key);
+			} else {
+				next.add(key);
+			}
+			return next;
+		});
+	}
+
+	// Deriva a skill viva de `skills` (não um snapshot): ao trocar ícone/cor/categoria a mutation
+	// invalida a query, `skills` se atualiza e o preview do dialog reflete a mudança em tempo real.
 	const appearanceSkill = appearanceSlug
 		? (skills.find((skill) => skill.slug === appearanceSlug) ?? null)
 		: null;
@@ -80,6 +133,7 @@ export function SkillsGrid({ skills, loading }: SkillsGridProps) {
 						</button>
 					))}
 				</div>
+				<SkillCategoryCreateButton categories={categories} />
 				<Text size="xs" tone="muted" className="ml-auto min-w-12 text-right font-mono tabular-nums">
 					{filtered.length}/{skills.length}
 				</Text>
@@ -93,16 +147,42 @@ export function SkillsGrid({ skills, loading }: SkillsGridProps) {
 
 			{!loading && (
 				<div className="min-h-0 flex-1 transform-gpu overflow-y-auto overscroll-contain pr-1">
-					<div className="grid grid-cols-3 lg:grid-cols-4 gap-3">
+					<div className="grid grid-cols-3 lg:grid-cols-4 gap-3 pb-5">
 						<SkillCreateTile />
-						{filtered.map((skill, index) => (
-							<SkillTile
-								key={skill.slug}
-								skill={skill}
-								index={index}
-								onAppearance={() => setAppearanceSlug(skill.slug)}
-							/>
-						))}
+					</div>
+
+					<div className="flex flex-col gap-5">
+						{sections.map(({ key, category, skills: sectionSkills }) => {
+							const isCollapsed = collapsed.has(key);
+							return (
+								<section key={key} className="flex flex-col gap-2">
+									<SkillCategoryHeader
+										category={category}
+										count={sectionSkills.length}
+										collapsed={isCollapsed}
+										onToggleCollapse={() => toggleCollapsed(key)}
+									/>
+
+									{!isCollapsed && (
+										<div className="grid grid-cols-3 lg:grid-cols-4 gap-3">
+											{sectionSkills.map((skill, index) => (
+												<SkillTile
+													key={skill.slug}
+													skill={skill}
+													index={index}
+													onAppearance={() => setAppearanceSlug(skill.slug)}
+												/>
+											))}
+											{sectionSkills.length === 0 && (
+												<Text size="sm" tone="muted" className="px-1 py-2">
+													Nenhuma skill nesta categoria.
+												</Text>
+											)}
+										</div>
+									)}
+								</section>
+							);
+						})}
 					</div>
 
 					{skills.length > 0 && filtered.length === 0 && (
@@ -113,7 +193,11 @@ export function SkillsGrid({ skills, loading }: SkillsGridProps) {
 				</div>
 			)}
 
-			<SkillAppearanceDialog skill={appearanceSkill} onClose={() => setAppearanceSlug(null)} />
+			<SkillAppearanceDialog
+				skill={appearanceSkill}
+				categories={categories}
+				onClose={() => setAppearanceSlug(null)}
+			/>
 		</div>
 	);
 }
