@@ -2,12 +2,16 @@ import {
 	Check,
 	CircleCheck,
 	CircleDot,
+	ClipboardCopy,
+	FileArchive,
 	FolderInput,
+	FolderOpen,
 	FolderPlus,
 	FolderSymlink,
 	LayoutGrid,
 	Flame,
 	Pencil,
+	Share2,
 	SquareArrowOutUpRight,
 	Trash2,
 	Unlink,
@@ -48,6 +52,11 @@ export type TreeActions = {
 	onAdopt: (node: TreeNode) => void;
 	onUnlink: (node: TreeNode) => void;
 	onPickTask: (node: TreeNode, taskId: string) => void;
+	// Compartilhar/abrir no SO. O dono resolve o diretório absoluto e o conteúdo pelo kind do nó.
+	// onShareContent/onShareZip só são chamados em pastas (tarefa/skill/pasta solta); arquivo só abre.
+	onOpenInOs: (node: TreeNode) => void;
+	onShareContent: (node: TreeNode) => void;
+	onShareZip: (node: TreeNode) => void;
 	// Ações da pasta de tarefa (kind === "taskFolder"). O dono despacha pra mutation pelo taskId.
 	onOpenTask: (node: TaskFolder) => void;
 	onRenameTask: (node: TaskFolder) => void;
@@ -109,6 +118,45 @@ function PickSub({
 	);
 }
 
+// "Abrir no sistema" + submenu "Compartilhar". Pasta (tarefa/skill/pasta solta) ganha o submenu
+// com copiar conteúdo/zip; arquivo único só abre o local (não é pasta pra compactar/concatenar).
+function ShareItems({
+	node,
+	actions,
+	folder,
+}: {
+	node: TreeNode;
+	actions: TreeActions;
+	folder: boolean;
+}) {
+	return (
+		<>
+			<ContextMenuItem onSelect={() => actions.onOpenInOs(node)} className="px-3 py-2">
+				<FolderOpen className="mr-2 size-4" />
+				Abrir no sistema
+			</ContextMenuItem>
+			{folder ? (
+				<ContextMenuSub>
+					<ContextMenuSubTrigger className="px-3 py-2">
+						<Share2 className="mr-2 size-4" />
+						Compartilhar
+					</ContextMenuSubTrigger>
+					<ContextMenuSubContent className="w-[200px]">
+						<ContextMenuItem onSelect={() => actions.onShareContent(node)} className="px-3 py-2">
+							<ClipboardCopy className="mr-2 size-4" />
+							Copiar conteúdo
+						</ContextMenuItem>
+						<ContextMenuItem onSelect={() => actions.onShareZip(node)} className="px-3 py-2">
+							<FileArchive className="mr-2 size-4" />
+							Copiar zip
+						</ContextMenuItem>
+					</ContextMenuSubContent>
+				</ContextMenuSub>
+			) : null}
+		</>
+	);
+}
+
 // Itens do menu de uma pasta de tarefa: todas as ações de tarefa + migrar de projeto.
 function taskFolderItems(node: TaskFolder, data: TaskMenuData, actions: TreeActions): ReactNode {
 	return (
@@ -117,6 +165,8 @@ function taskFolderItems(node: TaskFolder, data: TaskMenuData, actions: TreeActi
 				<SquareArrowOutUpRight className="mr-2 size-4" />
 				Abrir tarefa
 			</ContextMenuItem>
+			<ShareItems node={node} actions={actions} folder />
+			<ContextMenuSeparator />
 			<ContextMenuItem onSelect={() => actions.onRenameTask(node)} className="px-3 py-2">
 				<Pencil className="mr-2 size-4" />
 				Renomear
@@ -231,9 +281,15 @@ function menuItems(
 		return taskFolderItems(node, taskMenuData, actions);
 	}
 
+	if (node.kind === "skillFolder") {
+		return <ShareItems node={node} actions={actions} folder />;
+	}
+
 	if (node.kind === "looseFolder") {
 		return (
 			<>
+				<ShareItems node={node} actions={actions} folder />
+				<ContextMenuSeparator />
 				<ContextMenuItem onSelect={() => actions.onAdopt(node)} className="px-3 py-2">
 					<FolderPlus className="mr-2 size-4" />
 					Transformar em tarefa
@@ -254,6 +310,8 @@ function menuItems(
 	if (node.entry.origin === "loose") {
 		return (
 			<>
+				<ShareItems node={node} actions={actions} folder={false} />
+				<ContextMenuSeparator />
 				<ContextMenuItem onSelect={() => actions.onRename(node)} className="px-3 py-2">
 					<Pencil className="mr-2 size-4" />
 					Renomear
@@ -282,6 +340,8 @@ function menuItems(
 	if (node.entry.origin === "task") {
 		return (
 			<>
+				<ShareItems node={node} actions={actions} folder={false} />
+				<ContextMenuSeparator />
 				<TaskPickerSub
 					label="Mover para outra tarefa"
 					tasks={tasks.filter((task) => task.id !== node.entry.groupKey)}
@@ -297,11 +357,15 @@ function menuItems(
 
 	// origin === "folder"
 	return (
-		<TaskPickerSub
-			label="Mover para tarefa"
-			tasks={tasks}
-			onPick={(taskId) => actions.onPickTask(node, taskId)}
-		/>
+		<>
+			<ShareItems node={node} actions={actions} folder={false} />
+			<ContextMenuSeparator />
+			<TaskPickerSub
+				label="Mover para tarefa"
+				tasks={tasks}
+				onPick={(taskId) => actions.onPickTask(node, taskId)}
+			/>
+		</>
 	);
 }
 

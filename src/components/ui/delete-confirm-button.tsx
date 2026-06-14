@@ -4,6 +4,7 @@ import { type MouseEvent, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 import { Button, type ButtonProps } from "./button";
+import { Tooltip } from "./tooltip";
 
 export function resolveDeleteConfirmationClick(confirming: boolean) {
 	if (confirming) {
@@ -82,26 +83,27 @@ export function DeleteConfirmButton({
 	}
 
 	return (
-		<Button
-			type="button"
-			variant="ghost"
-			size={buttonSize}
-			disabled={disabled}
-			onClick={handleClick}
-			title={confirming ? confirmTitle : title}
-			aria-label={confirming ? confirmTitle : title}
-			className={cn(
-				"text-destructive hover:bg-destructive/10 hover:text-destructive",
-				confirming && "bg-destructive/10",
-				resolvedSize.buttonClassName,
-				className,
-			)}
-		>
-			{confirming ? (
-				<Check className={resolvedSize.iconClassName} />
-			) : (
-				<Trash2 className={resolvedSize.iconClassName} />
-			)}
-		</Button>
+		<Tooltip label={confirming ? confirmTitle : title}>
+			<Button
+				type="button"
+				variant="ghost"
+				size={buttonSize}
+				disabled={disabled}
+				onClick={handleClick}
+				aria-label={confirming ? confirmTitle : title}
+				className={cn(
+					"text-destructive hover:bg-destructive/10 hover:text-destructive",
+					confirming && "bg-destructive/10",
+					resolvedSize.buttonClassName,
+					className,
+				)}
+			>
+				{confirming ? (
+					<Check className={resolvedSize.iconClassName} />
+				) : (
+					<Trash2 className={resolvedSize.iconClassName} />
+				)}
+			</Button>
+		</Tooltip>
 	);
 }

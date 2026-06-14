@@ -20,12 +20,14 @@ import { Chip } from "@/components/ui/chip";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip } from "@/components/ui/tooltip";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { useSkillCategoriesQuery } from "@/hooks/use-skill-categories";
 import { useSkillQuery } from "@/hooks/use-skills";
 import { LucideIcon } from "@/lib/lucide-icon";
+import { openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
@@ -207,6 +209,14 @@ function SkillEditor({
 		setActiveVariantPath(path);
 	}
 
+	// Pasta da variante ativa (absoluta) — alvo de "abrir no SO" e do zip "exportar pasta da skill".
+	const skillDir = activeVariant?.dir ?? skill.primaryDir;
+
+	async function copySkillZip() {
+		await paneRef.current?.flush();
+		await shareFolderAsZip(skillDir);
+	}
+
 	const multiSource = skill.sources.length > 1;
 
 	function deleteActiveCopy() {
@@ -306,18 +316,25 @@ function SkillEditor({
 								onReading={() => setReading(true)}
 								pinned={pinned}
 								onTogglePin={togglePin}
+								share={{
+									// Sem "Copiar conteúdo": a skill é um único SKILL.md por variante, então o botão de
+									// copiar da toolbar já faz isso. O zip exporta a pasta inteira (eventuais irmãos).
+									onOpenInOs: () => void openFolderInOs(skillDir),
+									onCopyZip: () => void copySkillZip(),
+								}}
 							/>
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon-sm"
-								onClick={() => setConfirmingDelete(true)}
-								title="Remover skill"
-								aria-label="Remover skill"
-								className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-destructive"
-							>
-								<Trash2 className="size-3.5" />
-							</Button>
+							<Tooltip label="Remover skill">
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-sm"
+									onClick={() => setConfirmingDelete(true)}
+									aria-label="Remover skill"
+									className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-destructive"
+								>
+									<Trash2 className="size-3.5" />
+								</Button>
+							</Tooltip>
 						</div>
 					</div>
 

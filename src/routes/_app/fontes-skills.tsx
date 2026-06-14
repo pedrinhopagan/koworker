@@ -7,6 +7,7 @@ import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
 	Select,
 	SelectContent,
@@ -134,17 +135,18 @@ function FontesSkillsPage() {
 										{SKILL_TOOL_LABEL[entry.tool as SkillSource["tool"]] ?? entry.tool}
 									</Chip>
 									<span className="min-w-0 flex-1 truncate font-mono text-xs">{entry.path}</span>
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon-sm"
-										onClick={() => removePath(entry.id)}
-										title="Remover caminho"
-										aria-label="Remover caminho"
-										className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
-									>
-										<Trash2 className="size-3.5" />
-									</Button>
+									<Tooltip label="Remover caminho">
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon-sm"
+											onClick={() => removePath(entry.id)}
+											aria-label="Remover caminho"
+											className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+										>
+											<Trash2 className="size-3.5" />
+										</Button>
+									</Tooltip>
 								</div>
 							))}
 						</div>

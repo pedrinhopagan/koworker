@@ -7,6 +7,7 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 type PromptHistoryMenuProps = {
@@ -19,17 +20,18 @@ export function PromptHistoryMenu({ history, onPick }: PromptHistoryMenuProps) {
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger
-				title="Histórico de prompts"
-				aria-label="Histórico de prompts"
-				className={cn(
-					"flex h-6 w-6 items-center justify-center text-muted-foreground transition-colors hover:text-foreground",
-					"disabled:opacity-40",
-				)}
-				disabled={empty}
-			>
-				<History className="h-3.5 w-3.5" />
-			</DropdownMenuTrigger>
+			<Tooltip label="Histórico de prompts">
+				<DropdownMenuTrigger
+					aria-label="Histórico de prompts"
+					className={cn(
+						"flex h-6 w-6 items-center justify-center text-muted-foreground transition-colors hover:text-foreground",
+						"disabled:opacity-40",
+					)}
+					disabled={empty}
+				>
+					<History className="h-3.5 w-3.5" />
+				</DropdownMenuTrigger>
+			</Tooltip>
 			<DropdownMenuContent align="start" side="top" className="max-h-80 w-80 overflow-y-auto">
 				<DropdownMenuLabel>Histórico de prompts</DropdownMenuLabel>
 				{history.map((entry, index) => (

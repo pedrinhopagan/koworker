@@ -8,6 +8,7 @@ import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip } from "@/components/ui/tooltip";
 import { dateTimeLocalToMs, formatDateTime, toDateTimeLocalValue } from "@/lib/relative-time";
 import type { TaskFile } from "@/types/tasks";
 
@@ -52,18 +53,19 @@ export function FileDatePopover({ taskId, file, onChanged }: FileDatePopoverProp
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
-			<PopoverTrigger asChild>
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon-sm"
-					title="Datas do arquivo"
-					aria-label="Datas do arquivo"
-					className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
-				>
-					<CalendarClock className="h-3.5 w-3.5" />
-				</Button>
-			</PopoverTrigger>
+			<Tooltip label="Datas do arquivo">
+				<PopoverTrigger asChild>
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon-sm"
+						aria-label="Datas do arquivo"
+						className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+					>
+						<CalendarClock className="h-3.5 w-3.5" />
+					</Button>
+				</PopoverTrigger>
+			</Tooltip>
 			<PopoverContent align="end" className="flex w-auto flex-col gap-3 p-3">
 				<div className="flex flex-col gap-0.5">
 					<Text size="xs" tone="muted">

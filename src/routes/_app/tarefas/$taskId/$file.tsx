@@ -33,10 +33,12 @@ import {
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip } from "@/components/ui/tooltip";
 import { RECENCY_HIGHLIGHT_DEPTH, recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
+import { copyMarkdown, joinPath, openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
@@ -254,6 +256,34 @@ function TaskFilePage() {
 		openFile(name);
 	}
 
+	// Caminho absoluto da pasta da tarefa (raiz do projeto + folder_path) pros comandos do SO.
+	// Sem projeto (tarefa órfã) o menu Compartilhar não aparece.
+	const folderAbs = task.project ? joinPath(task.project.mainRoute, task.folderPath) : null;
+
+	// Copiar conteúdo = todos os .md da tarefa concatenados. Salva o pendente antes pra incluir a
+	// última edição do arquivo aberto, e busca fresco (a concatenação canônica vive no backend).
+	const copyTaskContent = async () => {
+		if (!task.project) return;
+		await paneRef.current?.flush();
+		try {
+			const result = await queryClient.fetchQuery({
+				...orpc.vault.exportContent.queryOptions({
+					input: { projectId: task.project.id, target: { kind: "task", taskId } },
+				}),
+				staleTime: 0,
+			});
+			await copyMarkdown(result.content);
+		} catch {
+			toast.error("Não foi possível exportar o conteúdo");
+		}
+	};
+
+	const copyTaskZip = async () => {
+		if (!folderAbs) return;
+		await paneRef.current?.flush();
+		await shareFolderAsZip(folderAbs);
+	};
+
 	function startCreate() {
 		setCreatingFile(true);
 		setNewFileValue("");
@@ -391,6 +421,15 @@ function TaskFilePage() {
 							onReading={() => setReading(true)}
 							pinned={pinned}
 							onTogglePin={togglePin}
+							share={
+								folderAbs
+									? {
+											onOpenInOs: () => void openFolderInOs(folderAbs),
+											onCopyContent: () => void copyTaskContent(),
+											onCopyZip: () => void copyTaskZip(),
+										}
+									: undefined
+							}
 						/>
 						{current ? (
 							<FileDatePopover
@@ -476,15 +515,16 @@ function TaskFilePage() {
 										Sair da leitura
 									</button>
 								) : creatingFile ? null : (
-									<button
-										type="button"
-										onClick={startCreate}
-										className="flex shrink-0 items-center justify-center border-l border-border px-3 text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
-										title="Novo arquivo"
-										aria-label="Novo arquivo"
-									>
-										<Plus size={14} />
-									</button>
+									<Tooltip label="Novo arquivo" triggerClassName="inline-flex shrink-0">
+										<button
+											type="button"
+											onClick={startCreate}
+											className="flex shrink-0 items-center justify-center border-l border-border px-3 text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
+											aria-label="Novo arquivo"
+										>
+											<Plus size={14} />
+										</button>
+									</Tooltip>
 								)}
 							</div>
 						</SortableContext>

@@ -7,6 +7,7 @@ import { orpc } from "@/client";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
 	blockStartIndices,
 	distinctCards,
@@ -405,18 +406,19 @@ export function DocSessionSwitcher() {
 						Limpar recentes
 					</button>
 				) : null}
-				<button
-					type="button"
-					onClick={(event) => {
-						event.stopPropagation();
-						close();
-					}}
-					className="flex items-center justify-center border border-border bg-card/80 p-1.5 text-muted-foreground transition-colors hover:text-foreground"
-					title="Fechar (Esc)"
-					aria-label="Fechar"
-				>
-					<X className="size-4" />
-				</button>
+				<Tooltip label="Fechar (Esc)">
+					<button
+						type="button"
+						onClick={(event) => {
+							event.stopPropagation();
+							close();
+						}}
+						className="flex items-center justify-center border border-border bg-card/80 p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+						aria-label="Fechar"
+					>
+						<X className="size-4" />
+					</button>
+				</Tooltip>
 			</div>
 
 			<div
@@ -610,21 +612,22 @@ function CloseGroupButton({
 	onRemove: (keys: string[]) => void;
 }) {
 	return (
-		<button
-			type="button"
-			onClick={(event) => {
-				event.stopPropagation();
-				onRemove(keys);
-			}}
-			title={label}
-			aria-label={label}
-			className={cn(
-				"flex items-center text-muted-foreground/50 opacity-0 transition-colors hover:text-destructive",
-				revealClass,
-			)}
-		>
-			<Trash2 className="size-3.5" />
-		</button>
+		<Tooltip label={label}>
+			<button
+				type="button"
+				onClick={(event) => {
+					event.stopPropagation();
+					onRemove(keys);
+				}}
+				aria-label={label}
+				className={cn(
+					"flex items-center text-muted-foreground/50 opacity-0 transition-colors hover:text-destructive",
+					revealClass,
+				)}
+			>
+				<Trash2 className="size-3.5" />
+			</button>
+		</Tooltip>
 	);
 }
 
@@ -711,36 +714,38 @@ function Card({
 			)}
 		>
 			<div className="absolute top-1.5 right-1.5 flex items-center gap-0.5">
-				<button
-					type="button"
-					onClick={(event) => {
-						event.stopPropagation();
-						onTogglePin(card.key);
-					}}
-					title={card.pinned ? "Desafixar" : "Fixar"}
-					aria-label={card.pinned ? "Desafixar sessão" : "Fixar sessão"}
-					aria-pressed={card.pinned}
-					className={cn(
-						"flex size-6 items-center justify-center transition-colors",
-						card.pinned
-							? "text-[var(--project-accent,var(--primary))]"
-							: "text-muted-foreground/50 opacity-0 hover:text-foreground group-hover:opacity-100",
-					)}
-				>
-					<Pin className={cn("size-3.5", card.pinned && "fill-current")} />
-				</button>
-				<button
-					type="button"
-					onClick={(event) => {
-						event.stopPropagation();
-						onRemove(card.key);
-					}}
-					title="Remover do histórico"
-					aria-label="Remover sessão do histórico"
-					className="flex size-6 items-center justify-center text-muted-foreground/50 opacity-0 transition-colors hover:text-destructive group-hover:opacity-100"
-				>
-					<X className="size-3.5" />
-				</button>
+				<Tooltip label={card.pinned ? "Desafixar" : "Fixar"}>
+					<button
+						type="button"
+						onClick={(event) => {
+							event.stopPropagation();
+							onTogglePin(card.key);
+						}}
+						aria-label={card.pinned ? "Desafixar sessão" : "Fixar sessão"}
+						aria-pressed={card.pinned}
+						className={cn(
+							"flex size-6 items-center justify-center transition-colors",
+							card.pinned
+								? "text-[var(--project-accent,var(--primary))]"
+								: "text-muted-foreground/50 opacity-0 hover:text-foreground group-hover:opacity-100",
+						)}
+					>
+						<Pin className={cn("size-3.5", card.pinned && "fill-current")} />
+					</button>
+				</Tooltip>
+				<Tooltip label="Remover do histórico">
+					<button
+						type="button"
+						onClick={(event) => {
+							event.stopPropagation();
+							onRemove(card.key);
+						}}
+						aria-label="Remover sessão do histórico"
+						className="flex size-6 items-center justify-center text-muted-foreground/50 opacity-0 transition-colors hover:text-destructive group-hover:opacity-100"
+					>
+						<X className="size-3.5" />
+					</button>
+				</Tooltip>
 			</div>
 
 			<div className="flex items-center gap-2 pr-12 text-xs text-muted-foreground">

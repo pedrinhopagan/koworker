@@ -38,6 +38,7 @@ import { Input } from "@/components/ui/input";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useSkillsQuery } from "@/hooks/use-skills";
+import { copyMarkdown, joinPath, openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { cn } from "@/lib/utils";
 import { type ClickModifiers, Tree } from "./-components/tree";
 import { TreeBatchMenu, type TreeActions, TreeNodeMenu } from "./-components/tree-node-menu";
@@ -50,6 +51,7 @@ import {
 	defaultExpandedKeys,
 	filterTree,
 	flattenVisibleLeaves,
+	ROOT_KEY,
 	TAREFAS_KEY,
 	type TaskSortMode,
 	type TreeNode,
@@ -178,6 +180,18 @@ function VaultPage() {
 
 	const entries = entriesQuery.data?.entries ?? [];
 	const groups = entriesQuery.data?.groups ?? [];
+
+	// Chave do grupo (taskId ou nome da pasta solta) → folder_path relativo do backend. Fonte única
+	// pra resolver o diretório absoluto de qualquer nó no SO (share/abrir), sem reconstruir o layout.
+	const groupFolderPath = useMemo(
+		() =>
+			new Map(
+				groups.flatMap((group) =>
+					group.folderPath ? [[group.key, group.folderPath] as const] : [],
+				),
+			),
+		[groups],
+	);
 
 	const looseNames = useMemo(
 		() => new Set(entries.filter((entry) => entry.origin === "loose").map((entry) => entry.name)),
@@ -625,7 +639,66 @@ function VaultPage() {
 		dispatchMove([node.entry], origin, folderName, { taskId });
 	}
 
+	// Diretório absoluto pela chave do grupo (folder_path do backend + raiz do projeto).
+	function dirFromGroup(route: string, groupKey: string): string | null {
+		const folderPath = groupFolderPath.get(groupKey);
+		return folderPath ? joinPath(route, folderPath) : null;
+	}
+
+	// Diretório absoluto de um nó pros comandos do SO. A skill traz o dir absoluto; tarefa/pasta
+	// solta/arquivo resolvem pelo folder_path do backend (via groupFolderPath). A nota solta vive na
+	// raiz do vault (ROOT_KEY). Sem projeto/folder_path resolvido, null (as ações viram no-op).
+	function nodeDir(node: TreeNode): string | null {
+		const route = selectedProject?.mainRoute;
+		if (!route) return null;
+		if (node.kind === "skillFolder") return node.primaryDir;
+		if (node.kind === "taskFolder") return dirFromGroup(route, node.taskId);
+		if (node.kind === "looseFolder") return dirFromGroup(route, node.folderName);
+		if (node.kind === "fileLeaf") {
+			const entry = node.entry;
+			if (entry.origin === "loose") return joinPath(route, ROOT_KEY);
+			if (!entry.groupKey) return null;
+			return dirFromGroup(route, entry.groupKey);
+		}
+		return null;
+	}
+
+	// Conteúdo concatenado de uma pasta de tarefa/solta (via backend) ou as instruções da skill
+	// (já carregadas no nó). Só chamado em pastas — o submenu Compartilhar não aparece em arquivo.
+	async function shareNodeContent(node: TreeNode) {
+		if (node.kind === "skillFolder") {
+			await copyMarkdown(node.instructions);
+			return;
+		}
+		if (!projectId) return;
+		if (node.kind !== "taskFolder" && node.kind !== "looseFolder") return;
+
+		const target =
+			node.kind === "taskFolder"
+				? ({ kind: "task", taskId: node.taskId } as const)
+				: ({ kind: "folder", folderName: node.folderName } as const);
+
+		try {
+			const result = await queryClient.fetchQuery({
+				...orpc.vault.exportContent.queryOptions({ input: { projectId, target } }),
+				staleTime: 0,
+			});
+			await copyMarkdown(result.content);
+		} catch {
+			toast.error("Não foi possível exportar o conteúdo");
+		}
+	}
+
 	const actions: TreeActions = {
+		onOpenInOs: (node) => {
+			const dir = nodeDir(node);
+			if (dir) void openFolderInOs(dir);
+		},
+		onShareContent: (node) => void shareNodeContent(node),
+		onShareZip: (node) => {
+			const dir = nodeDir(node);
+			if (dir) void shareFolderAsZip(dir);
+		},
 		onRename: (node) => {
 			if (node.kind === "fileLeaf") setRenaming({ name: node.entry.name, value: node.entry.name });
 		},

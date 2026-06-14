@@ -62,6 +62,8 @@ export type TreeNode =
 			source: "builtin" | "custom";
 			sourceCount: number;
 			conflict: boolean;
+			primaryDir: string;
+			instructions: string;
 			children: TreeNode[];
 	  }
 	| { kind: "fileLeaf"; key: string; label: string; title: string; entry: VaultEntry }
@@ -204,6 +206,8 @@ export function buildVaultTree({
 			source: skill.source,
 			sourceCount: skill.sources.length,
 			conflict: skill.conflict,
+			primaryDir: skill.primaryDir,
+			instructions: skill.instructions,
 			children: skill.sources.map((source, index) => ({
 				kind: "skillSourceLeaf",
 				key: `${keyPrefix}skillsrc:${skill.slug}:${source.tool}:${source.scope}:${index}`,

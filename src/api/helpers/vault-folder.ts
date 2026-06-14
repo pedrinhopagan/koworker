@@ -96,6 +96,30 @@ export function vaultFolderPath(folderName: string): string {
 	return join(KOWORKER_DIR, folderName);
 }
 
+// Conteúdo (nome + texto) de todos os `.md` de uma pasta relativa ao projeto, com index.md
+// primeiro. Base do "copiar conteúdo" de uma pasta — lê o conteúdo inteiro, ao contrário de
+// listMdMeta. Serve tarefas (folder_path) e pastas soltas (vaultFolderPath) igual.
+export async function readFolderMarkdown(params: {
+	projectRoute: string;
+	folderPath: string;
+}): Promise<{ name: string; content: string }[]> {
+	const dir = join(params.projectRoute, params.folderPath);
+	const names = [...(await listMdNames(dir))].sort((a, b) => {
+		if (a === PRIMARY_FILE) return -1;
+		if (b === PRIMARY_FILE) return 1;
+		return a.localeCompare(b);
+	});
+
+	return Promise.all(
+		names.map(async (name) => ({
+			name,
+			content: await Bun.file(join(dir, name))
+				.text()
+				.catch(() => ""),
+		})),
+	);
+}
+
 // True se a pasta solta existe no disco — guarda da adoção contra nome que não corresponde a
 // nenhuma pasta real.
 export function vaultFolderExists(params: {

@@ -79,6 +79,7 @@ export {
 	TaskWriteFileSchema,
 	VaultAdoptFolderSchema,
 	VaultDeleteFileSchema,
+	VaultExportContentSchema,
 	VaultGetFileSchema,
 	VaultLinkFilesToTaskSchema,
 	VaultListSchema,

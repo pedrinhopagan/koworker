@@ -8,6 +8,7 @@ import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-
 import { Layers, RefreshCw, Settings, X } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { tv } from "tailwind-variants";
+import { Tooltip } from "@/components/ui/tooltip";
 import { getAppEnv } from "@/lib/env";
 import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
@@ -149,52 +150,60 @@ export function TabBar() {
 
 			{/* Switcher de sessões de leitura (Alt+`). O contador conta o MRU; abrir o switcher (ou o
 			    dwell) grava o doc em foco, e aí o ícone também assume o acento do projeto. */}
-			<button
-				type="button"
-				onClick={openSwitcher}
-				className={cn(iconButton({ active: false }), "relative")}
-				title="Sessões de leitura (Alt+`)"
-			>
-				<Layers
-					size={16}
-					className={currentInList ? "text-[var(--project-accent,var(--primary))]" : undefined}
-				/>
-				{sessionCount > 0 ? (
-					<span className="absolute top-0.5 right-0.5 z-10 min-w-3.5 rounded-[3px] bg-[var(--project-accent,var(--primary))]/30 px-1 text-center font-semibold text-[10px] text-[var(--project-accent,var(--primary))] leading-[14px]">
-						{sessionCount}
-					</span>
-				) : null}
-			</button>
+			<Tooltip label="Sessões de leitura (Alt+`)">
+				<button
+					type="button"
+					onClick={openSwitcher}
+					className={cn(iconButton({ active: false }), "relative")}
+					aria-label="Sessões de leitura"
+				>
+					<Layers
+						size={16}
+						className={currentInList ? "text-[var(--project-accent,var(--primary))]" : undefined}
+					/>
+					{sessionCount > 0 ? (
+						<span className="absolute top-0.5 right-0.5 z-10 min-w-3.5 rounded-[3px] bg-[var(--project-accent,var(--primary))]/30 px-1 text-center font-semibold text-[10px] text-[var(--project-accent,var(--primary))] leading-[14px]">
+							{sessionCount}
+						</span>
+					) : null}
+				</button>
+			</Tooltip>
 
 			{/* Settings button */}
-			<button
-				type="button"
-				onClick={handlePageReload}
-				className={iconButton({ active: false })}
-				title="Atualizar dados da página"
-			>
-				<RefreshCw size={16} />
-			</button>
+			<Tooltip label="Atualizar dados da página">
+				<button
+					type="button"
+					onClick={handlePageReload}
+					className={iconButton({ active: false })}
+					aria-label="Atualizar dados da página"
+				>
+					<RefreshCw size={16} />
+				</button>
+			</Tooltip>
 
 			{/* Settings button */}
-			<Link
-				to={"/configuracoes" as const}
-				className={iconButton({ active: currentPath === "/configuracoes" })}
-				title="Configurações (Alt+0)"
-			>
-				<Settings size={16} />
-			</Link>
+			<Tooltip label="Configurações (Alt+0)">
+				<Link
+					to={"/configuracoes" as const}
+					className={iconButton({ active: currentPath === "/configuracoes" })}
+					aria-label="Configurações"
+				>
+					<Settings size={16} />
+				</Link>
+			</Tooltip>
 
 			{/* Hide button (Tauri only) */}
 			{isTauri() && (
-				<button
-					type="button"
-					onClick={hideWindow}
-					className={iconButton({ danger: true })}
-					title={`Esconder (${toggleShortcutLabel} para mostrar)`}
-				>
-					<X size={16} />
-				</button>
+				<Tooltip label={`Esconder (${toggleShortcutLabel} para mostrar)`}>
+					<button
+						type="button"
+						onClick={hideWindow}
+						className={iconButton({ danger: true })}
+						aria-label="Esconder"
+					>
+						<X size={16} />
+					</button>
+				</Tooltip>
 			)}
 		</nav>
 	);

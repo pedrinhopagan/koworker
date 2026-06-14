@@ -17,6 +17,7 @@ import {
 	listVaultFolders,
 	moveFilesToTask,
 	promoteVaultFile,
+	readFolderMarkdown,
 	renameVaultFile,
 	unlinkFilesToVault,
 	type VaultFileMeta,
@@ -29,6 +30,7 @@ import {
 	TaskPromoteSchema,
 	VaultAdoptFolderSchema,
 	VaultDeleteFileSchema,
+	VaultExportContentSchema,
 	VaultGetFileSchema,
 	VaultLinkFilesToTaskSchema,
 	VaultListSchema,
@@ -53,6 +55,8 @@ type VaultGroup = {
 	kind: "folder" | "task";
 	key: string;
 	title: string;
+	// Só nas tarefas: o folder_path relativo (ex.: ".koworker/3f2a8b1c") pra abrir/zip no SO.
+	folderPath?: string;
 	fileCount: number;
 	lastEditedAt: number;
 	categoryId?: string;
@@ -79,6 +83,25 @@ export const vaultRouter = {
 			entries: parts.flatMap((part) => part.entries),
 			groups: parts.flatMap((part) => part.groups),
 		};
+	}),
+
+	// Conteúdo concatenado dos `.md` de uma tarefa/pasta solta, ou a nota solta única. Base do
+	// "copiar conteúdo" do menu Compartilhar — o frontend copia o texto retornado pro clipboard.
+	exportContent: protectedProcedure.input(VaultExportContentSchema).handler(async ({ input }) => {
+		const project = await dbProjects.getById(input.projectId);
+		if (!project) throw new Error("Projeto não encontrado");
+
+		const route = project.main_route;
+		const target = input.target;
+
+		const folderPath =
+			target.kind === "task"
+				? (await dbTasks.getById(target.taskId))?.folder_path
+				: vaultFolderPath(target.folderName);
+		if (!folderPath) throw new Error("Tarefa não encontrada");
+
+		const files = await readFolderMarkdown({ projectRoute: route, folderPath });
+		return { content: concatMarkdown(files) };
 	}),
 
 	getFile: protectedProcedure.input(VaultGetFileSchema).handler(async ({ input }) => {
@@ -412,6 +435,13 @@ function taskEntry(projectId: string, taskId: string, file: VaultFileMeta): Vaul
 
 function maxMtime(files: VaultFileMeta[]): number {
 	return files.reduce((max, file) => Math.max(max, file.mtime), 0);
+}
+
+// Junta os `.md` de uma pasta num texto só. Um arquivo: o conteúdo cru. Vários: cada um sob um
+// cabeçalho `## <arquivo>` pra leitura ficar legível ao colar.
+function concatMarkdown(files: { name: string; content: string }[]): string {
+	if (files.length === 1) return files[0].content;
+	return files.map((file) => `## ${file.name}\n\n${file.content.trim()}`).join("\n\n");
 }
 
 // Arquivos (metadata) + displayTitle de uma task pro vault. O displayTitle segue a mesma regra da

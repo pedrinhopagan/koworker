@@ -6,6 +6,7 @@ import { orpc } from "@/client";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { DeleteConfirmButton } from "@/components/ui/delete-confirm-button";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 // Seletor do conteúdo do dropdown (Radix Portal). Cliques aqui não contam como "clique
@@ -169,22 +170,23 @@ export function TaskMetaControls({
 				interactive={editing}
 				onValueChange={onPriorityChange}
 			/>
-			<Button
-				type="button"
-				variant="ghost"
-				size="icon-sm"
-				onClick={onToggleEdit}
-				disabled={disabled}
-				title={editing ? "Concluir edição" : "Editar tarefa"}
-				aria-label={editing ? "Concluir edição" : "Editar tarefa"}
-				aria-pressed={editing}
-				className={cn(
-					"pointer-events-auto h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground",
-					editing && "text-foreground",
-				)}
-			>
-				<PencilLine className="h-3 w-3" />
-			</Button>
+			<Tooltip label={editing ? "Concluir edição" : "Editar tarefa"}>
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon-sm"
+					onClick={onToggleEdit}
+					disabled={disabled}
+					aria-label={editing ? "Concluir edição" : "Editar tarefa"}
+					aria-pressed={editing}
+					className={cn(
+						"pointer-events-auto h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground",
+						editing && "text-foreground",
+					)}
+				>
+					<PencilLine className="h-3 w-3" />
+				</Button>
+			</Tooltip>
 			<DeleteConfirmButton
 				className="pointer-events-auto"
 				onDelete={onDelete}

@@ -11,6 +11,7 @@ import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useRecordDocSession } from "@/hooks/use-record-doc-session";
+import { joinPath, openFolderInOs } from "@/lib/os-share";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
 import { LinkTaskPopover, type NewTaskPayload } from "../-components/link-task-popover";
@@ -208,6 +209,16 @@ function VaultFilePage() {
 							onReading={() => setReading(true)}
 							pinned={pinned}
 							onTogglePin={togglePin}
+							share={
+								selectedProject
+									? {
+											// Nota solta vive em `.koworker/`; "Abrir no sistema" revela a pasta-mãe. Sem
+											// copiar conteúdo (já é o botão da toolbar — arquivo único) nem zip (não é pasta).
+											onOpenInOs: () =>
+												void openFolderInOs(joinPath(selectedProject.mainRoute, ".koworker")),
+										}
+									: undefined
+							}
 						/>
 					</div>
 				</div>

@@ -6,6 +6,7 @@ import { PrinciplesFindings } from "@/components/principles/principles-findings"
 import { Text } from "@/components/typography";
 import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
+import { Tooltip } from "@/components/ui/tooltip";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
 import { lintPrinciples } from "@/lib/principles/lint";
 import { LucideIcon } from "@/lib/lucide-icon";
@@ -236,19 +237,20 @@ function SkillTile({ skill, index, onAppearance }: SkillTileProps) {
 			)}
 			style={{ borderTopColor: skill.color, animationDelay: `${Math.min(index, 12) * 35}ms` }}
 		>
-			<button
-				type="button"
-				onClick={(event) => {
-					event.preventDefault();
-					event.stopPropagation();
-					onAppearance();
-				}}
-				title="Aparência"
-				aria-label="Editar aparência"
-				className="absolute right-2 top-2 flex size-7 items-center justify-center border border-transparent text-muted-foreground opacity-0 transition-all hover:border-border hover:bg-background hover:text-foreground group-hover:opacity-100"
-			>
-				<SlidersHorizontal className="size-3.5" />
-			</button>
+			<Tooltip label="Aparência" triggerClassName="absolute right-2 top-2 inline-flex">
+				<button
+					type="button"
+					onClick={(event) => {
+						event.preventDefault();
+						event.stopPropagation();
+						onAppearance();
+					}}
+					aria-label="Editar aparência"
+					className="flex size-7 items-center justify-center border border-transparent text-muted-foreground opacity-0 transition-all hover:border-border hover:bg-background hover:text-foreground group-hover:opacity-100"
+				>
+					<SlidersHorizontal className="size-3.5" />
+				</button>
+			</Tooltip>
 
 			<div className="flex items-center gap-3">
 				<div

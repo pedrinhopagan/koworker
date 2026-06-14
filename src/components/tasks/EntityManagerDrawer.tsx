@@ -14,6 +14,7 @@ import {
 	type SortableItemRenderProps,
 	SortableList,
 } from "@/components/ui/sortable-list";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ManageDrawerKey } from "@/stores/manage-drawers";
 
@@ -214,19 +215,21 @@ export function EntityManagerDrawer<T extends BaseEntity>({
 					/>
 				)}
 
-				<Button
-					variant="ghost"
-					size="icon"
-					disabled={deleting || hasTasksMutation.isPending || sorted.length <= 1}
-					onClick={async () => {
-						const hasTasks = await hasTasksMutation.mutateAsync({ id: item.id });
-						setMigrateTargetId("");
-						setPendingDelete({ item, hasTasks });
-					}}
-					title={sorted.length <= 1 ? config.minOneMessage : `Remover ${config.entityName}`}
-				>
-					<Trash2 className="h-4 w-4" />
-				</Button>
+				<Tooltip label={sorted.length <= 1 ? config.minOneMessage : `Remover ${config.entityName}`}>
+					<Button
+						variant="ghost"
+						size="icon"
+						disabled={deleting || hasTasksMutation.isPending || sorted.length <= 1}
+						onClick={async () => {
+							const hasTasks = await hasTasksMutation.mutateAsync({ id: item.id });
+							setMigrateTargetId("");
+							setPendingDelete({ item, hasTasks });
+						}}
+						aria-label={sorted.length <= 1 ? config.minOneMessage : `Remover ${config.entityName}`}
+					>
+						<Trash2 className="h-4 w-4" />
+					</Button>
+				</Tooltip>
 			</div>
 		);
 	}

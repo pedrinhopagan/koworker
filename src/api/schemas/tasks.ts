@@ -138,6 +138,17 @@ export const VaultGetFileSchema = z.object({
 	name: mdFileName,
 });
 
+// Alvo do "copiar conteúdo": uma tarefa ou uma pasta solta. A união discriminada cruza o boundary
+// uma vez; o handler resolve a pasta certa no FS pelo kind. (Nota solta copia direto na página, sem
+// passar por aqui.)
+export const VaultExportContentSchema = z.object({
+	projectId: z.string().trim().min(1),
+	target: z.discriminatedUnion("kind", [
+		z.object({ kind: z.literal("task"), taskId: z.string().trim().min(1) }),
+		z.object({ kind: z.literal("folder"), folderName: vaultFolderName }),
+	]),
+});
+
 export const VaultWriteFileSchema = z.object({
 	projectId: z.string().trim().min(1),
 	name: mdFileName,

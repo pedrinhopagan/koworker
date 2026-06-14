@@ -22,6 +22,7 @@ pub fn run() {
             commands::toggle_window,
             commands::pick_project_folder,
             commands::open_folder,
+            commands::share_folder_as_zip,
             commands::open_devtools,
             terminal::open_terminal_for_task,
             terminal::open_terminal_for_route,
