@@ -6,53 +6,53 @@ import { PrinciplesFindings } from "@/components/principles/principles-findings"
 import { Text } from "@/components/typography";
 import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
-import { SKILL_TOOL_LABEL } from "@/constants/skills";
+import { AGENT_TOOL_LABEL } from "@/constants/agents";
 import { lintPrinciples } from "@/lib/principles/lint";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
-import type { TaskSkill } from "@/types/skills";
-import { SkillAppearanceDialog } from "./skill-appearance-dialog";
-import { SkillCreateTile } from "./skill-create-tile";
+import type { TaskAgent } from "@/types/agents";
+import { AgentAppearanceDialog } from "./agent-appearance-dialog";
+import { AgentCreateTile } from "./agent-create-tile";
 
 type SourceFilter = "all" | "builtin" | "custom";
 
 const SOURCE_FILTERS: { value: SourceFilter; label: string }[] = [
-	{ value: "all", label: "Todas" },
+	{ value: "all", label: "Todos" },
 	{ value: "builtin", label: "Koworker" },
-	{ value: "custom", label: "Personalizadas" },
+	{ value: "custom", label: "Personalizados" },
 ];
 
-function distinctTools(skill: TaskSkill): TaskSkill["sources"][number]["tool"][] {
-	return [...new Set(skill.sources.map((source) => source.tool))];
+function distinctTools(agent: TaskAgent): TaskAgent["sources"][number]["tool"][] {
+	return [...new Set(agent.sources.map((source) => source.tool))];
 }
 
-type SkillsGridProps = {
-	skills: TaskSkill[];
+type AgentsGridProps = {
+	agents: TaskAgent[];
 	loading: boolean;
 };
 
-export function SkillsGrid({ skills, loading }: SkillsGridProps) {
+export function AgentsGrid({ agents, loading }: AgentsGridProps) {
 	const [search, setSearch] = useState("");
 	const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 	const [appearanceSlug, setAppearanceSlug] = useState<string | null>(null);
 
 	const filtered = useMemo(() => {
 		const term = search.trim().toLowerCase();
-		return skills.filter((skill) => {
-			if (sourceFilter !== "all" && skill.source !== sourceFilter) return false;
+		return agents.filter((agent) => {
+			if (sourceFilter !== "all" && agent.source !== sourceFilter) return false;
 			if (!term) return true;
 			return (
-				skill.label.toLowerCase().includes(term) ||
-				skill.slug.toLowerCase().includes(term) ||
-				skill.description.toLowerCase().includes(term)
+				agent.label.toLowerCase().includes(term) ||
+				agent.slug.toLowerCase().includes(term) ||
+				agent.description.toLowerCase().includes(term)
 			);
 		});
-	}, [skills, search, sourceFilter]);
+	}, [agents, search, sourceFilter]);
 
-	// Deriva a skill viva de `skills` (não um snapshot): ao trocar ícone/cor a mutation invalida a
-	// query, `skills` se atualiza e o preview do dialog reflete a mudança em tempo real.
-	const appearanceSkill = appearanceSlug
-		? (skills.find((skill) => skill.slug === appearanceSlug) ?? null)
+	// Deriva o agent vivo de `agents` (não um snapshot): ao trocar ícone/cor a mutation invalida a
+	// query, `agents` se atualiza e o preview do dialog reflete a mudança em tempo real.
+	const appearanceAgent = appearanceSlug
+		? (agents.find((agent) => agent.slug === appearanceSlug) ?? null)
 		: null;
 
 	return (
@@ -64,7 +64,7 @@ export function SkillsGrid({ skills, loading }: SkillsGridProps) {
 						type="search"
 						value={search}
 						onChange={(event) => setSearch(event.target.value)}
-						placeholder="Buscar skill por nome, slug ou descrição"
+						placeholder="Buscar agent por nome, slug ou descrição"
 						className="w-full pl-9 font-mono"
 					/>
 				</div>
@@ -83,74 +83,74 @@ export function SkillsGrid({ skills, loading }: SkillsGridProps) {
 					))}
 				</div>
 				<Text size="xs" tone="muted" className="ml-auto min-w-12 text-right font-mono tabular-nums">
-					{filtered.length}/{skills.length}
+					{filtered.length}/{agents.length}
 				</Text>
 			</div>
 
 			{loading && (
 				<Text size="sm" tone="muted">
-					Carregando skills...
+					Carregando agents...
 				</Text>
 			)}
 
 			{!loading && (
 				<div className="min-h-0 flex-1 transform-gpu overflow-y-auto overscroll-contain pr-1">
 					<div className="grid grid-cols-3 lg:grid-cols-4 gap-3">
-						<SkillCreateTile />
-						{filtered.map((skill, index) => (
-							<SkillTile
-								key={skill.slug}
-								skill={skill}
+						<AgentCreateTile />
+						{filtered.map((agent, index) => (
+							<AgentTile
+								key={agent.slug}
+								agent={agent}
 								index={index}
-								onAppearance={() => setAppearanceSlug(skill.slug)}
+								onAppearance={() => setAppearanceSlug(agent.slug)}
 							/>
 						))}
 					</div>
 
-					{skills.length > 0 && filtered.length === 0 && (
+					{agents.length > 0 && filtered.length === 0 && (
 						<Text size="sm" tone="muted" className="pt-3">
-							Nenhuma skill corresponde aos filtros
+							Nenhum agent corresponde aos filtros
 						</Text>
 					)}
 				</div>
 			)}
 
-			<SkillAppearanceDialog skill={appearanceSkill} onClose={() => setAppearanceSlug(null)} />
+			<AgentAppearanceDialog agent={appearanceAgent} onClose={() => setAppearanceSlug(null)} />
 		</div>
 	);
 }
 
-type SkillTileProps = {
-	skill: TaskSkill;
+type AgentTileProps = {
+	agent: TaskAgent;
 	index: number;
 	onAppearance: () => void;
 };
 
-function SkillTile({ skill, index, onAppearance }: SkillTileProps) {
+function AgentTile({ agent, index, onAppearance }: AgentTileProps) {
 	const findings = useMemo(
 		() =>
 			lintPrinciples({
-				kind: "skill",
-				slug: skill.slug,
-				name: skill.label,
-				description: skill.description,
-				body: skill.instructions,
-				metadata: skill.metadata,
+				kind: "agent",
+				slug: agent.slug,
+				name: agent.label,
+				description: agent.description,
+				body: agent.instructions,
+				metadata: agent.metadata,
 			}),
-		[skill.slug, skill.label, skill.description, skill.instructions, skill.metadata],
+		[agent.slug, agent.label, agent.description, agent.instructions, agent.metadata],
 	);
 
 	return (
 		<Link
-			to="/skills/$slug"
-			params={{ slug: skill.slug }}
+			to="/agents/$slug"
+			params={{ slug: agent.slug }}
 			className={cn(
 				"group relative flex min-w-0 flex-col gap-3 p-4",
 				"border border-border border-t-2 bg-card transition-colors",
 				"hover:bg-secondary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 				"animate-in fade-in-0 slide-in-from-bottom-2 fill-mode-both",
 			)}
-			style={{ borderTopColor: skill.color, animationDelay: `${Math.min(index, 12) * 35}ms` }}
+			style={{ borderTopColor: agent.color, animationDelay: `${Math.min(index, 12) * 35}ms` }}
 		>
 			<button
 				type="button"
@@ -169,32 +169,32 @@ function SkillTile({ skill, index, onAppearance }: SkillTileProps) {
 			<div className="flex items-center gap-3">
 				<div
 					className="flex h-10 w-10 shrink-0 items-center justify-center border bg-muted/30 transition-colors group-hover:bg-muted/60"
-					style={{ borderColor: skill.color, color: skill.color }}
+					style={{ borderColor: agent.color, color: agent.color }}
 				>
-					<LucideIcon name={skill.icon} className="size-5" />
+					<LucideIcon name={agent.icon} className="size-5" />
 				</div>
 				<div className="min-w-0 flex-1">
 					<div className="truncate font-display text-sm font-semibold leading-tight">
-						{skill.label}
+						{agent.label}
 					</div>
-					<div className="truncate font-mono text-[11px] text-muted-foreground">{skill.slug}</div>
+					<div className="truncate font-mono text-[11px] text-muted-foreground">{agent.slug}</div>
 				</div>
 			</div>
 
 			<p className="line-clamp-2 min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground">
-				{skill.description}
+				{agent.description}
 			</p>
 
 			<div className="flex flex-wrap items-center gap-1">
-				<Chip size="xs" variant={skill.source === "builtin" ? "primary" : "outline"}>
-					{skill.source === "builtin" ? "Koworker" : "Personalizada"}
+				<Chip size="xs" variant={agent.source === "builtin" ? "primary" : "outline"}>
+					{agent.source === "builtin" ? "Koworker" : "Personalizado"}
 				</Chip>
-				{distinctTools(skill).map((tool) => (
+				{distinctTools(agent).map((tool) => (
 					<Chip key={tool} size="xs" variant="ghost">
-						{SKILL_TOOL_LABEL[tool]}
+						{AGENT_TOOL_LABEL[tool]}
 					</Chip>
 				))}
-				{skill.conflict && (
+				{agent.conflict && (
 					<Chip size="xs" variant="destructive" className="gap-1">
 						<TriangleAlert className="size-3" />
 						conflito

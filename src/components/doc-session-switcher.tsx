@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { FileText, ListChecks, NotebookText, Pin, Sparkles, Trash2, X } from "lucide-react";
+import { Bot, FileText, ListChecks, NotebookText, Pin, Sparkles, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { orpc } from "@/client";
@@ -25,6 +25,7 @@ const KIND_ICON = {
 	vault: NotebookText,
 	docs: FileText,
 	skill: Sparkles,
+	agent: Bot,
 } as const;
 
 const KIND_LABEL = {
@@ -32,6 +33,7 @@ const KIND_LABEL = {
 	vault: "Vault",
 	docs: "Doc",
 	skill: "Skill",
+	agent: "Agent",
 } as const;
 
 // Rótulo plural pro cabeçalho da caixa de kind ("Skills"/"Vault"/"Docs"). `task` nunca vira caixa de
@@ -41,6 +43,7 @@ const KIND_BOX_LABEL = {
 	vault: "Vault",
 	docs: "Docs",
 	skill: "Skills",
+	agent: "Agents",
 } as const;
 
 // O switcher congela um instantâneo do MRU ao abrir (`list`), pra o dwell de gravação e as edições não
@@ -317,7 +320,7 @@ export function DocSessionSwitcher() {
 		return null;
 	}
 
-	const { pinned, skills, groups, cards } = groupSessions(view.list, view.currentKey);
+	const { pinned, skills, agents, groups, cards } = groupSessions(view.list, view.currentKey);
 	const getAnchor = useDocSessionsStore.getState().getAnchor;
 	const hasLoose = view.list.some((r) => !r.pinned && r.key !== view.currentKey);
 	const activeCard = cards[view.index] ?? null;
@@ -480,6 +483,33 @@ export function DocSessionSwitcher() {
 							{skills.map((card) => (
 								<Card
 									key={`skill:${card.key}`}
+									card={card}
+									boxed
+									active={card.flatIndex === view.index}
+									isMostRecent={card.key === mostRecentKey}
+									heading={getAnchor(card.key)?.headingText ?? null}
+									onConfirm={confirm}
+									onHover={() => focusCard(setView, card.flatIndex)}
+									onTogglePin={togglePinCard}
+									onRemove={removeCard}
+								/>
+							))}
+						</div>
+					</section>
+				) : null}
+
+				{agents.length > 0 ? (
+					<section className="flex flex-col gap-2.5">
+						<header className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+							<Bot className="size-3" />
+							Agents
+						</header>
+						{/* Agents são globais e únicos: seção flat, sem caixa tracejada. `boxed` esconde o rótulo
+						    "AGENT" do card (o cabeçalho da seção já diz "Agents"); o ícone próprio do agent fica. */}
+						<div className="flex flex-wrap items-start gap-3">
+							{agents.map((card) => (
+								<Card
+									key={`agent:${card.key}`}
 									card={card}
 									boxed
 									active={card.flatIndex === view.index}

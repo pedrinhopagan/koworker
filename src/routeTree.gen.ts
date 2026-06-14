@@ -13,18 +13,21 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppFontesSkillsRouteImport } from './routes/_app/fontes-skills'
+import { Route as AppFontesAgentsRouteImport } from './routes/_app/fontes-agents'
 import { Route as AppFontesRouteImport } from './routes/_app/fontes'
 import { Route as AppConfiguracoesRouteImport } from './routes/_app/configuracoes'
 import { Route as AppVaultIndexRouteImport } from './routes/_app/vault/index'
 import { Route as AppTarefasIndexRouteImport } from './routes/_app/tarefas/index'
 import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
 import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/index'
+import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents/index'
 import { Route as AppAgendaIndexRouteImport } from './routes/_app/agenda/index'
 import { Route as AppVaultFileNameIndexRouteImport } from './routes/_app/vault/$fileName/index'
 import { Route as AppTarefasTaskIdIndexRouteImport } from './routes/_app/tarefas/$taskId/index'
 import { Route as AppSkillsSlugIndexRouteImport } from './routes/_app/skills/$slug/index'
 import { Route as AppProjetosNovoIndexRouteImport } from './routes/_app/projetos/novo/index'
 import { Route as AppProjetosProjetoIdIndexRouteImport } from './routes/_app/projetos/$projetoId/index'
+import { Route as AppAgentsSlugIndexRouteImport } from './routes/_app/agents/$slug/index'
 import { Route as AppTarefasTaskIdFileRouteImport } from './routes/_app/tarefas/$taskId/$file'
 import { Route as AppProjetosProjetoIdDocsSplatRouteImport } from './routes/_app/projetos/$projetoId/docs/$'
 
@@ -45,6 +48,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppFontesSkillsRoute = AppFontesSkillsRouteImport.update({
   id: '/fontes-skills',
   path: '/fontes-skills',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFontesAgentsRoute = AppFontesAgentsRouteImport.update({
+  id: '/fontes-agents',
+  path: '/fontes-agents',
   getParentRoute: () => AppRoute,
 } as any)
 const AppFontesRoute = AppFontesRouteImport.update({
@@ -75,6 +83,11 @@ const AppSkillsIndexRoute = AppSkillsIndexRouteImport.update({
 const AppProjetosIndexRoute = AppProjetosIndexRouteImport.update({
   id: '/projetos/',
   path: '/projetos/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAgentsIndexRoute = AppAgentsIndexRouteImport.update({
+  id: '/agents/',
+  path: '/agents/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAgendaIndexRoute = AppAgendaIndexRouteImport.update({
@@ -108,6 +121,11 @@ const AppProjetosProjetoIdIndexRoute =
     path: '/projetos/$projetoId/',
     getParentRoute: () => AppRoute,
   } as any)
+const AppAgentsSlugIndexRoute = AppAgentsSlugIndexRouteImport.update({
+  id: '/agents/$slug/',
+  path: '/agents/$slug/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTarefasTaskIdFileRoute = AppTarefasTaskIdFileRouteImport.update({
   id: '/tarefas/$taskId/$file',
   path: '/tarefas/$taskId/$file',
@@ -125,13 +143,16 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
   '/fontes': typeof AppFontesRoute
+  '/fontes-agents': typeof AppFontesAgentsRoute
   '/fontes-skills': typeof AppFontesSkillsRoute
   '/agenda/': typeof AppAgendaIndexRoute
+  '/agents/': typeof AppAgentsIndexRoute
   '/projetos/': typeof AppProjetosIndexRoute
   '/skills/': typeof AppSkillsIndexRoute
   '/tarefas/': typeof AppTarefasIndexRoute
   '/vault/': typeof AppVaultIndexRoute
   '/tarefas/$taskId/$file': typeof AppTarefasTaskIdFileRoute
+  '/agents/$slug/': typeof AppAgentsSlugIndexRoute
   '/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo/': typeof AppProjetosNovoIndexRoute
   '/skills/$slug/': typeof AppSkillsSlugIndexRoute
@@ -143,14 +164,17 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
   '/fontes': typeof AppFontesRoute
+  '/fontes-agents': typeof AppFontesAgentsRoute
   '/fontes-skills': typeof AppFontesSkillsRoute
   '/': typeof AppIndexRoute
   '/agenda': typeof AppAgendaIndexRoute
+  '/agents': typeof AppAgentsIndexRoute
   '/projetos': typeof AppProjetosIndexRoute
   '/skills': typeof AppSkillsIndexRoute
   '/tarefas': typeof AppTarefasIndexRoute
   '/vault': typeof AppVaultIndexRoute
   '/tarefas/$taskId/$file': typeof AppTarefasTaskIdFileRoute
+  '/agents/$slug': typeof AppAgentsSlugIndexRoute
   '/projetos/$projetoId': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo': typeof AppProjetosNovoIndexRoute
   '/skills/$slug': typeof AppSkillsSlugIndexRoute
@@ -164,14 +188,17 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_app/configuracoes': typeof AppConfiguracoesRoute
   '/_app/fontes': typeof AppFontesRoute
+  '/_app/fontes-agents': typeof AppFontesAgentsRoute
   '/_app/fontes-skills': typeof AppFontesSkillsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/agenda/': typeof AppAgendaIndexRoute
+  '/_app/agents/': typeof AppAgentsIndexRoute
   '/_app/projetos/': typeof AppProjetosIndexRoute
   '/_app/skills/': typeof AppSkillsIndexRoute
   '/_app/tarefas/': typeof AppTarefasIndexRoute
   '/_app/vault/': typeof AppVaultIndexRoute
   '/_app/tarefas/$taskId/$file': typeof AppTarefasTaskIdFileRoute
+  '/_app/agents/$slug/': typeof AppAgentsSlugIndexRoute
   '/_app/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/_app/projetos/novo/': typeof AppProjetosNovoIndexRoute
   '/_app/skills/$slug/': typeof AppSkillsSlugIndexRoute
@@ -186,13 +213,16 @@ export interface FileRouteTypes {
     | '/login'
     | '/configuracoes'
     | '/fontes'
+    | '/fontes-agents'
     | '/fontes-skills'
     | '/agenda/'
+    | '/agents/'
     | '/projetos/'
     | '/skills/'
     | '/tarefas/'
     | '/vault/'
     | '/tarefas/$taskId/$file'
+    | '/agents/$slug/'
     | '/projetos/$projetoId/'
     | '/projetos/novo/'
     | '/skills/$slug/'
@@ -204,14 +234,17 @@ export interface FileRouteTypes {
     | '/login'
     | '/configuracoes'
     | '/fontes'
+    | '/fontes-agents'
     | '/fontes-skills'
     | '/'
     | '/agenda'
+    | '/agents'
     | '/projetos'
     | '/skills'
     | '/tarefas'
     | '/vault'
     | '/tarefas/$taskId/$file'
+    | '/agents/$slug'
     | '/projetos/$projetoId'
     | '/projetos/novo'
     | '/skills/$slug'
@@ -224,14 +257,17 @@ export interface FileRouteTypes {
     | '/login'
     | '/_app/configuracoes'
     | '/_app/fontes'
+    | '/_app/fontes-agents'
     | '/_app/fontes-skills'
     | '/_app/'
     | '/_app/agenda/'
+    | '/_app/agents/'
     | '/_app/projetos/'
     | '/_app/skills/'
     | '/_app/tarefas/'
     | '/_app/vault/'
     | '/_app/tarefas/$taskId/$file'
+    | '/_app/agents/$slug/'
     | '/_app/projetos/$projetoId/'
     | '/_app/projetos/novo/'
     | '/_app/skills/$slug/'
@@ -273,6 +309,13 @@ declare module '@tanstack/react-router' {
       path: '/fontes-skills'
       fullPath: '/fontes-skills'
       preLoaderRoute: typeof AppFontesSkillsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/fontes-agents': {
+      id: '/_app/fontes-agents'
+      path: '/fontes-agents'
+      fullPath: '/fontes-agents'
+      preLoaderRoute: typeof AppFontesAgentsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/fontes': {
@@ -317,6 +360,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjetosIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/agents/': {
+      id: '/_app/agents/'
+      path: '/agents'
+      fullPath: '/agents/'
+      preLoaderRoute: typeof AppAgentsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/agenda/': {
       id: '/_app/agenda/'
       path: '/agenda'
@@ -359,6 +409,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjetosProjetoIdIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/agents/$slug/': {
+      id: '/_app/agents/$slug/'
+      path: '/agents/$slug'
+      fullPath: '/agents/$slug/'
+      preLoaderRoute: typeof AppAgentsSlugIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/tarefas/$taskId/$file': {
       id: '/_app/tarefas/$taskId/$file'
       path: '/tarefas/$taskId/$file'
@@ -379,14 +436,17 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppConfiguracoesRoute: typeof AppConfiguracoesRoute
   AppFontesRoute: typeof AppFontesRoute
+  AppFontesAgentsRoute: typeof AppFontesAgentsRoute
   AppFontesSkillsRoute: typeof AppFontesSkillsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAgendaIndexRoute: typeof AppAgendaIndexRoute
+  AppAgentsIndexRoute: typeof AppAgentsIndexRoute
   AppProjetosIndexRoute: typeof AppProjetosIndexRoute
   AppSkillsIndexRoute: typeof AppSkillsIndexRoute
   AppTarefasIndexRoute: typeof AppTarefasIndexRoute
   AppVaultIndexRoute: typeof AppVaultIndexRoute
   AppTarefasTaskIdFileRoute: typeof AppTarefasTaskIdFileRoute
+  AppAgentsSlugIndexRoute: typeof AppAgentsSlugIndexRoute
   AppProjetosProjetoIdIndexRoute: typeof AppProjetosProjetoIdIndexRoute
   AppProjetosNovoIndexRoute: typeof AppProjetosNovoIndexRoute
   AppSkillsSlugIndexRoute: typeof AppSkillsSlugIndexRoute
@@ -398,14 +458,17 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppConfiguracoesRoute: AppConfiguracoesRoute,
   AppFontesRoute: AppFontesRoute,
+  AppFontesAgentsRoute: AppFontesAgentsRoute,
   AppFontesSkillsRoute: AppFontesSkillsRoute,
   AppIndexRoute: AppIndexRoute,
   AppAgendaIndexRoute: AppAgendaIndexRoute,
+  AppAgentsIndexRoute: AppAgentsIndexRoute,
   AppProjetosIndexRoute: AppProjetosIndexRoute,
   AppSkillsIndexRoute: AppSkillsIndexRoute,
   AppTarefasIndexRoute: AppTarefasIndexRoute,
   AppVaultIndexRoute: AppVaultIndexRoute,
   AppTarefasTaskIdFileRoute: AppTarefasTaskIdFileRoute,
+  AppAgentsSlugIndexRoute: AppAgentsSlugIndexRoute,
   AppProjetosProjetoIdIndexRoute: AppProjetosProjetoIdIndexRoute,
   AppProjetosNovoIndexRoute: AppProjetosNovoIndexRoute,
   AppSkillsSlugIndexRoute: AppSkillsSlugIndexRoute,

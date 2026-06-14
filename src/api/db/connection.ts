@@ -137,6 +137,27 @@ const skillSourcePathsSchema = type({
 	created_at: type("number.integer").configure({ default: "now" }),
 });
 
+// Metadados internos do koworker para agents do disco. A chave é o slug do agent
+// (nome do arquivo .md), que é o que une as várias fontes num único registro. Nada aqui
+// toca o .md: são apenas overrides de apresentação (nome, ícone, cor).
+const agentSettingsSchema = type({
+	slug: type("string").configure({ primaryKey: true }),
+	"label?": "string",
+	"icon?": "string",
+	"color?": "string",
+	created_at: type("number.integer").configure({ default: "now" }),
+	"updated_at?": "number.integer",
+});
+
+// Caminhos extras do computador do usuário de onde ler agents, somados aos diretórios padrão
+// das ferramentas. `tool` marca a qual ferramenta o caminho pertence, pra os chips ficarem corretos.
+const agentSourcePathsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	tool: "string",
+	path: "string",
+	created_at: type("number.integer").configure({ default: "now" }),
+});
+
 const database = new Database({
 	path: envVariables.DATABASE_URL,
 	tables: {
@@ -150,6 +171,8 @@ const database = new Database({
 		events: eventsSchema,
 		skill_settings: skillSettingsSchema,
 		skill_source_paths: skillSourcePathsSchema,
+		agent_settings: agentSettingsSchema,
+		agent_source_paths: agentSourcePathsSchema,
 	},
 });
 
@@ -172,6 +195,8 @@ export type categories = DB["categories"];
 export type priorities = DB["priorities"];
 export type skill_settings = DB["skill_settings"];
 export type skill_source_paths = DB["skill_source_paths"];
+export type agent_settings = DB["agent_settings"];
+export type agent_source_paths = DB["agent_source_paths"];
 
 export {
 	user_type,
@@ -185,4 +210,6 @@ export {
 	prioritiesSchema,
 	skillSettingsSchema,
 	skillSourcePathsSchema,
+	agentSettingsSchema,
+	agentSourcePathsSchema,
 };

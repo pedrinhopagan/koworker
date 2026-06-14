@@ -15,7 +15,7 @@ import { useDocSessionsStore } from "@/stores/doc-sessions";
 import { useDocSwitcherStore } from "@/stores/doc-switcher";
 
 // Navigation tabs configuration
-type TabPath = "/" | "/projetos" | "/tarefas" | "/vault" | "/agenda" | "/skills";
+type TabPath = "/" | "/projetos" | "/tarefas" | "/vault" | "/agenda" | "/skills" | "/agents";
 type Tab = { path: TabPath; label: string; altKey: string };
 
 const tabs: Tab[] = [
@@ -25,6 +25,7 @@ const tabs: Tab[] = [
 	{ path: "/vault", label: "Vault", altKey: "4" },
 	{ path: "/agenda", label: "Agenda", altKey: "5" },
 	{ path: "/skills", label: "Skills", altKey: "6" },
+	{ path: "/agents", label: "Agents", altKey: "7" },
 ];
 
 // Tab item styles
@@ -66,7 +67,7 @@ export function TabBar() {
 	const currentPath = location.pathname;
 	const toggleShortcutLabel = getAppEnv() === "production" ? "Alt+P" : "Alt+O";
 
-	// Keyboard navigation: Alt+1-6 for tabs, Alt+0 for settings
+	// Keyboard navigation: Alt+1-7 for tabs, Alt+0 for settings
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
 			if (!e.altKey || e.key < "0" || e.key > "9") {
