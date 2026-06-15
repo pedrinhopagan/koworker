@@ -13,7 +13,6 @@ function toTaskAgent(agent: AgentRecord): TaskAgent {
 	const metadataColor = typeof metadata.color === "string" ? metadata.color : undefined;
 	const requiresSubtaskSelection =
 		metadata.multiSelect === true || metadata.requiresSubtaskSelection === true;
-	const isBuiltin = agent.sources.some((source) => source.tool === "koworker");
 
 	return {
 		id: agent.slug,
@@ -23,7 +22,6 @@ function toTaskAgent(agent: AgentRecord): TaskAgent {
 		instructions: agent.content,
 		icon: agent.settings.icon ?? metadataIcon ?? DEFAULT_AGENT_ICON,
 		color: agent.settings.color ?? metadataColor ?? DEFAULT_AGENT_COLOR,
-		source: isBuiltin ? "builtin" : "custom",
 		sources: agent.sources,
 		conflict: agent.conflict,
 		primaryPath: agent.primaryPath,

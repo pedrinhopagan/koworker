@@ -280,9 +280,6 @@ function SkillEditor({
 							)}
 
 							<div className="flex shrink-0 items-center gap-1">
-								<Chip size="xs" variant={skill.source === "builtin" ? "primary" : "outline"}>
-									{skill.source === "builtin" ? "Koworker" : "Personalizada"}
-								</Chip>
 								{skill.sources.map((source) => (
 									<Chip key={source.path} size="xs" variant="ghost">
 										{SKILL_TOOL_LABEL[source.tool]}

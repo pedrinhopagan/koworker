@@ -16,7 +16,6 @@ export type TaskSkill = {
 	icon: string;
 	color: string;
 	categoryId: string | null;
-	source: "builtin" | "custom";
 	sources: SkillSource[];
 	conflict: boolean;
 	primaryPath: string;

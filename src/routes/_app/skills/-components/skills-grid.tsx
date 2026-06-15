@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { Search, SlidersHorizontal, TriangleAlert } from "lucide-react";
+import { ChevronDown, Search, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { PrinciplesFindings } from "@/components/principles/principles-findings";
 import { Text } from "@/components/typography";
 import { Chip } from "@/components/ui/chip";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Tooltip } from "@/components/ui/tooltip";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
@@ -16,15 +17,7 @@ import { SkillAppearanceDialog } from "./skill-appearance-dialog";
 import { SkillCategoryCreateButton, SkillCategoryHeader } from "./skill-categories-controls";
 import { SkillCreateTile } from "./skill-create-tile";
 
-type SourceFilter = "all" | "builtin" | "custom";
-
-const SOURCE_FILTERS: { value: SourceFilter; label: string }[] = [
-	{ value: "all", label: "Todas" },
-	{ value: "builtin", label: "Koworker" },
-	{ value: "custom", label: "Personalizadas" },
-];
-
-// Pseudo-id da seção "Sem categoria" no Set de colapso; nenhuma categoria real usa essa string.
+// Pseudo-id da seção/filtro "Sem categoria"; nenhuma categoria real usa essa string.
 const NO_CATEGORY_KEY = "__none__";
 
 function distinctTools(skill: TaskSkill): TaskSkill["sources"][number]["tool"][] {
@@ -39,14 +32,24 @@ type SkillsGridProps = {
 
 export function SkillsGrid({ skills, categories, loading }: SkillsGridProps) {
 	const [search, setSearch] = useState("");
-	const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+	const [categoryFilter, setCategoryFilter] = useState<string>("all");
 	const [appearanceSlug, setAppearanceSlug] = useState<string | null>(null);
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+	const isOrphan = (skill: TaskSkill) =>
+		!skill.categoryId || !categories.some((category) => category.id === skill.categoryId);
 
 	const filtered = useMemo(() => {
 		const term = search.trim().toLowerCase();
 		return skills.filter((skill) => {
-			if (sourceFilter !== "all" && skill.source !== sourceFilter) return false;
+			if (categoryFilter === NO_CATEGORY_KEY && !isOrphan(skill)) return false;
+			if (
+				categoryFilter !== "all" &&
+				categoryFilter !== NO_CATEGORY_KEY &&
+				skill.categoryId !== categoryFilter
+			) {
+				return false;
+			}
 			if (!term) return true;
 			return (
 				skill.label.toLowerCase().includes(term) ||
@@ -54,7 +57,7 @@ export function SkillsGrid({ skills, categories, loading }: SkillsGridProps) {
 				skill.description.toLowerCase().includes(term)
 			);
 		});
-	}, [skills, search, sourceFilter]);
+	}, [skills, categories, search, categoryFilter]);
 
 	// Seções: categorias nomeadas (já na ordem do banco — getAll ordena por display_order). Sem
 	// busca/filtro elas aparecem todas, mesmo vazias (a estrutura serve pra organizar); com filtro
@@ -76,7 +79,7 @@ export function SkillsGrid({ skills, categories, loading }: SkillsGridProps) {
 			}
 		}
 
-		const filtering = search.trim().length > 0 || sourceFilter !== "all";
+		const filtering = search.trim().length > 0 || categoryFilter !== "all";
 		const named: { key: string; category?: SkillCategory; skills: TaskSkill[] }[] = categories
 			.filter((category) => !filtering || (byCategory.get(category.id)?.length ?? 0) > 0)
 			.map((category) => ({
@@ -89,7 +92,39 @@ export function SkillsGrid({ skills, categories, loading }: SkillsGridProps) {
 			named.push({ key: NO_CATEGORY_KEY, skills: orphans });
 		}
 		return named;
-	}, [filtered, categories, search, sourceFilter]);
+	}, [filtered, categories, search, categoryFilter]);
+
+	// Opções do filtro de categoria: "Todas" + categorias (com contagem) + "Sem categoria" quando há
+	// órfãs. A contagem usa o total por categoria (não o filtrado) pra servir de visão geral estável.
+	const filterOptions = useMemo(() => {
+		const counts = new Map<string, number>();
+		let orphanCount = 0;
+		for (const skill of skills) {
+			if (isOrphan(skill)) {
+				orphanCount += 1;
+			} else {
+				counts.set(skill.categoryId!, (counts.get(skill.categoryId!) ?? 0) + 1);
+			}
+		}
+
+		const options: { id: string; name: string; color?: string; count: number }[] = [
+			{ id: "all", name: "Todas", count: skills.length },
+			...categories.map((category) => ({
+				id: category.id,
+				name: category.name,
+				color: category.color,
+				count: counts.get(category.id) ?? 0,
+			})),
+		];
+
+		if (orphanCount > 0) {
+			options.push({ id: NO_CATEGORY_KEY, name: "Sem categoria", count: orphanCount });
+		}
+		return options;
+	}, [skills, categories]);
+
+	const selectedOption =
+		filterOptions.find((option) => option.id === categoryFilter) ?? filterOptions[0];
 
 	function toggleCollapsed(key: string) {
 		setCollapsed((prev) => {
@@ -122,20 +157,39 @@ export function SkillsGrid({ skills, categories, loading }: SkillsGridProps) {
 						className="w-full pl-9 font-mono"
 					/>
 				</div>
-				<div className="flex gap-1">
-					{SOURCE_FILTERS.map((filter) => (
-						<button
-							key={filter.value}
-							type="button"
-							onClick={() => setSourceFilter(filter.value)}
-							className="cursor-pointer"
-						>
-							<Chip size="md" variant={sourceFilter === filter.value ? "primary" : "outline"}>
-								{filter.label}
-							</Chip>
-						</button>
-					))}
-				</div>
+				<CustomSelect
+					items={filterOptions}
+					value={categoryFilter}
+					onValueChange={(value) => setCategoryFilter(value)}
+					className="w-56 flex-none"
+					renderTrigger={() => (
+						<>
+							<span className="flex min-w-0 flex-1 items-center gap-2 text-left">
+								<span
+									className="size-2 shrink-0 rounded-full"
+									style={{ backgroundColor: selectedOption?.color ?? "var(--muted-foreground)" }}
+								/>
+								<span className="truncate">{selectedOption?.name ?? "Todas"}</span>
+								<Chip size="xs" variant="ghost" className="ml-auto font-mono tabular-nums">
+									{selectedOption?.count ?? 0}
+								</Chip>
+							</span>
+							<ChevronDown className="size-4 shrink-0 opacity-50" />
+						</>
+					)}
+					renderItem={(option) => (
+						<div className="flex w-full items-center gap-2">
+							<span
+								className="size-2 shrink-0 rounded-full"
+								style={{ backgroundColor: option.color ?? "var(--muted-foreground)" }}
+							/>
+							<span className="truncate">{option.name}</span>
+							<span className="ml-auto font-mono text-[11px] tabular-nums opacity-60">
+								{option.count}
+							</span>
+						</div>
+					)}
+				/>
 				<SkillCategoryCreateButton categories={categories} />
 				<Text size="xs" tone="muted" className="ml-auto min-w-12 text-right font-mono tabular-nums">
 					{filtered.length}/{skills.length}
@@ -272,9 +326,6 @@ function SkillTile({ skill, index, onAppearance }: SkillTileProps) {
 			</p>
 
 			<div className="flex flex-wrap items-center gap-1">
-				<Chip size="xs" variant={skill.source === "builtin" ? "primary" : "outline"}>
-					{skill.source === "builtin" ? "Koworker" : "Personalizada"}
-				</Chip>
 				{distinctTools(skill).map((tool) => (
 					<Chip key={tool} size="xs" variant="ghost">
 						{SKILL_TOOL_LABEL[tool]}

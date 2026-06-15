@@ -59,7 +59,6 @@ export type TreeNode =
 			icon: string;
 			color: string;
 			description: string;
-			source: "builtin" | "custom";
 			sourceCount: number;
 			conflict: boolean;
 			primaryDir: string;
@@ -203,7 +202,6 @@ export function buildVaultTree({
 			icon: skill.icon,
 			color: skill.color,
 			description: skill.description,
-			source: skill.source,
 			sourceCount: skill.sources.length,
 			conflict: skill.conflict,
 			primaryDir: skill.primaryDir,

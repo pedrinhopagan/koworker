@@ -13,7 +13,6 @@ function toTaskSkill(skill: SkillRecord): TaskSkill {
 	const metadataColor = typeof metadata.color === "string" ? metadata.color : undefined;
 	const requiresSubtaskSelection =
 		metadata.multiSelect === true || metadata.requiresSubtaskSelection === true;
-	const isBuiltin = skill.sources.some((source) => source.tool === "koworker");
 
 	return {
 		id: skill.slug,
@@ -24,7 +23,6 @@ function toTaskSkill(skill: SkillRecord): TaskSkill {
 		icon: skill.settings.icon ?? metadataIcon ?? DEFAULT_SKILL_ICON,
 		color: skill.settings.color ?? metadataColor ?? DEFAULT_SKILL_COLOR,
 		categoryId: skill.settings.categoryId ?? null,
-		source: isBuiltin ? "builtin" : "custom",
 		sources: skill.sources,
 		conflict: skill.conflict,
 		primaryPath: skill.primaryPath,

@@ -14,14 +14,6 @@ import type { TaskAgent } from "@/types/agents";
 import { AgentAppearanceDialog } from "./agent-appearance-dialog";
 import { AgentCreateTile } from "./agent-create-tile";
 
-type SourceFilter = "all" | "builtin" | "custom";
-
-const SOURCE_FILTERS: { value: SourceFilter; label: string }[] = [
-	{ value: "all", label: "Todos" },
-	{ value: "builtin", label: "Koworker" },
-	{ value: "custom", label: "Personalizados" },
-];
-
 function distinctTools(agent: TaskAgent): TaskAgent["sources"][number]["tool"][] {
 	return [...new Set(agent.sources.map((source) => source.tool))];
 }
@@ -33,21 +25,18 @@ type AgentsGridProps = {
 
 export function AgentsGrid({ agents, loading }: AgentsGridProps) {
 	const [search, setSearch] = useState("");
-	const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 	const [appearanceSlug, setAppearanceSlug] = useState<string | null>(null);
 
 	const filtered = useMemo(() => {
 		const term = search.trim().toLowerCase();
-		return agents.filter((agent) => {
-			if (sourceFilter !== "all" && agent.source !== sourceFilter) return false;
-			if (!term) return true;
-			return (
+		if (!term) return agents;
+		return agents.filter(
+			(agent) =>
 				agent.label.toLowerCase().includes(term) ||
 				agent.slug.toLowerCase().includes(term) ||
-				agent.description.toLowerCase().includes(term)
-			);
-		});
-	}, [agents, search, sourceFilter]);
+				agent.description.toLowerCase().includes(term),
+		);
+	}, [agents, search]);
 
 	// Deriva o agent vivo de `agents` (não um snapshot): ao trocar ícone/cor a mutation invalida a
 	// query, `agents` se atualiza e o preview do dialog reflete a mudança em tempo real.
@@ -67,20 +56,6 @@ export function AgentsGrid({ agents, loading }: AgentsGridProps) {
 						placeholder="Buscar agent por nome, slug ou descrição"
 						className="w-full pl-9 font-mono"
 					/>
-				</div>
-				<div className="flex gap-1">
-					{SOURCE_FILTERS.map((filter) => (
-						<button
-							key={filter.value}
-							type="button"
-							onClick={() => setSourceFilter(filter.value)}
-							className="cursor-pointer"
-						>
-							<Chip size="md" variant={sourceFilter === filter.value ? "primary" : "outline"}>
-								{filter.label}
-							</Chip>
-						</button>
-					))}
 				</div>
 				<Text size="xs" tone="muted" className="ml-auto min-w-12 text-right font-mono tabular-nums">
 					{filtered.length}/{agents.length}
@@ -186,9 +161,6 @@ function AgentTile({ agent, index, onAppearance }: AgentTileProps) {
 			</p>
 
 			<div className="flex flex-wrap items-center gap-1">
-				<Chip size="xs" variant={agent.source === "builtin" ? "primary" : "outline"}>
-					{agent.source === "builtin" ? "Koworker" : "Personalizado"}
-				</Chip>
 				{distinctTools(agent).map((tool) => (
 					<Chip key={tool} size="xs" variant="ghost">
 						{AGENT_TOOL_LABEL[tool]}

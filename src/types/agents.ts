@@ -14,7 +14,6 @@ export type TaskAgent = {
 	instructions: string;
 	icon: string;
 	color: string;
-	source: "builtin" | "custom";
 	sources: AgentSource[];
 	conflict: boolean;
 	primaryPath: string;

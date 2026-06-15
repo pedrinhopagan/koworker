@@ -247,7 +247,7 @@ export function GlobalPromptBar() {
 				<button
 					type="button"
 					onClick={toggleExpanded}
-					className="flex h-9 w-full items-center gap-2 px-4 text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
+					className="flex h-9 w-full cursor-pointer items-center gap-2 px-4 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 				>
 					<MessageSquarePlus className="h-4 w-4 shrink-0" />
 					<span className="shrink-0">Prompt</span>
@@ -268,7 +268,7 @@ export function GlobalPromptBar() {
 					</span>
 					<ChevronUp
 						className={cn(
-							"h-4 w-4 shrink-0 transition-transform duration-200 ease-out",
+							"h-4 w-4 shrink-0 transition-transform duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]",
 							expanded && "rotate-180",
 						)}
 					/>
@@ -277,7 +277,7 @@ export function GlobalPromptBar() {
 				{/* Conteúdo expansível: grid-rows 0fr→1fr anima a altura sem medir nada. */}
 				<div
 					className={cn(
-						"grid transition-[grid-template-rows] duration-200 ease-out",
+						"grid transition-[grid-template-rows] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]",
 						expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
 					)}
 					onTransitionEnd={(event) => {

@@ -268,9 +268,6 @@ function AgentEditor({
 							)}
 
 							<div className="flex shrink-0 items-center gap-1">
-								<Chip size="xs" variant={agent.source === "builtin" ? "primary" : "outline"}>
-									{agent.source === "builtin" ? "Koworker" : "Personalizado"}
-								</Chip>
 								{agent.sources.map((source) => (
 									<Chip key={source.path} size="xs" variant="ghost">
 										{AGENT_TOOL_LABEL[source.tool]}

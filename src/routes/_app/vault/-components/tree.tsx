@@ -222,10 +222,6 @@ function SkillFolderTooltip({ node }: { node: SkillFolder }) {
 			</span>
 			{node.description && <span className="text-muted-foreground">{node.description}</span>}
 			<span className="flex items-center gap-1.5">
-				<span className="text-muted-foreground">Origem</span>
-				<span className="text-foreground">{node.source === "builtin" ? "Embutida" : "Custom"}</span>
-			</span>
-			<span className="flex items-center gap-1.5">
 				<span className="text-muted-foreground">Fontes</span>
 				<span className="text-foreground">{node.sourceCount}</span>
 			</span>
