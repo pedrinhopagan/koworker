@@ -277,6 +277,7 @@ export const tasksRouter = {
 			title: input.title,
 			priority_id: input.priorityId,
 			category_id: input.categoryId,
+			group_id: input.groupId,
 		});
 
 		await publishTaskEvent(id, input.projectId, "created");

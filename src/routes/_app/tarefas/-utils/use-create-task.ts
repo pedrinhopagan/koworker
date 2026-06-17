@@ -8,6 +8,7 @@ type CreateTaskInput = {
 	description?: string;
 	categoryId: string;
 	priorityId: string;
+	groupId?: string;
 };
 
 export function useCreateTask(onSuccess?: () => void) {

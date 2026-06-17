@@ -43,6 +43,8 @@ export const TaskCreateSchema = z.object({
 	title: z.string().trim().min(1).optional(),
 	priorityId: z.string().trim().min(1),
 	categoryId: z.string().trim().min(1),
+	// Vincular a task a uma feature (task group) já na criação. Opcional: omitido nasce sem feature.
+	groupId: z.string().trim().min(1).optional(),
 	// Semeia o index.md com o título (H1). Quem cria a task só pra receber arquivos (redirecionar
 	// do vault para uma tarefa nova) passa false: a pasta nasce vazia e os arquivos entram sem
 	// colidir com um index.md de boilerplate.
