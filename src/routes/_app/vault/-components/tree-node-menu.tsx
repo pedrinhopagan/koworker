@@ -1,18 +1,11 @@
 import {
-	Check,
-	CircleCheck,
-	CircleDot,
 	ClipboardCopy,
 	FileArchive,
 	FolderInput,
 	FolderOpen,
 	FolderPlus,
-	FolderSymlink,
-	LayoutGrid,
-	Flame,
 	Pencil,
 	Share2,
-	SquareArrowOutUpRight,
 	Trash2,
 	Unlink,
 } from "lucide-react";
@@ -29,19 +22,17 @@ import {
 	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { cn } from "@/lib/utils";
+import {
+	type TaskMenuActions,
+	type TaskMenuData,
+	type TaskMenuTarget,
+	taskMenuItems,
+} from "@/components/tasks/task-context-menu";
 import type { TaskFolder, TreeNode } from "../-utils/build-vault-tree";
 
-type TaskOption = { id: string; displayTitle: string };
-type ColorOption = { id: string; name: string; color: string };
-type ProjectOption = { id: string; name: string; color: string };
+export type { TaskMenuData };
 
-// Listas alvo dos submenus do menu de tarefa: projetos (exceto o atual), prioridades e categorias.
-export type TaskMenuData = {
-	projects: ProjectOption[];
-	priorities: ColorOption[];
-	categories: ColorOption[];
-};
+type TaskOption = { id: string; displayTitle: string };
 
 // Callbacks node-shaped: o dono (index) despacha pra mutation certa pelo kind/origin. O picker de
 // tarefa é um só (`onPickTask`) — link/move/moveFolder caem no mesmo gesto.
@@ -66,57 +57,6 @@ export type TreeActions = {
 	onMoveTaskToProject: (node: TaskFolder, projectId: string) => void;
 	onDeleteTask: (node: TaskFolder) => void;
 };
-
-// Submenu de seleção colorida (prioridade/categoria/projeto): marca o item ativo e despacha o id.
-function PickSub({
-	label,
-	icon: Icon,
-	items,
-	activeId,
-	emptyLabel,
-	onPick,
-}: {
-	label: string;
-	icon: typeof Flame;
-	items: ColorOption[];
-	activeId?: string | null;
-	emptyLabel: string;
-	onPick: (id: string) => void;
-}) {
-	return (
-		<ContextMenuSub>
-			<ContextMenuSubTrigger className="px-3 py-2">
-				<Icon className="mr-2 size-4" />
-				{label}
-			</ContextMenuSubTrigger>
-			<ContextMenuSubContent className="max-h-72 w-[220px] overflow-y-auto">
-				{items.length === 0 ? (
-					<ContextMenuItem disabled className="px-3 py-2">
-						{emptyLabel}
-					</ContextMenuItem>
-				) : (
-					items.map((item) => {
-						const active = item.id === activeId;
-						return (
-							<ContextMenuItem
-								key={item.id}
-								onSelect={() => onPick(item.id)}
-								className={cn("gap-2 px-3 py-2", active && "font-medium")}
-							>
-								<span
-									className="size-2 shrink-0 rounded-full"
-									style={{ backgroundColor: item.color }}
-								/>
-								<span className="min-w-0 flex-1 truncate">{item.name}</span>
-								{active && <Check className="size-4 shrink-0 text-muted-foreground" />}
-							</ContextMenuItem>
-						);
-					})
-				)}
-			</ContextMenuSubContent>
-		</ContextMenuSub>
-	);
-}
 
 // "Abrir no sistema" + submenu "Compartilhar". Pasta (tarefa/skill/pasta solta) ganha o submenu
 // com copiar conteúdo/zip; arquivo único só abre o local (não é pasta pra compactar/concatenar).
@@ -157,81 +97,30 @@ function ShareItems({
 	);
 }
 
-// Itens do menu de uma pasta de tarefa: todas as ações de tarefa + migrar de projeto.
+// Adapta a pasta de tarefa do vault pro menu de tarefa compartilhado: nó → target e os callbacks
+// node-shaped do vault → as actions target-shaped do menu. O Compartilhar/Abrir no sistema do nó
+// resolve o dir pelo kind, então aqui só repassa o nó.
 function taskFolderItems(node: TaskFolder, data: TaskMenuData, actions: TreeActions): ReactNode {
-	return (
-		<>
-			<ContextMenuItem onSelect={() => actions.onOpenTask(node)} className="px-3 py-2">
-				<SquareArrowOutUpRight className="mr-2 size-4" />
-				Abrir tarefa
-			</ContextMenuItem>
-			<ShareItems node={node} actions={actions} folder />
-			<ContextMenuSeparator />
-			<ContextMenuItem onSelect={() => actions.onRenameTask(node)} className="px-3 py-2">
-				<Pencil className="mr-2 size-4" />
-				Renomear
-			</ContextMenuItem>
-			<PickSub
-				label="Prioridade"
-				icon={Flame}
-				items={data.priorities}
-				activeId={node.priorityId}
-				emptyLabel="Nenhuma prioridade"
-				onPick={(id) => actions.onSetTaskPriority(node, id)}
-			/>
-			<PickSub
-				label="Categoria"
-				icon={LayoutGrid}
-				items={data.categories}
-				activeId={node.categoryId}
-				emptyLabel="Nenhuma categoria"
-				onPick={(id) => actions.onSetTaskCategory(node, id)}
-			/>
-			<ContextMenuItem onSelect={() => actions.onToggleTaskDone(node)} className="px-3 py-2">
-				{node.done ? (
-					<CircleDot className="mr-2 size-4" />
-				) : (
-					<CircleCheck className="mr-2 size-4" />
-				)}
-				{node.done ? "Reabrir tarefa" : "Marcar como concluída"}
-			</ContextMenuItem>
-			<ContextMenuSub>
-				<ContextMenuSubTrigger className="px-3 py-2">
-					<FolderSymlink className="mr-2 size-4" />
-					Mover para projeto
-				</ContextMenuSubTrigger>
-				<ContextMenuSubContent className="max-h-72 w-[220px] overflow-y-auto">
-					{data.projects.length === 0 ? (
-						<ContextMenuItem disabled className="px-3 py-2">
-							Nenhum outro projeto
-						</ContextMenuItem>
-					) : (
-						data.projects.map((project) => (
-							<ContextMenuItem
-								key={project.id}
-								onSelect={() => actions.onMoveTaskToProject(node, project.id)}
-								className="gap-2 px-3 py-2"
-							>
-								<span
-									className="size-2 shrink-0 rounded-full"
-									style={{ backgroundColor: project.color }}
-								/>
-								<span className="min-w-0 flex-1 truncate">{project.name}</span>
-							</ContextMenuItem>
-						))
-					)}
-				</ContextMenuSubContent>
-			</ContextMenuSub>
-			<ContextMenuSeparator />
-			<ContextMenuItem
-				onSelect={() => actions.onDeleteTask(node)}
-				className="px-3 py-2 text-destructive focus:text-destructive"
-			>
-				<Trash2 className="mr-2 size-4" />
-				Excluir tarefa
-			</ContextMenuItem>
-		</>
-	);
+	const target: TaskMenuTarget = {
+		id: node.taskId,
+		label: node.label,
+		done: node.done,
+		priorityId: node.priorityId,
+		categoryId: node.categoryId,
+	};
+	const taskActions: TaskMenuActions = {
+		onOpen: () => actions.onOpenTask(node),
+		onShareContent: () => actions.onShareContent(node),
+		onShareZip: () => actions.onShareZip(node),
+		onOpenInOs: () => actions.onOpenInOs(node),
+		onRename: () => actions.onRenameTask(node),
+		onSetPriority: (_t, id) => actions.onSetTaskPriority(node, id),
+		onSetCategory: (_t, id) => actions.onSetTaskCategory(node, id),
+		onToggleDone: () => actions.onToggleTaskDone(node),
+		onMoveToProject: (_t, projectId) => actions.onMoveTaskToProject(node, projectId),
+		onDelete: () => actions.onDeleteTask(node),
+	};
+	return taskMenuItems(target, data, taskActions);
 }
 
 function TaskPickerSub({
@@ -374,12 +263,14 @@ export function TreeNodeMenu({
 	tasks,
 	taskMenuData,
 	actions,
+	onOpenChange,
 	children,
 }: {
 	node: TreeNode;
 	tasks: TaskOption[];
 	taskMenuData: TaskMenuData;
 	actions: TreeActions;
+	onOpenChange?: (open: boolean) => void;
 	children: ReactNode;
 }) {
 	const items = menuItems(node, tasks, taskMenuData, actions);
@@ -388,7 +279,7 @@ export function TreeNodeMenu({
 	}
 
 	return (
-		<ContextMenu>
+		<ContextMenu onOpenChange={onOpenChange}>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
 			<ContextMenuContent className="w-[220px] rounded-none">
 				<ContextMenuLabel className="truncate px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
@@ -409,6 +300,7 @@ export function TreeBatchMenu({
 	tasks,
 	onPickTask,
 	onUnlink,
+	onOpenChange,
 	children,
 }: {
 	origin: "loose" | "task" | "folder";
@@ -416,10 +308,11 @@ export function TreeBatchMenu({
 	tasks: TaskOption[];
 	onPickTask: (taskId: string) => void;
 	onUnlink: () => void;
+	onOpenChange?: (open: boolean) => void;
 	children: ReactNode;
 }) {
 	return (
-		<ContextMenu>
+		<ContextMenu onOpenChange={onOpenChange}>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
 			<ContextMenuContent className="w-[220px] rounded-none">
 				<ContextMenuLabel className="px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
