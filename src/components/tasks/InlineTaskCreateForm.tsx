@@ -1,12 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, Plus } from "lucide-react";
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 import { Controller, type SubmitHandler, useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { orpc, type RouterOutputs } from "@/client";
 import { CategorySelect } from "@/components/tasks/CategorySelect";
+import { FeatureSelect } from "@/components/tasks/FeatureSelect";
 import { PrioritySelect } from "@/components/tasks/PrioritySelect";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ const InlineTaskCreateFormSchema = z.object({
 	description: z.string().optional(),
 	categoryId: z.string().min(1, "Categoria obrigatória"),
 	priorityId: z.string().min(1, "Prioridade obrigatória"),
+	groupId: z.string().optional(),
 });
 
 export type InlineTaskCreateFormValues = z.infer<typeof InlineTaskCreateFormSchema>;
@@ -47,7 +49,7 @@ export type InlineTaskCreateFormProps = {
 	 * - none: keeps all values
 	 */
 	resetMode?: "title" | "all" | "none";
-	variant?: "default" | "home";
+	variant?: "default" | "home" | "dialog";
 	/**
 	 * Sempre renderiza o seletor de projeto e deixa a escolha do usuário ser autoritativa, mesmo
 	 * com um projeto em foco no store. Usado pelo "nova tarefa" global, que cria pra qualquer projeto.
@@ -101,6 +103,9 @@ export function InlineTaskCreateForm({
 		: (storeProjectId ?? projectId ?? transientProjectId);
 	const shouldRenderProjectSelect = forceProjectSelect || (!storeProjectId && !projectId);
 	const isHomeVariant = variant === "home";
+	const isDialogVariant = variant === "dialog";
+	// No dialog os selects ocupam a largura toda (modo não-compacto: ícone + nome do valor).
+	const stacked = isHomeVariant || isDialogVariant;
 
 	const selectedProject =
 		effectiveProjectId && projects.length > 0
@@ -121,8 +126,14 @@ export function InlineTaskCreateForm({
 			description: "",
 			categoryId: "",
 			priorityId: "",
+			groupId: "",
 		},
 	});
+
+	// Feature é escopada ao projeto; trocar de projeto invalida a escolha anterior.
+	useEffect(() => {
+		resetField("groupId", { defaultValue: "" });
+	}, [effectiveProjectId, resetField]);
 
 	const fieldsDisabled = loading;
 	const submitDisabled = loading || !effectiveProjectId;
@@ -138,6 +149,7 @@ export function InlineTaskCreateForm({
 				description: description ? description : undefined,
 				categoryId: values.categoryId,
 				priorityId: values.priorityId,
+				groupId: values.groupId ? values.groupId : undefined,
 			});
 
 			if (resetMode === "all") {
@@ -154,9 +166,9 @@ export function InlineTaskCreateForm({
 				if (!effectiveProjectId) return;
 				submitWithProjectId(effectiveProjectId)(values);
 			})}
-			className={className ?? (isHomeVariant ? "grid gap-3" : "flex flex-wrap items-end gap-3")}
+			className={className ?? (stacked ? "grid gap-3" : "flex flex-wrap items-end gap-3")}
 		>
-			<div className={cn(isHomeVariant ? "w-full" : "flex-1 min-w-55")}>
+			<div className={cn(stacked ? "w-full" : "flex-1 min-w-55")}>
 				<Input
 					placeholder="Nova tarefa..."
 					autoFocus={autoFocus}
@@ -183,6 +195,7 @@ export function InlineTaskCreateForm({
 								value={field.value ? field.value : null}
 								onValueChange={(id) => field.onChange(id ?? "")}
 								disabled={fieldsDisabled}
+								compact={!isDialogVariant}
 							/>
 							{errors.categoryId?.message && (
 								<Text size="xs" tone="destructive">
@@ -202,12 +215,29 @@ export function InlineTaskCreateForm({
 								value={field.value ? field.value : null}
 								onValueChange={(id) => field.onChange(id ?? "")}
 								disabled={fieldsDisabled}
+								compact={!isDialogVariant}
 							/>
 							{errors.priorityId?.message && (
 								<Text size="xs" tone="destructive">
 									{errors.priorityId.message}
 								</Text>
 							)}
+						</div>
+					)}
+				/>
+
+				<Controller
+					control={control}
+					name="groupId"
+					render={({ field }) => (
+						<div className="grid gap-1">
+							<FeatureSelect
+								projectId={effectiveProjectId ?? null}
+								value={field.value ? field.value : null}
+								onValueChange={(id) => field.onChange(id ?? "")}
+								disabled={fieldsDisabled}
+								compact={!isDialogVariant}
+							/>
 						</div>
 					)}
 				/>
@@ -286,11 +316,11 @@ export function InlineTaskCreateForm({
 				</div>
 			)}
 
-			<div className={cn("grid gap-1", isHomeVariant && "w-full")}>
-				{isHomeVariant ? (
+			<div className={cn("grid gap-1", stacked && "w-full")}>
+				{stacked ? (
 					<Button type="submit" disabled={submitDisabled} className="w-full">
 						<Plus className="mr-1 size-4" />
-						Submit
+						{isDialogVariant ? "Adicionar tarefa" : "Submit"}
 					</Button>
 				) : (
 					<Tooltip label="Adicionar tarefa">

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { ListOrdered } from "lucide-react";
 
 import { orpc } from "@/client";
 import { EntityChip, EntitySelect } from "./EntitySelect";
@@ -19,6 +20,7 @@ export type PrioritySelectProps = {
 	placeholder?: string;
 	triggerClassName?: string;
 	upperLabel?: boolean;
+	compact?: boolean;
 };
 
 export type PriorityChipProps = {
@@ -62,6 +64,7 @@ const prioritySelectConfig = {
 		<span className="text-xs tabular-nums opacity-70">{p.level}</span>
 	),
 	contentMinWidth: "min-w-[var(--radix-select-trigger-width)]",
+	triggerIcon: <ListOrdered className="size-4" />,
 };
 
 export function PrioritySelect({
@@ -71,6 +74,7 @@ export function PrioritySelect({
 	placeholder = "Prioridade",
 	triggerClassName,
 	upperLabel = false,
+	compact = false,
 }: PrioritySelectProps) {
 	const listQuery = useQuery(orpc.priorities.list.queryOptions());
 
@@ -83,6 +87,7 @@ export function PrioritySelect({
 			disabled={disabled}
 			triggerClassName={triggerClassName}
 			upperLabel={upperLabel}
+			compact={compact}
 			managerDrawer={<PriorityManagerDrawer />}
 		/>
 	);

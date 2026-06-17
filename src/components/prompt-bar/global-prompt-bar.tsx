@@ -12,6 +12,7 @@ import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { AgentInvokeButton, AgentPickerButton } from "@/components/prompt-bar/agent-invoke";
 import { NewTaskDialog } from "@/components/prompt-bar/new-task-dialog";
 import { NewVaultNoteDialog } from "@/components/prompt-bar/new-vault-note-dialog";
 import { PromptHistoryMenu } from "@/components/prompt-bar/prompt-history-menu";
@@ -25,6 +26,7 @@ import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 import { useReadingModeStore } from "@/stores/reading-mode";
+import type { TaskAgent } from "@/types/agents";
 import type { TaskSkill } from "@/types/skills";
 
 type SlashTrigger = { triggerPos: number; query: string };
@@ -98,6 +100,7 @@ export function GlobalPromptBar() {
 	const [activeIndex, setActiveIndex] = useState(0);
 	const [taskDialogOpen, setTaskDialogOpen] = useState(false);
 	const [vaultDialogOpen, setVaultDialogOpen] = useState(false);
+	const [selectedAgent, setSelectedAgent] = useState<TaskAgent | null>(null);
 	// `overflow-hidden` faz a animação de grid-rows clipar a altura; mas o menu de skill abre pra
 	// cima e seria cortado. Então só liberamos `overflow-visible` quando a animação de abrir termina.
 	const [revealed, setRevealed] = useState(expanded);
@@ -360,6 +363,13 @@ export function GlobalPromptBar() {
 									/>
 									<PromptHistoryMenu history={history} onPick={setText} />
 									<MiniMenuButton icon={Slash} label="Inserir skill (/)" onClick={insertSlash} />
+									<AgentPickerButton
+										selected={selectedAgent}
+										onSelect={setSelectedAgent}
+										onClear={() => setSelectedAgent(null)}
+										projectName={routeTarget.projectName}
+										canPick={!!routeTarget.path}
+									/>
 								</div>
 
 								<div className="h-5 w-px shrink-0 bg-border" aria-hidden />
@@ -375,17 +385,26 @@ export function GlobalPromptBar() {
 									<span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground opacity-70">
 										{contextLabel}
 									</span>
-									<label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-										<Checkbox
-											size="sm"
-											checked={interactWithRoute}
-											onCheckedChange={(checked) => setInteractWithRoute(checked === true)}
-										/>
-										interage com a rota
-									</label>
+									<Tooltip label="Anexa o caminho da rota ao prompt (/kw)">
+										<label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+											<Checkbox
+												size="sm"
+												checked={interactWithRoute}
+												onCheckedChange={(checked) => setInteractWithRoute(checked === true)}
+											/>
+											rota
+										</label>
+									</Tooltip>
 								</div>
 
-								{/* Grupo 3 — a ação principal, isolada. */}
+								{/* Grupo 3 — ações principais. "Invocar agent" só aparece com um agent ativo. */}
+								{selectedAgent && (
+									<AgentInvokeButton
+										agent={selectedAgent}
+										target={routeTarget.path}
+										projectName={routeTarget.projectName}
+									/>
+								)}
 								<Button size="sm" className="shrink-0" onClick={() => void handleCopy()}>
 									<Copy size={14} />
 									Copiar prompt

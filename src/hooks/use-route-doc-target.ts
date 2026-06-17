@@ -24,6 +24,7 @@ export function useRouteDocTarget(): RouteDocTarget {
 	const { selectedProject } = useProjectFocus();
 
 	const taskId = params.taskId;
+	const file = params.file;
 	const fileName = params.fileName;
 	const slug = params.slug;
 	const splat = params._splat;
@@ -49,7 +50,11 @@ export function useRouteDocTarget(): RouteDocTarget {
 
 	if (kind === "task") {
 		const task = taskQuery.data ?? null;
-		return { kind, path: task?.folderPath ?? null, projectName: task?.project?.name };
+		const folder = task?.folderPath ?? null;
+		// Lendo um `.md` específico da tarefa (rota `$taskId/$file`), o alvo é esse arquivo — é ele que
+		// o agent invocado deve executar. Na index da tarefa (sem `file`), o alvo é a pasta inteira.
+		const path = folder && file ? `${folder}/${file}` : folder;
+		return { kind, path, projectName: task?.project?.name };
 	}
 
 	if (kind === "vault") {

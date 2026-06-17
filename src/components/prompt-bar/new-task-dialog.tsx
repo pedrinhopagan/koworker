@@ -60,7 +60,7 @@ export function NewTaskDialog({ open, onClose }: NewTaskDialogProps) {
 				</Text>
 			) : null}
 			<InlineTaskCreateForm
-				className="grid gap-3"
+				variant="dialog"
 				forceProjectSelect
 				resetMode="none"
 				autoFocus

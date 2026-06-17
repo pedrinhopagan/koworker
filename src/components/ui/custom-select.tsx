@@ -85,6 +85,9 @@ interface CustomSelectProps<T extends { id: string }> extends VariantProps<
 	align?: "start" | "center" | "end";
 	side?: "top" | "bottom" | "left" | "right";
 	upperLabel?: boolean;
+	// Por padrão o select cresce (flex-1) pra preencher o container. Com fitContent ele encolhe ao
+	// conteúdo do trigger — usado pelos triggers compactos (ícone + chevron).
+	fitContent?: boolean;
 }
 
 // ============================================================================
@@ -114,6 +117,7 @@ function CustomSelect<T extends { id: string }>({
 	align = "start",
 	side = "bottom",
 	upperLabel = false,
+	fitContent = false,
 }: CustomSelectProps<T>) {
 	function handleValueChange(newValue: string) {
 		const item = items.find((i) => i.id === newValue);
@@ -137,7 +141,7 @@ function CustomSelect<T extends { id: string }>({
 	}, [portalContainer]);
 
 	return (
-		<div className="flex flex-col flex-1 gap-0.5">
+		<div className={cn("flex flex-col gap-0.5", fitContent ? "w-fit" : "flex-1")}>
 			{upperLabel && (
 				<div className="flex items-center justify-between">
 					<Text size="xs">{label}</Text>

@@ -52,6 +52,8 @@ type EntitySelectConfig<T extends BaseEntityItem> = {
 	renderExtra?: (entity: T) => ReactNode;
 	renderItemExtra?: (entity: T) => ReactNode;
 	contentMinWidth?: string;
+	// Ícone que representa o tipo do select no modo compacto (ex.: lista numerada pra prioridade).
+	triggerIcon?: ReactNode;
 };
 
 type EntitySelectProps<T extends BaseEntityItem> = {
@@ -63,6 +65,8 @@ type EntitySelectProps<T extends BaseEntityItem> = {
 	triggerClassName?: string;
 	upperLabel?: boolean;
 	managerDrawer: ReactNode;
+	// Trigger reduzido: só o ícone do tipo (tingido pela cor selecionada) + chevron.
+	compact?: boolean;
 };
 
 export function EntitySelect<T extends BaseEntityItem>({
@@ -74,6 +78,7 @@ export function EntitySelect<T extends BaseEntityItem>({
 	triggerClassName,
 	upperLabel = false,
 	managerDrawer,
+	compact = false,
 }: EntitySelectProps<T>) {
 	const openManageDrawer = useManageDrawerStore((s) => s.open);
 	const entities = (listQuery.data ?? []) as T[];
@@ -112,18 +117,34 @@ export function EntitySelect<T extends BaseEntityItem>({
 				size="md"
 				label={config.label}
 				upperLabel={upperLabel}
-				renderTrigger={() => (
-					<>
-						<span className="flex-1 flex min-w-0">
-							<EntityChip
-								entity={selectedEntity}
-								placeholder={config.placeholder}
-								renderExtra={config.renderExtra}
-							/>
-						</span>
-						<ChevronDown className="size-4 text-muted-foreground ml-1 shrink-0" />
-					</>
-				)}
+				fitContent={compact}
+				renderTrigger={() =>
+					compact ? (
+						<>
+							<span
+								className={cn("inline-flex shrink-0", !selectedEntity && "text-muted-foreground")}
+								style={selectedEntity ? { color: accentColor } : undefined}
+							>
+								{config.triggerIcon}
+							</span>
+							<ChevronDown className="size-4 text-muted-foreground shrink-0" />
+							<span className="sr-only">
+								{config.label}: {selectedEntity?.name ?? config.placeholder}
+							</span>
+						</>
+					) : (
+						<>
+							<span className="flex-1 flex min-w-0">
+								<EntityChip
+									entity={selectedEntity}
+									placeholder={config.placeholder}
+									renderExtra={config.renderExtra}
+								/>
+							</span>
+							<ChevronDown className="size-4 text-muted-foreground ml-1 shrink-0" />
+						</>
+					)
+				}
 				renderItem={(item, isSelected) => {
 					if (item.id === config.manageActionId) {
 						return (
@@ -163,8 +184,16 @@ export function EntitySelect<T extends BaseEntityItem>({
 				triggerStyle={{
 					boxShadow: `0 0 0 1px ${accentColor}30`,
 				}}
-				triggerClassName={cn("gap-1 min-w-[140px]", triggerClassName)}
-				contentClassName={config.contentMinWidth ?? "min-w-[var(--radix-select-trigger-width)]"}
+				triggerClassName={cn(
+					"gap-1",
+					compact ? "px-2 w-fit min-w-0" : "min-w-[140px]",
+					triggerClassName,
+				)}
+				contentClassName={
+					compact
+						? "min-w-[180px]"
+						: (config.contentMinWidth ?? "min-w-[var(--radix-select-trigger-width)]")
+				}
 			/>
 			{managerDrawer}
 		</>

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Tag } from "lucide-react";
 
 import { orpc } from "@/client";
 import { CategoryManagerDrawer } from "./CategoryManagerDrawer";
@@ -17,6 +18,7 @@ export type CategorySelectProps = {
 	placeholder?: string;
 	triggerClassName?: string;
 	upperLabel?: boolean;
+	compact?: boolean;
 };
 
 export type CategoryChipProps = {
@@ -44,6 +46,7 @@ const categorySelectConfig = {
 	emptyMessage: "Nenhuma categoria",
 	manageLabel: "Gerenciar categorias",
 	contentMinWidth: "min-w-[180px]",
+	triggerIcon: <Tag className="size-4" />,
 };
 
 export function CategorySelect({
@@ -53,6 +56,7 @@ export function CategorySelect({
 	placeholder = "Categoria",
 	triggerClassName,
 	upperLabel = false,
+	compact = false,
 }: CategorySelectProps) {
 	const listQuery = useQuery(orpc.categories.list.queryOptions());
 
@@ -65,6 +69,7 @@ export function CategorySelect({
 			disabled={disabled}
 			triggerClassName={triggerClassName}
 			upperLabel={upperLabel}
+			compact={compact}
 			managerDrawer={<CategoryManagerDrawer />}
 		/>
 	);
