@@ -328,6 +328,42 @@ class CodeBlockCopyWidget extends WidgetType {
 	}
 }
 
+// Botão de copiar do bloco de citação inteiro (markers `>` já removidos). Espelha o do code block,
+// mas com a sua própria classe pra o hover acionar pelo `.cm-md-blockquote`.
+class BlockquoteCopyWidget extends WidgetType {
+	constructor(
+		readonly text: string,
+		readonly onClick?: (text: string) => void,
+	) {
+		super();
+	}
+
+	eq(other: BlockquoteCopyWidget) {
+		return other.text === this.text;
+	}
+
+	toDOM() {
+		const el = document.createElement("button");
+		el.type = "button";
+		el.className = "cm-md-blockquote-copy";
+		el.title = "Copiar citação";
+		el.tabIndex = -1;
+		el.setAttribute("aria-label", "Copiar bloco de citação");
+		el.innerHTML =
+			'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
+		el.addEventListener("mousedown", (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			this.onClick?.(this.text);
+		});
+		return el;
+	}
+
+	ignoreEvent() {
+		return true;
+	}
+}
+
 // Checkbox real e clicável no lugar do `[ ]`/`[x]` de uma task list GFM, usando o
 // `<Checkbox>` padrão do projeto montado num root React. O clique alterna o caractere
 // interno no doc (` ` ↔ `x`), mantendo o `.md` cru como fonte da verdade.
@@ -785,6 +821,22 @@ function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet
 					for (let n = firstLine.number; n <= lastLine.number; n++) {
 						ranges.push(blockquoteLine.range(doc.line(n).from));
 					}
+
+					// Texto da citação sem os marcadores `>`/`> ` (inclui aninhados) de cada linha.
+					const inner = doc
+						.sliceString(node.from, node.to)
+						.split("\n")
+						.map((line) => line.replace(/^ {0,3}(?:>\s?)+/, ""))
+						.join("\n")
+						.trim();
+					if (inner) {
+						ranges.push(
+							Decoration.widget({
+								widget: new BlockquoteCopyWidget(inner, callbacks.onInlineCodeClick),
+								side: -1,
+							}).range(firstLine.from),
+						);
+					}
 					return;
 				}
 
@@ -1040,10 +1092,36 @@ const baseTheme = EditorView.baseTheme({
 		boxDecorationBreak: "clone",
 	},
 	".cm-md-blockquote": {
+		position: "relative",
 		background: "color-mix(in oklab, var(--muted) 45%, transparent)",
 		borderLeft: "3px solid var(--muted-foreground)",
 		paddingLeft: "0.9em !important",
 		marginRight: "0.5rem",
+	},
+	".cm-md-blockquote-copy": {
+		position: "absolute",
+		top: "0.35em",
+		right: "0.4em",
+		display: "inline-flex",
+		alignItems: "center",
+		justifyContent: "center",
+		width: "1.7em",
+		height: "1.7em",
+		padding: "0",
+		color: "var(--muted-foreground)",
+		background: "color-mix(in oklab, var(--background) 70%, transparent)",
+		border: "1px solid var(--border)",
+		borderRadius: "4px",
+		cursor: "pointer",
+		opacity: "0",
+		transition: "opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease",
+	},
+	".cm-md-blockquote:hover .cm-md-blockquote-copy, .cm-md-blockquote-copy:hover": {
+		opacity: "1",
+	},
+	".cm-md-blockquote-copy:hover": {
+		color: "var(--primary)",
+		borderColor: "var(--primary)",
 	},
 	".cm-md-task-checkbox": {
 		display: "inline-flex",
