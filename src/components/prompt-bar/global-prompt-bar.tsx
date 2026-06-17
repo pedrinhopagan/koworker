@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AgentInvokeButton, AgentPickerButton } from "@/components/prompt-bar/agent-invoke";
+import { SkillInvokeButton, SkillPickerButton } from "@/components/prompt-bar/skill-invoke";
 import { NewTaskDialog } from "@/components/prompt-bar/new-task-dialog";
 import { NewVaultNoteDialog } from "@/components/prompt-bar/new-vault-note-dialog";
 import { PromptHistoryMenu } from "@/components/prompt-bar/prompt-history-menu";
@@ -100,7 +101,10 @@ export function GlobalPromptBar() {
 	const [activeIndex, setActiveIndex] = useState(0);
 	const [taskDialogOpen, setTaskDialogOpen] = useState(false);
 	const [vaultDialogOpen, setVaultDialogOpen] = useState(false);
+	// Agent e skill são mutuamente exclusivos numa invocação: o agent roda `/kw` sob um agent; a skill
+	// roda `/<slug>` direto. Selecionar um limpa o outro.
 	const [selectedAgent, setSelectedAgent] = useState<TaskAgent | null>(null);
+	const [selectedSkill, setSelectedSkill] = useState<TaskSkill | null>(null);
 	// `overflow-hidden` faz a animação de grid-rows clipar a altura; mas o menu de skill abre pra
 	// cima e seria cortado. Então só liberamos `overflow-visible` quando a animação de abrir termina.
 	const [revealed, setRevealed] = useState(expanded);
@@ -365,10 +369,22 @@ export function GlobalPromptBar() {
 									<MiniMenuButton icon={Slash} label="Inserir skill (/)" onClick={insertSlash} />
 									<AgentPickerButton
 										selected={selectedAgent}
-										onSelect={setSelectedAgent}
+										onSelect={(agent) => {
+											setSelectedSkill(null);
+											setSelectedAgent(agent);
+										}}
 										onClear={() => setSelectedAgent(null)}
 										projectName={routeTarget.projectName}
 										canPick={!!routeTarget.path}
+									/>
+									<SkillPickerButton
+										selected={selectedSkill}
+										onSelect={(skill) => {
+											setSelectedAgent(null);
+											setSelectedSkill(skill);
+										}}
+										onClear={() => setSelectedSkill(null)}
+										projectName={routeTarget.projectName}
 									/>
 								</div>
 
@@ -397,13 +413,16 @@ export function GlobalPromptBar() {
 									</Tooltip>
 								</div>
 
-								{/* Grupo 3 — ações principais. "Invocar agent" só aparece com um agent ativo. */}
+								{/* Grupo 3 — ações principais. "Invocar agent/skill" só aparece com um deles ativo. */}
 								{selectedAgent && (
 									<AgentInvokeButton
 										agent={selectedAgent}
 										target={routeTarget.path}
 										projectName={routeTarget.projectName}
 									/>
+								)}
+								{selectedSkill && (
+									<SkillInvokeButton skill={selectedSkill} projectName={routeTarget.projectName} />
 								)}
 								<Button size="sm" className="shrink-0" onClick={() => void handleCopy()}>
 									<Copy size={14} />
