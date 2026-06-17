@@ -1,6 +1,6 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
-import type { MouseEvent, ReactNode } from "react";
+import { type MouseEvent, type ReactNode, useState } from "react";
 
 import { Text } from "@/components/typography";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -27,7 +27,8 @@ type TreeProps = {
 	onActivateFile: (node: TreeNode, modifiers: ClickModifiers) => void;
 	onOpenSkill: (slug: string) => void;
 	// Envolve a linha (gatilho do menu de contexto). Presentation-only: o dono decide as ações.
-	wrapNode?: (node: TreeNode, row: ReactNode) => ReactNode;
+	// `onOpenChange` avisa a row quando o menu abre/fecha, pra ela silenciar a tooltip enquanto aberto.
+	wrapNode?: (node: TreeNode, row: ReactNode, onOpenChange: (open: boolean) => void) => ReactNode;
 	// Destino válido do drag-and-drop (pasta de tarefa elegível durante o arraste atual). Liga o
 	// `useDroppable` da row e o highlight. Sem arraste/destino inválido → false em tudo.
 	canDrop?: (node: TreeNode) => boolean;
@@ -59,6 +60,9 @@ function TreeRow({ node, depth, ...props }: TreeProps & { node: TreeNode; depth:
 	// DnD: arquivo arrasta, pasta de tarefa elegível recebe. Sempre chamados (regra dos hooks); o
 	// `disabled` decide quem participa. `activationConstraint.distance` (no DndContext) garante que o
 	// clique simples ainda selecione/abra sem disparar arraste.
+	// Menu de contexto aberto silencia a tooltip da row (senão o Popover da tooltip briga com os
+	// submenus do menu e o conteúdo fica piscando ao passar o mouse).
+	const [menuOpen, setMenuOpen] = useState(false);
 	const draggable = useDraggable({ id: node.key, disabled: node.kind !== "fileLeaf" });
 	// Pasta de tarefa fica sempre droppable (registrada antes do arraste, sem risco de medição
 	// tardia). O ref vai num wrapper que envolve cabeçalho + filhos, então o drop pega a pasta
@@ -119,7 +123,7 @@ function TreeRow({ node, depth, ...props }: TreeProps & { node: TreeNode; depth:
 		</button>
 	);
 
-	const base = wrapNode ? wrapNode(node, row) : row;
+	const base = wrapNode ? wrapNode(node, row, setMenuOpen) : row;
 	// Tooltip rica em pasta de tarefa (prioridade/categoria/edição) e skill (infos básicas).
 	const tip =
 		node.kind === "taskFolder" ? (
@@ -134,6 +138,7 @@ function TreeRow({ node, depth, ...props }: TreeProps & { node: TreeNode; depth:
 			openDelay={600}
 			triggerClassName="flex w-full min-w-0"
 			label={tip}
+			disabled={menuOpen}
 		>
 			{base}
 		</Tooltip>

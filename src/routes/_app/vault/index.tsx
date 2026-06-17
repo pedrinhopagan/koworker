@@ -976,7 +976,7 @@ function VaultPage() {
 									wrapNode={
 										readOnly
 											? undefined
-											: (node, row) =>
+											: (node, row, onOpenChange) =>
 													node.kind === "fileLeaf" && selection.keys.has(node.key) ? (
 														<TreeBatchMenu
 															origin={selection.origin}
@@ -984,6 +984,7 @@ function VaultPage() {
 															tasks={batchTaskOptions}
 															onPickTask={batchPickTask}
 															onUnlink={batchUnlink}
+															onOpenChange={onOpenChange}
 														>
 															{row}
 														</TreeBatchMenu>
@@ -993,6 +994,7 @@ function VaultPage() {
 															tasks={taskOptions}
 															taskMenuData={taskMenuData}
 															actions={actions}
+															onOpenChange={onOpenChange}
 														>
 															{row}
 														</TreeNodeMenu>

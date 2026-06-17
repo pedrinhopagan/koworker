@@ -14,6 +14,9 @@ type TooltipProps = {
 	triggerClassName?: string;
 	// Atraso (ms) antes de abrir no hover/focus. Default 0 (imediato).
 	openDelay?: number;
+	// Força a tooltip fechada e ignora os gatilhos de hover/focus. Usado quando outra camada (ex.: um
+	// menu de contexto sobre o mesmo gatilho) está aberta e a tooltip brigaria com ela.
+	disabled?: boolean;
 };
 
 export function Tooltip({
@@ -24,6 +27,7 @@ export function Tooltip({
 	className,
 	triggerClassName,
 	openDelay = 0,
+	disabled = false,
 }: TooltipProps) {
 	const [open, setOpen] = useState(false);
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -37,6 +41,9 @@ export function Tooltip({
 	}
 
 	function openDelayed() {
+		if (disabled) {
+			return;
+		}
 		if (!openDelay) {
 			setOpen(true);
 			return;
@@ -53,7 +60,7 @@ export function Tooltip({
 	useEffect(() => clearTimer, []);
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
+		<Popover open={open && !disabled} onOpenChange={setOpen}>
 			<PopoverTrigger
 				asChild
 				onMouseEnter={openDelayed}
