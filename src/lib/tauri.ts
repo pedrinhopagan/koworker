@@ -112,6 +112,8 @@ export type OpenTerminalParams = {
 	taskTitle: string;
 	prompt?: string;
 	agent?: string;
+	model?: string;
+	effort?: string;
 	forceNew?: boolean;
 	background?: boolean;
 };

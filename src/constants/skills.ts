@@ -50,13 +50,19 @@ export type SkillStringField = {
 	clearOn?: string;
 };
 
+// Valores que o "invocar skill" encaminha como flags de sessão ao `claude` (--model/--effort).
+// Fonte única: alimentam o radio do editor e a validação do invoke. `inherit`/ausente/qualquer
+// outra coisa no frontmatter → flag omitida.
+export const SKILL_MODEL_VALUES = ["opus", "sonnet", "haiku"] as const;
+export const SKILL_EFFORT_VALUES = ["low", "medium", "high", "xhigh", "max"] as const;
+
 export const SKILL_STRING_FIELDS: SkillStringField[] = [
 	{
 		key: "model",
 		label: "Modelo",
 		placeholder: "inherit · opus · sonnet · haiku",
 		help: "Modelo que roda a skill. Aceita os mesmos valores do /model (aliases ou ID completo); 'inherit' mantém o modelo da sessão.",
-		options: ["inherit", "opus", "sonnet", "haiku"],
+		options: ["inherit", ...SKILL_MODEL_VALUES],
 		clearOn: "inherit",
 	},
 	{
@@ -64,7 +70,7 @@ export const SKILL_STRING_FIELDS: SkillStringField[] = [
 		label: "Esforço",
 		placeholder: "low · medium · high · xhigh · max",
 		help: "Nível de raciocínio do modelo ao executar a skill. Os níveis disponíveis dependem do modelo. Em branco herda o esforço da sessão.",
-		options: ["low", "medium", "high", "xhigh", "max"],
+		options: [...SKILL_EFFORT_VALUES],
 	},
 	{
 		key: "when_to_use",

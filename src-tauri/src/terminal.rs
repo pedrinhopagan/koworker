@@ -406,6 +406,8 @@ pub fn open_terminal_for_task(
     task_title: String,
     prompt: Option<String>,
     agent: Option<String>,
+    model: Option<String>,
+    effort: Option<String>,
     force_new: Option<bool>,
     background: Option<bool>,
 ) -> Result<OpenTerminalResult, String> {
@@ -479,16 +481,22 @@ pub fn open_terminal_for_task(
             .replace('$', "\\$")
             .replace('`', "\\`");
 
-        let command = match agent.as_deref() {
-            Some(agent_name) => format!(
-                "claude --dangerously-skip-permissions --agent {} \"{}\"",
-                agent_name, escaped_prompt
-            ),
-            None => format!(
-                "claude --dangerously-skip-permissions \"{}\"",
-                escaped_prompt
-            ),
-        };
+        let mut command = String::from("claude --dangerously-skip-permissions");
+
+        if let Some(agent_name) = agent.as_deref() {
+            command.push_str(&format!(" --agent {}", agent_name));
+        }
+
+        if let Some(model_alias) = model.as_deref() {
+            command.push_str(&format!(" --model {}", model_alias));
+        }
+
+        if let Some(effort_level) = effort.as_deref() {
+            command.push_str(&format!(" --effort {}", effort_level));
+        }
+
+        command.push_str(&format!(" \"{}\"", escaped_prompt));
+
         send_command_to_tmux(&session_name, &window_name, &command)?;
     }
 
