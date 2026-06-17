@@ -110,8 +110,8 @@ export type OpenTerminalParams = {
 	mainRoute: string;
 	taskId: string;
 	taskTitle: string;
-	model: string;
 	prompt?: string;
+	agent?: string;
 	forceNew?: boolean;
 	background?: boolean;
 };

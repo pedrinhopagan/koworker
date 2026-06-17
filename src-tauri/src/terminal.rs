@@ -404,8 +404,8 @@ pub fn open_terminal_for_task(
     main_route: String,
     task_id: String,
     task_title: String,
-    model: String,
     prompt: Option<String>,
+    agent: Option<String>,
     force_new: Option<bool>,
     background: Option<bool>,
 ) -> Result<OpenTerminalResult, String> {
@@ -479,10 +479,16 @@ pub fn open_terminal_for_task(
             .replace('$', "\\$")
             .replace('`', "\\`");
 
-        let command = format!(
-            "opencode run --model {} --prompt \"{}\"",
-            model, escaped_prompt
-        );
+        let command = match agent.as_deref() {
+            Some(agent_name) => format!(
+                "claude --dangerously-skip-permissions --agent {} \"{}\"",
+                agent_name, escaped_prompt
+            ),
+            None => format!(
+                "claude --dangerously-skip-permissions \"{}\"",
+                escaped_prompt
+            ),
+        };
         send_command_to_tmux(&session_name, &window_name, &command)?;
     }
 

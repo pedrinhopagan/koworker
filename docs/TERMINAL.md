@@ -168,7 +168,7 @@ type TerminalStore = {
 5. Rust cria window para tarefa se não existir
 6. Rust abre alacritty se necessário
 7. Rust foca na janela do terminal
-8. Rust envia comando `opencode run --model X --prompt "Y"`
+8. Rust envia comando `claude --dangerously-skip-permissions [--agent A] "Y"`
 9. Rust notifica backend via HTTP
 10. Backend publica evento no PubSub
 11. Frontend atualiza store via WebSocket
@@ -193,5 +193,4 @@ type TerminalStore = {
 | ------------------------ | ------------------------------ |
 | Chamar Tauri diretamente | Usar funções de `terminal.ts`  |
 | `git add .` no prompt    | Prompts específicos e seguros  |
-| Hardcoded model          | Usar constante `DEFAULT_MODEL` |
 | Ignorar erros            | Sempre tratar e mostrar toast  |
