@@ -8,6 +8,7 @@ import {
 	Clock,
 	Flame,
 	LayoutGrid,
+	Palette,
 	Pencil,
 	Plus,
 	Search,
@@ -21,6 +22,17 @@ import { orpc, type RouterOutputs } from "@/client";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuLabel,
+	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -408,6 +420,88 @@ export function TaskListControls({
 	);
 }
 
+// Menu de botão direito de uma feature (header do task_group): renomear, trocar a cor pela paleta,
+// colapsar/expandir e excluir. Substitui os botões de hover — a porta única pras ações da feature.
+function FeatureContextMenu({
+	group,
+	collapsed,
+	onRename,
+	onSetColor,
+	onToggleCollapse,
+	onDelete,
+	children,
+}: {
+	group: TaskGroup;
+	collapsed: boolean;
+	onRename: () => void;
+	onSetColor: (color: string) => void;
+	onToggleCollapse: () => void;
+	onDelete: () => void;
+	children: ReactNode;
+}) {
+	return (
+		<ContextMenu>
+			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+			{/* Renomear mostra um input com autoFocus; sem isto o menu devolve o foco ao trigger ao
+			    fechar, o input perde foco e o onBlur cancela a edição num flash. */}
+			<ContextMenuContent
+				className="w-[200px] rounded-none"
+				onCloseAutoFocus={(e) => e.preventDefault()}
+			>
+				<ContextMenuLabel className="truncate px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
+					{group.name}
+				</ContextMenuLabel>
+				<ContextMenuItem onSelect={onRename} className="px-3 py-2">
+					<Pencil className="mr-2 size-4" />
+					Renomear
+				</ContextMenuItem>
+				<ContextMenuSub>
+					<ContextMenuSubTrigger className="px-3 py-2">
+						<Palette className="mr-2 size-4" />
+						Editar cor
+					</ContextMenuSubTrigger>
+					<ContextMenuSubContent className="p-2">
+						<div className="flex flex-wrap items-center gap-1">
+							{GROUP_PALETTE.map((color) => (
+								<ContextMenuItem
+									key={color}
+									onSelect={() => onSetColor(color)}
+									className="size-7 justify-center p-0"
+								>
+									<span
+										className={cn(
+											"size-4 rounded-full",
+											color.toLowerCase() === group.color.toLowerCase() &&
+												"ring-2 ring-foreground ring-offset-1 ring-offset-card",
+										)}
+										style={{ backgroundColor: color }}
+									/>
+								</ContextMenuItem>
+							))}
+						</div>
+					</ContextMenuSubContent>
+				</ContextMenuSub>
+				<ContextMenuItem onSelect={onToggleCollapse} className="px-3 py-2">
+					{collapsed ? (
+						<ChevronsUpDown className="mr-2 size-4" />
+					) : (
+						<ChevronsDownUp className="mr-2 size-4" />
+					)}
+					{collapsed ? "Expandir" : "Colapsar"}
+				</ContextMenuItem>
+				<ContextMenuSeparator />
+				<ContextMenuItem
+					onSelect={onDelete}
+					className="px-3 py-2 text-destructive focus:text-destructive"
+				>
+					<Trash2 className="mr-2 size-4" />
+					Excluir
+				</ContextMenuItem>
+			</ContextMenuContent>
+		</ContextMenu>
+	);
+}
+
 type TaskGroupHeaderProps = {
 	group?: TaskGroup;
 	count: number;
@@ -448,7 +542,7 @@ export function TaskGroupHeader({
 
 	const ChevronIcon = collapsed ? ChevronRight : ChevronDown;
 
-	return (
+	const header = (
 		<div className="group/header flex items-center gap-2 border-border/60 border-b pb-1">
 			{dragHandle}
 			<button
@@ -493,45 +587,42 @@ export function TaskGroupHeader({
 					className="h-7 w-48"
 				/>
 			)}
-
-			{group && !editing && (
-				<div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/header:opacity-100">
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						aria-label="Renomear feature"
-						onClick={() => {
-							setName(group.name);
-							setEditing(true);
-						}}
-					>
-						<Pencil className="size-3.5" />
-					</Button>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						aria-label="Remover feature"
-						onClick={() => setConfirmDelete(true)}
-					>
-						<Trash2 className="size-3.5" />
-					</Button>
-				</div>
-			)}
-
-			{group && (
-				<ConfirmDialog
-					open={confirmDelete}
-					onClose={() => setConfirmDelete(false)}
-					onConfirm={() => {
-						deleteMutation.mutate({ id: group.id });
-						setConfirmDelete(false);
-					}}
-					title={`Remover a feature "${group.name}"?`}
-					description="As tarefas dela voltam para “Sem feature”. Esta ação não pode ser desfeita."
-					confirmLabel="Remover"
-					variant="danger"
-				/>
-			)}
 		</div>
+	);
+
+	// Pseudo-grupo "Sem feature" (group indefinido): sem id, sem menu — só o header colapsável.
+	if (!group) {
+		return header;
+	}
+
+	return (
+		<>
+			<FeatureContextMenu
+				group={group}
+				collapsed={collapsed}
+				onRename={() => {
+					setName(group.name);
+					setEditing(true);
+				}}
+				onSetColor={(color) => updateMutation.mutate({ id: group.id, color })}
+				onToggleCollapse={onToggleCollapse}
+				onDelete={() => setConfirmDelete(true)}
+			>
+				{header}
+			</FeatureContextMenu>
+
+			<ConfirmDialog
+				open={confirmDelete}
+				onClose={() => setConfirmDelete(false)}
+				onConfirm={() => {
+					deleteMutation.mutate({ id: group.id });
+					setConfirmDelete(false);
+				}}
+				title={`Remover a feature "${group.name}"?`}
+				description="As tarefas dela voltam para “Sem feature”. Esta ação não pode ser desfeita."
+				confirmLabel="Remover"
+				variant="danger"
+			/>
+		</>
 	);
 }
