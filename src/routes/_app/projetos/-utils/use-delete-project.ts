@@ -14,7 +14,7 @@ export function useDeleteProject({ projectId }: UseDeleteProjectProps) {
 	const mutation = useMutation({
 		...orpc.projects.remove.mutationOptions(),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["projects"] });
+			queryClient.invalidateQueries({ queryKey: orpc.projects.list.queryOptions().queryKey });
 			navigate({ to: "/projetos" });
 		},
 	});

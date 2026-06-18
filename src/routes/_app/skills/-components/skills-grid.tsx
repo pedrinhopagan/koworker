@@ -1,7 +1,8 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { ChevronDown, Search, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { DocEntityContextMenu } from "@/components/doc-entity-context-menu";
 import { PrinciplesFindings } from "@/components/principles/principles-findings";
 import { Text } from "@/components/typography";
 import { Chip } from "@/components/ui/chip";
@@ -9,6 +10,8 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Tooltip } from "@/components/ui/tooltip";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
+import { useDocEntityPin } from "@/hooks/use-doc-entity-pin";
+import { openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { lintPrinciples } from "@/lib/principles/lint";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
@@ -266,6 +269,7 @@ type SkillTileProps = {
 };
 
 function SkillTile({ skill, index, onAppearance }: SkillTileProps) {
+	const navigate = useNavigate();
 	const findings = useMemo(
 		() =>
 			lintPrinciples({
@@ -279,74 +283,98 @@ function SkillTile({ skill, index, onAppearance }: SkillTileProps) {
 		[skill.slug, skill.label, skill.description, skill.instructions, skill.metadata],
 	);
 
+	const { pinned, togglePin } = useDocEntityPin({
+		kind: "skill",
+		primaryPath: skill.primaryPath,
+		meta: {
+			title: skill.label,
+			icon: skill.icon,
+			iconColor: skill.color,
+			nav: { to: "/skills/$slug", params: { slug: skill.slug } },
+		},
+	});
+
+	// Link absoluto inset-0 navega; o conteúdo é pointer-events-none acima dele (clique no corpo cai no
+	// link). Só os controles próprios (aparência, findings) reativam o ponteiro. Igual ao TaskItem.
 	return (
-		<Link
-			to="/skills/$slug"
-			params={{ slug: skill.slug }}
-			className={cn(
-				"group relative flex min-w-0 flex-col gap-3 p-4",
-				"border border-border border-t-2 bg-card transition-colors",
-				"hover:bg-secondary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-				"animate-in fade-in-0 slide-in-from-bottom-2 fill-mode-both",
-			)}
-			style={{ borderTopColor: skill.color, animationDelay: `${Math.min(index, 12) * 35}ms` }}
+		<DocEntityContextMenu
+			label={skill.label}
+			pinned={pinned}
+			actions={{
+				onTogglePin: togglePin,
+				onOpen: () => navigate({ to: "/skills/$slug", params: { slug: skill.slug } }),
+				onOpenInOs: () => void openFolderInOs(skill.primaryDir),
+				onShareZip: () => void shareFolderAsZip(skill.primaryDir),
+				onAppearance,
+			}}
 		>
-			<Tooltip label="Aparência" triggerClassName="absolute right-2 top-2 inline-flex">
-				<button
-					type="button"
-					onClick={(event) => {
-						event.preventDefault();
-						event.stopPropagation();
-						onAppearance();
-					}}
-					aria-label="Editar aparência"
-					className="flex size-7 items-center justify-center border border-transparent text-muted-foreground opacity-0 transition-all hover:border-border hover:bg-background hover:text-foreground group-hover:opacity-100"
-				>
-					<SlidersHorizontal className="size-3.5" />
-				</button>
-			</Tooltip>
-
-			<div className="flex items-center gap-3">
-				<div
-					className="flex h-10 w-10 shrink-0 items-center justify-center border bg-muted/30 transition-colors group-hover:bg-muted/60"
-					style={{ borderColor: skill.color, color: skill.color }}
-				>
-					<LucideIcon name={skill.icon} className="size-5" />
-				</div>
-				<div className="min-w-0 flex-1">
-					<div className="truncate font-display text-sm font-semibold leading-tight">
-						{skill.label}
-					</div>
-					<div className="truncate font-mono text-[11px] text-muted-foreground">{skill.slug}</div>
-				</div>
-			</div>
-
-			<p className="line-clamp-2 min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground">
-				{skill.description}
-			</p>
-
-			<div className="flex flex-wrap items-center gap-1">
-				{distinctTools(skill).map((tool) => (
-					<Chip key={tool} size="xs" variant="ghost">
-						{SKILL_TOOL_LABEL[tool]}
-					</Chip>
-				))}
-				{skill.conflict && (
-					<Chip size="xs" variant="destructive" className="gap-1">
-						<TriangleAlert className="size-3" />
-						conflito
-					</Chip>
+			<div
+				className={cn(
+					"group relative flex min-w-0 flex-col p-4",
+					"border border-border border-t-2 bg-card transition-colors",
+					"hover:bg-secondary/50",
+					"animate-in fade-in-0 slide-in-from-bottom-2 fill-mode-both",
 				)}
-				{/* O badge abre um popover dentro do card-link: o clique no badge não deve navegar. */}
-				<span
-					onClick={(event) => {
-						event.preventDefault();
-						event.stopPropagation();
-					}}
-				>
-					<PrinciplesFindings findings={findings} />
-				</span>
+				style={{ borderTopColor: skill.color, animationDelay: `${Math.min(index, 12) * 35}ms` }}
+			>
+				<Link
+					to="/skills/$slug"
+					params={{ slug: skill.slug }}
+					aria-label={skill.label}
+					className="absolute inset-0 z-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+				/>
+
+				<Tooltip label="Aparência" triggerClassName="absolute right-2 top-2 z-10 inline-flex">
+					<button
+						type="button"
+						onClick={onAppearance}
+						aria-label="Editar aparência"
+						className="flex size-7 items-center justify-center border border-transparent text-muted-foreground opacity-0 transition-all hover:border-border hover:bg-background hover:text-foreground group-hover:opacity-100"
+					>
+						<SlidersHorizontal className="size-3.5" />
+					</button>
+				</Tooltip>
+
+				<div className="pointer-events-none relative z-10 flex flex-col gap-3">
+					<div className="flex items-center gap-3">
+						<div
+							className="flex h-10 w-10 shrink-0 items-center justify-center border bg-muted/30 transition-colors group-hover:bg-muted/60"
+							style={{ borderColor: skill.color, color: skill.color }}
+						>
+							<LucideIcon name={skill.icon} className="size-5" />
+						</div>
+						<div className="min-w-0 flex-1">
+							<div className="truncate font-display text-sm font-semibold leading-tight">
+								{skill.label}
+							</div>
+							<div className="truncate font-mono text-[11px] text-muted-foreground">
+								{skill.slug}
+							</div>
+						</div>
+					</div>
+
+					<p className="line-clamp-2 min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground">
+						{skill.description}
+					</p>
+
+					<div className="flex flex-wrap items-center gap-1">
+						{distinctTools(skill).map((tool) => (
+							<Chip key={tool} size="xs" variant="ghost">
+								{SKILL_TOOL_LABEL[tool]}
+							</Chip>
+						))}
+						{skill.conflict && (
+							<Chip size="xs" variant="destructive" className="gap-1">
+								<TriangleAlert className="size-3" />
+								conflito
+							</Chip>
+						)}
+						<span className="pointer-events-auto">
+							<PrinciplesFindings findings={findings} />
+						</span>
+					</div>
+				</div>
 			</div>
-		</Link>
+		</DocEntityContextMenu>
 	);
 }
