@@ -47,7 +47,7 @@ ContextMenuSubTrigger.displayName = ContextMenuPrimitive.SubTrigger.displayName;
 // irmão do menu pai, então precisa pintar por cima na faixa de sobreposição — senão o ponteiro
 // cruzando do trigger pro submenu atinge o menu pai e o submenu pisca abrindo/fechando.
 const contextMenuSubContentVariants = tv({
-	base: "z-[110] min-w-[8rem] overflow-hidden rounded-md border border-border bg-card p-1 text-foreground shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+	base: "z-[110] min-w-[8rem] overflow-hidden rounded-md border border-border bg-card p-1 text-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
 });
 
 // Portado pra mesma raiz de tema do ContextMenuContent: sem portal, o SubContent renderiza dentro
@@ -93,7 +93,7 @@ function useThemeRootContainer(): HTMLElement | null {
 }
 
 const contextMenuContentVariants = tv({
-	base: "z-[100] min-w-[160px] overflow-hidden rounded-md border border-border bg-card py-1 text-foreground shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+	base: "z-[100] min-w-[160px] overflow-hidden rounded-md border border-border bg-card py-1 text-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
 });
 
 const ContextMenuContent = React.forwardRef<
