@@ -137,6 +137,8 @@ const skillSettingsSchema = type({
 		references: "skill_categories.id",
 		onDelete: "set null",
 	}),
+	// Marca a skill como invocação rápida: o picker do prompt bar só lista as que têm `quick_invoke`.
+	quick_invoke: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 });

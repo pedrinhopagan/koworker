@@ -16,6 +16,7 @@ export type TaskSkill = {
 	icon: string;
 	color: string;
 	categoryId: string | null;
+	quickInvoke: boolean;
 	sources: SkillSource[];
 	conflict: boolean;
 	primaryPath: string;

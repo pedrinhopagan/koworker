@@ -40,6 +40,7 @@ export const skillsRouter = {
 					icon: override?.icon ?? null,
 					color: override?.color ?? null,
 					categoryId: override?.category_id ?? null,
+					quickInvoke: !!override?.quick_invoke,
 				},
 			});
 		});
@@ -56,6 +57,7 @@ export const skillsRouter = {
 				icon: override?.icon ?? null,
 				color: override?.color ?? null,
 				categoryId: override?.category_id ?? null,
+				quickInvoke: !!override?.quick_invoke,
 			},
 		});
 	}),

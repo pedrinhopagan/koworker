@@ -56,11 +56,6 @@ export type SkillStringField = {
 export const SKILL_MODEL_VALUES = ["opus", "sonnet", "haiku"] as const;
 export const SKILL_EFFORT_VALUES = ["low", "medium", "high", "xhigh", "max"] as const;
 
-// Skills que aparecem no picker de invocação rápida do prompt bar. Curadoria explícita: o picker
-// dispara `/<slug>` puro (sem input), então só listamos as ações que rodam sozinhas. Edite aqui pra
-// adicionar/remover — slug exato da skill.
-export const SKILL_QUICK_INVOKE_SLUGS: string[] = ["grill-me", "to-plan", "commit", "pr"];
-
 export const SKILL_STRING_FIELDS: SkillStringField[] = [
 	{
 		key: "model",

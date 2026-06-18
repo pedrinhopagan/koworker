@@ -326,6 +326,18 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		if (!hasColumn(cols, "category_id")) {
 			ensureColumn(sqlite, "skill_settings", "category_id TEXT");
 		}
+		if (!hasColumn(cols, "quick_invoke")) {
+			ensureColumn(sqlite, "skill_settings", "quick_invoke INTEGER NOT NULL DEFAULT 0");
+			// Semente única (roda só quando a coluna nasce): as ações que rodam sozinhas já entram
+			// marcadas pro picker de invocação rápida. Depois é tudo escolha do usuário no toggle.
+			const seed = sqlite.query(
+				"INSERT INTO skill_settings (slug, quick_invoke, created_at) VALUES (?, 1, ?) ON CONFLICT(slug) DO UPDATE SET quick_invoke = 1",
+			);
+			const now = Date.now();
+			for (const slug of ["grill-me", "to-plan", "commit", "pr"]) {
+				seed.run(slug, now);
+			}
+		}
 	}
 
 	sqlite.close();

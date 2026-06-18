@@ -23,6 +23,7 @@ function toTaskSkill(skill: SkillRecord): TaskSkill {
 		icon: skill.settings.icon ?? metadataIcon ?? DEFAULT_SKILL_ICON,
 		color: skill.settings.color ?? metadataColor ?? DEFAULT_SKILL_COLOR,
 		categoryId: skill.settings.categoryId ?? null,
+		quickInvoke: skill.settings.quickInvoke,
 		sources: skill.sources,
 		conflict: skill.conflict,
 		primaryPath: skill.primaryPath,

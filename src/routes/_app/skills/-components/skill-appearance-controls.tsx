@@ -6,6 +6,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { IconSelector } from "@/components/ui/icon-selector";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
 import type { SkillCategory } from "@/types/skills";
@@ -15,6 +16,7 @@ type SkillAppearanceChange = {
 	icon?: string;
 	color?: string;
 	categoryId?: string | null;
+	quickInvoke?: boolean;
 };
 
 // Id sentinela da opção "Sem categoria"; o CustomSelect exige um id de string por item, então a
@@ -31,6 +33,7 @@ export function SkillAppearanceControls({
 	icon,
 	color,
 	categoryId,
+	quickInvoke,
 	categories,
 	onChange,
 }: {
@@ -39,6 +42,7 @@ export function SkillAppearanceControls({
 	icon: string;
 	color: string;
 	categoryId: string | null;
+	quickInvoke: boolean;
 	categories: SkillCategory[];
 	onChange: (settings: SkillAppearanceChange) => void;
 }) {
@@ -136,6 +140,19 @@ export function SkillAppearanceControls({
 					triggerClassName="w-full bg-background"
 				/>
 			</div>
+
+			<label className="flex cursor-pointer items-start justify-between gap-3 border border-border bg-card p-3">
+				<span className="min-w-0">
+					<span className="block text-sm font-medium">Invocação rápida</span>
+					<Text size="xs" tone="muted">
+						Aparece no picker de skill do prompt bar, para disparar /{slug} numa nova aba.
+					</Text>
+				</span>
+				<Switch
+					checked={quickInvoke}
+					onCheckedChange={(checked) => onChange({ slug, quickInvoke: checked })}
+				/>
+			</label>
 		</div>
 	);
 }

@@ -32,6 +32,7 @@ export function SkillAppearanceDialog({
 						icon={skill.icon}
 						color={skill.color}
 						categoryId={skill.categoryId}
+						quickInvoke={skill.quickInvoke}
 						categories={categories}
 						onChange={(settings) => settingsMutation.mutate(settings)}
 					/>

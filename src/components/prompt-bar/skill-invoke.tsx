@@ -8,11 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
-import {
-	SKILL_EFFORT_VALUES,
-	SKILL_MODEL_VALUES,
-	SKILL_QUICK_INVOKE_SLUGS,
-} from "@/constants/skills";
+import { SKILL_EFFORT_VALUES, SKILL_MODEL_VALUES } from "@/constants/skills";
 import { useSkillsQuery } from "@/hooks/use-skills";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { executeInTerminal } from "@/lib/terminal";
@@ -38,8 +34,9 @@ function matchSkill(skill: TaskSkill, term: string): boolean {
 }
 
 // Botão-toggle do Grupo 1, espelho do AgentPickerButton: abre um picker buscável; com uma skill ativa,
-// clicar de novo desativa. Lista só as skills curadas em `SKILL_QUICK_INVOKE_SLUGS` — o spawn dispara
-// `/<slug>` puro, então o picker é só pra ações que rodam sozinhas. A skill roda no projeto em foco.
+// clicar de novo desativa. Lista só as skills marcadas como invocação rápida (`quickInvoke`, toggle na
+// aparência da skill) — o spawn dispara `/<slug>` puro, então o picker é só pra ações que rodam
+// sozinhas. A skill roda no projeto em foco.
 export function SkillPickerButton({
 	selected,
 	onSelect,
@@ -73,7 +70,7 @@ export function SkillPickerButton({
 
 	const term = query.trim().toLowerCase();
 	const matches = taskSkills.filter(
-		(skill) => SKILL_QUICK_INVOKE_SLUGS.includes(skill.slug) && (!term || matchSkill(skill, term)),
+		(skill) => skill.quickInvoke && (!term || matchSkill(skill, term)),
 	);
 
 	return (
