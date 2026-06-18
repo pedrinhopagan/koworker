@@ -104,10 +104,12 @@ export function AgentInvokeButton({
 	agent,
 	target,
 	projectName,
+	onInvoked,
 }: {
 	agent: TaskAgent;
 	target: string | null;
 	projectName?: string;
+	onInvoked: () => void;
 }) {
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
 
@@ -128,6 +130,8 @@ export function AgentInvokeButton({
 			prompt,
 			{ agent: agent.slug, forceNew: true },
 		);
+
+		onInvoked();
 	}
 
 	return (

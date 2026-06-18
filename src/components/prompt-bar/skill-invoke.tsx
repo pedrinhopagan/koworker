@@ -1,18 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { Play, Sparkles } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
-import { SKILL_EFFORT_VALUES, SKILL_MODEL_VALUES } from "@/constants/skills";
+import {
+	SKILL_EFFORT_VALUES,
+	SKILL_MODEL_VALUES,
+	SKILL_QUICK_INVOKE_SLUGS,
+} from "@/constants/skills";
 import { useSkillsQuery } from "@/hooks/use-skills";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { executeInTerminal } from "@/lib/terminal";
@@ -29,8 +29,17 @@ function pickFlag(value: unknown, allowed: readonly string[]): string | undefine
 	return typeof value === "string" && allowed.includes(value) ? value : undefined;
 }
 
-// Botão-toggle do Grupo 1, espelho do AgentPickerButton: abre o menu de skills; com uma skill ativa,
-// clicar de novo desativa. A skill roda no projeto em foco — não depende de rota que anexa `/kw`.
+function matchSkill(skill: TaskSkill, term: string): boolean {
+	return (
+		skill.slug.toLowerCase().includes(term) ||
+		skill.label.toLowerCase().includes(term) ||
+		skill.description.toLowerCase().includes(term)
+	);
+}
+
+// Botão-toggle do Grupo 1, espelho do AgentPickerButton: abre um picker buscável; com uma skill ativa,
+// clicar de novo desativa. Lista só as skills curadas em `SKILL_QUICK_INVOKE_SLUGS` — o spawn dispara
+// `/<slug>` puro, então o picker é só pra ações que rodam sozinhas. A skill roda no projeto em foco.
 export function SkillPickerButton({
 	selected,
 	onSelect,
@@ -43,6 +52,9 @@ export function SkillPickerButton({
 	projectName?: string;
 }) {
 	const { taskSkills, isLoading } = useSkillsQuery(projectName);
+	const [open, setOpen] = useState(false);
+	const [query, setQuery] = useState("");
+	const inputRef = useRef<HTMLInputElement>(null);
 
 	if (selected) {
 		return (
@@ -59,44 +71,80 @@ export function SkillPickerButton({
 		);
 	}
 
+	const term = query.trim().toLowerCase();
+	const matches = taskSkills.filter(
+		(skill) => SKILL_QUICK_INVOKE_SLUGS.includes(skill.slug) && (!term || matchSkill(skill, term)),
+	);
+
 	return (
-		<DropdownMenu>
-			<Tooltip label="Invocar skill com modelo e esforço fixados">
-				<DropdownMenuTrigger
+		<Popover
+			open={open}
+			onOpenChange={(next) => {
+				setOpen(next);
+				if (!next) setQuery("");
+			}}
+		>
+			<PopoverTrigger asChild>
+				<button
+					type="button"
 					aria-label="Escolher skill"
+					title="Invocar skill com modelo e esforço fixados"
 					className={cn(triggerBase, "text-muted-foreground hover:text-foreground")}
 				>
 					<Sparkles className="h-3.5 w-3.5" />
-				</DropdownMenuTrigger>
-			</Tooltip>
-			<DropdownMenuContent align="start" side="top" className="max-h-80 w-72 overflow-y-auto">
-				<DropdownMenuLabel>Invocar skill</DropdownMenuLabel>
-				{taskSkills.length === 0 ? (
-					<div className="px-2 py-1.5 text-xs text-muted-foreground">
-						{isLoading ? "Carregando..." : "Nenhuma skill cadastrada"}
-					</div>
-				) : (
-					taskSkills.map((skill) => (
-						<DropdownMenuItem
-							key={skill.slug}
-							onSelect={() => onSelect(skill)}
-							className="flex items-center gap-2"
-						>
-							<div
-								className="flex h-6 w-6 shrink-0 items-center justify-center border bg-muted/30"
-								style={{ borderColor: skill.color, color: skill.color }}
+				</button>
+			</PopoverTrigger>
+			<PopoverContent
+				align="start"
+				side="top"
+				className="w-72 p-0"
+				onOpenAutoFocus={(event) => {
+					// O FocusScope do Radix puxa o foco pro container; forçamos o input pra busca já valer.
+					event.preventDefault();
+					inputRef.current?.focus();
+				}}
+			>
+				<div className="border-b border-border p-2">
+					<Input
+						ref={inputRef}
+						value={query}
+						onChange={(event) => setQuery(event.target.value)}
+						placeholder="Buscar skill..."
+						className="h-8"
+					/>
+				</div>
+				<div className="max-h-72 overflow-y-auto p-1">
+					{matches.length === 0 ? (
+						<div className="px-2 py-1.5 text-xs text-muted-foreground">
+							{isLoading ? "Carregando..." : "Nenhuma skill encontrada"}
+						</div>
+					) : (
+						matches.map((skill) => (
+							<button
+								key={skill.slug}
+								type="button"
+								onClick={() => {
+									onSelect(skill);
+									setOpen(false);
+								}}
+								className="flex w-full items-center gap-2 px-2 py-1.5 text-left transition-colors hover:bg-secondary/50"
 							>
-								<LucideIcon name={skill.icon} className="size-3.5" />
-							</div>
-							<div className="min-w-0 flex-1">
-								<div className="truncate font-mono text-sm text-foreground">/{skill.slug}</div>
-								<div className="truncate text-xs text-muted-foreground">{skill.description}</div>
-							</div>
-						</DropdownMenuItem>
-					))
-				)}
-			</DropdownMenuContent>
-		</DropdownMenu>
+								<div
+									className="flex h-6 w-6 shrink-0 items-center justify-center border bg-muted/30"
+									style={{ borderColor: skill.color, color: skill.color }}
+								>
+									<LucideIcon name={skill.icon} className="size-3.5" />
+								</div>
+								<div className="min-w-0 flex-1">
+									<div className="truncate font-mono text-sm text-foreground">/{skill.slug}</div>
+									<div className="truncate text-xs text-muted-foreground">{skill.description}</div>
+								</div>
+							</button>
+						))
+					)}
+				</div>
+			</PopoverContent>
+		</Popover>
 	);
 }
 
@@ -105,9 +153,11 @@ export function SkillPickerButton({
 export function SkillInvokeButton({
 	skill,
 	projectName,
+	onInvoked,
 }: {
 	skill: TaskSkill;
 	projectName?: string;
+	onInvoked: () => void;
 }) {
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
 
@@ -134,6 +184,8 @@ export function SkillInvokeButton({
 				forceNew: true,
 			},
 		);
+
+		onInvoked();
 	}
 
 	return (

@@ -419,10 +419,15 @@ export function GlobalPromptBar() {
 										agent={selectedAgent}
 										target={routeTarget.path}
 										projectName={routeTarget.projectName}
+										onInvoked={() => setSelectedAgent(null)}
 									/>
 								)}
 								{selectedSkill && (
-									<SkillInvokeButton skill={selectedSkill} projectName={routeTarget.projectName} />
+									<SkillInvokeButton
+										skill={selectedSkill}
+										projectName={routeTarget.projectName}
+										onInvoked={() => setSelectedSkill(null)}
+									/>
 								)}
 								<Button size="sm" className="shrink-0" onClick={() => void handleCopy()}>
 									<Copy size={14} />
