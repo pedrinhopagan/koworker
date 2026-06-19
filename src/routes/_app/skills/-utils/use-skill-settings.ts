@@ -9,7 +9,7 @@ export function useSkillSettingsMutation() {
 	return useMutation({
 		...orpc.skills.updateSettings.mutationOptions(),
 		onSuccess: () => {
-			toast.success("Aparência da skill atualizada");
+			toast.success("Skill atualizada");
 			queryClient.invalidateQueries({ queryKey: orpc.skills.list.key() });
 			queryClient.invalidateQueries({ queryKey: orpc.skills.get.key() });
 		},

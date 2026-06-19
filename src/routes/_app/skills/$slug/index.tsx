@@ -10,6 +10,7 @@ import {
 	X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
 import { DocToolbar } from "@/components/doc-toolbar";
@@ -34,6 +35,7 @@ import { useReadingModeStore } from "@/stores/reading-mode";
 import type { SkillVariant, TaskSkill } from "@/types/skills";
 import { SkillAppearanceDialog } from "../-components/skill-appearance-dialog";
 import { SkillMetadataControls } from "../-components/skill-metadata-controls";
+import { SkillSettingsMenu } from "../-components/skill-settings-menu";
 import { useSkillMutations } from "../-utils/use-skill-mutations";
 import { useSkillSettingsMutation } from "../-utils/use-skill-settings";
 
@@ -196,6 +198,20 @@ function SkillEditor({
 		});
 	}
 
+	// Colar um SKILL.md completo: o `name` vem do slug ao gravar, então descartamos. A descrição
+	// colada vira a descrição da skill; o restante do frontmatter substitui os metadados; o corpo
+	// recém-inserido no editor é o conteúdo. Persistimos o trio de uma vez pra não depender do estado
+	// desta renderização.
+	function applyPastedFrontmatter(frontmatter: Record<string, unknown>, body: string) {
+		const { name: _name, description: pastedDesc, ...pastedMeta } = frontmatter;
+		const nextDescription = typeof pastedDesc === "string" ? pastedDesc : description;
+
+		setDescription(nextDescription);
+		setMetadata(pastedMeta);
+		void persist({ description: nextDescription, content: body, metadata: pastedMeta });
+		toast.success("Metadados aplicados do arquivo colado");
+	}
+
 	function saveLabel(value: string) {
 		const next = value.trim();
 		setEditingLabel(false);
@@ -295,15 +311,22 @@ function SkillEditor({
 							</div>
 
 							<SkillMetadataControls metadata={metadata} onChange={changeMetadata} />
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() => setAppearanceOpen(true)}
-							>
-								<SlidersHorizontal className="size-3.5" />
-								Aparência
-							</Button>
+							<SkillSettingsMenu
+								skill={skill}
+								categories={categoriesQuery.data ?? []}
+								onAppearance={() => setAppearanceOpen(true)}
+								trigger={
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										title="Aparência e categoria"
+										aria-label="Aparência e categoria"
+									>
+										<SlidersHorizontal className="size-3.5" />
+									</Button>
+								}
+							/>
 							<div className="h-5 w-px bg-border" aria-hidden="true" />
 							<DocToolbar
 								onCollapse={() => paneRef.current?.collapseAll()}
@@ -411,6 +434,7 @@ function SkillEditor({
 					content={activeVariant?.content ?? skill.instructions}
 					folderPath={activeVariant?.dir ?? skill.primaryDir}
 					writeFile={({ content }) => persist({ description, content, metadata })}
+					onPasteFrontmatter={applyPastedFrontmatter}
 					reading={reading}
 					onExitReading={() => setReading(false)}
 					onExit={() => navigate({ to: "/skills" })}
@@ -487,7 +511,6 @@ function SkillEditor({
 
 			<SkillAppearanceDialog
 				skill={appearanceOpen ? skill : null}
-				categories={categoriesQuery.data ?? []}
 				onClose={() => setAppearanceOpen(false)}
 			/>
 
