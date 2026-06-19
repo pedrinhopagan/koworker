@@ -4,6 +4,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readSkillFile, type SkillFile, writeSkillFile } from "@/lib/skills/parser";
 import { envVariables } from "../config/env";
+import { dbProjects } from "../db/projects";
 import { dbSkillSourcePaths } from "../db/skill-source-paths";
 
 export type SkillTool = "opencode" | "claude-code" | "codex" | "agents" | "koworker";
@@ -66,13 +67,17 @@ const GLOBAL_ROOTS: SkillRoot[] = [
 	{ tool: "koworker", scope: "global", path: STATIC_SKILLS_PATH },
 ];
 
-function projectRoots(projectName: string): SkillRoot[] {
-	const projectDir = join(PROJECTS_BASE_PATH, projectName);
+// O diretório do projeto vem do `main_route` que ele mesmo guarda, não de `BASE/<nome>`: os projetos
+// moram em caminhos arbitrários (vários fora de ~/Projects), então adivinhar a partir do nome erra.
+async function projectRoots(projectName: string): Promise<SkillRoot[]> {
+	const project = (await dbProjects.listRoots()).find((row) => row.name === projectName);
+	if (!project) return [];
+
 	return [
-		{ tool: "opencode", scope: "project", path: join(projectDir, ".opencode/skills") },
-		{ tool: "claude-code", scope: "project", path: join(projectDir, ".claude/skills") },
-		{ tool: "codex", scope: "project", path: join(projectDir, ".codex/skills") },
-		{ tool: "agents", scope: "project", path: join(projectDir, ".agents/skills") },
+		{ tool: "opencode", scope: "project", path: join(project.main_route, ".opencode/skills") },
+		{ tool: "claude-code", scope: "project", path: join(project.main_route, ".claude/skills") },
+		{ tool: "codex", scope: "project", path: join(project.main_route, ".codex/skills") },
+		{ tool: "agents", scope: "project", path: join(project.main_route, ".agents/skills") },
 	];
 }
 
@@ -84,15 +89,19 @@ async function customRoots(): Promise<SkillRoot[]> {
 
 async function buildRoots(projectName?: string): Promise<SkillRoot[]> {
 	const base = [...GLOBAL_ROOTS, ...(await customRoots())];
-	return projectName ? [...base, ...projectRoots(projectName)] : base;
+	return projectName ? [...base, ...(await projectRoots(projectName))] : base;
 }
 
 const ALLOWED_PREFIXES = [home, STATIC_SKILLS_PATH, PROJECTS_BASE_PATH];
 
 async function assertAllowedPath(target: string) {
 	const resolved = resolve(target);
-	const rows = await dbSkillSourcePaths.list();
-	const prefixes = [...ALLOWED_PREFIXES, ...rows.map((row) => row.path)];
+	const [rows, projects] = await Promise.all([dbSkillSourcePaths.list(), dbProjects.listRoots()]);
+	const prefixes = [
+		...ALLOWED_PREFIXES,
+		...rows.map((row) => row.path),
+		...projects.map((project) => project.main_route),
+	];
 	const allowed = prefixes.some((prefix) => resolved.startsWith(resolve(prefix)));
 	if (!allowed || basename(resolved) !== "SKILL.md") {
 		throw new Error("Caminho de skill inválido");

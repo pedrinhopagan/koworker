@@ -374,7 +374,6 @@ export function GlobalPromptBar() {
 											setSelectedAgent(agent);
 										}}
 										onClear={() => setSelectedAgent(null)}
-										projectName={routeTarget.projectName}
 										canPick={!!routeTarget.path}
 									/>
 									<SkillPickerButton

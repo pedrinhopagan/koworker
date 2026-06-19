@@ -31,6 +31,16 @@ export const dbProjects = {
 		return projectsWithRoutes;
 	},
 
+	// Nome → diretório real de cada projeto ativo. O projeto é dono de onde mora (`main_route`);
+	// quem precisa achar arquivos do projeto pergunta aqui em vez de adivinhar a partir do nome.
+	listRoots: () =>
+		db
+			.selectFrom("projects")
+			.select(["name", "main_route"])
+			.where("deleted_at", "is", null)
+			.orderBy("display_order", "asc")
+			.execute(),
+
 	getById: async (id: string) => {
 		const project = await db
 			.selectFrom("projects")

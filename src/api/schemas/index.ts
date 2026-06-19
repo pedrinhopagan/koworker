@@ -49,7 +49,6 @@ export {
 export {
 	AgentCreateSchema,
 	AgentDeleteSchema,
-	AgentListSchema,
 	AgentSettingsSchema,
 	AgentUpdateSchema,
 } from "./agents";

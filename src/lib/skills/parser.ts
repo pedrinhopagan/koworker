@@ -38,30 +38,43 @@ function parseFrontmatterLoose(yamlText: string): SkillMetadata {
 	return frontmatter as SkillMetadata;
 }
 
-export function parseSkillMd(content: string): SkillFile {
-	const frontmatterRegex = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
-	const match = content.match(frontmatterRegex);
-
-	if (!match) {
-		throw new Error("Formato inválido de SKILL.md: frontmatter YAML ausente ou inválido");
-	}
+// Extrai o frontmatter de forma leniente: retorna null quando não há bloco `---...---` no início
+// (paste normal segue intacto) e, quando há, faz parse com YAML caindo no loose no catch — sem
+// exigir name/description. É a lógica de partição usada tanto pelo parser estrito quanto pela
+// detecção de paste no editor.
+export function extractFrontmatter(
+	content: string,
+): { frontmatter: Record<string, unknown>; body: string } | null {
+	const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+	if (!match) return null;
 
 	const [, frontmatterYaml, body] = match;
 
-	let frontmatter: SkillMetadata;
+	let frontmatter: Record<string, unknown>;
 	try {
-		frontmatter = parse(frontmatterYaml) as SkillMetadata;
+		frontmatter = parse(frontmatterYaml);
 	} catch {
 		frontmatter = parseFrontmatterLoose(frontmatterYaml);
 	}
 
+	return { frontmatter, body: body.trim() };
+}
+
+export function parseSkillMd(content: string): SkillFile {
+	const extracted = extractFrontmatter(content);
+
+	if (!extracted) {
+		throw new Error("Formato inválido de SKILL.md: frontmatter YAML ausente ou inválido");
+	}
+
+	const frontmatter = extracted.frontmatter as SkillMetadata;
 	if (!frontmatter?.name || !frontmatter?.description) {
 		throw new Error("Frontmatter inválido: 'name' e 'description' são obrigatórios");
 	}
 
 	return {
 		frontmatter,
-		body: body.trim(),
+		body: extracted.body,
 	};
 }
 

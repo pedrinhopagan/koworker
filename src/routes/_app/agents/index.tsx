@@ -3,7 +3,6 @@ import { Bot } from "lucide-react";
 
 import { PageShell } from "@/components/layout/page-shell";
 import { useAgentsQuery } from "@/hooks/use-agents";
-import { useProjectFocus } from "@/hooks/use-project-focus";
 import { AgentsGrid } from "./-components/agents-grid";
 
 export const Route = createFileRoute("/_app/agents/")({
@@ -11,8 +10,7 @@ export const Route = createFileRoute("/_app/agents/")({
 });
 
 function AgentsPage() {
-	const { selectedProject } = useProjectFocus();
-	const agentsQuery = useAgentsQuery(selectedProject?.name);
+	const agentsQuery = useAgentsQuery();
 
 	return (
 		<PageShell

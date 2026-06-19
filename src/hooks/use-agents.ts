@@ -31,8 +31,8 @@ function toTaskAgent(agent: AgentRecord): TaskAgent {
 	};
 }
 
-export function useAgentsQuery(projectName?: string) {
-	const query = useQuery(orpc.agents.list.queryOptions({ input: { projectName } }));
+export function useAgentsQuery() {
+	const query = useQuery(orpc.agents.list.queryOptions());
 	const taskAgents = useMemo(() => (query.data ?? []).map(toTaskAgent), [query.data]);
 
 	return {
@@ -41,9 +41,9 @@ export function useAgentsQuery(projectName?: string) {
 	};
 }
 
-export function useAgentQuery(slug: string, projectName?: string, options?: { enabled?: boolean }) {
+export function useAgentQuery(slug: string, options?: { enabled?: boolean }) {
 	const query = useQuery({
-		...orpc.agents.get.queryOptions({ input: { slug, projectName } }),
+		...orpc.agents.get.queryOptions({ input: { slug } }),
 		enabled: options?.enabled ?? true,
 	});
 	const agent = useMemo(() => (query.data ? toTaskAgent(query.data) : null), [query.data]);

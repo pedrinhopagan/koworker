@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { readSkillFile, type SkillFile, writeSkillFile } from "@/lib/skills/parser";
 import { envVariables } from "../config/env";
 import { dbAgentSourcePaths } from "../db/agent-source-paths";
+import { dbProjects } from "../db/projects";
 
 export type AgentTool = "claude-code" | "opencode" | "codex" | "koworker";
 export type AgentScope = "global" | "project" | "custom";
@@ -65,13 +66,16 @@ const GLOBAL_ROOTS: AgentRoot[] = [
 	{ tool: "koworker", scope: "global", path: STATIC_AGENTS_PATH },
 ];
 
-function projectRoots(projectName: string): AgentRoot[] {
-	const projectDir = join(PROJECTS_BASE_PATH, projectName);
-	return [
-		{ tool: "claude-code", scope: "project", path: join(projectDir, ".claude/agents") },
-		{ tool: "opencode", scope: "project", path: join(projectDir, ".opencode/agent") },
-		{ tool: "codex", scope: "project", path: join(projectDir, ".codex/agents") },
-	];
+// Roots de TODOS os projetos, não só do focado: os agents aparecem sempre, em qualquer projeto. O
+// diretório de cada um vem do `main_route` que ele guarda (moram em caminhos arbitrários), não de
+// `BASE/<nome>` — adivinhar pelo nome erra.
+async function allProjectRoots(): Promise<AgentRoot[]> {
+	const projects = await dbProjects.listRoots();
+	return projects.flatMap((project): AgentRoot[] => [
+		{ tool: "claude-code", scope: "project", path: join(project.main_route, ".claude/agents") },
+		{ tool: "opencode", scope: "project", path: join(project.main_route, ".opencode/agent") },
+		{ tool: "codex", scope: "project", path: join(project.main_route, ".codex/agents") },
+	]);
 }
 
 // Caminhos extras cadastrados pelo usuário, somados entre os globais e os de projeto.
@@ -80,17 +84,20 @@ async function customRoots(): Promise<AgentRoot[]> {
 	return rows.map((row) => ({ tool: row.tool as AgentTool, scope: "custom", path: row.path }));
 }
 
-async function buildRoots(projectName?: string): Promise<AgentRoot[]> {
-	const base = [...GLOBAL_ROOTS, ...(await customRoots())];
-	return projectName ? [...base, ...projectRoots(projectName)] : base;
+async function buildRoots(): Promise<AgentRoot[]> {
+	return [...GLOBAL_ROOTS, ...(await customRoots()), ...(await allProjectRoots())];
 }
 
 const ALLOWED_PREFIXES = [home, STATIC_AGENTS_PATH, PROJECTS_BASE_PATH];
 
 async function assertAllowedPath(target: string) {
 	const resolved = resolve(target);
-	const rows = await dbAgentSourcePaths.list();
-	const prefixes = [...ALLOWED_PREFIXES, ...rows.map((row) => row.path)];
+	const [rows, projects] = await Promise.all([dbAgentSourcePaths.list(), dbProjects.listRoots()]);
+	const prefixes = [
+		...ALLOWED_PREFIXES,
+		...rows.map((row) => row.path),
+		...projects.map((project) => project.main_route),
+	];
 	const allowed = prefixes.some((prefix) => resolved.startsWith(resolve(prefix)));
 	if (!allowed || !basename(resolved).endsWith(".md")) {
 		throw new Error("Caminho de agent inválido");
@@ -178,8 +185,8 @@ function buildRecord(slug: string, loaded: LoadedSource[]): AgentFsRecord {
 	};
 }
 
-export async function listAgentsFromFs(projectName?: string): Promise<AgentFsRecord[]> {
-	const roots = await buildRoots(projectName);
+export async function listAgentsFromFs(): Promise<AgentFsRecord[]> {
+	const roots = await buildRoots();
 
 	const rootsBySlug = new Map<string, AgentRoot[]>();
 	for (const root of roots) {
@@ -203,11 +210,8 @@ export async function listAgentsFromFs(projectName?: string): Promise<AgentFsRec
 	return records.sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
-export async function getAgentFromFs(
-	slug: string,
-	projectName?: string,
-): Promise<AgentFsRecordDetailed | null> {
-	const loaded = await loadSourcesForSlug(slug, await buildRoots(projectName));
+export async function getAgentFromFs(slug: string): Promise<AgentFsRecordDetailed | null> {
+	const loaded = await loadSourcesForSlug(slug, await buildRoots());
 	if (loaded.length === 0) return null;
 
 	const groupByHash = new Map<string, number>();
@@ -238,10 +242,9 @@ export async function getAgentFromFs(
 // arquivo gravado pra confirmar (read-back). Ação destrutiva — só chamada após confirmação na UI.
 export async function standardizeAgentInFs(input: {
 	slug: string;
-	projectName?: string;
 	sourcePath: string;
 }): Promise<{ written: number }> {
-	const loaded = await loadSourcesForSlug(input.slug, await buildRoots(input.projectName));
+	const loaded = await loadSourcesForSlug(input.slug, await buildRoots());
 	const chosen = loaded.find((source) => source.path === input.sourcePath);
 	if (!chosen) {
 		throw new Error("Variante escolhida não encontrada");
@@ -306,6 +309,42 @@ export async function createAgentInFs(input: {
 	};
 }
 
+// Copia um agent pra dentro dos arquivos do projeto, em <main_route>/.claude/agents/<slug>.md, pra
+// que o claude-code daquele projeto passe a enxergá-lo. Recusa se o projeto já tem o slug (não
+// sobrescreve cópia divergente) e relê pra confirmar (write-then-verify).
+export async function injectAgentIntoProject(input: {
+	sourcePath: string;
+	projectName: string;
+}): Promise<{ path: string }> {
+	const project = (await dbProjects.listRoots()).find((row) => row.name === input.projectName);
+	if (!project) {
+		throw new Error("Projeto não encontrado");
+	}
+
+	const source = await readSkillFile(input.sourcePath);
+	if (!source) {
+		throw new Error("Agent de origem não encontrado");
+	}
+
+	const slug = basename(input.sourcePath, ".md");
+	const targetPath = join(project.main_route, ".claude/agents", `${slug}.md`);
+
+	if (await Bun.file(targetPath).exists()) {
+		throw new Error(`O projeto já tem um agent "${slug}"`);
+	}
+
+	await assertAllowedPath(targetPath);
+	await mkdir(dirname(targetPath), { recursive: true });
+	await writeSkillFile(targetPath, source);
+
+	const reread = await readSkillFile(targetPath);
+	if (!reread || agentContentHash(reread) !== agentContentHash(source)) {
+		throw new Error(`Falha ao injetar em ${targetPath}: verificação não bateu`);
+	}
+
+	return { path: targetPath };
+}
+
 export async function updateAgentInFs(input: {
 	path: string;
 	description: string;
@@ -327,11 +366,8 @@ export async function deleteAgentInFs(path: string): Promise<void> {
 }
 
 // Remove o agent de TODAS as fontes onde ele existe (todas as cópias no disco).
-export async function deleteAllAgentInFs(input: {
-	slug: string;
-	projectName?: string;
-}): Promise<{ removed: number }> {
-	const loaded = await loadSourcesForSlug(input.slug, await buildRoots(input.projectName));
+export async function deleteAllAgentInFs(input: { slug: string }): Promise<{ removed: number }> {
+	const loaded = await loadSourcesForSlug(input.slug, await buildRoots());
 
 	let removed = 0;
 	for (const source of loaded) {

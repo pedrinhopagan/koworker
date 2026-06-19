@@ -6,6 +6,7 @@ import {
 	deleteAllAgentInFs,
 	deleteAgentInFs,
 	getAgentFromFs,
+	injectAgentIntoProject,
 	listAgentsFromFs,
 	standardizeAgentInFs,
 	updateAgentInFs,
@@ -15,7 +16,7 @@ import {
 	AgentDeleteAllSchema,
 	AgentDeleteSchema,
 	AgentGetSchema,
-	AgentListSchema,
+	AgentInjectSchema,
 	AgentPathAddSchema,
 	AgentPathRemoveSchema,
 	AgentSettingsSchema,
@@ -24,11 +25,8 @@ import {
 } from "../schemas/agents";
 
 export const agentsRouter = {
-	list: protectedProcedure.input(AgentListSchema).handler(async ({ input }) => {
-		const [records, settings] = await Promise.all([
-			listAgentsFromFs(input.projectName),
-			dbAgentSettings.getAll(),
-		]);
+	list: protectedProcedure.handler(async () => {
+		const [records, settings] = await Promise.all([listAgentsFromFs(), dbAgentSettings.getAll()]);
 
 		const settingsBySlug = new Map(settings.map((row) => [row.slug, row]));
 
@@ -45,7 +43,7 @@ export const agentsRouter = {
 	}),
 
 	get: protectedProcedure.input(AgentGetSchema).handler(async ({ input }) => {
-		const record = await getAgentFromFs(input.slug, input.projectName);
+		const record = await getAgentFromFs(input.slug);
 		if (!record) return null;
 
 		const override = (await dbAgentSettings.getAll()).find((row) => row.slug === record.slug);
@@ -74,6 +72,10 @@ export const agentsRouter = {
 
 	standardize: protectedProcedure.input(AgentStandardizeSchema).handler(async ({ input }) => {
 		return await standardizeAgentInFs(input);
+	}),
+
+	inject: protectedProcedure.input(AgentInjectSchema).handler(async ({ input }) => {
+		return await injectAgentIntoProject(input);
 	}),
 
 	delete: protectedProcedure.input(AgentDeleteSchema).handler(async ({ input }) => {

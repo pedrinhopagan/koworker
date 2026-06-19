@@ -30,16 +30,14 @@ export function AgentPickerButton({
 	selected,
 	onSelect,
 	onClear,
-	projectName,
 	canPick,
 }: {
 	selected: TaskAgent | null;
 	onSelect: (agent: TaskAgent) => void;
 	onClear: () => void;
-	projectName?: string;
 	canPick: boolean;
 }) {
-	const { taskAgents, isLoading } = useAgentsQuery(projectName);
+	const { taskAgents, isLoading } = useAgentsQuery();
 
 	if (selected) {
 		return (

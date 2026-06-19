@@ -1,9 +1,5 @@
 import { z } from "zod";
 
-export const AgentListSchema = z.object({
-	projectName: z.string().optional(),
-});
-
 export const AgentCreateSchema = z.object({
 	slug: z
 		.string()
@@ -23,12 +19,10 @@ export const AgentUpdateSchema = z.object({
 
 export const AgentGetSchema = z.object({
 	slug: z.string().min(1),
-	projectName: z.string().optional(),
 });
 
 export const AgentStandardizeSchema = z.object({
 	slug: z.string().min(1),
-	projectName: z.string().optional(),
 	sourcePath: z.string().min(1),
 });
 
@@ -38,7 +32,11 @@ export const AgentDeleteSchema = z.object({
 
 export const AgentDeleteAllSchema = z.object({
 	slug: z.string().min(1),
-	projectName: z.string().optional(),
+});
+
+export const AgentInjectSchema = z.object({
+	sourcePath: z.string().min(1),
+	projectName: z.string().min(1),
 });
 
 const AgentToolSchema = z.enum(["claude-code", "opencode", "codex", "koworker"]);
