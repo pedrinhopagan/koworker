@@ -53,6 +53,15 @@ export function useAgentMutations() {
 		onError: (error: Error) => toast.error(`Erro ao remover agent: ${error.message}`),
 	});
 
+	const injectMutation = useMutation({
+		...orpc.agents.inject.mutationOptions(),
+		onSuccess: () => {
+			invalidateAll();
+			toast.success("Agent injetado no projeto");
+		},
+		onError: (error: Error) => toast.error(`Erro ao injetar agent: ${error.message}`),
+	});
+
 	return {
 		updateContent: (input: {
 			path: string;
@@ -60,12 +69,12 @@ export function useAgentMutations() {
 			content: string;
 			metadata: Record<string, unknown>;
 		}) => updateMutation.mutateAsync(input),
-		standardize: (input: { slug: string; projectName?: string; sourcePath: string }) =>
-			standardizeMutation.mutate(input),
+		standardize: (input: { slug: string; sourcePath: string }) => standardizeMutation.mutate(input),
 		standardizing: standardizeMutation.isPending,
 		removeAgent: (path: string) => deleteMutation.mutate({ path }),
-		removeAllAgent: (input: { slug: string; projectName?: string }) =>
-			deleteAllMutation.mutate(input),
+		removeAllAgent: (input: { slug: string }) => deleteAllMutation.mutate(input),
 		removing: deleteMutation.isPending || deleteAllMutation.isPending,
+		inject: (input: { sourcePath: string; projectName: string }) => injectMutation.mutate(input),
+		injecting: injectMutation.isPending,
 	};
 }

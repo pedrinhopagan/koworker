@@ -35,6 +35,8 @@ type DocEditorPaneProps = {
 	// aqui ele só amplia a fonte/largura e atende o Esc pra sair.
 	reading: boolean;
 	onExitReading: () => void;
+	// Repassado ao editor: colar markdown com frontmatter roteia metadados pros controles da página.
+	onPasteFrontmatter?: (frontmatter: Record<string, unknown>, body: string) => void;
 	// Esc fora da leitura "sai pra valer": volta uma rota (a página informa o alvo do pop). O pane cuida
 	// do resto do modelo §5 — salva o que estava pendente e remove a sessão do MRU (salvo se fixada).
 	onExit: () => void;
@@ -52,6 +54,7 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 			reading,
 			onExitReading,
 			onExit,
+			onPasteFrontmatter,
 		},
 		ref,
 	) {
@@ -165,6 +168,7 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 							onChange={(next) => schedule({ name: fileName, content: next })}
 							onInlineCodeClick={(text) => void handleInlineCodeCopy(text)}
 							onHeadingMention={(text) => usePromptBarStore.getState().appendMention(text)}
+							onPasteFrontmatter={onPasteFrontmatter}
 						/>
 					) : (
 						<Text size="sm" tone="muted">

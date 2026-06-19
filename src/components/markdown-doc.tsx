@@ -25,6 +25,7 @@ import {
 	lineForAnchor,
 	offsetOfLine,
 } from "@/lib/heading-anchor";
+import { extractFrontmatter } from "@/lib/skills/parser";
 
 // Lê o ponto de leitura atual a partir do scroll do CodeMirror e o traduz em âncora resiliente
 // (heading + offset). A matemática de heading mora no lib; aqui só tocamos o `view`.
@@ -293,6 +294,9 @@ type MarkdownEditorProps = {
 	initialAnchor?: HeadingAnchor | null;
 	// Captura debounced do ponto de leitura ao rolar (e na desmontagem) — alimenta a memória.
 	onAnchorChange?: (anchor: HeadingAnchor) => void;
+	// Colar markdown com frontmatter (`---...---`) roteia os metadados pra fora do editor (controles
+	// + descrição da página) e insere só o corpo. Sem callback, o paste segue cru e nativo.
+	onPasteFrontmatter?: (frontmatter: Record<string, unknown>, body: string) => void;
 };
 
 // Editor markdown sempre editável com live preview estilo Obsidian: o `.md` cru fica
@@ -308,6 +312,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 			fontSize = "1rem",
 			initialAnchor,
 			onAnchorChange,
+			onPasteFrontmatter,
 		},
 		ref,
 	) {
@@ -337,10 +342,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 		const onInlineCodeClickRef = useRef(onInlineCodeClick);
 		const onHeadingMentionRef = useRef(onHeadingMention);
 		const onAnchorChangeRef = useRef(onAnchorChange);
+		const onPasteFrontmatterRef = useRef(onPasteFrontmatter);
 		useEffect(() => {
 			onInlineCodeClickRef.current = onInlineCodeClick;
 			onHeadingMentionRef.current = onHeadingMention;
 			onAnchorChangeRef.current = onAnchorChange;
+			onPasteFrontmatterRef.current = onPasteFrontmatter;
 		});
 
 		// Captura do ponto de leitura: listener de scroll com debounce, mais uma captura final na
@@ -391,8 +398,37 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 			[],
 		);
 
+		// Paste com frontmatter: lê o callback pelo ref pra extensão ficar estável e não entrar nas
+		// deps do useMemo (mesmo motivo do padrão dos outros refs). Sem callback ou sem frontmatter,
+		// devolve falso e o paste nativo segue cru — vault/tarefas não passam o callback.
+		const pasteHandler = useMemo(
+			() =>
+				EditorView.domEventHandlers({
+					paste(event, view) {
+						const route = onPasteFrontmatterRef.current;
+						if (!route) return false;
+
+						const text = event.clipboardData?.getData("text/plain");
+						if (!text) return false;
+
+						const extracted = extractFrontmatter(text);
+						if (!extracted) return false;
+
+						event.preventDefault();
+						view.dispatch({
+							...view.state.replaceSelection(extracted.body),
+							userEvent: "input.paste",
+						});
+						route(extracted.frontmatter, extracted.body);
+						return true;
+					},
+				}),
+			[],
+		);
+
 		const extensions = useMemo(
 			() => [
+				pasteHandler,
 				markdown({
 					base: markdownLanguage,
 					extensions: [highlightExtension],
@@ -405,7 +441,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 				EditorView.lineWrapping,
 				placeholder("Comece a escrever…"),
 			],
-			[stableCallbacks, fontSize],
+			[stableCallbacks, fontSize, pasteHandler],
 		);
 
 		useImperativeHandle(ref, () => ({
