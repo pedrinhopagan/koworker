@@ -65,6 +65,7 @@ function TaskFilePage() {
 					title: task.displayTitle,
 					subtitle: activeFile,
 					projectName: task.project?.name,
+					projectId: task.project?.id,
 					nav: { to: "/tarefas/$taskId/$file", params: { taskId, file: activeFile } },
 				}
 			: null,

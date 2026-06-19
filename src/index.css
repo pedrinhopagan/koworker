@@ -187,13 +187,14 @@
 	   cobre o conteúdo, mas no WebKitGTK (Tauri/Linux) a scrollbar de overlay é pintada ACIMA do
 	   conteúdo e ignora ::-webkit-scrollbar/scrollbar-width — z-index/opacidade não a cobrem. Sem
 	   overflow rolável não existe barra, em qualquer engine. O overlay cobre tudo, então o reflow
-	   não aparece; ao fechar, o overflow volta. */
+	   não aparece; ao fechar, o overflow volta. O `:not(.doc-switcher-list)` isenta o scroller do
+	   PRÓPRIO overlay — ele fica acima do backdrop e precisa rolar quando há sessões demais. */
 	.doc-switcher-open .cm-scroller,
 	.doc-switcher-open main,
-	.doc-switcher-open [class*="overflow-y-auto"],
-	.doc-switcher-open [class*="overflow-auto"],
-	.doc-switcher-open [class*="overflow-y-scroll"],
-	.doc-switcher-open [class*="overflow-scroll"] {
+	.doc-switcher-open [class*="overflow-y-auto"]:not(.doc-switcher-list),
+	.doc-switcher-open [class*="overflow-auto"]:not(.doc-switcher-list),
+	.doc-switcher-open [class*="overflow-y-scroll"]:not(.doc-switcher-list),
+	.doc-switcher-open [class*="overflow-scroll"]:not(.doc-switcher-list) {
 		overflow: hidden !important;
 	}
 }

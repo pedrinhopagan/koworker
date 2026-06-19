@@ -125,6 +125,8 @@ export function DocSessionSwitcher() {
 	const viewRef = useRef<SwitcherView | null>(null);
 	viewRef.current = view;
 
+	const listRef = useRef<HTMLDivElement>(null);
+
 	const open = view !== null || mouseOpen;
 
 	const close = useCallback(() => {
@@ -274,6 +276,14 @@ export function DocSessionSwitcher() {
 		return () => root.classList.remove("doc-switcher-open");
 	}, [open]);
 
+	// Toda abertura começa com a lista no topo. Roda depois dos efeitos dos cards (efeito de filho
+	// antes do de pai), então o `scrollIntoView` do card inicial não deixa a lista rolada pra baixo.
+	useEffect(() => {
+		if (open) {
+			listRef.current?.scrollTo({ top: 0 });
+		}
+	}, [open]);
+
 	// Editar a lista pelo overlay mexe no store E na lista congelada do `view` (que não reflete o store
 	// sozinha), reancorando o índice. Esvaziar a faixa de cards trocáveis fecha o overlay.
 	const removeCard = useCallback(
@@ -381,7 +391,7 @@ export function DocSessionSwitcher() {
 			// Backdrop translúcido com blur (z-[100]). A scrollbar do CodeMirror (WebKitGTK) vazava pelos
 			// vãos quando translúcido — por isso o hack `.doc-switcher-open` esconde as scrollbars da
 			// página enquanto o overlay está aberto. Se voltar a vazar, reverter pra `bg-background` opaco.
-			className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background/80 px-6 py-8 backdrop-blur-sm"
+			className="fixed inset-0 z-[100] flex flex-col items-center gap-4 overflow-hidden bg-background/80 px-6 pt-16 pb-8 backdrop-blur-sm"
 			onClick={close}
 		>
 			{/* Anuncia o card sob a seleção do teclado pra leitores de tela, sem ocupar espaço visual. */}
@@ -422,9 +432,10 @@ export function DocSessionSwitcher() {
 			</div>
 
 			<div
+				ref={listRef}
 				role="listbox"
 				aria-label="Sessões de leitura"
-				className="flex max-h-full w-full max-w-5xl flex-col gap-5 overflow-y-auto px-2"
+				className="doc-switcher-list no-scrollbar flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-5 overflow-y-auto px-2"
 				// O overlay fecha no clique de fundo; clicar na área dos cards não deve fechar.
 				onClick={(event) => event.stopPropagation()}
 			>

@@ -17,10 +17,10 @@ import {
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 
-// Menu de botão direito de skill/agent (os dois são gêmeos: mesma forma, mesmas ações). Igual ao
-// `FileContextMenu`, é um componente só, sem discriminar a entidade: o tile já computa rota, dir e
-// chave de pin e os entrega como `actions`. ContextMenu abre só no contextmenu, então o clique
-// esquerdo (navegar pela página de detalhe) do tile segue intocado.
+// Menu de botão direito do card de agent. Igual ao `FileContextMenu`, é um componente só, sem
+// discriminar a entidade: o tile já computa rota, dir e chave de pin e os entrega como `actions`.
+// ContextMenu abre só no contextmenu, então o clique esquerdo (navegar pela página de detalhe) do
+// tile segue intocado. (O card de skill tem categoria, então usa seu próprio botão+menu unificado.)
 export function DocEntityContextMenu({
 	label,
 	pinned,
