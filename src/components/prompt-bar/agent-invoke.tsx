@@ -15,6 +15,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useAgentsQuery } from "@/hooks/use-agents";
 import { buildKoworkerPrompt } from "@/lib/build-prompt";
 import { LucideIcon } from "@/lib/lucide-icon";
+import { recordPromptHistory } from "@/lib/prompt-history";
 import { executeInTerminal } from "@/lib/terminal";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
@@ -120,7 +121,8 @@ export function AgentInvokeButton({
 			return;
 		}
 
-		const prompt = buildKoworkerPrompt({ target, text: usePromptBarStore.getState().text });
+		const text = usePromptBarStore.getState().text;
+		const prompt = buildKoworkerPrompt({ target, text });
 
 		void executeInTerminal(
 			{ id: project.id, name: project.name, mainRoute: project.mainRoute },
@@ -128,6 +130,16 @@ export function AgentInvokeButton({
 			prompt,
 			{ agent: agent.slug, forceNew: true },
 		);
+
+		recordPromptHistory({
+			kind: "agent",
+			text,
+			prompt,
+			target,
+			agentSlug: agent.slug,
+			projectId: project.id,
+			projectName: project.name,
+		});
 
 		onInvoked();
 	}

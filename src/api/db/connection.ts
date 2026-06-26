@@ -173,6 +173,29 @@ const agentSourcePathsSchema = type({
 	created_at: type("number.integer").configure({ default: "now" }),
 });
 
+const prompt_kind = type.enumerated("copy", "agent", "skill");
+
+// Log append-only de TODO prompt despachado pela barra de prompt: copiar para o clipboard, invocar
+// agent e invocar skill. Existe para análise futura, então é deliberadamente durável e abrangente.
+// SEM FK para projects: o histórico sobrevive à exclusão do projeto — por isso project_id/name são
+// texto solto, capturando o estado no momento do disparo. `text` é a instrução crua do usuário;
+// `prompt` é o texto final efetivamente despachado (já com `/kw <target>` ou `/<slug>`).
+const promptHistorySchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	kind: prompt_kind,
+	text: "string",
+	prompt: "string",
+	"target?": "string",
+	"agent_slug?": "string",
+	"skill_slug?": "string",
+	"project_id?": "string",
+	"project_name?": "string",
+	"route_path?": "string",
+	"model?": "string",
+	"effort?": "string",
+	created_at: type("number.integer").configure({ default: "now" }),
+});
+
 const database = new Database({
 	path: envVariables.DATABASE_URL,
 	tables: {
@@ -189,6 +212,7 @@ const database = new Database({
 		skill_source_paths: skillSourcePathsSchema,
 		agent_settings: agentSettingsSchema,
 		agent_source_paths: agentSourcePathsSchema,
+		prompt_history: promptHistorySchema,
 	},
 });
 
@@ -214,6 +238,7 @@ export type skill_settings = DB["skill_settings"];
 export type skill_source_paths = DB["skill_source_paths"];
 export type agent_settings = DB["agent_settings"];
 export type agent_source_paths = DB["agent_source_paths"];
+export type prompt_history = DB["prompt_history"];
 
 export {
 	user_type,
@@ -230,4 +255,5 @@ export {
 	skillSourcePathsSchema,
 	agentSettingsSchema,
 	agentSourcePathsSchema,
+	promptHistorySchema,
 };

@@ -1,16 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
-import { Play, Sparkles } from "lucide-react";
+import { ChevronDown, Play, Sparkles } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { Button } from "@/components/ui/button";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
 import { SKILL_EFFORT_VALUES, SKILL_MODEL_VALUES } from "@/constants/skills";
 import { useSkillsQuery } from "@/hooks/use-skills";
 import { LucideIcon } from "@/lib/lucide-icon";
+import { recordPromptHistory } from "@/lib/prompt-history";
 import { executeInTerminal } from "@/lib/terminal";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
@@ -24,6 +26,20 @@ const triggerBase =
 function pickFlag(value: unknown, allowed: readonly string[]): string | undefined {
 	return typeof value === "string" && allowed.includes(value) ? value : undefined;
 }
+
+// O prompt vai como argumento único de `claude "<texto>"` enviado por `tmux send-keys`, onde uma quebra
+// de linha vira Enter e dispara o comando cedo. Achatamos toda quebra (e a indentação ao redor) num
+// espaço pra manter o prompt inteiro numa string só.
+function flattenPrompt(text: string): string {
+	return text.replaceAll(/\s*\n+\s*/g, " ").trim();
+}
+
+const INVOKE_MODES = [
+	{ id: "with", label: "Com prompt" },
+	{ id: "only", label: "Só a skill" },
+] as const;
+
+type InvokeMode = (typeof INVOKE_MODES)[number]["id"];
 
 function matchSkill(skill: TaskSkill, term: string): boolean {
 	return (
@@ -157,6 +173,7 @@ export function SkillInvokeButton({
 	onInvoked: () => void;
 }) {
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
+	const [mode, setMode] = useState<InvokeMode>("with");
 
 	function handleInvoke() {
 		const project = projectsQuery.data?.find((p) => p.name === projectName);
@@ -165,8 +182,8 @@ export function SkillInvokeButton({
 			return;
 		}
 
-		const text = usePromptBarStore.getState().text.trim();
-		const prompt = text ? `/${skill.slug}\n\n${text}` : `/${skill.slug}`;
+		const text = mode === "with" ? flattenPrompt(usePromptBarStore.getState().text) : "";
+		const prompt = text ? `/${skill.slug} ${text}` : `/${skill.slug}`;
 
 		const model = pickFlag(skill.metadata.model, SKILL_MODEL_VALUES);
 		const effort = pickFlag(skill.metadata.effort, SKILL_EFFORT_VALUES);
@@ -182,18 +199,47 @@ export function SkillInvokeButton({
 			},
 		);
 
+		recordPromptHistory({
+			kind: "skill",
+			text,
+			prompt,
+			skillSlug: skill.slug,
+			projectId: project.id,
+			projectName: project.name,
+			...(model ? { model } : {}),
+			...(effort ? { effort } : {}),
+		});
+
 		onInvoked();
 	}
 
 	return (
-		<Tooltip
-			label={`Invocar /${skill.slug} numa nova aba do terminal`}
-			triggerClassName="inline-flex shrink-0"
-		>
-			<Button size="sm" variant="secondary" disabled={!projectName} onClick={handleInvoke}>
-				<Play size={14} />
-				Invocar skill
-			</Button>
-		</Tooltip>
+		<div className="flex shrink-0 items-center gap-1">
+			<CustomSelect
+				items={INVOKE_MODES.map((m) => ({ id: m.id, label: m.label }))}
+				value={mode}
+				onValueChange={(value) => setMode(value as InvokeMode)}
+				size="sm"
+				fitContent
+				side="top"
+				align="end"
+				renderItem={(item) => <span className="text-xs">{item.label}</span>}
+				renderTrigger={() => (
+					<>
+						<span className="text-xs">{INVOKE_MODES.find((m) => m.id === mode)?.label}</span>
+						<ChevronDown className="size-3.5 opacity-50" />
+					</>
+				)}
+			/>
+			<Tooltip
+				label={`Invocar /${skill.slug} numa nova aba do terminal`}
+				triggerClassName="inline-flex shrink-0"
+			>
+				<Button size="sm" variant="secondary" disabled={!projectName} onClick={handleInvoke}>
+					<Play size={14} />
+					Invocar skill
+				</Button>
+			</Tooltip>
+		</div>
 	);
 }

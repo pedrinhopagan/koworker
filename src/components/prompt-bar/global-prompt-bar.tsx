@@ -24,6 +24,7 @@ import { useSkillsQuery } from "@/hooks/use-skills";
 import { useRouteDocTarget } from "@/hooks/use-route-doc-target";
 import { buildKoworkerPrompt, copyToClipboard } from "@/lib/build-prompt";
 import { LucideIcon } from "@/lib/lucide-icon";
+import { recordPromptHistory } from "@/lib/prompt-history";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 import { useReadingModeStore } from "@/stores/reading-mode";
@@ -191,6 +192,14 @@ export function GlobalPromptBar() {
 		const ok = await copyToClipboard(prompt);
 		if (ok) {
 			pushHistory(text);
+			recordPromptHistory({
+				kind: "copy",
+				text,
+				prompt,
+				...(appendTarget ? { target: appendTarget } : {}),
+				...(routeTarget.projectName ? { projectName: routeTarget.projectName } : {}),
+				...(pathname ? { routePath: pathname } : {}),
+			});
 			toast.success("Prompt copiado");
 		} else {
 			toast.error("Não foi possível copiar o prompt");

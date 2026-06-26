@@ -1150,6 +1150,15 @@ const baseTheme = EditorView.baseTheme({
 		verticalAlign: "top",
 		borderRight: "1px solid var(--border)",
 		borderBottom: "1px solid var(--border)",
+		// O `.cm-content` ativa lineWrapping (`overflow-wrap: anywhere`, `word-break: break-word`),
+		// que é herdado e vaza pra dentro das células: quando a tabela é espremida, o navegador quebra
+		// as palavras letra a letra ("Forma/tion") em vez de pedir mais largura pra coluna. Resetando
+		// pra quebra normal, cada coluna exige ao menos a largura da sua palavra mais longa — a tabela
+		// cresce e o wrapper rola na horizontal em vez de comprimir tudo até ficar ilegível.
+		wordBreak: "normal",
+		overflowWrap: "normal",
+		whiteSpace: "normal",
+		minWidth: "3rem",
 	},
 	".cm-md-table th:last-child, .cm-md-table td:last-child": { borderRight: "none" },
 	".cm-md-table tbody tr:last-child td": { borderBottom: "none" },

@@ -5,6 +5,7 @@ import { agentsRouter } from "./routers/agents";
 import { categoriesRouter } from "./routers/categories";
 import { eventsRouter } from "./routers/events";
 import { prioritiesRouter } from "./routers/priorities";
+import { promptHistoryRouter } from "./routers/prompt-history";
 import { projectRoutesRouter } from "./routers/project-routes";
 import { projectsRouter } from "./routers/projects";
 import { skillCategoriesRouter } from "./routers/skill-categories";
@@ -35,6 +36,7 @@ export const router = {
 	skills: skillsRouter,
 	skillCategories: skillCategoriesRouter,
 	agents: agentsRouter,
+	promptHistory: promptHistoryRouter,
 	terminal: terminalRouter,
 	vault: vaultRouter,
 

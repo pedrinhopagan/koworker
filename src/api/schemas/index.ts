@@ -21,6 +21,7 @@ export {
 	PriorityReorderSchema,
 	PriorityUpdateSchema,
 } from "./priorities";
+export { PromptHistoryRecordSchema } from "./prompt-history";
 export {
 	ProjectRouteCreateSchema,
 	ProjectRouteIdSchema,

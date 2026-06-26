@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
 	ArrowLeft,
 	Check,
+	FolderInput,
 	Loader2,
 	PencilLine,
 	SlidersHorizontal,
@@ -10,6 +11,7 @@ import {
 	X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
 import { DocToolbar } from "@/components/doc-toolbar";
@@ -41,9 +43,8 @@ export const Route = createFileRoute("/_app/agents/$slug/")({
 function AgentPage() {
 	const { slug } = Route.useParams();
 	const { selectedProject } = useProjectFocus();
-	const projectName = selectedProject?.name;
 
-	const agentQuery = useAgentQuery(slug, projectName);
+	const agentQuery = useAgentQuery(slug);
 
 	if (agentQuery.isLoading) {
 		return (
@@ -76,7 +77,7 @@ function AgentPage() {
 			key={agentQuery.agent.slug}
 			agent={agentQuery.agent}
 			variants={agentQuery.variants}
-			projectName={projectName}
+			project={selectedProject}
 		/>
 	);
 }
@@ -101,11 +102,11 @@ function scopeSuffix(scope: AgentVariant["scope"]): string {
 function AgentEditor({
 	agent,
 	variants,
-	projectName,
+	project,
 }: {
 	agent: TaskAgent;
 	variants: AgentVariant[];
-	projectName?: string;
+	project: { name: string; mainRoute: string } | null;
 }) {
 	const navigate = useNavigate();
 	const paneRef = useRef<DocEditorPaneHandle>(null);
@@ -131,8 +132,16 @@ function AgentEditor({
 	});
 
 	const settingsMutation = useAgentSettingsMutation();
-	const { updateContent, standardize, standardizing, removeAgent, removeAllAgent, removing } =
-		useAgentMutations();
+	const {
+		updateContent,
+		standardize,
+		standardizing,
+		removeAgent,
+		removeAllAgent,
+		removing,
+		inject,
+		injecting,
+	} = useAgentMutations();
 
 	useEffect(() => () => setReading(false), [setReading]);
 
@@ -192,6 +201,20 @@ function AgentEditor({
 		});
 	}
 
+	// Colar um agent.md completo: o `name` vem do slug ao gravar, então descartamos. A descrição
+	// colada vira a descrição do agent; o restante do frontmatter substitui os metadados; o corpo
+	// recém-inserido no editor é o conteúdo. Persistimos o trio de uma vez pra não depender do estado
+	// desta renderização.
+	function applyPastedFrontmatter(frontmatter: Record<string, unknown>, body: string) {
+		const { name: _name, description: pastedDesc, ...pastedMeta } = frontmatter;
+		const nextDescription = typeof pastedDesc === "string" ? pastedDesc : description;
+
+		setDescription(nextDescription);
+		setMetadata(pastedMeta);
+		void persist({ description: nextDescription, content: body, metadata: pastedMeta });
+		toast.success("Metadados aplicados do arquivo colado");
+	}
+
 	function saveLabel(value: string) {
 		const next = value.trim();
 		setEditingLabel(false);
@@ -207,6 +230,14 @@ function AgentEditor({
 
 	const multiSource = agent.sources.length > 1;
 
+	// Injetar = copiar o agent pros arquivos do projeto focado. Só faz sentido pra agents que não são
+	// globais (esses já valem em todo projeto) e que o projeto ainda não tem. O dir-alvo bate exato com
+	// a fonte (não `startsWith`): roots de projetos aninham (ex.: um projeto em /home/pedro engloba os
+	// de ~/Projects), e prefixo daria falso positivo.
+	const injectTargetDir = project ? `${project.mainRoute}/.claude/agents` : null;
+	const isGlobal = agent.sources.some((source) => source.scope === "global");
+	const alreadyInProject = agent.sources.some((source) => source.path === injectTargetDir);
+
 	function deleteActiveCopy() {
 		setConfirmingDelete(false);
 		removeAgent(activeVariantPath);
@@ -216,13 +247,18 @@ function AgentEditor({
 
 	function deleteEverywhere() {
 		setConfirmingDelete(false);
-		removeAllAgent({ slug: agent.slug, projectName });
+		removeAllAgent({ slug: agent.slug });
 		navigate({ to: "/agents" });
 	}
 
 	function confirmStandardize() {
-		standardize({ slug: agent.slug, projectName, sourcePath: activeVariantPath });
+		standardize({ slug: agent.slug, sourcePath: activeVariantPath });
 		setConfirmingStandardize(false);
+	}
+
+	function injectIntoProject() {
+		if (!project) return;
+		inject({ sourcePath: agent.primaryPath, projectName: project.name });
 	}
 
 	return (
@@ -283,6 +319,19 @@ function AgentEditor({
 							</div>
 
 							<AgentMetadataControls metadata={metadata} onChange={changeMetadata} />
+							{project && !isGlobal && !alreadyInProject && (
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={injectIntoProject}
+									disabled={injecting}
+									title={`Copiar este agent para ${project.name}/.claude/agents`}
+								>
+									<FolderInput className="size-3.5" />
+									Injetar em {project.name}
+								</Button>
+							)}
 							<Button
 								type="button"
 								variant="outline"
@@ -392,6 +441,7 @@ function AgentEditor({
 					content={activeVariant?.content ?? agent.instructions}
 					folderPath={activeVariant?.dir ?? agent.primaryDir}
 					writeFile={({ content }) => persist({ description, content, metadata })}
+					onPasteFrontmatter={applyPastedFrontmatter}
 					reading={reading}
 					onExitReading={() => setReading(false)}
 					onExit={() => navigate({ to: "/agents" })}
