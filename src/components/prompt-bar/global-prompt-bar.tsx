@@ -69,11 +69,13 @@ export function GlobalPromptBar() {
 	const text = usePromptBarStore((s) => s.text);
 	const expanded = usePromptBarStore((s) => s.expanded);
 	const interactWithRoute = usePromptBarStore((s) => s.interactWithRoute);
+	const interactWithInput = usePromptBarStore((s) => s.interactWithInput);
 	const history = usePromptBarStore((s) => s.history);
 	const setText = usePromptBarStore((s) => s.setText);
 	const setExpanded = usePromptBarStore((s) => s.setExpanded);
 	const toggleExpanded = usePromptBarStore((s) => s.toggleExpanded);
 	const setInteractWithRoute = usePromptBarStore((s) => s.setInteractWithRoute);
+	const setInteractWithInput = usePromptBarStore((s) => s.setInteractWithInput);
 	const setHeight = usePromptBarStore((s) => s.setHeight);
 	const clear = usePromptBarStore((s) => s.clear);
 	const pushHistory = usePromptBarStore((s) => s.pushHistory);
@@ -383,7 +385,7 @@ export function GlobalPromptBar() {
 											setSelectedAgent(agent);
 										}}
 										onClear={() => setSelectedAgent(null)}
-										canPick={!!routeTarget.path}
+										canPick={!!routeTarget.projectName}
 									/>
 									<SkillPickerButton
 										selected={selectedSkill}
@@ -419,13 +421,24 @@ export function GlobalPromptBar() {
 											rota
 										</label>
 									</Tooltip>
+									<Tooltip label="Anexa o texto do prompt ao invocar skill ou agent">
+										<label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+											<Checkbox
+												size="sm"
+												checked={interactWithInput}
+												onCheckedChange={(checked) => setInteractWithInput(checked === true)}
+											/>
+											input
+										</label>
+									</Tooltip>
 								</div>
 
 								{/* Grupo 3 — ações principais. "Invocar agent/skill" só aparece com um deles ativo. */}
 								{selectedAgent && (
 									<AgentInvokeButton
 										agent={selectedAgent}
-										target={routeTarget.path}
+										target={appendTarget}
+										withInput={interactWithInput}
 										projectName={routeTarget.projectName}
 										onInvoked={() => setSelectedAgent(null)}
 									/>
@@ -433,6 +446,8 @@ export function GlobalPromptBar() {
 								{selectedSkill && (
 									<SkillInvokeButton
 										skill={selectedSkill}
+										target={appendTarget}
+										withInput={interactWithInput}
 										projectName={routeTarget.projectName}
 										onInvoked={() => setSelectedSkill(null)}
 									/>

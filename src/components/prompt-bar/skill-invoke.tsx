@@ -1,16 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Play, Sparkles } from "lucide-react";
+import { Play, Sparkles } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { Button } from "@/components/ui/button";
-import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
 import { SKILL_EFFORT_VALUES, SKILL_MODEL_VALUES } from "@/constants/skills";
 import { useSkillsQuery } from "@/hooks/use-skills";
+import { flattenPrompt } from "@/lib/build-prompt";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { recordPromptHistory } from "@/lib/prompt-history";
 import { executeInTerminal } from "@/lib/terminal";
@@ -26,20 +26,6 @@ const triggerBase =
 function pickFlag(value: unknown, allowed: readonly string[]): string | undefined {
 	return typeof value === "string" && allowed.includes(value) ? value : undefined;
 }
-
-// O prompt vai como argumento único de `claude "<texto>"` enviado por `tmux send-keys`, onde uma quebra
-// de linha vira Enter e dispara o comando cedo. Achatamos toda quebra (e a indentação ao redor) num
-// espaço pra manter o prompt inteiro numa string só.
-function flattenPrompt(text: string): string {
-	return text.replaceAll(/\s*\n+\s*/g, " ").trim();
-}
-
-const INVOKE_MODES = [
-	{ id: "with", label: "Com prompt" },
-	{ id: "only", label: "Só a skill" },
-] as const;
-
-type InvokeMode = (typeof INVOKE_MODES)[number]["id"];
 
 function matchSkill(skill: TaskSkill, term: string): boolean {
 	return (
@@ -161,19 +147,23 @@ export function SkillPickerButton({
 	);
 }
 
-// Botão de ação do Grupo 3: dispara a skill ativa numa nova aba tmux do projeto, como `/<slug> <texto>`,
-// com `--model`/`--effort` lidos do frontmatter. Ao contrário do agent, não precisa de alvo `/kw`.
+// Botão de ação do Grupo 3: dispara a skill ativa numa nova aba tmux do projeto, como
+// `/<slug> [<rota>] [<texto>]`, com `--model`/`--effort` lidos do frontmatter. Os checkboxes do
+// prompt-bar controlam se a rota entra como argumento da skill e se o texto é anexado.
 export function SkillInvokeButton({
 	skill,
+	target,
+	withInput,
 	projectName,
 	onInvoked,
 }: {
 	skill: TaskSkill;
+	target: string | null;
+	withInput: boolean;
 	projectName?: string;
 	onInvoked: () => void;
 }) {
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
-	const [mode, setMode] = useState<InvokeMode>("with");
 
 	function handleInvoke() {
 		const project = projectsQuery.data?.find((p) => p.name === projectName);
@@ -182,8 +172,15 @@ export function SkillInvokeButton({
 			return;
 		}
 
-		const text = mode === "with" ? flattenPrompt(usePromptBarStore.getState().text) : "";
-		const prompt = text ? `/${skill.slug} ${text}` : `/${skill.slug}`;
+		const text = withInput ? flattenPrompt(usePromptBarStore.getState().text) : "";
+		const segments = [`/${skill.slug}`];
+		if (target) {
+			segments.push(target);
+		}
+		if (text) {
+			segments.push(text);
+		}
+		const prompt = segments.join(" ");
 
 		const model = pickFlag(skill.metadata.model, SKILL_MODEL_VALUES);
 		const effort = pickFlag(skill.metadata.effort, SKILL_EFFORT_VALUES);
@@ -214,32 +211,14 @@ export function SkillInvokeButton({
 	}
 
 	return (
-		<div className="flex shrink-0 items-center gap-1">
-			<CustomSelect
-				items={INVOKE_MODES.map((m) => ({ id: m.id, label: m.label }))}
-				value={mode}
-				onValueChange={(value) => setMode(value as InvokeMode)}
-				size="sm"
-				fitContent
-				side="top"
-				align="end"
-				renderItem={(item) => <span className="text-xs">{item.label}</span>}
-				renderTrigger={() => (
-					<>
-						<span className="text-xs">{INVOKE_MODES.find((m) => m.id === mode)?.label}</span>
-						<ChevronDown className="size-3.5 opacity-50" />
-					</>
-				)}
-			/>
-			<Tooltip
-				label={`Invocar /${skill.slug} numa nova aba do terminal`}
-				triggerClassName="inline-flex shrink-0"
-			>
-				<Button size="sm" variant="secondary" disabled={!projectName} onClick={handleInvoke}>
-					<Play size={14} />
-					Invocar skill
-				</Button>
-			</Tooltip>
-		</div>
+		<Tooltip
+			label={`Invocar /${skill.slug} numa nova aba do terminal`}
+			triggerClassName="inline-flex shrink-0"
+		>
+			<Button size="sm" variant="secondary" disabled={!projectName} onClick={handleInvoke}>
+				<Play size={14} />
+				Invocar skill
+			</Button>
+		</Tooltip>
 	);
 }

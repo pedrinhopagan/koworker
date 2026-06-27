@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useAgentsQuery } from "@/hooks/use-agents";
-import { buildKoworkerPrompt } from "@/lib/build-prompt";
+import { buildKoworkerPrompt, flattenPrompt } from "@/lib/build-prompt";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { recordPromptHistory } from "@/lib/prompt-history";
 import { executeInTerminal } from "@/lib/terminal";
@@ -25,7 +25,7 @@ const triggerBase =
 	"flex h-6 w-6 items-center justify-center transition-colors disabled:opacity-40";
 
 // Botão-toggle do Grupo 1: clicar abre o menu de agents; com um agent ativo, clicar de novo
-// desativa. Fica disabled fora de rota que anexa `/kw` (mas segue clicável pra desativar se já
+// desativa. Fica disabled sem projeto em foco onde rodar (mas segue clicável pra desativar se já
 // houver um agent escolhido).
 export function AgentPickerButton({
 	selected,
@@ -57,7 +57,7 @@ export function AgentPickerButton({
 
 	return (
 		<DropdownMenu>
-			<Tooltip label={canPick ? "Invocar agent nesta rota" : "Disponível em rotas de leitura .md"}>
+			<Tooltip label={canPick ? "Invocar agent nesta rota" : "Selecione um projeto em foco"}>
 				<DropdownMenuTrigger
 					aria-label="Escolher agent"
 					disabled={!canPick}
@@ -98,30 +98,31 @@ export function AgentPickerButton({
 }
 
 // Botão de ação do Grupo 3, ao lado de "Copiar prompt": dispara o agent ativo numa nova aba tmux
-// da sessão do projeto DONO do `.md` (não o em foco), com `/kw <target> + texto`.
+// da sessão do projeto da rota, com `/kw <target> + texto`. Os checkboxes do prompt-bar controlam se
+// a rota (`/kw`) entra no prompt e se o texto é anexado; o agent em si vai pela flag `--agent`.
 export function AgentInvokeButton({
 	agent,
 	target,
+	withInput,
 	projectName,
 	onInvoked,
 }: {
 	agent: TaskAgent;
 	target: string | null;
+	withInput: boolean;
 	projectName?: string;
 	onInvoked: () => void;
 }) {
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
 
 	function handleInvoke() {
-		if (!target) return;
-
 		const project = projectsQuery.data?.find((p) => p.name === projectName);
 		if (!project) {
 			toast.error("Projeto da rota não encontrado");
 			return;
 		}
 
-		const text = usePromptBarStore.getState().text;
+		const text = withInput ? flattenPrompt(usePromptBarStore.getState().text) : "";
 		const prompt = buildKoworkerPrompt({ target, text });
 
 		void executeInTerminal(
@@ -135,7 +136,7 @@ export function AgentInvokeButton({
 			kind: "agent",
 			text,
 			prompt,
-			target,
+			...(target ? { target } : {}),
 			agentSlug: agent.slug,
 			projectId: project.id,
 			projectName: project.name,
@@ -149,7 +150,7 @@ export function AgentInvokeButton({
 			label={`Invocar ${agent.label} numa nova aba do terminal`}
 			triggerClassName="inline-flex shrink-0"
 		>
-			<Button size="sm" variant="secondary" disabled={!target} onClick={handleInvoke}>
+			<Button size="sm" variant="secondary" disabled={!projectName} onClick={handleInvoke}>
 				<Play size={14} />
 				Invocar agent
 			</Button>
