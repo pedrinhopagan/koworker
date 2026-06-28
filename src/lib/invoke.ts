@@ -1,0 +1,129 @@
+import { SKILL_EFFORT_VALUES, SKILL_MODEL_VALUES } from "@/constants/skills";
+import { INVOKE_INHERIT } from "@/constants/invoke";
+import { buildKoworkerPrompt, flattenPrompt } from "@/lib/build-prompt";
+import { recordPromptHistory } from "@/lib/prompt-history";
+import { executeInTerminal, type ProjectInfo } from "@/lib/terminal";
+import type { InvokeConfig } from "@/stores/prompt-bar";
+
+// O alvo de uma invocação é exatamente um: um agent (roda `/kw` sob `--agent`) ou uma skill (roda
+// `/<slug>` direto). A skill carrega seu frontmatter pra herdar model/effort quando o select está em
+// "padrão".
+export type InvokeTarget =
+	| { kind: "agent"; slug: string; label: string }
+	| { kind: "skill"; slug: string; label: string; metadata: Record<string, unknown> };
+
+// Tudo já resolvido pelo chamador: `routePath` é o caminho `/kw` quando "rota" está ligada (senão
+// null) e `text` é o texto do prompt quando "input" está ligado (senão ""). Assim o builder não
+// reimplementa as regras dos checkboxes.
+export type InvokeRequest = {
+	target: InvokeTarget;
+	routePath: string | null;
+	text: string;
+	config: InvokeConfig;
+};
+
+// O frontmatter da skill é texto livre: só herda o que o `claude` aceita como flag.
+function pickFlag(value: unknown, allowed: readonly string[]): string | undefined {
+	return typeof value === "string" && allowed.includes(value) ? value : undefined;
+}
+
+function resolveModel(target: InvokeTarget, config: InvokeConfig): string | undefined {
+	if (config.model !== INVOKE_INHERIT) {
+		return config.model;
+	}
+	return target.kind === "skill" ? pickFlag(target.metadata.model, SKILL_MODEL_VALUES) : undefined;
+}
+
+function resolveEffort(target: InvokeTarget, config: InvokeConfig): string | undefined {
+	if (config.effort !== INVOKE_INHERIT) {
+		return config.effort;
+	}
+	return target.kind === "skill"
+		? pickFlag(target.metadata.effort, SKILL_EFFORT_VALUES)
+		: undefined;
+}
+
+// Prompt sempre em UMA linha: `tmux send-keys` trata quebra como Enter e submeteria o comando cedo —
+// essa é a correção de fundo das invocações. Agent: `/kw <rota> <texto>`; skill: `/<slug> <rota>
+// <texto>`, com rota/texto como args posicionais.
+function buildPrompt({ target, routePath, text }: InvokeRequest): string {
+	if (target.kind === "agent") {
+		return flattenPrompt(buildKoworkerPrompt({ target: routePath, text }));
+	}
+	return [`/${target.slug}`, routePath, flattenPrompt(text)].filter(Boolean).join(" ");
+}
+
+// Mesmos escapes que o backend aplica antes de embutir o prompt em aspas no `tmux send-keys` — o
+// preview tem que bater 1:1 com o comando real (e ser colável num shell sem expandir `$`/crase).
+function shellEscape(value: string): string {
+	return value
+		.replaceAll("\\", "\\\\")
+		.replaceAll('"', '\\"')
+		.replaceAll("$", "\\$")
+		.replaceAll("`", "\\`");
+}
+
+export type InvokePlan = {
+	prompt: string;
+	model: string | undefined;
+	effort: string | undefined;
+	// Reflexo fiel do comando que o backend monta — alimenta o preview ao vivo no prompt-bar.
+	command: string;
+};
+
+export function planInvocation(request: InvokeRequest): InvokePlan {
+	const { target, config } = request;
+	const prompt = buildPrompt(request);
+	const model = resolveModel(target, config);
+	const effort = resolveEffort(target, config);
+
+	const flags =
+		config.permissionMode === "bypass"
+			? ["--dangerously-skip-permissions"]
+			: [`--permission-mode ${config.permissionMode}`];
+	if (target.kind === "agent") {
+		flags.push(`--agent ${target.slug}`);
+	}
+	if (model) {
+		flags.push(`--model ${model}`);
+	}
+	if (effort) {
+		flags.push(`--effort ${effort}`);
+	}
+
+	return { prompt, model, effort, command: `claude ${flags.join(" ")} "${shellEscape(prompt)}"` };
+}
+
+// Dispara a invocação numa aba do terminal do projeto e registra no histórico. Ponto único de
+// verdade pra agent e skill: ambos passam por aqui.
+export function runInvocation(params: { project: ProjectInfo; request: InvokeRequest }) {
+	const { project, request } = params;
+	const { target, routePath, text, config } = request;
+	const { prompt, model, effort } = planInvocation(request);
+
+	void executeInTerminal(
+		project,
+		{ id: `${target.kind}_${target.slug}`, title: target.label },
+		prompt,
+		{
+			...(target.kind === "agent" ? { agent: target.slug } : {}),
+			...(model ? { model } : {}),
+			...(effort ? { effort } : {}),
+			permissionMode: config.permissionMode,
+			forceNew: config.forceNew,
+			background: config.background,
+		},
+	);
+
+	recordPromptHistory({
+		kind: target.kind,
+		text,
+		prompt,
+		...(routePath ? { target: routePath } : {}),
+		...(target.kind === "agent" ? { agentSlug: target.slug } : { skillSlug: target.slug }),
+		projectId: project.id,
+		projectName: project.name,
+		...(model ? { model } : {}),
+		...(effort ? { effort } : {}),
+	});
+}

@@ -12,13 +12,11 @@ import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { AgentInvokeButton, AgentPickerButton } from "@/components/prompt-bar/agent-invoke";
-import { SkillInvokeButton, SkillPickerButton } from "@/components/prompt-bar/skill-invoke";
+import { InvokePanel } from "@/components/prompt-bar/invoke-panel";
 import { NewTaskDialog } from "@/components/prompt-bar/new-task-dialog";
 import { NewVaultNoteDialog } from "@/components/prompt-bar/new-vault-note-dialog";
 import { PromptHistoryMenu } from "@/components/prompt-bar/prompt-history-menu";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useSkillsQuery } from "@/hooks/use-skills";
 import { useRouteDocTarget } from "@/hooks/use-route-doc-target";
@@ -28,7 +26,6 @@ import { recordPromptHistory } from "@/lib/prompt-history";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 import { useReadingModeStore } from "@/stores/reading-mode";
-import type { TaskAgent } from "@/types/agents";
 import type { TaskSkill } from "@/types/skills";
 
 type SlashTrigger = { triggerPos: number; query: string };
@@ -74,8 +71,6 @@ export function GlobalPromptBar() {
 	const setText = usePromptBarStore((s) => s.setText);
 	const setExpanded = usePromptBarStore((s) => s.setExpanded);
 	const toggleExpanded = usePromptBarStore((s) => s.toggleExpanded);
-	const setInteractWithRoute = usePromptBarStore((s) => s.setInteractWithRoute);
-	const setInteractWithInput = usePromptBarStore((s) => s.setInteractWithInput);
 	const setHeight = usePromptBarStore((s) => s.setHeight);
 	const clear = usePromptBarStore((s) => s.clear);
 	const pushHistory = usePromptBarStore((s) => s.pushHistory);
@@ -104,10 +99,6 @@ export function GlobalPromptBar() {
 	const [activeIndex, setActiveIndex] = useState(0);
 	const [taskDialogOpen, setTaskDialogOpen] = useState(false);
 	const [vaultDialogOpen, setVaultDialogOpen] = useState(false);
-	// Agent e skill são mutuamente exclusivos numa invocação: o agent roda `/kw` sob um agent; a skill
-	// roda `/<slug>` direto. Selecionar um limpa o outro.
-	const [selectedAgent, setSelectedAgent] = useState<TaskAgent | null>(null);
-	const [selectedSkill, setSelectedSkill] = useState<TaskSkill | null>(null);
 	// `overflow-hidden` faz a animação de grid-rows clipar a altura; mas o menu de skill abre pra
 	// cima e seria cortado. Então só liberamos `overflow-visible` quando a animação de abrir termina.
 	const [revealed, setRevealed] = useState(expanded);
@@ -186,7 +177,10 @@ export function GlobalPromptBar() {
 	}
 
 	async function handleCopy() {
-		const prompt = buildKoworkerPrompt({ target: appendTarget, text });
+		// Os mesmos toggles "rota"/"input" do painel governam o que entra aqui — o preview do painel
+		// mostra exatamente esta string, então copiar não tem surpresa.
+		const copyText = interactWithInput ? text : "";
+		const prompt = buildKoworkerPrompt({ target: appendTarget, text: copyText });
 		if (!prompt.trim()) {
 			toast.info("Nada para copiar");
 			return;
@@ -235,12 +229,6 @@ export function GlobalPromptBar() {
 			});
 		});
 	}
-
-	const contextLabel = appendTarget
-		? `anexa /kw ${appendTarget}`
-		: interactWithRoute
-			? "esta rota não anexa caminho"
-			: "anexa só o texto";
 
 	const hasText = text.trim().length > 0;
 
@@ -357,106 +345,38 @@ export function GlobalPromptBar() {
 								/>
 							</div>
 
-							<div className="mt-2 flex items-center gap-2">
-								{/* Grupo 1 — atalhos que mexem no input. */}
-								<div className="flex shrink-0 items-center gap-1">
-									<MiniMenuButton
-										icon={Eraser}
-										label="Limpar"
-										onClick={clear}
-										disabled={!hasText}
-									/>
-									<MiniMenuButton
-										icon={SquarePen}
-										label="Nova tarefa"
-										onClick={() => setTaskDialogOpen(true)}
-									/>
-									<MiniMenuButton
-										icon={FilePlus2}
-										label="Nova nota no vault"
-										onClick={() => setVaultDialogOpen(true)}
-									/>
-									<PromptHistoryMenu history={history} onPick={setText} />
-									<MiniMenuButton icon={Slash} label="Inserir skill (/)" onClick={insertSlash} />
-									<AgentPickerButton
-										selected={selectedAgent}
-										onSelect={(agent) => {
-											setSelectedSkill(null);
-											setSelectedAgent(agent);
-										}}
-										onClear={() => setSelectedAgent(null)}
-										canPick={!!routeTarget.projectName}
-									/>
-									<SkillPickerButton
-										selected={selectedSkill}
-										onSelect={(skill) => {
-											setSelectedAgent(null);
-											setSelectedSkill(skill);
-										}}
-										onClear={() => setSelectedSkill(null)}
-										projectName={routeTarget.projectName}
-									/>
-								</div>
+							{/* Linha de ações do input: criar, histórico, inserir skill e copiar. */}
+							<div className="mt-2 flex items-center gap-1">
+								<MiniMenuButton icon={Eraser} label="Limpar" onClick={clear} disabled={!hasText} />
+								<MiniMenuButton
+									icon={SquarePen}
+									label="Nova tarefa"
+									onClick={() => setTaskDialogOpen(true)}
+								/>
+								<MiniMenuButton
+									icon={FilePlus2}
+									label="Nova nota no vault"
+									onClick={() => setVaultDialogOpen(true)}
+								/>
+								<PromptHistoryMenu history={history} onPick={setText} />
+								<MiniMenuButton icon={Slash} label="Inserir skill (/)" onClick={insertSlash} />
 
-								<div className="h-5 w-px shrink-0 bg-border" aria-hidden />
-
-								{/* Grupo 2 — atalho e checkbox que interferem na rota; o "anexa…" mora ao lado deles. */}
-								<div className="flex min-w-0 flex-1 items-center gap-2">
+								<div className="ml-auto flex shrink-0 items-center gap-1">
 									<MiniMenuButton
 										icon={LinkIcon}
 										label="Copiar caminho da rota"
 										onClick={() => void handleCopyRoutePath()}
 										disabled={!routeTarget.path}
 									/>
-									<span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground opacity-70">
-										{contextLabel}
-									</span>
-									<Tooltip label="Anexa o caminho da rota ao prompt (/kw)">
-										<label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-											<Checkbox
-												size="sm"
-												checked={interactWithRoute}
-												onCheckedChange={(checked) => setInteractWithRoute(checked === true)}
-											/>
-											rota
-										</label>
-									</Tooltip>
-									<Tooltip label="Anexa o texto do prompt ao invocar skill ou agent">
-										<label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-											<Checkbox
-												size="sm"
-												checked={interactWithInput}
-												onCheckedChange={(checked) => setInteractWithInput(checked === true)}
-											/>
-											input
-										</label>
-									</Tooltip>
+									<Button size="sm" onClick={() => void handleCopy()}>
+										<Copy size={14} />
+										Copiar prompt
+									</Button>
 								</div>
-
-								{/* Grupo 3 — ações principais. "Invocar agent/skill" só aparece com um deles ativo. */}
-								{selectedAgent && (
-									<AgentInvokeButton
-										agent={selectedAgent}
-										target={appendTarget}
-										withInput={interactWithInput}
-										projectName={routeTarget.projectName}
-										onInvoked={() => setSelectedAgent(null)}
-									/>
-								)}
-								{selectedSkill && (
-									<SkillInvokeButton
-										skill={selectedSkill}
-										target={appendTarget}
-										withInput={interactWithInput}
-										projectName={routeTarget.projectName}
-										onInvoked={() => setSelectedSkill(null)}
-									/>
-								)}
-								<Button size="sm" className="shrink-0" onClick={() => void handleCopy()}>
-									<Copy size={14} />
-									Copiar prompt
-								</Button>
 							</div>
+
+							{/* Painel de invocação: alvo (agent/skill) + tudo que viaja junto. */}
+							<InvokePanel projectName={routeTarget.projectName} routePath={routeTarget.path} />
 						</div>
 					</div>
 				</div>
