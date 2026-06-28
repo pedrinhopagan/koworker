@@ -6,8 +6,9 @@ import { INVOKE_INHERIT, type InvokePermissionMode } from "@/constants/invoke";
 const HISTORY_CAP = 15;
 
 // Flags de sessão `claude` que viajam junto com a invocação de agent/skill — espelham 1:1 o que o
-// comando de terminal aceita. `model`/`effort` em `inherit` deixam a skill cair no próprio
-// frontmatter (e o agent na sessão). Persistido: é a config de invocação favorita do usuário.
+// comando de terminal aceita. `permissionMode`/`forceNew`/`background` são a preferência favorita do
+// usuário e persistem. `model`/`effort` NÃO persistem: o painel os semeia do frontmatter do alvo a
+// cada invocação (o dono do default é o .md), então `inherit` aqui significa "sem flag".
 export interface InvokeConfig {
 	model: string;
 	effort: string;
@@ -36,18 +37,19 @@ const VALID_PERMISSION_MODES = new Set<InvokePermissionMode>([
 interface PromptBarState {
 	text: string;
 	expanded: boolean;
+	// Seção de invocação (alvo + knobs) revelada pelo botão robô na linha de ações. Vive abaixo do
+	// `expanded`: só aparece com o prompt aberto, mas lembra o próprio estado entre sessões.
+	invokeOpen: boolean;
 	interactWithRoute: boolean;
 	interactWithInput: boolean;
 	invoke: InvokeConfig;
 	history: string[];
-	// Altura medida do footer (efêmera, não persiste). O modo leitura a usa como respiro inferior
-	// no scroll pra não esconder conteúdo atrás do drawer fixo. Dono: o próprio footer se mede.
-	height: number;
 
 	setText: (text: string) => void;
 	setExpanded: (expanded: boolean) => void;
 	toggleExpanded: () => void;
-	setHeight: (height: number) => void;
+	setInvokeOpen: (open: boolean) => void;
+	toggleInvokeOpen: () => void;
 	setInteractWithRoute: (value: boolean) => void;
 	setInteractWithInput: (value: boolean) => void;
 	patchInvoke: (patch: Partial<InvokeConfig>) => void;
@@ -63,16 +65,17 @@ export const usePromptBarStore = create<PromptBarState>()(
 		(set) => ({
 			text: "",
 			expanded: false,
+			invokeOpen: false,
 			interactWithRoute: true,
 			interactWithInput: true,
 			invoke: DEFAULT_INVOKE,
 			history: [],
-			height: 0,
 
 			setText: (text) => set({ text }),
 			setExpanded: (expanded) => set({ expanded }),
 			toggleExpanded: () => set((state) => ({ expanded: !state.expanded })),
-			setHeight: (height) => set({ height }),
+			setInvokeOpen: (invokeOpen) => set({ invokeOpen }),
+			toggleInvokeOpen: () => set((state) => ({ invokeOpen: !state.invokeOpen })),
 			setInteractWithRoute: (interactWithRoute) => set({ interactWithRoute }),
 			setInteractWithInput: (interactWithInput) => set({ interactWithInput }),
 			patchInvoke: (patch) => set((state) => ({ invoke: { ...state.invoke, ...patch } })),
@@ -103,9 +106,12 @@ export const usePromptBarStore = create<PromptBarState>()(
 			partialize: (state) => ({
 				text: state.text,
 				expanded: state.expanded,
+				invokeOpen: state.invokeOpen,
 				interactWithRoute: state.interactWithRoute,
 				interactWithInput: state.interactWithInput,
-				invoke: state.invoke,
+				// model/effort não persistem: são semeados do alvo a cada invocação. Salvo sempre como
+				// `inherit` pra não grudar o default de um .md no favorito global entre sessões.
+				invoke: { ...state.invoke, model: INVOKE_INHERIT, effort: INVOKE_INHERIT },
 				history: state.history,
 			}),
 			// `invoke` ganhou campos novos; merge raso garante defaults pra estado persistido antigo.

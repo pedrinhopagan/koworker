@@ -1,4 +1,5 @@
 import {
+	Bot,
 	ChevronUp,
 	Copy,
 	Eraser,
@@ -65,13 +66,14 @@ function filterSkills(skills: TaskSkill[], query: string): TaskSkill[] {
 export function GlobalPromptBar() {
 	const text = usePromptBarStore((s) => s.text);
 	const expanded = usePromptBarStore((s) => s.expanded);
+	const invokeOpen = usePromptBarStore((s) => s.invokeOpen);
 	const interactWithRoute = usePromptBarStore((s) => s.interactWithRoute);
 	const interactWithInput = usePromptBarStore((s) => s.interactWithInput);
 	const history = usePromptBarStore((s) => s.history);
 	const setText = usePromptBarStore((s) => s.setText);
 	const setExpanded = usePromptBarStore((s) => s.setExpanded);
 	const toggleExpanded = usePromptBarStore((s) => s.toggleExpanded);
-	const setHeight = usePromptBarStore((s) => s.setHeight);
+	const toggleInvokeOpen = usePromptBarStore((s) => s.toggleInvokeOpen);
 	const clear = usePromptBarStore((s) => s.clear);
 	const pushHistory = usePromptBarStore((s) => s.pushHistory);
 
@@ -85,15 +87,17 @@ export function GlobalPromptBar() {
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const rootRef = useRef<HTMLDivElement>(null);
 
-	// O footer se mede e publica a altura: na leitura ele é fixo e o conteúdo precisa desse respiro
-	// inferior pra não ficar escondido atrás do drawer. ResizeObserver acompanha o textarea crescendo.
+	// O footer se mede e publica --prompt-bar-h no :root: na leitura ele é fixo e o conteúdo precisa
+	// desse respiro inferior pra não ficar escondido atrás do drawer. ResizeObserver acompanha o textarea crescendo.
 	useEffect(() => {
 		const node = rootRef.current;
 		if (!node) return;
-		const observer = new ResizeObserver(([entry]) => setHeight(entry.contentRect.height));
+		const observer = new ResizeObserver(([entry]) => {
+			document.documentElement.style.setProperty("--prompt-bar-h", `${entry.contentRect.height}px`);
+		});
 		observer.observe(node);
 		return () => observer.disconnect();
-	}, [setHeight]);
+	}, []);
 
 	const [trigger, setTrigger] = useState<SlashTrigger | null>(null);
 	const [activeIndex, setActiveIndex] = useState(0);
@@ -244,7 +248,7 @@ export function GlobalPromptBar() {
 		>
 			<div
 				className={cn(
-					"transition-opacity",
+					"relative transition-opacity",
 					// Na leitura o footer fica sutil sobre o overlay, igual às tabs do topo.
 					reading && "opacity-40 hover:opacity-100 focus-within:opacity-100",
 				)}
@@ -280,103 +284,146 @@ export function GlobalPromptBar() {
 					/>
 				</button>
 
-				{/* Conteúdo expansível: grid-rows 0fr→1fr anima a altura sem medir nada. */}
+				{/* Conteúdo expansível: grid-rows 0fr→1fr anima a altura sem medir nada.
+				    Fora da leitura vira overlay ancorado acima do header (bottom-full) para não
+				    refluir o <main> e evitar re-medição do CodeMirror a cada frame. */}
 				<div
 					className={cn(
 						"grid transition-[grid-template-rows] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]",
 						expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+						!reading && "absolute bottom-full inset-x-0 z-10",
 					)}
 					onTransitionEnd={(event) => {
 						if (event.propertyName === "grid-template-rows" && expanded) setRevealed(true);
 					}}
 				>
 					<div className={cn("min-h-0", revealed ? "overflow-visible" : "overflow-hidden")}>
-						<div className="mx-auto w-full max-w-3xl px-4 pb-3 xl:max-w-4xl">
-							<div className="relative">
-								{menuOpen && (
-									<div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-full overflow-y-auto border border-border bg-popover shadow-md animate-in fade-in-0 slide-in-from-bottom-1 duration-150">
-										{matches.map((skill, index) => (
-											<button
-												key={skill.slug}
-												type="button"
-												onMouseDown={(event) => {
-													event.preventDefault();
-													applySkill(skill);
-												}}
-												onMouseEnter={() => setActiveIndex(index)}
-												className={cn(
-													"flex w-full items-center gap-3 px-3 py-2 text-left transition-colors",
-													index === activeIndex ? "bg-secondary" : "hover:bg-secondary/50",
-												)}
-											>
-												<div
-													className="flex h-7 w-7 shrink-0 items-center justify-center border bg-muted/30"
-													style={{ borderColor: skill.color, color: skill.color }}
+						<div className={cn(!reading && "border-t border-border bg-chrome pt-3")}>
+							<div className="mx-auto w-full max-w-3xl px-4 pb-3 xl:max-w-4xl">
+								<div className="relative">
+									{menuOpen && (
+										<div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-full overflow-y-auto border border-border bg-popover shadow-md animate-in fade-in-0 slide-in-from-bottom-1 duration-150">
+											{matches.map((skill, index) => (
+												<button
+													key={skill.slug}
+													type="button"
+													onMouseDown={(event) => {
+														event.preventDefault();
+														applySkill(skill);
+													}}
+													onMouseEnter={() => setActiveIndex(index)}
+													className={cn(
+														"flex w-full items-center gap-3 px-3 py-2 text-left transition-colors",
+														index === activeIndex ? "bg-secondary" : "hover:bg-secondary/50",
+													)}
 												>
-													<LucideIcon name={skill.icon} className="size-4" />
-												</div>
-												<div className="min-w-0 flex-1">
-													<div className="truncate font-mono text-sm text-foreground">
-														/{skill.slug}
+													<div
+														className="flex h-7 w-7 shrink-0 items-center justify-center border bg-muted/30"
+														style={{ borderColor: skill.color, color: skill.color }}
+													>
+														<LucideIcon name={skill.icon} className="size-4" />
 													</div>
-													<div className="truncate text-xs text-muted-foreground">
-														{skill.description}
+													<div className="min-w-0 flex-1">
+														<div className="truncate font-mono text-sm text-foreground">
+															/{skill.slug}
+														</div>
+														<div className="truncate text-xs text-muted-foreground">
+															{skill.description}
+														</div>
 													</div>
-												</div>
-											</button>
-										))}
-									</div>
-								)}
-
-								<textarea
-									ref={textareaRef}
-									value={text}
-									onChange={handleChange}
-									onKeyDown={handleKeyDown}
-									onSelect={(event) =>
-										syncTrigger(event.currentTarget.value, event.currentTarget.selectionStart)
-									}
-									placeholder="Instrução para o agente — digite / para inserir uma skill"
-									className={cn(
-										"flex max-h-64 min-h-20 w-full resize-none rounded-none border border-input bg-transparent px-3 py-2 text-base shadow-xs transition-colors field-sizing-content",
-										"placeholder:text-muted-foreground",
-										"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring",
+												</button>
+											))}
+										</div>
 									)}
-								/>
-							</div>
 
-							{/* Linha de ações do input: criar, histórico, inserir skill e copiar. */}
-							<div className="mt-2 flex items-center gap-1">
-								<MiniMenuButton icon={Eraser} label="Limpar" onClick={clear} disabled={!hasText} />
-								<MiniMenuButton
-									icon={SquarePen}
-									label="Nova tarefa"
-									onClick={() => setTaskDialogOpen(true)}
-								/>
-								<MiniMenuButton
-									icon={FilePlus2}
-									label="Nova nota no vault"
-									onClick={() => setVaultDialogOpen(true)}
-								/>
-								<PromptHistoryMenu history={history} onPick={setText} />
-								<MiniMenuButton icon={Slash} label="Inserir skill (/)" onClick={insertSlash} />
-
-								<div className="ml-auto flex shrink-0 items-center gap-1">
-									<MiniMenuButton
-										icon={LinkIcon}
-										label="Copiar caminho da rota"
-										onClick={() => void handleCopyRoutePath()}
-										disabled={!routeTarget.path}
+									<textarea
+										ref={textareaRef}
+										value={text}
+										onChange={handleChange}
+										onKeyDown={handleKeyDown}
+										onSelect={(event) =>
+											syncTrigger(event.currentTarget.value, event.currentTarget.selectionStart)
+										}
+										placeholder="Instrução para o agente — digite / para inserir uma skill"
+										className={cn(
+											"flex max-h-64 min-h-20 w-full resize-none rounded-none border border-input bg-transparent px-3 py-2 text-base shadow-xs transition-colors field-sizing-content",
+											"placeholder:text-muted-foreground",
+											"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring",
+										)}
 									/>
-									<Button size="sm" onClick={() => void handleCopy()}>
-										<Copy size={14} />
-										Copiar prompt
-									</Button>
+								</div>
+
+								{/* Linha de ações do input: criar, histórico, inserir skill e copiar. */}
+								<div className="mt-2 flex items-center gap-1">
+									<MiniMenuButton
+										icon={Eraser}
+										label="Limpar"
+										onClick={clear}
+										disabled={!hasText}
+									/>
+									<MiniMenuButton
+										icon={SquarePen}
+										label="Nova tarefa"
+										onClick={() => setTaskDialogOpen(true)}
+									/>
+									<MiniMenuButton
+										icon={FilePlus2}
+										label="Nova nota no vault"
+										onClick={() => setVaultDialogOpen(true)}
+									/>
+									<PromptHistoryMenu history={history} onPick={setText} />
+									<MiniMenuButton icon={Slash} label="Inserir skill (/)" onClick={insertSlash} />
+
+									<div className="ml-auto flex shrink-0 items-center gap-1">
+										<MiniMenuButton
+											icon={LinkIcon}
+											label="Copiar caminho da rota"
+											onClick={() => void handleCopyRoutePath()}
+											disabled={!routeTarget.path}
+										/>
+										<Button size="sm" onClick={() => void handleCopy()}>
+											<Copy size={14} />
+											Copiar prompt
+										</Button>
+										<Tooltip label={invokeOpen ? "Fechar invocação" : "Invocar agent ou skill"}>
+											<Button
+												size="sm"
+												variant={invokeOpen ? "default" : "outline"}
+												onClick={toggleInvokeOpen}
+												aria-label="Invocar agent ou skill"
+												aria-pressed={invokeOpen}
+												className="px-2"
+											>
+												<Bot size={14} />
+											</Button>
+										</Tooltip>
+									</div>
+								</div>
+
+								{/* Painel de invocação: revelado pelo botão robô. grid-rows 0fr→1fr anima a altura e o
+							    conteúdo desliza/desvanece junto. Fica montado pra preservar o alvo escolhido entre
+							    aberturas; os popovers do alvo são portalados, então o overflow-hidden não os clipa. */}
+								<div
+									className={cn(
+										"grid transition-[grid-template-rows] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
+										invokeOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+									)}
+								>
+									<div className="min-h-0 overflow-hidden">
+										<div
+											className={cn(
+												"transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
+												invokeOpen ? "opacity-100 translate-y-0" : "-translate-y-1 opacity-0",
+											)}
+										>
+											<InvokePanel
+												projectName={routeTarget.projectName}
+												routePath={routeTarget.path}
+											/>
+										</div>
+									</div>
 								</div>
 							</div>
-
-							{/* Painel de invocação: alvo (agent/skill) + tudo que viaja junto. */}
-							<InvokePanel projectName={routeTarget.projectName} routePath={routeTarget.path} />
 						</div>
 					</div>
 				</div>

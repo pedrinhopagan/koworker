@@ -1,26 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
-import { Bot, Copy, Cpu, Gauge, Play, ShieldCheck, Sparkles, Target, X } from "lucide-react";
+import { Bot, ChevronDown, Copy, Cpu, Gauge, Play, ShieldCheck, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
 import {
 	INVOKE_EFFORT_OPTIONS,
+	INVOKE_INHERIT,
 	INVOKE_MODEL_OPTIONS,
+	type InvokeOption,
 	INVOKE_PERMISSION_OPTIONS,
 	type InvokePermissionMode,
+	reflectValue,
 } from "@/constants/invoke";
 import { useAgentsQuery } from "@/hooks/use-agents";
 import { useSkillsQuery } from "@/hooks/use-skills";
@@ -33,6 +30,15 @@ import type { TaskAgent } from "@/types/agents";
 import type { TaskSkill } from "@/types/skills";
 
 type Selection = { kind: "agent"; agent: TaskAgent } | { kind: "skill"; skill: TaskSkill } | null;
+
+// Estrutura mínima compartilhada por agent e skill — o que o picker precisa pra listar e filtrar.
+type TargetEntry = {
+	slug: string;
+	label: string;
+	description: string;
+	icon: string;
+	color: string;
+};
 
 function matches(
 	entry: { slug: string; label: string; description: string },
@@ -52,17 +58,20 @@ function toTarget(selection: NonNullable<Selection>): InvokeTarget {
 	if (selection.kind === "agent") {
 		return { kind: "agent", slug: selection.agent.slug, label: selection.agent.label };
 	}
-	return {
-		kind: "skill",
-		slug: selection.skill.slug,
-		label: selection.skill.label,
-		metadata: selection.skill.metadata,
-	};
+	return { kind: "skill", slug: selection.skill.slug, label: selection.skill.label };
 }
 
-// Painel de invocação: vive abaixo da linha de ações do prompt-bar. À esquerda os checkboxes/selects
-// que definem o que viaja junto (rota, input, modelo, esforço, permissão, aba); à direita o alvo
-// (agent ou skill) e o botão Invocar. Embaixo, o comando `claude` exato ao vivo.
+// Padrão de model/effort que o alvo carrega no frontmatter. String não-vazia vira a pré-seleção do
+// select; ausência cai em `INVOKE_INHERIT` ("padrão" = sem flag). Um ID de modelo completo passa
+// reto — o select ganha um item extra pra refleti-lo.
+function metaDefault(value: unknown): string {
+	return typeof value === "string" && value.trim() ? value.trim() : INVOKE_INHERIT;
+}
+
+// Painel de invocação: vive abaixo da linha de ações do prompt-bar, revelado pelo botão robô. No topo
+// o alvo (Skills | Agent) e o botão Invocar; abaixo os knobs que viajam junto (rota, input, sessão,
+// modelo, esforço, permissão). Escolher um alvo pré-seleciona o model/effort padrão dele. Embaixo, o
+// comando `claude` exato ao vivo.
 export function InvokePanel({
 	projectName,
 	routePath,
@@ -79,16 +88,37 @@ export function InvokePanel({
 	const patchInvoke = usePromptBarStore((s) => s.patchInvoke);
 
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
+	const { taskAgents, isLoading: agentsLoading } = useAgentsQuery();
+	const { taskSkills, isLoading: skillsLoading } = useSkillsQuery(projectName);
 	const [selection, setSelection] = useState<Selection>(null);
 
 	// Skills são scoped por projeto: ao trocar o projeto em foco, a skill escolhida pode nem existir
-	// mais. Zera o alvo pra não invocar a definição errada no terminal de outro projeto.
+	// mais. Zera o alvo (e os defaults que ele pré-selecionou) pra não invocar a definição errada.
 	useEffect(() => {
 		setSelection(null);
-	}, [projectName]);
+		patchInvoke({ model: INVOKE_INHERIT, effort: INVOKE_INHERIT });
+	}, [projectName, patchInvoke]);
+
+	// Só skills com invocação rápida entram na lista (mesmo critério do menu /).
+	const skillList = useMemo(() => taskSkills.filter((skill) => skill.quickInvoke), [taskSkills]);
 
 	const effectiveRoute = interactWithRoute ? routePath : null;
 	const effectiveText = interactWithInput ? text : "";
+
+	// Escolher um alvo fixa a seleção e puxa o model/effort padrão dele pros selects — é o que o
+	// usuário vê e pode sobrescrever antes de invocar. Dono do default é o frontmatter do alvo; os
+	// selects são só a janela editável disso, então model/effort não persistem (ver store).
+	function selectTarget(next: NonNullable<Selection>) {
+		setSelection(next);
+		const metadata = next.kind === "agent" ? next.agent.metadata : next.skill.metadata;
+		patchInvoke({ model: metaDefault(metadata.model), effort: metaDefault(metadata.effort) });
+	}
+
+	// Limpar o alvo solta também os defaults pré-selecionados: sem alvo, sem model/effort.
+	function clearTarget() {
+		setSelection(null);
+		patchInvoke({ model: INVOKE_INHERIT, effort: INVOKE_INHERIT });
+	}
 
 	// Com alvo: o comando `claude` exato. Sem alvo: o prompt que "Copiar prompt" produz — assim os
 	// checkboxes têm feedback visível mesmo antes de escolher agent/skill.
@@ -127,7 +157,48 @@ export function InvokePanel({
 	const canInvoke = !!projectName && !!selection;
 
 	return (
-		<div className="mt-2 border-t border-border pt-2">
+		<div className="mt-2 flex flex-col gap-2 border-t border-border pt-2">
+			{/* Topo: alvo (Skills | Agent) + Invocar. */}
+			<div className="flex flex-wrap items-center gap-2">
+				<GroupLabel>Alvo</GroupLabel>
+				<TargetMenu
+					icon={Sparkles}
+					label="Skills"
+					items={skillList}
+					loading={skillsLoading}
+					empty="Nenhuma skill com invocação rápida — ligue em Aparência da skill"
+					slash
+					onSelect={(skill) => selectTarget({ kind: "skill", skill })}
+				/>
+				<TargetMenu
+					icon={Bot}
+					label="Agent"
+					items={taskAgents}
+					loading={agentsLoading}
+					empty="Nenhum agent encontrado"
+					onSelect={(agent) => selectTarget({ kind: "agent", agent })}
+				/>
+				{selection ? <SelectedChip selection={selection} onClear={clearTarget} /> : null}
+
+				<div className="ml-auto">
+					<Tooltip
+						label={
+							projectName ? "Invocar numa nova aba do terminal" : "Selecione um projeto em foco"
+						}
+						triggerClassName="inline-flex shrink-0"
+					>
+						<Button size="sm" disabled={!canInvoke} onClick={handleInvoke}>
+							<Play size={14} />
+							Invocar{selection ? ` ${selection.kind}` : ""}
+						</Button>
+					</Tooltip>
+				</div>
+			</div>
+
+			<div className="h-px bg-border" aria-hidden />
+
+			{/* Toggles: o que viaja junto com a invocação. Anexar (rota/input) e Sessão (aba/background)
+			    em blocos próprios, cada um com seu rótulo. */}
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
 				<ToggleGroup label="Anexar">
 					<ToggleBox
@@ -161,9 +232,11 @@ export function InvokePanel({
 						onChange={(v) => patchInvoke({ background: v })}
 					/>
 				</ToggleGroup>
+			</div>
 
-				<div className="h-5 w-px bg-border" aria-hidden />
-
+			{/* Selects da sessão claude juntos: modelo, esforço e permissão. */}
+			<div className="flex flex-wrap items-center gap-2">
+				<GroupLabel>Sessão claude</GroupLabel>
 				<MiniSelect
 					icon={Cpu}
 					value={invoke.model}
@@ -182,26 +255,6 @@ export function InvokePanel({
 					onChange={(v) => patchInvoke({ permissionMode: v as InvokePermissionMode })}
 					options={INVOKE_PERMISSION_OPTIONS}
 				/>
-
-				<div className="ml-auto flex items-center gap-2">
-					<TargetPicker
-						selection={selection}
-						onSelect={setSelection}
-						onClear={() => setSelection(null)}
-						projectName={projectName}
-					/>
-					<Tooltip
-						label={
-							projectName ? "Invocar numa nova aba do terminal" : "Selecione um projeto em foco"
-						}
-						triggerClassName="inline-flex shrink-0"
-					>
-						<Button size="sm" disabled={!canInvoke} onClick={handleInvoke}>
-							<Play size={14} />
-							Invocar{selection ? ` ${selection.kind}` : ""}
-						</Button>
-					</Tooltip>
-				</div>
 			</div>
 
 			<CommandPreview command={preview} hasTarget={!!selection} />
@@ -209,12 +262,18 @@ export function InvokePanel({
 	);
 }
 
+function GroupLabel({ children }: { children: React.ReactNode }) {
+	return (
+		<span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/60">
+			{children}
+		</span>
+	);
+}
+
 function ToggleGroup({ label, children }: { label: string; children: React.ReactNode }) {
 	return (
 		<div className="flex items-center gap-2">
-			<span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/60">
-				{label}
-			</span>
+			<GroupLabel>{label}</GroupLabel>
 			{children}
 		</div>
 	);
@@ -262,25 +321,65 @@ function MiniSelect({
 	icon: typeof Cpu;
 	value: string;
 	onChange: (value: string) => void;
-	options: { value: string; label: string; hint: string }[];
+	options: InvokeOption[];
 }) {
-	const active = options.find((option) => option.value === value);
+	const items = reflectValue(options, value).map((option) => ({
+		id: option.value,
+		label: option.label,
+		hint: option.hint,
+	}));
+	const active = items.find((option) => option.id === value);
+
 	return (
-		<Select value={value} onValueChange={onChange}>
-			<Tooltip label={active?.hint ?? ""}>
-				<SelectTrigger className="h-7 w-auto gap-1 px-2 text-xs">
-					<Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-					<SelectValue />
-				</SelectTrigger>
+		<Tooltip label={active?.hint ?? ""}>
+			<CustomSelect
+				items={items}
+				value={value}
+				onValueChange={(next) => onChange(next)}
+				size="sm"
+				fitContent
+				triggerClassName="gap-1.5 px-2"
+				renderTrigger={() => (
+					<>
+						<Icon className="size-3.5 shrink-0 text-muted-foreground" />
+						<span className="truncate text-left text-xs">{active?.label ?? ""}</span>
+						<ChevronDown className="size-3.5 shrink-0 opacity-50" />
+					</>
+				)}
+				renderItem={(option) => <span className="text-xs">{option.label}</span>}
+			/>
+		</Tooltip>
+	);
+}
+
+// Chip do alvo ativo: ícone na cor do agent/skill, label e um X pra limpar e escolher outro.
+function SelectedChip({
+	selection,
+	onClear,
+}: {
+	selection: NonNullable<Selection>;
+	onClear: () => void;
+}) {
+	const display = selection.kind === "agent" ? selection.agent : selection.skill;
+	const Icon = selection.kind === "agent" ? Bot : Sparkles;
+	return (
+		<div
+			className="flex h-8 items-center gap-1.5 border border-primary/40 bg-primary/5 pl-2 pr-1 text-sm"
+			style={{ color: display.color }}
+		>
+			<Icon className="h-3.5 w-3.5 shrink-0" />
+			<span className="max-w-32 truncate text-foreground">{display.label}</span>
+			<Tooltip label="Limpar alvo">
+				<button
+					type="button"
+					aria-label="Limpar alvo"
+					onClick={onClear}
+					className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+				>
+					<X className="h-3.5 w-3.5" />
+				</button>
 			</Tooltip>
-			<SelectContent>
-				{options.map((option) => (
-					<SelectItem key={option.value} value={option.value} className="text-xs">
-						{option.label}
-					</SelectItem>
-				))}
-			</SelectContent>
-		</Select>
+		</div>
 	);
 }
 
@@ -296,7 +395,7 @@ function CommandPreview({ command, hasTarget }: { command: string | null; hasTar
 	}
 
 	return (
-		<div className="mt-2 flex items-center gap-2 border border-dashed border-border bg-muted/20 px-2 py-1">
+		<div className="flex items-center gap-2 border border-dashed border-border bg-muted/20 px-2 py-1">
 			<span className="shrink-0 select-none font-mono text-[11px] text-muted-foreground/50">
 				{hasTarget ? "$" : "›"}
 			</span>
@@ -322,59 +421,31 @@ function CommandPreview({ command, hasTarget }: { command: string | null; hasTar
 	);
 }
 
-// Picker combinado: um Popover com abas Agent | Skill, busca e lista. Selecionar fecha e fixa o alvo;
-// o chip mostra o que está ativo com um X pra trocar.
-function TargetPicker({
-	selection,
+// Botão-picker de alvo: abre um popover com busca e lista. Genérico sobre agent/skill — ambos têm
+// slug/label/description/icon/color. Selecionar fecha e devolve o item inteiro ao chamador.
+function TargetMenu<T extends TargetEntry>({
+	icon: Icon,
+	label,
+	items,
+	loading,
+	empty,
+	slash,
 	onSelect,
-	onClear,
-	projectName,
 }: {
-	selection: Selection;
-	onSelect: (selection: Selection) => void;
-	onClear: () => void;
-	projectName?: string;
+	icon: typeof Bot;
+	label: string;
+	items: T[];
+	loading: boolean;
+	empty: string;
+	slash?: boolean;
+	onSelect: (item: T) => void;
 }) {
 	const [open, setOpen] = useState(false);
-	const [kind, setKind] = useState<"agent" | "skill">("agent");
 	const [query, setQuery] = useState("");
 	const inputRef = useRef<HTMLInputElement>(null);
 
-	const { taskAgents, isLoading: agentsLoading } = useAgentsQuery();
-	const { taskSkills, isLoading: skillsLoading } = useSkillsQuery(projectName);
-
 	const term = query.trim().toLowerCase();
-	const agentList = taskAgents.filter((agent) => matches(agent, term));
-	const skillList = taskSkills.filter((skill) => skill.quickInvoke && matches(skill, term));
-
-	function switchKind(next: "agent" | "skill") {
-		setKind(next);
-		setQuery("");
-	}
-
-	if (selection) {
-		const display = selection.kind === "agent" ? selection.agent : selection.skill;
-		const Icon = selection.kind === "agent" ? Bot : Sparkles;
-		return (
-			<div
-				className="flex h-8 items-center gap-1.5 border border-primary/40 bg-primary/5 pl-2 pr-1 text-sm"
-				style={{ color: display.color }}
-			>
-				<Icon className="h-3.5 w-3.5 shrink-0" />
-				<span className="max-w-32 truncate text-foreground">{display.label}</span>
-				<Tooltip label="Trocar alvo">
-					<button
-						type="button"
-						aria-label="Limpar alvo"
-						onClick={onClear}
-						className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-					>
-						<X className="h-3.5 w-3.5" />
-					</button>
-				</Tooltip>
-			</div>
-		);
-	}
+	const list = items.filter((item) => matches(item, term));
 
 	return (
 		<Popover
@@ -391,12 +462,12 @@ function TargetPicker({
 					type="button"
 					className="flex h-8 items-center gap-1.5 border border-input bg-card px-2.5 text-sm text-muted-foreground transition-colors hover:border-muted-foreground hover:text-foreground"
 				>
-					<Target className="h-3.5 w-3.5" />
-					Escolher alvo
+					<Icon className="h-3.5 w-3.5" />
+					{label}
 				</button>
 			</PopoverTrigger>
 			<PopoverContent
-				align="end"
+				align="start"
 				side="top"
 				className="w-72 p-0"
 				onOpenAutoFocus={(event) => {
@@ -404,59 +475,26 @@ function TargetPicker({
 					inputRef.current?.focus();
 				}}
 			>
-				<div className="flex border-b border-border">
-					<TargetTab
-						icon={Bot}
-						label="Agents"
-						active={kind === "agent"}
-						onClick={() => switchKind("agent")}
-					/>
-					<TargetTab
-						icon={Sparkles}
-						label="Skills"
-						active={kind === "skill"}
-						onClick={() => switchKind("skill")}
-					/>
-				</div>
 				<div className="border-b border-border p-2">
 					<Input
 						ref={inputRef}
 						value={query}
 						onChange={(event) => setQuery(event.target.value)}
-						placeholder={`Buscar ${kind === "agent" ? "agent" : "skill"}...`}
+						placeholder={`Buscar ${label.toLowerCase()}...`}
 						className="h-8"
 					/>
 				</div>
 				<div className="max-h-64 overflow-y-auto p-1">
-					{kind === "agent" ? (
-						agentList.length === 0 ? (
-							<EmptyRow>{agentsLoading ? "Carregando..." : "Nenhum agent encontrado"}</EmptyRow>
-						) : (
-							agentList.map((agent) => (
-								<TargetRow
-									key={agent.slug}
-									entry={agent}
-									onSelect={() => {
-										onSelect({ kind: "agent", agent });
-										setOpen(false);
-									}}
-								/>
-							))
-						)
-					) : skillList.length === 0 ? (
-						<EmptyRow>
-							{skillsLoading
-								? "Carregando..."
-								: "Nenhuma skill com invocação rápida — ligue em Aparência da skill"}
-						</EmptyRow>
+					{list.length === 0 ? (
+						<EmptyRow>{loading ? "Carregando..." : empty}</EmptyRow>
 					) : (
-						skillList.map((skill) => (
+						list.map((item) => (
 							<TargetRow
-								key={skill.slug}
-								entry={skill}
-								slash
+								key={item.slug}
+								entry={item}
+								slash={slash}
 								onSelect={() => {
-									onSelect({ kind: "skill", skill });
+									onSelect(item);
 									setOpen(false);
 								}}
 							/>
@@ -479,7 +517,7 @@ function TargetRow({
 	slash,
 	onSelect,
 }: {
-	entry: { slug: string; label: string; description: string; icon: string; color: string };
+	entry: TargetEntry;
 	slash?: boolean;
 	onSelect: () => void;
 }) {
@@ -501,34 +539,6 @@ function TargetRow({
 				</div>
 				<div className="truncate text-xs text-muted-foreground">{entry.description}</div>
 			</div>
-		</button>
-	);
-}
-
-function TargetTab({
-	icon: Icon,
-	label,
-	active,
-	onClick,
-}: {
-	icon: typeof Bot;
-	label: string;
-	active: boolean;
-	onClick: () => void;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={cn(
-				"flex flex-1 items-center justify-center gap-1.5 py-2 text-xs transition-colors",
-				active
-					? "border-b-2 border-primary text-foreground"
-					: "border-b-2 border-transparent text-muted-foreground hover:text-foreground",
-			)}
-		>
-			<Icon className="h-3.5 w-3.5" />
-			{label}
 		</button>
 	);
 }
