@@ -114,6 +114,7 @@ export type OpenTerminalParams = {
 	agent?: string;
 	model?: string;
 	effort?: string;
+	permissionMode?: string;
 	forceNew?: boolean;
 	background?: boolean;
 };

@@ -136,10 +136,12 @@ export async function executeInTerminal(
 		agent?: string;
 		model?: string;
 		effort?: string;
+		permissionMode?: string;
 		forceNew?: boolean;
+		background?: boolean;
 	} = {},
 ): Promise<TerminalResult> {
-	const { showToast = true, agent, model, effort, forceNew } = options;
+	const { showToast = true, agent, model, effort, permissionMode, forceNew, background } = options;
 
 	if (!isTauri()) {
 		console.log("=".repeat(60));
@@ -163,7 +165,9 @@ export async function executeInTerminal(
 			agent,
 			model,
 			effort,
+			permissionMode,
 			forceNew,
+			background,
 		});
 
 		if (!result) {

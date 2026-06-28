@@ -408,6 +408,7 @@ pub fn open_terminal_for_task(
     agent: Option<String>,
     model: Option<String>,
     effort: Option<String>,
+    permission_mode: Option<String>,
     force_new: Option<bool>,
     background: Option<bool>,
 ) -> Result<OpenTerminalResult, String> {
@@ -481,7 +482,16 @@ pub fn open_terminal_for_task(
             .replace('$', "\\$")
             .replace('`', "\\`");
 
-        let mut command = String::from("claude --dangerously-skip-permissions");
+        // Allowlist literal: nada do frontend é interpolado no comando — só estes modos conhecidos do
+        // `claude` viram `--permission-mode`. `bypass`/ausente/qualquer valor estranho cai no atalho de
+        // sempre (os dois flags são mutuamente exclusivos no `claude`).
+        let mut command = String::from("claude");
+        match permission_mode.as_deref() {
+            Some("plan") => command.push_str(" --permission-mode plan"),
+            Some("acceptEdits") => command.push_str(" --permission-mode acceptEdits"),
+            Some("default") => command.push_str(" --permission-mode default"),
+            _ => command.push_str(" --dangerously-skip-permissions"),
+        }
 
         if let Some(agent_name) = agent.as_deref() {
             command.push_str(&format!(" --agent {}", agent_name));
