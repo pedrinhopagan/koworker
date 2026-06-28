@@ -44,34 +44,17 @@ export type SkillStringField = {
 	label: string;
 	placeholder: string;
 	help: string;
-	// Radio de valores fixos. `clearOn` é o valor que representa "padrão/herdar" e, ao ser escolhido,
-	// limpa a chave do arquivo (mantém o frontmatter enxuto, igual ao toggle dos booleanos).
-	options?: string[];
-	clearOn?: string;
 };
 
-// Valores que o "invocar skill" encaminha como flags de sessão ao `claude` (--model/--effort).
-// Fonte única: alimentam o radio do editor e a validação do invoke. `inherit`/ausente/qualquer
-// outra coisa no frontmatter → flag omitida.
+// Valores conhecidos de model/effort que uma skill pode declarar. Fonte única: alimentam as options
+// do controle dedicado de padrões (cabeçalho) e do select do painel de invocação. A fronteira do
+// invoke não valida mais: só ausência/`inherit` omite a flag — qualquer outra string (ex.: um ID de
+// modelo completo) vira `--model`/`--effort` literal. Por isso `model`/`effort` ficam fora de
+// SKILL_STRING_FIELDS: são editados no controle dedicado, não no popover genérico de metadados.
 export const SKILL_MODEL_VALUES = ["opus", "sonnet", "haiku"] as const;
 export const SKILL_EFFORT_VALUES = ["low", "medium", "high", "xhigh", "max"] as const;
 
 export const SKILL_STRING_FIELDS: SkillStringField[] = [
-	{
-		key: "model",
-		label: "Modelo",
-		placeholder: "inherit · opus · sonnet · haiku",
-		help: "Modelo que roda a skill. Aceita os mesmos valores do /model (aliases ou ID completo); 'inherit' mantém o modelo da sessão.",
-		options: ["inherit", ...SKILL_MODEL_VALUES],
-		clearOn: "inherit",
-	},
-	{
-		key: "effort",
-		label: "Esforço",
-		placeholder: "low · medium · high · xhigh · max",
-		help: "Nível de raciocínio do modelo ao executar a skill. Os níveis disponíveis dependem do modelo. Em branco herda o esforço da sessão.",
-		options: [...SKILL_EFFORT_VALUES],
-	},
 	{
 		key: "when_to_use",
 		label: "Quando usar",
@@ -137,6 +120,9 @@ export const SKILL_STRING_FIELDS: SkillStringField[] = [
 export const SKILL_KNOWN_METADATA_KEYS = new Set<string>([
 	...SKILL_BOOLEAN_FIELDS.map((field) => field.key),
 	...SKILL_STRING_FIELDS.map((field) => field.key),
+	// Editados no controle dedicado de padrões (cabeçalho), fora do popover genérico.
+	"model",
+	"effort",
 	// Já editados em outros lugares (aparência) — fora do editor de metadados.
 	"icon",
 	"color",

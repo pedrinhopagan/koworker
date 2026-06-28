@@ -8,7 +8,17 @@ export const INVOKE_INHERIT = "inherit";
 // os demais viram `--permission-mode <x>`. Ordem = ordem no select.
 export type InvokePermissionMode = "bypass" | "plan" | "acceptEdits" | "default";
 
-type Option = { value: string; label: string; hint: string };
+export type InvokeOption = { value: string; label: string; hint: string };
+
+// Um value fora das opções conhecidas (ex.: ID de modelo completo herdado do frontmatter) ganha um
+// item extra pra que o select reflita exatamente o que será invocado, em vez de renderizar vazio.
+// Dono único da regra: os dois selects (painel e controle dedicado) passam por aqui.
+export function reflectValue(options: InvokeOption[], value: string): InvokeOption[] {
+	if (options.some((option) => option.value === value)) {
+		return options;
+	}
+	return [...options, { value, label: value, hint: value }];
+}
 
 const MODEL_LABELS: Record<(typeof SKILL_MODEL_VALUES)[number], string> = {
 	opus: "Opus",
@@ -24,7 +34,7 @@ const EFFORT_LABELS: Record<(typeof SKILL_EFFORT_VALUES)[number], string> = {
 	max: "Máximo",
 };
 
-export const INVOKE_MODEL_OPTIONS: Option[] = [
+export const INVOKE_MODEL_OPTIONS: InvokeOption[] = [
 	{ value: INVOKE_INHERIT, label: "Modelo padrão", hint: "herda a sessão / frontmatter" },
 	...SKILL_MODEL_VALUES.map((value) => ({
 		value,
@@ -33,7 +43,7 @@ export const INVOKE_MODEL_OPTIONS: Option[] = [
 	})),
 ];
 
-export const INVOKE_EFFORT_OPTIONS: Option[] = [
+export const INVOKE_EFFORT_OPTIONS: InvokeOption[] = [
 	{ value: INVOKE_INHERIT, label: "Esforço padrão", hint: "herda a sessão / frontmatter" },
 	...SKILL_EFFORT_VALUES.map((value) => ({
 		value,

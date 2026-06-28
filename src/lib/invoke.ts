@@ -1,4 +1,3 @@
-import { SKILL_EFFORT_VALUES, SKILL_MODEL_VALUES } from "@/constants/skills";
 import { INVOKE_INHERIT } from "@/constants/invoke";
 import { buildKoworkerPrompt, flattenPrompt } from "@/lib/build-prompt";
 import { recordPromptHistory } from "@/lib/prompt-history";
@@ -6,11 +5,11 @@ import { executeInTerminal, type ProjectInfo } from "@/lib/terminal";
 import type { InvokeConfig } from "@/stores/prompt-bar";
 
 // O alvo de uma invocação é exatamente um: um agent (roda `/kw` sob `--agent`) ou uma skill (roda
-// `/<slug>` direto). A skill carrega seu frontmatter pra herdar model/effort quando o select está em
-// "padrão".
+// `/<slug>` direto). Model/effort vêm de `config`: o painel pré-seleciona o padrão do alvo ao
+// escolhê-lo, então `INVOKE_INHERIT` aqui já significa "sem flag".
 export type InvokeTarget =
 	| { kind: "agent"; slug: string; label: string }
-	| { kind: "skill"; slug: string; label: string; metadata: Record<string, unknown> };
+	| { kind: "skill"; slug: string; label: string };
 
 // Tudo já resolvido pelo chamador: `routePath` é o caminho `/kw` quando "rota" está ligada (senão
 // null) e `text` é o texto do prompt quando "input" está ligado (senão ""). Assim o builder não
@@ -21,27 +20,6 @@ export type InvokeRequest = {
 	text: string;
 	config: InvokeConfig;
 };
-
-// O frontmatter da skill é texto livre: só herda o que o `claude` aceita como flag.
-function pickFlag(value: unknown, allowed: readonly string[]): string | undefined {
-	return typeof value === "string" && allowed.includes(value) ? value : undefined;
-}
-
-function resolveModel(target: InvokeTarget, config: InvokeConfig): string | undefined {
-	if (config.model !== INVOKE_INHERIT) {
-		return config.model;
-	}
-	return target.kind === "skill" ? pickFlag(target.metadata.model, SKILL_MODEL_VALUES) : undefined;
-}
-
-function resolveEffort(target: InvokeTarget, config: InvokeConfig): string | undefined {
-	if (config.effort !== INVOKE_INHERIT) {
-		return config.effort;
-	}
-	return target.kind === "skill"
-		? pickFlag(target.metadata.effort, SKILL_EFFORT_VALUES)
-		: undefined;
-}
 
 // Prompt sempre em UMA linha: `tmux send-keys` trata quebra como Enter e submeteria o comando cedo —
 // essa é a correção de fundo das invocações. Agent: `/kw <rota> <texto>`; skill: `/<slug> <rota>
@@ -74,8 +52,8 @@ export type InvokePlan = {
 export function planInvocation(request: InvokeRequest): InvokePlan {
 	const { target, config } = request;
 	const prompt = buildPrompt(request);
-	const model = resolveModel(target, config);
-	const effort = resolveEffort(target, config);
+	const model = config.model === INVOKE_INHERIT ? undefined : config.model;
+	const effort = config.effort === INVOKE_INHERIT ? undefined : config.effort;
 
 	const flags =
 		config.permissionMode === "bypass"

@@ -12,9 +12,7 @@ import {
 	type SkillBooleanField,
 	SKILL_KNOWN_METADATA_KEYS,
 	SKILL_STRING_FIELDS,
-	type SkillStringField,
 } from "@/constants/skills";
-import { cn } from "@/lib/utils";
 
 type Metadata = Record<string, unknown>;
 
@@ -80,56 +78,6 @@ function FieldLabel({ label, help }: { label: string; help?: string }) {
 	);
 }
 
-// Radio de valor único pros campos com `options` (modelo, esforço). Reflete o arquivo fielmente:
-// um valor armazenado fora da lista (ex.: ID de modelo completo) vira um segmento extra selecionado.
-// Reclicar o segmento ativo limpa a chave; pro modelo, `clearOn` (inherit) também limpa.
-function RadioField({
-	field,
-	value,
-	onCommit,
-}: {
-	field: SkillStringField;
-	value: string;
-	onCommit: (value: string) => void;
-}) {
-	const options = field.options ?? [];
-	const extra = value && !options.includes(value) ? value : null;
-	const segments = extra ? [...options, extra] : options;
-
-	const isSelected = (option: string) => {
-		if (value) return option === value;
-		return option === field.clearOn;
-	};
-
-	const select = (option: string) => {
-		if (option === value || option === field.clearOn) onCommit("");
-		else onCommit(option);
-	};
-
-	return (
-		<div className="flex flex-col gap-1.5">
-			<FieldLabel label={field.label} help={field.help} />
-			<div className="flex flex-wrap gap-1">
-				{segments.map((option) => (
-					<button
-						key={option}
-						type="button"
-						onClick={() => select(option)}
-						className={cn(
-							"rounded border px-2 py-0.5 text-xs transition-colors",
-							isSelected(option)
-								? "border-primary bg-primary/10 text-foreground"
-								: "border-border text-muted-foreground hover:bg-secondary",
-						)}
-					>
-						{option}
-					</button>
-				))}
-			</div>
-		</div>
-	);
-}
-
 function StringField({
 	label,
 	placeholder,
@@ -169,8 +117,9 @@ function Divider() {
 }
 
 // Editor de metadados do frontmatter, todo dentro de um popover (gatilho ao lado de "Aparência").
-// Switches dos booleanos (condicionais de invocação), radios pra modelo/esforço e campos de texto
-// com mini-guia pro resto. Cada mudança grava direto no arquivo da variante ativa via `onChange`.
+// Switches dos booleanos (condicionais de invocação) e campos de texto com mini-guia pro resto.
+// Modelo e esforço ficam no controle dedicado do cabeçalho, fora daqui. Cada mudança grava direto no
+// arquivo da variante ativa via `onChange`.
 export function SkillMetadataControls({
 	metadata,
 	onChange,
@@ -180,8 +129,6 @@ export function SkillMetadataControls({
 }) {
 	const extraBools = extraKeys(metadata, "bool");
 	const extraStrings = extraKeys(metadata, "string");
-	const selectFields = SKILL_STRING_FIELDS.filter((field) => field.options);
-	const textFields = SKILL_STRING_FIELDS.filter((field) => !field.options);
 
 	return (
 		<Popover>
@@ -230,18 +177,7 @@ export function SkillMetadataControls({
 
 					<Divider />
 
-					{selectFields.map((field) => (
-						<RadioField
-							key={field.key}
-							field={field}
-							value={readStr(metadata[field.key])}
-							onCommit={(value) => onChange(setString(metadata, field.key, value))}
-						/>
-					))}
-
-					<Divider />
-
-					{textFields.map((field) => (
+					{SKILL_STRING_FIELDS.map((field) => (
 						<StringField
 							key={field.key}
 							label={field.label}

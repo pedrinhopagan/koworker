@@ -15,6 +15,7 @@ import { toast } from "sonner";
 
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
 import { DocToolbar } from "@/components/doc-toolbar";
+import { InvokeDefaultsControl } from "@/components/invoke-defaults-control";
 import { TaskTitleInput } from "@/components/tasks/task-meta-controls";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
@@ -318,6 +319,7 @@ function AgentEditor({
 								)}
 							</div>
 
+							<InvokeDefaultsControl metadata={metadata} onChange={changeMetadata} />
 							<AgentMetadataControls metadata={metadata} onChange={changeMetadata} />
 							{project && !isGlobal && !alreadyInProject && (
 								<Button

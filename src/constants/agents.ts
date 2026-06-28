@@ -21,18 +21,14 @@ export type AgentBooleanField = {
 
 export const AGENT_BOOLEAN_FIELDS: AgentBooleanField[] = [];
 
-// Metadados de texto do frontmatter do agent. `help` é o mini-guia (info no hover); `options`, quando
-// presente, troca o campo de texto por um radio de escolha única. Listas (`tools`) são aceitas como
-// string separada por vírgula pelo próprio agente.
+// Metadados de texto do frontmatter do agent. `help` é o mini-guia (info no hover). Listas (`tools`)
+// são aceitas como string separada por vírgula pelo próprio agente. `model`/`effort` ficam fora daqui:
+// são editados no controle dedicado de padrões (cabeçalho), não no popover genérico.
 export type AgentStringField = {
 	key: string;
 	label: string;
 	placeholder: string;
 	help: string;
-	// Radio de valores fixos. `clearOn` é o valor que representa "padrão/herdar" e, ao ser escolhido,
-	// limpa a chave do arquivo (mantém o frontmatter enxuto).
-	options?: string[];
-	clearOn?: string;
 };
 
 export const AGENT_STRING_FIELDS: AgentStringField[] = [
@@ -42,19 +38,14 @@ export const AGENT_STRING_FIELDS: AgentStringField[] = [
 		placeholder: "Bash, Read, Edit",
 		help: "Ferramentas que o agent pode usar (lista separada por vírgula). Em branco, herda todas — fronteira implícita.",
 	},
-	{
-		key: "model",
-		label: "Modelo",
-		placeholder: "inherit · opus · sonnet · haiku",
-		help: "Modelo que roda o agent. Aceita os mesmos valores do /model (aliases ou ID completo); 'inherit' mantém o modelo da sessão.",
-		options: ["inherit", "opus", "sonnet", "haiku"],
-		clearOn: "inherit",
-	},
 ];
 
 export const AGENT_KNOWN_METADATA_KEYS = new Set<string>([
 	...AGENT_BOOLEAN_FIELDS.map((field) => field.key),
 	...AGENT_STRING_FIELDS.map((field) => field.key),
+	// Editados no controle dedicado de padrões (cabeçalho), fora do popover genérico.
+	"model",
+	"effort",
 	// Já editados em outros lugares (aparência) — fora do editor de metadados.
 	"icon",
 	"color",
