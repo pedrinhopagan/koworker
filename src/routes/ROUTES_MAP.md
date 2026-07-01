@@ -35,7 +35,7 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
 | `src/routes/_app/projetos/novo/index.tsx` | `/_app/projetos/novo/` | `/projetos/novo` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/projetos/$projetoId/index.tsx` | `/_app/projetos/$projetoId/` | `/projetos/$projetoId` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/agenda/index.tsx` | `/_app/agenda/` | `/agenda` | `__root` + `AppShell` + `AgendaDndWrapper` + `PageShell` |
-| `src/routes/_app/fontes-skills.tsx` | `/_app/fontes-skills` | `/fontes-skills` | `__root` + `AppShell` + `PageShell` (subpágina de `/configuracoes`) |
+| `src/routes/_app/sistema.tsx` | `/_app/sistema` | `/sistema` | `__root` + `AppShell` + `PageShell` (subpágina de `/configuracoes`) |
 | `src/routes/_app/skills/index.tsx` | `/_app/skills/` | `/skills` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/skills/$slug/index.tsx` | `/_app/skills/$slug/` | `/skills/$slug` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
 | `src/routes/_app/configuracoes.tsx` | `/_app/configuracoes` | `/configuracoes` | `__root` + `AppShell` + `PageShell` |

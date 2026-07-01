@@ -3,9 +3,9 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readSkillFile, type SkillFile, writeSkillFile } from "@/lib/skills/parser";
-import { envVariables } from "../config/env";
 import { dbAgentSourcePaths } from "../db/agent-source-paths";
 import { dbProjects } from "../db/projects";
+import { getSystemSettings } from "./system-settings";
 
 export type AgentTool = "claude-code" | "opencode" | "codex" | "koworker";
 export type AgentScope = "global" | "project" | "custom";
@@ -52,19 +52,13 @@ export type AgentFsRecordDetailed = AgentFsRecord & { variants: AgentVariant[] }
 const home = homedir();
 const helpersDir = dirname(fileURLToPath(import.meta.url));
 const STATIC_AGENTS_PATH = resolve(helpersDir, "../../../static/agents");
-const PROJECTS_BASE_PATH = envVariables.PROJECTS_BASE_PATH ?? join(home, "Projects");
 
 // Onde agents criados pela UI são gravados: o diretório global do claude-code.
 const CREATE_ROOT = join(home, ".claude/agents");
 
-// Ordem define prioridade de conteúdo: o primeiro root que contém o slug é o
-// dono do conteúdo exibido e do arquivo editável. Globais sempre antes de projeto.
-const GLOBAL_ROOTS: AgentRoot[] = [
-	{ tool: "claude-code", scope: "global", path: CREATE_ROOT },
-	{ tool: "opencode", scope: "global", path: join(home, ".config/opencode/agent") },
-	{ tool: "codex", scope: "global", path: join(home, ".codex/agents") },
-	{ tool: "koworker", scope: "global", path: STATIC_AGENTS_PATH },
-];
+// Static interno do koworker, resolvido relativo ao módulo (não é caminho do usuário). Menor
+// prioridade de conteúdo: depois dos source_paths, antes dos projetos.
+const KOWORKER_ROOT: AgentRoot = { tool: "koworker", scope: "global", path: STATIC_AGENTS_PATH };
 
 // Roots de TODOS os projetos, não só do focado: os agents aparecem sempre, em qualquer projeto. O
 // diretório de cada um vem do `main_route` que ele guarda (moram em caminhos arbitrários), não de
@@ -78,23 +72,33 @@ async function allProjectRoots(): Promise<AgentRoot[]> {
 	]);
 }
 
-// Caminhos extras cadastrados pelo usuário, somados entre os globais e os de projeto.
-async function customRoots(): Promise<AgentRoot[]> {
+// Roots vindos da tabela: os defaults por plataforma (scope 'global', semeados na primeira execução)
+// e os extras do usuário (scope 'custom'), na ordem de cadastro. Essa ordem é a prioridade de
+// conteúdo: o primeiro root que contém o slug é o dono do conteúdo exibido e do arquivo editável.
+async function sourcePathRoots(): Promise<AgentRoot[]> {
 	const rows = await dbAgentSourcePaths.list();
-	return rows.map((row) => ({ tool: row.tool as AgentTool, scope: "custom", path: row.path }));
+	return rows.map((row) => ({
+		tool: row.tool as AgentTool,
+		scope: row.scope as AgentScope,
+		path: row.path,
+	}));
 }
 
 async function buildRoots(): Promise<AgentRoot[]> {
-	return [...GLOBAL_ROOTS, ...(await customRoots()), ...(await allProjectRoots())];
+	return [...(await sourcePathRoots()), KOWORKER_ROOT, ...(await allProjectRoots())];
 }
-
-const ALLOWED_PREFIXES = [home, STATIC_AGENTS_PATH, PROJECTS_BASE_PATH];
 
 async function assertAllowedPath(target: string) {
 	const resolved = resolve(target);
-	const [rows, projects] = await Promise.all([dbAgentSourcePaths.list(), dbProjects.listRoots()]);
+	const [rows, projects, settings] = await Promise.all([
+		dbAgentSourcePaths.list(),
+		dbProjects.listRoots(),
+		getSystemSettings(),
+	]);
 	const prefixes = [
-		...ALLOWED_PREFIXES,
+		home,
+		STATIC_AGENTS_PATH,
+		settings.projectsBasePath,
 		...rows.map((row) => row.path),
 		...projects.map((project) => project.main_route),
 	];

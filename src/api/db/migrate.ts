@@ -340,5 +340,17 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		}
 	}
 
+	// agent_source_paths / skill_source_paths: os roots default de agents/skills deixaram de ser
+	// constantes no código e viraram linhas semeadas (scope 'global'); os cadastrados pelo usuário
+	// ficam 'custom'. A coluna nova em bancos já existentes nasce 'custom' (todas as linhas antigas
+	// eram cadastradas à mão). ALTER do SQLite não anexa default a linhas futuras via CREATE, mas o
+	// DEFAULT cobre inserts que omitem a coluna. A semente em si roda no boot do backend
+	// (ensureDefaultSettings), não aqui.
+	for (const table of ["agent_source_paths", "skill_source_paths"]) {
+		if (!hasColumn(tableInfo(sqlite, table), "scope")) {
+			ensureColumn(sqlite, table, "scope TEXT NOT NULL DEFAULT 'custom'");
+		}
+	}
+
 	sqlite.close();
 }

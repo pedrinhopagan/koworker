@@ -3,9 +3,9 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readSkillFile, type SkillFile, writeSkillFile } from "@/lib/skills/parser";
-import { envVariables } from "../config/env";
 import { dbProjects } from "../db/projects";
 import { dbSkillSourcePaths } from "../db/skill-source-paths";
+import { getSystemSettings } from "./system-settings";
 
 export type SkillTool = "opencode" | "claude-code" | "codex" | "agents" | "koworker";
 export type SkillScope = "global" | "project" | "custom";
@@ -52,20 +52,13 @@ export type SkillFsRecordDetailed = SkillFsRecord & { variants: SkillVariant[] }
 const home = homedir();
 const helpersDir = dirname(fileURLToPath(import.meta.url));
 const STATIC_SKILLS_PATH = resolve(helpersDir, "../../../static/skills");
-const PROJECTS_BASE_PATH = envVariables.PROJECTS_BASE_PATH ?? join(home, "Projects");
 
 // Onde skills criadas pela UI são gravadas: o diretório global do opencode.
 const CREATE_ROOT = join(home, ".config/opencode/skills");
 
-// Ordem define prioridade de conteúdo: o primeiro root que contém o slug é o
-// dono do conteúdo exibido e do arquivo editável. Globais sempre antes de projeto.
-const GLOBAL_ROOTS: SkillRoot[] = [
-	{ tool: "opencode", scope: "global", path: CREATE_ROOT },
-	{ tool: "claude-code", scope: "global", path: join(home, ".claude/skills") },
-	{ tool: "codex", scope: "global", path: join(home, ".codex/skills") },
-	{ tool: "agents", scope: "global", path: join(home, ".agents/skills") },
-	{ tool: "koworker", scope: "global", path: STATIC_SKILLS_PATH },
-];
+// Static interno do koworker, resolvido relativo ao módulo (não é caminho do usuário). Menor
+// prioridade de conteúdo: depois dos source_paths, antes dos projetos.
+const KOWORKER_ROOT: SkillRoot = { tool: "koworker", scope: "global", path: STATIC_SKILLS_PATH };
 
 // O diretório do projeto vem do `main_route` que ele mesmo guarda, não de `BASE/<nome>`: os projetos
 // moram em caminhos arbitrários (vários fora de ~/Projects), então adivinhar a partir do nome erra.
@@ -81,24 +74,34 @@ async function projectRoots(projectName: string): Promise<SkillRoot[]> {
 	];
 }
 
-// Caminhos extras cadastrados pelo usuário, somados entre os globais e os de projeto.
-async function customRoots(): Promise<SkillRoot[]> {
+// Roots vindos da tabela: os defaults por plataforma (scope 'global', semeados na primeira execução)
+// e os extras do usuário (scope 'custom'), na ordem de cadastro. Essa ordem é a prioridade de
+// conteúdo: o primeiro root que contém o slug é o dono do conteúdo exibido e do arquivo editável.
+async function sourcePathRoots(): Promise<SkillRoot[]> {
 	const rows = await dbSkillSourcePaths.list();
-	return rows.map((row) => ({ tool: row.tool as SkillTool, scope: "custom", path: row.path }));
+	return rows.map((row) => ({
+		tool: row.tool as SkillTool,
+		scope: row.scope as SkillScope,
+		path: row.path,
+	}));
 }
 
 async function buildRoots(projectName?: string): Promise<SkillRoot[]> {
-	const base = [...GLOBAL_ROOTS, ...(await customRoots())];
+	const base = [...(await sourcePathRoots()), KOWORKER_ROOT];
 	return projectName ? [...base, ...(await projectRoots(projectName))] : base;
 }
 
-const ALLOWED_PREFIXES = [home, STATIC_SKILLS_PATH, PROJECTS_BASE_PATH];
-
 async function assertAllowedPath(target: string) {
 	const resolved = resolve(target);
-	const [rows, projects] = await Promise.all([dbSkillSourcePaths.list(), dbProjects.listRoots()]);
+	const [rows, projects, settings] = await Promise.all([
+		dbSkillSourcePaths.list(),
+		dbProjects.listRoots(),
+		getSystemSettings(),
+	]);
 	const prefixes = [
-		...ALLOWED_PREFIXES,
+		home,
+		STATIC_SKILLS_PATH,
+		settings.projectsBasePath,
 		...rows.map((row) => row.path),
 		...projects.map((project) => project.main_route),
 	];

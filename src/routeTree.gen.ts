@@ -12,8 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
-import { Route as AppFontesSkillsRouteImport } from './routes/_app/fontes-skills'
-import { Route as AppFontesAgentsRouteImport } from './routes/_app/fontes-agents'
+import { Route as AppSistemaRouteImport } from './routes/_app/sistema'
 import { Route as AppFontesRouteImport } from './routes/_app/fontes'
 import { Route as AppConfiguracoesRouteImport } from './routes/_app/configuracoes'
 import { Route as AppVaultIndexRouteImport } from './routes/_app/vault/index'
@@ -45,14 +44,9 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppFontesSkillsRoute = AppFontesSkillsRouteImport.update({
-  id: '/fontes-skills',
-  path: '/fontes-skills',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppFontesAgentsRoute = AppFontesAgentsRouteImport.update({
-  id: '/fontes-agents',
-  path: '/fontes-agents',
+const AppSistemaRoute = AppSistemaRouteImport.update({
+  id: '/sistema',
+  path: '/sistema',
   getParentRoute: () => AppRoute,
 } as any)
 const AppFontesRoute = AppFontesRouteImport.update({
@@ -143,8 +137,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
   '/fontes': typeof AppFontesRoute
-  '/fontes-agents': typeof AppFontesAgentsRoute
-  '/fontes-skills': typeof AppFontesSkillsRoute
+  '/sistema': typeof AppSistemaRoute
   '/agenda/': typeof AppAgendaIndexRoute
   '/agents/': typeof AppAgentsIndexRoute
   '/projetos/': typeof AppProjetosIndexRoute
@@ -164,8 +157,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
   '/fontes': typeof AppFontesRoute
-  '/fontes-agents': typeof AppFontesAgentsRoute
-  '/fontes-skills': typeof AppFontesSkillsRoute
+  '/sistema': typeof AppSistemaRoute
   '/': typeof AppIndexRoute
   '/agenda': typeof AppAgendaIndexRoute
   '/agents': typeof AppAgentsIndexRoute
@@ -188,8 +180,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_app/configuracoes': typeof AppConfiguracoesRoute
   '/_app/fontes': typeof AppFontesRoute
-  '/_app/fontes-agents': typeof AppFontesAgentsRoute
-  '/_app/fontes-skills': typeof AppFontesSkillsRoute
+  '/_app/sistema': typeof AppSistemaRoute
   '/_app/': typeof AppIndexRoute
   '/_app/agenda/': typeof AppAgendaIndexRoute
   '/_app/agents/': typeof AppAgentsIndexRoute
@@ -213,8 +204,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/configuracoes'
     | '/fontes'
-    | '/fontes-agents'
-    | '/fontes-skills'
+    | '/sistema'
     | '/agenda/'
     | '/agents/'
     | '/projetos/'
@@ -234,8 +224,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/configuracoes'
     | '/fontes'
-    | '/fontes-agents'
-    | '/fontes-skills'
+    | '/sistema'
     | '/'
     | '/agenda'
     | '/agents'
@@ -257,8 +246,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/_app/configuracoes'
     | '/_app/fontes'
-    | '/_app/fontes-agents'
-    | '/_app/fontes-skills'
+    | '/_app/sistema'
     | '/_app/'
     | '/_app/agenda/'
     | '/_app/agents/'
@@ -304,18 +292,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/fontes-skills': {
-      id: '/_app/fontes-skills'
-      path: '/fontes-skills'
-      fullPath: '/fontes-skills'
-      preLoaderRoute: typeof AppFontesSkillsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/fontes-agents': {
-      id: '/_app/fontes-agents'
-      path: '/fontes-agents'
-      fullPath: '/fontes-agents'
-      preLoaderRoute: typeof AppFontesAgentsRouteImport
+    '/_app/sistema': {
+      id: '/_app/sistema'
+      path: '/sistema'
+      fullPath: '/sistema'
+      preLoaderRoute: typeof AppSistemaRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/fontes': {
@@ -436,8 +417,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppConfiguracoesRoute: typeof AppConfiguracoesRoute
   AppFontesRoute: typeof AppFontesRoute
-  AppFontesAgentsRoute: typeof AppFontesAgentsRoute
-  AppFontesSkillsRoute: typeof AppFontesSkillsRoute
+  AppSistemaRoute: typeof AppSistemaRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAgendaIndexRoute: typeof AppAgendaIndexRoute
   AppAgentsIndexRoute: typeof AppAgentsIndexRoute
@@ -458,8 +438,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppConfiguracoesRoute: AppConfiguracoesRoute,
   AppFontesRoute: AppFontesRoute,
-  AppFontesAgentsRoute: AppFontesAgentsRoute,
-  AppFontesSkillsRoute: AppFontesSkillsRoute,
+  AppSistemaRoute: AppSistemaRoute,
   AppIndexRoute: AppIndexRoute,
   AppAgendaIndexRoute: AppAgendaIndexRoute,
   AppAgentsIndexRoute: AppAgentsIndexRoute,

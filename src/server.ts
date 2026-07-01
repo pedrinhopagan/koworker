@@ -52,6 +52,10 @@ await DbUsers.ensureDefaultUser();
 const { ensureDbSchema } = await import("./api/db/migrate");
 ensureDbSchema();
 
+// Semeia settings de SO e roots default de agents/skills por plataforma (primeira execução).
+const { ensureDefaultSettings } = await import("./api/db/seed-defaults");
+await ensureDefaultSettings();
+
 // Observa as pastas `.koworker/` dos projetos pra refletir edições do agente na UI.
 const { startTasksWatcher } = await import("./api/helpers/tasks-watcher");
 await startTasksWatcher();

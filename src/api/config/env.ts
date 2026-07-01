@@ -4,7 +4,6 @@ export const envSchema = type({
 	DATABASE_URL: "string",
 	JWT_SECRET: "string",
 	"NODE_ENV?": "'development' | 'production'",
-	"PROJECTS_BASE_PATH?": "string",
 	// O backend desktop recebe estes do `backend.rs` em runtime. Precisam estar no schema:
 	// arktype roda com `onUndeclaredKey: "delete"` + `clone: false`, então validar
 	// `process.env` apaga in-place qualquer chave fora daqui antes do server.ts lê-las.

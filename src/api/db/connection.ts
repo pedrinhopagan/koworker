@@ -143,12 +143,15 @@ const skillSettingsSchema = type({
 	"updated_at?": "number.integer",
 });
 
-// Caminhos extras do computador do usuário de onde ler skills, somados aos diretórios padrão
-// dos agents. `tool` marca a qual agent o caminho pertence, pra os chips ficarem corretos.
+// Caminhos do computador do usuário de onde ler skills, somados ao static interno do koworker e aos
+// diretórios de cada projeto. `tool` marca a qual agent o caminho pertence (pros chips). `scope`
+// distingue os roots default por plataforma (semeados na primeira execução) dos extras cadastrados
+// pelo usuário — antes eram constantes no código, agora são linhas editáveis.
 const skillSourcePathsSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	tool: "string",
 	path: "string",
+	scope: type("string").configure({ default: "custom" }),
 	created_at: type("number.integer").configure({ default: "now" }),
 });
 
@@ -164,13 +167,25 @@ const agentSettingsSchema = type({
 	"updated_at?": "number.integer",
 });
 
-// Caminhos extras do computador do usuário de onde ler agents, somados aos diretórios padrão
-// das ferramentas. `tool` marca a qual ferramenta o caminho pertence, pra os chips ficarem corretos.
+// Caminhos do computador do usuário de onde ler agents, somados ao static interno do koworker e aos
+// diretórios de cada projeto. `tool` marca a qual ferramenta o caminho pertence (pros chips).
+// `scope` distingue os roots default por plataforma (semeados na primeira execução) dos extras
+// cadastrados pelo usuário — antes eram constantes no código, agora são linhas editáveis.
 const agentSourcePathsSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	tool: "string",
 	path: "string",
+	scope: type("string").configure({ default: "custom" }),
 	created_at: type("number.integer").configure({ default: "now" }),
+});
+
+// Configuração de SO chave-valor: pasta base de projetos, template do emulador de terminal e
+// multiplexador. Os valores são strings; o significado tipado e os defaults por plataforma vivem em
+// `helpers/system-settings.ts`, a fronteira que traduz estas linhas para o shape interno.
+const settingsSchema = type({
+	key: type("string").configure({ primaryKey: true }),
+	value: "string",
+	"updated_at?": "number.integer",
 });
 
 const prompt_kind = type.enumerated("copy", "agent", "skill");
@@ -213,6 +228,7 @@ const database = new Database({
 		agent_settings: agentSettingsSchema,
 		agent_source_paths: agentSourcePathsSchema,
 		prompt_history: promptHistorySchema,
+		settings: settingsSchema,
 	},
 });
 
@@ -239,6 +255,7 @@ export type skill_source_paths = DB["skill_source_paths"];
 export type agent_settings = DB["agent_settings"];
 export type agent_source_paths = DB["agent_source_paths"];
 export type prompt_history = DB["prompt_history"];
+export type settings = DB["settings"];
 
 export {
 	user_type,
@@ -256,4 +273,5 @@ export {
 	agentSettingsSchema,
 	agentSourcePathsSchema,
 	promptHistorySchema,
+	settingsSchema,
 };

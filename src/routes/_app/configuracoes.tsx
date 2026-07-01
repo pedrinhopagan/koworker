@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Bot, Flag, FolderTree, Palette, Settings, Tags, Type } from "lucide-react";
+import { Flag, Palette, Settings, SlidersHorizontal, Tags, Type } from "lucide-react";
 
 import { ConfigCard } from "@/components/settings/config-card";
 import { CategoryManagerDrawer } from "@/components/tasks/CategoryManagerDrawer";
@@ -82,30 +82,14 @@ function ConfiguracoesPage() {
 
 				<section className="space-y-3">
 					<Title as="h2" size="xs" className="text-muted-foreground uppercase tracking-wide">
-						Skills
+						Sistema
 					</Title>
 					<div className="grid gap-4 sm:grid-cols-2">
 						<ConfigCard
-							icon={FolderTree}
-							title="Fontes de skills"
-							description="Pastas extras de onde ler skills."
-							onClick={() => navigate({ to: "/fontes-skills" })}
-						/>
-					</div>
-				</section>
-
-				<div className="border-t border-border" />
-
-				<section className="space-y-3">
-					<Title as="h2" size="xs" className="text-muted-foreground uppercase tracking-wide">
-						Agents
-					</Title>
-					<div className="grid gap-4 sm:grid-cols-2">
-						<ConfigCard
-							icon={Bot}
-							title="Fontes de agents"
-							description="Pastas extras de onde ler agents."
-							onClick={() => navigate({ to: "/fontes-agents" })}
+							icon={SlidersHorizontal}
+							title="Terminal e fontes"
+							description="Emulador, multiplexador, pasta base e fontes de agents/skills."
+							onClick={() => navigate({ to: "/sistema" })}
 						/>
 					</div>
 				</section>

@@ -8,6 +8,7 @@ import { prioritiesRouter } from "./routers/priorities";
 import { promptHistoryRouter } from "./routers/prompt-history";
 import { projectRoutesRouter } from "./routers/project-routes";
 import { projectsRouter } from "./routers/projects";
+import { settingsRouter } from "./routers/settings";
 import { skillCategoriesRouter } from "./routers/skill-categories";
 import { skillsRouter } from "./routers/skills";
 import { taskGroupsRouter } from "./routers/task-groups";
@@ -39,6 +40,7 @@ export const router = {
 	promptHistory: promptHistoryRouter,
 	terminal: terminalRouter,
 	vault: vaultRouter,
+	settings: settingsRouter,
 
 	testNotification: protectedProcedure.handler(async ({ context }) => {
 		await PubSub.publish("notification", String(context.user.id), {
