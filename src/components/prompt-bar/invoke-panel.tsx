@@ -1,5 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import { Bot, ChevronDown, Copy, Cpu, Gauge, Play, ShieldCheck, Sparkles, X } from "lucide-react";
+import {
+	Bot,
+	ChevronDown,
+	ChevronRight,
+	Copy,
+	Cpu,
+	Gauge,
+	Play,
+	ShieldCheck,
+	Sparkles,
+	X,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -80,9 +91,11 @@ export function InvokePanel({
 	routePath: string | null;
 }) {
 	const text = usePromptBarStore((s) => s.text);
+	const interactWithKw = usePromptBarStore((s) => s.interactWithKw);
 	const interactWithRoute = usePromptBarStore((s) => s.interactWithRoute);
 	const interactWithInput = usePromptBarStore((s) => s.interactWithInput);
 	const invoke = usePromptBarStore((s) => s.invoke);
+	const setInteractWithKw = usePromptBarStore((s) => s.setInteractWithKw);
 	const setInteractWithRoute = usePromptBarStore((s) => s.setInteractWithRoute);
 	const setInteractWithInput = usePromptBarStore((s) => s.setInteractWithInput);
 	const patchInvoke = usePromptBarStore((s) => s.patchInvoke);
@@ -126,16 +139,17 @@ export function InvokePanel({
 		if (selection) {
 			return planInvocation({
 				target: toTarget(selection),
+				kw: interactWithKw,
 				routePath: effectiveRoute,
 				text: effectiveText,
 				config: invoke,
 			}).command;
 		}
 		const prompt = flattenPrompt(
-			buildKoworkerPrompt({ target: effectiveRoute, text: effectiveText }),
+			buildKoworkerPrompt({ kw: interactWithKw, target: effectiveRoute, text: effectiveText }),
 		);
 		return prompt || null;
-	}, [selection, effectiveRoute, effectiveText, invoke]);
+	}, [selection, interactWithKw, effectiveRoute, effectiveText, invoke]);
 
 	function handleInvoke() {
 		const project = projectsQuery.data?.find((p) => p.name === projectName);
@@ -147,6 +161,7 @@ export function InvokePanel({
 			project: { id: project.id, name: project.name, mainRoute: project.mainRoute },
 			request: {
 				target: toTarget(selection),
+				kw: interactWithKw,
 				routePath: effectiveRoute,
 				text: effectiveText,
 				config: invoke,
@@ -197,13 +212,19 @@ export function InvokePanel({
 
 			<div className="h-px bg-border" aria-hidden />
 
-			{/* Toggles: o que viaja junto com a invocação. Anexar (rota/input) e Sessão (aba/background)
-			    em blocos próprios, cada um com seu rótulo. */}
-			<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-				<ToggleGroup label="Anexar">
+			{/* Toggles: o que viaja junto com a invocação. Anexar (kw/rota/input) e Sessão (aba/background)
+			    dividem a linha em metades iguais, separadas pelo divisor central. */}
+			<div className="flex items-center gap-3">
+				<ToggleGroup label="Anexar" className="flex-1">
+					<ToggleBox
+						label="kw"
+						hint="prefixa a skill /kw na cabeça do prompt"
+						checked={interactWithKw}
+						onChange={setInteractWithKw}
+					/>
 					<ToggleBox
 						label="rota"
-						hint={routePath ? `/kw ${routePath}` : "esta rota não anexa caminho"}
+						hint={routePath ? `caminho ${routePath}` : "esta rota não anexa caminho"}
 						checked={interactWithRoute}
 						disabled={!routePath}
 						onChange={setInteractWithRoute}
@@ -218,7 +239,7 @@ export function InvokePanel({
 
 				<div className="h-5 w-px bg-border" aria-hidden />
 
-				<ToggleGroup label="Sessão">
+				<ToggleGroup label="Sessão" className="flex-1">
 					<ToggleBox
 						label="nova aba"
 						hint="abre numa aba tmux nova em vez de reusar a do alvo"
@@ -270,15 +291,25 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
 	);
 }
 
-function ToggleGroup({ label, children }: { label: string; children: React.ReactNode }) {
+function ToggleGroup({
+	label,
+	className,
+	children,
+}: {
+	label: string;
+	className?: string;
+	children: React.ReactNode;
+}) {
 	return (
-		<div className="flex items-center gap-2">
+		<div className={cn("flex items-center gap-2", className)}>
 			<GroupLabel>{label}</GroupLabel>
 			{children}
 		</div>
 	);
 }
 
+// Botão-chip de toggle: checkbox e rótulo num bloco bordado clicável inteiro. Ativo ganha realce
+// primário; o `<label>` faz o clique em qualquer ponto do chip alternar a checkbox.
 function ToggleBox({
 	label,
 	hint,
@@ -296,8 +327,12 @@ function ToggleBox({
 		<Tooltip label={hint}>
 			<label
 				className={cn(
-					"flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground",
-					disabled && "cursor-not-allowed opacity-40",
+					"flex h-7 shrink-0 cursor-pointer select-none items-center gap-1.5 border px-2 text-xs transition-colors",
+					checked
+						? "border-primary/40 bg-primary/10 text-foreground"
+						: "border-border bg-card text-muted-foreground hover:border-muted-foreground hover:text-foreground",
+					disabled &&
+						"cursor-not-allowed opacity-40 hover:border-border hover:text-muted-foreground",
 				)}
 			>
 				<Checkbox
@@ -386,6 +421,10 @@ function SelectedChip({
 // `command` com alvo é o comando `claude` exato; sem alvo é só o prompt que o "Copiar prompt" copia.
 // Em ambos os casos é o reflexo ao vivo do que rota/input/modelo/esforço/permissão produzem.
 function CommandPreview({ command, hasTarget }: { command: string | null; hasTarget: boolean }) {
+	// Colapsado por default: o comando numa linha truncada. O chevron à esquerda expande pra ver o
+	// texto inteiro quebrado em linhas.
+	const [expanded, setExpanded] = useState(false);
+
 	async function handleCopy() {
 		if (!command) {
 			return;
@@ -395,12 +434,27 @@ function CommandPreview({ command, hasTarget }: { command: string | null; hasTar
 	}
 
 	return (
-		<div className="flex items-center gap-2 border border-dashed border-border bg-muted/20 px-2 py-1">
-			<span className="shrink-0 select-none font-mono text-[11px] text-muted-foreground/50">
+		<div className="flex items-start gap-2 border border-dashed border-border bg-muted/20 px-2 py-1">
+			<button
+				type="button"
+				onClick={() => setExpanded((v) => !v)}
+				disabled={!command}
+				aria-label={expanded ? "Recolher comando" : "Expandir comando"}
+				aria-expanded={expanded}
+				className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground disabled:cursor-default disabled:hover:text-muted-foreground/50"
+			>
+				<ChevronRight
+					className={cn("h-3.5 w-3.5 transition-transform duration-150", expanded && "rotate-90")}
+				/>
+			</button>
+			<span className="shrink-0 select-none font-mono text-[11px] leading-5 text-muted-foreground/50">
 				{hasTarget ? "$" : "›"}
 			</span>
 			<code
-				className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground"
+				className={cn(
+					"min-w-0 flex-1 font-mono text-[11px] leading-5 text-muted-foreground",
+					expanded ? "whitespace-pre-wrap break-all" : "truncate",
+				)}
 				title={command ?? ""}
 			>
 				{command ?? "marque rota/input ou escolha um agent ou skill"}
@@ -413,7 +467,7 @@ function CommandPreview({ command, hasTarget }: { command: string | null; hasTar
 						onClick={() => void handleCopy()}
 						className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
 					>
-						<Copy className="h-3 w-3" />
+						<Copy className="mt-0.5 h-3 w-3" />
 					</button>
 				</Tooltip>
 			)}

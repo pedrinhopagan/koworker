@@ -699,6 +699,132 @@ pub fn close_task_window(
     Ok(())
 }
 
+/// Discrimina uma window de invocação de agent/skill. O `taskId` da invocação é `agent_<slug>` /
+/// `skill_<slug>` (ver `src/lib/invoke.ts`) e `window_name_for_task` o trunca em 8 chars como prefixo,
+/// então a window sempre começa com `agent_` / `skill_`. Tarefas usam UUID hex e rotas o nome
+/// sanitizado da rota — nenhum colide com esses prefixos.
+fn is_invocation_window(window_name: &str) -> bool {
+    window_name.starts_with("agent_") || window_name.starts_with("skill_")
+}
+
+/// Lê do tmux as windows de invocação de uma sessão. Sessão inexistente → `list-windows` falha →
+/// vetor vazio. Lê direto do tmux (não de `KNOWN_SESSIONS`) pra enxergar invocações deixadas por
+/// execuções anteriores do app.
+fn list_invocation_windows(session_name: &str) -> Vec<String> {
+    let output = Command::new("tmux")
+        .args(["list-windows", "-t", session_name, "-F", "#{window_name}"])
+        .output();
+
+    match output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .filter(|name| is_invocation_window(name))
+            .map(|s| s.to_string())
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectRef {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InvocationSessionInfo {
+    pub project_id: String,
+    pub project_name: String,
+    pub session_name: String,
+    pub window_count: u32,
+}
+
+/// Emite `window_closed` casando a window morta com o estado em memória pra UI soltar a chave certa
+/// (`taskId`). Pós-restart a window existe no tmux mas não em `KNOWN_SESSIONS`: aí não há evento, e
+/// também não havia estado de UI pra ela.
+fn notify_invocation_window_closed(session_name: &str, window_name: &str) {
+    let sessions = get_known_sessions();
+    let mut guard = sessions.lock().unwrap();
+
+    for session in guard.iter_mut() {
+        if session.session_name != session_name {
+            continue;
+        }
+
+        if let Some(pos) = session
+            .windows
+            .iter()
+            .position(|w| w.window_name == window_name)
+        {
+            let window = session.windows.remove(pos);
+            notify_backend(&TerminalEvent {
+                event_type: "window_closed".to_string(),
+                project_id: session.project_id.clone(),
+                task_id: Some(window.task_id),
+                session_name: session_name.to_string(),
+                window_name: Some(window_name.to_string()),
+            });
+            return;
+        }
+    }
+}
+
+/// Lista, dentre os projetos informados, os que têm invocações de agent/skill abertas no tmux — junto
+/// com a contagem. A lógica do slug (`session_name_for_project`) mora aqui no Rust, então o frontend
+/// só passa `{id, name}` e recebe de volta as sessões já casadas com cada projeto. Projetos sem
+/// invocação aberta não entram na lista (nada a fechar).
+#[tauri::command(rename_all = "camelCase")]
+pub fn list_invocation_sessions(projects: Vec<ProjectRef>) -> Vec<InvocationSessionInfo> {
+    projects
+        .into_iter()
+        .filter_map(|project| {
+            let session_name = session_name_for_project(&project.name);
+            let window_count = list_invocation_windows(&session_name).len() as u32;
+
+            if window_count == 0 {
+                return None;
+            }
+
+            Some(InvocationSessionInfo {
+                project_id: project.id,
+                project_name: project.name,
+                session_name,
+                window_count,
+            })
+        })
+        .collect()
+}
+
+/// Fecha as windows de invocação de agent/skill apenas dos projetos selecionados, preservando
+/// terminal/tarefas/rotas. Sessões que ficam sem nenhuma window são encerradas pelo próprio tmux; o
+/// monitor emite `session_closed`. Retorna quantas windows foram fechadas.
+#[tauri::command(rename_all = "camelCase")]
+pub fn close_invocation_sessions(projects: Vec<ProjectRef>) -> Result<u32, String> {
+    let mut killed = 0u32;
+
+    for project in &projects {
+        let session_name = session_name_for_project(&project.name);
+
+        for window_name in list_invocation_windows(&session_name) {
+            let target = format!("{}:{}", session_name, window_name);
+            let status = Command::new("tmux")
+                .args(["kill-window", "-t", &target])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+
+            if status.map(|s| s.success()).unwrap_or(false) {
+                killed += 1;
+                notify_invocation_window_closed(&session_name, &window_name);
+            }
+        }
+    }
+
+    Ok(killed)
+}
+
 #[tauri::command]
 pub fn get_active_sessions() -> Result<Vec<SessionInfo>, String> {
     let sessions = get_known_sessions();

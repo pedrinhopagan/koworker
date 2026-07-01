@@ -28,6 +28,8 @@ pub fn run() {
             terminal::open_terminal_for_route,
             terminal::close_project_session,
             terminal::close_task_window,
+            terminal::list_invocation_sessions,
+            terminal::close_invocation_sessions,
             terminal::get_active_sessions,
             terminal::check_session_exists
         ])

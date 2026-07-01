@@ -100,7 +100,7 @@ export function ProjectList({ projects, selectedId, loading }: ProjectListProps)
 	}
 
 	return (
-		<section className="space-y-4">
+		<section className="flex min-h-0 flex-1 flex-col gap-4">
 			<div className="flex items-center justify-between">
 				<div>
 					<Title size="sm">Meus projetos</Title>
@@ -118,16 +118,18 @@ export function ProjectList({ projects, selectedId, loading }: ProjectListProps)
 					Carregando projetos...
 				</Text>
 			) : orderedItems.length === 0 ? null : (
-				<SortableList
-					items={orderedItems}
-					onReorder={(items) => {
-						setOrderedItems(items);
-						reorderMutation.mutate({ orderedIds: items.map((i) => i.id) });
-					}}
-					renderItem={renderItem}
-					itemClassName=""
-					disabled={reorderMutation.isPending}
-				/>
+				<div className="min-h-0 flex-1 overflow-y-auto pr-2 pb-6 [scrollbar-gutter:stable]">
+					<SortableList
+						items={orderedItems}
+						onReorder={(items) => {
+							setOrderedItems(items);
+							reorderMutation.mutate({ orderedIds: items.map((i) => i.id) });
+						}}
+						renderItem={renderItem}
+						itemClassName=""
+						disabled={reorderMutation.isPending}
+					/>
+				</div>
 			)}
 		</section>
 	);

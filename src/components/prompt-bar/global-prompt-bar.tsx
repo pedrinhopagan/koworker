@@ -67,6 +67,7 @@ export function GlobalPromptBar() {
 	const text = usePromptBarStore((s) => s.text);
 	const expanded = usePromptBarStore((s) => s.expanded);
 	const invokeOpen = usePromptBarStore((s) => s.invokeOpen);
+	const interactWithKw = usePromptBarStore((s) => s.interactWithKw);
 	const interactWithRoute = usePromptBarStore((s) => s.interactWithRoute);
 	const interactWithInput = usePromptBarStore((s) => s.interactWithInput);
 	const history = usePromptBarStore((s) => s.history);
@@ -184,7 +185,11 @@ export function GlobalPromptBar() {
 		// Os mesmos toggles "rota"/"input" do painel governam o que entra aqui — o preview do painel
 		// mostra exatamente esta string, então copiar não tem surpresa.
 		const copyText = interactWithInput ? text : "";
-		const prompt = buildKoworkerPrompt({ target: appendTarget, text: copyText });
+		const prompt = buildKoworkerPrompt({
+			kw: interactWithKw,
+			target: appendTarget,
+			text: copyText,
+		});
 		if (!prompt.trim()) {
 			toast.info("Nada para copiar");
 			return;
@@ -257,7 +262,10 @@ export function GlobalPromptBar() {
 				<button
 					type="button"
 					onClick={toggleExpanded}
-					className="flex h-9 w-full cursor-pointer items-center gap-2 px-4 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+					className={cn(
+						"flex h-9 w-full cursor-pointer items-center gap-2 px-4 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+						expanded && "bg-muted/40 text-foreground",
+					)}
 				>
 					<MessageSquarePlus className="h-4 w-4 shrink-0" />
 					<span className="shrink-0">Prompt</span>
@@ -284,20 +292,21 @@ export function GlobalPromptBar() {
 					/>
 				</button>
 
-				{/* Conteúdo expansível: grid-rows 0fr→1fr anima a altura sem medir nada.
-				    Fora da leitura vira overlay ancorado acima do header (bottom-full) para não
-				    refluir o <main> e evitar re-medição do CodeMirror a cada frame. */}
 				<div
 					className={cn(
-						"grid transition-[grid-template-rows] duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]",
+						"grid transition-[grid-template-rows] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
 						expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-						!reading && "absolute bottom-full inset-x-0 z-10",
 					)}
 					onTransitionEnd={(event) => {
 						if (event.propertyName === "grid-template-rows" && expanded) setRevealed(true);
 					}}
 				>
-					<div className={cn("min-h-0", revealed ? "overflow-visible" : "overflow-hidden")}>
+					<div
+						className={cn(
+							"flex min-h-0 flex-col justify-end",
+							revealed ? "overflow-visible" : "overflow-hidden",
+						)}
+					>
 						<div className={cn(!reading && "border-t border-border bg-chrome pt-3")}>
 							<div className="mx-auto w-full max-w-3xl px-4 pb-3 xl:max-w-4xl">
 								<div className="relative">

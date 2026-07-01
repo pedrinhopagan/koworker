@@ -164,6 +164,40 @@ export async function closeTaskWindow(
 	return result !== null;
 }
 
+export type ProjectRef = {
+	id: string;
+	name: string;
+};
+
+export type InvocationSessionInfo = {
+	projectId: string;
+	projectName: string;
+	sessionName: string;
+	windowCount: number;
+};
+
+export async function listInvocationSessions(
+	projects: ProjectRef[],
+): Promise<InvocationSessionInfo[]> {
+	if (!isTauri()) {
+		return [];
+	}
+
+	const result = await safeInvoke<InvocationSessionInfo[]>("list_invocation_sessions", {
+		projects,
+	});
+	return result ?? [];
+}
+
+export async function closeInvocationSessions(projects: ProjectRef[]): Promise<number> {
+	if (!isTauri()) {
+		return 0;
+	}
+
+	const result = await safeInvoke<number>("close_invocation_sessions", { projects });
+	return result ?? 0;
+}
+
 export type SessionInfo = {
 	projectId: string;
 	sessionName: string;

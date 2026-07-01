@@ -39,6 +39,7 @@ import { useClickOutside } from "@/hooks/use-click-outside";
 import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { copyMarkdown, joinPath, openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
+import { reflowMarkdown } from "@/lib/reflow-markdown";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
@@ -536,7 +537,7 @@ function TaskFilePage() {
 					ref={paneRef}
 					fileName={creatingFile ? null : activeFile}
 					sessionKey={docSessionKey({ kind: "task", taskId, file: activeFile })}
-					content={creatingFile ? "" : (current?.content ?? "")}
+					content={creatingFile ? "" : reflowMarkdown(current?.content ?? "")}
 					folderPath={task.folderPath}
 					writeFile={(payload) => writeFileMutation.mutateAsync({ id: taskId, ...payload })}
 					emptyState={

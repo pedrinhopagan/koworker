@@ -5,9 +5,10 @@
  */
 
 import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Layers, RefreshCw, Settings, X } from "lucide-react";
-import { useCallback, useEffect } from "react";
+import { Brush, Layers, RefreshCw, Settings, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { tv } from "tailwind-variants";
+import { SweepInvocationsDialog } from "@/components/layout/sweep-invocations-dialog";
 import { Tooltip } from "@/components/ui/tooltip";
 import { getAppEnv } from "@/lib/env";
 import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
@@ -169,6 +170,9 @@ export function TabBar() {
 				</button>
 			</Tooltip>
 
+			{/* Vassoura: abre o dialog pra escolher de quais projetos fechar as invocações. */}
+			<SweepInvocationsButton />
+
 			{/* Settings button */}
 			<Tooltip label="Atualizar dados da página">
 				<button
@@ -206,5 +210,26 @@ export function TabBar() {
 				</Tooltip>
 			)}
 		</nav>
+	);
+}
+
+// Vassoura: abre o dialog de seleção pra escolher de quais projetos fechar as invocações.
+function SweepInvocationsButton() {
+	const [open, setOpen] = useState(false);
+
+	return (
+		<>
+			<Tooltip label="Fechar terminais de invocação">
+				<button
+					type="button"
+					onClick={() => setOpen(true)}
+					className={iconButton({ active: open })}
+					aria-label="Fechar terminais de invocação"
+				>
+					<Brush size={16} />
+				</button>
+			</Tooltip>
+			<SweepInvocationsDialog open={open} onClose={() => setOpen(false)} />
+		</>
 	);
 }

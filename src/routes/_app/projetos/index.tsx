@@ -33,7 +33,7 @@ function ProjetosPage() {
 			icon={FolderKanban}
 			variant="grid"
 		>
-			<div className="min-h-0 min-w-0 px-4 pb-4">
+			<div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden px-4 pb-4">
 				<ProjectList projects={data.projects} selectedId={selectedId} loading={loading} />
 			</div>
 

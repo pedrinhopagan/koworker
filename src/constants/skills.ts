@@ -51,7 +51,7 @@ export type SkillStringField = {
 // invoke não valida mais: só ausência/`inherit` omite a flag — qualquer outra string (ex.: um ID de
 // modelo completo) vira `--model`/`--effort` literal. Por isso `model`/`effort` ficam fora de
 // SKILL_STRING_FIELDS: são editados no controle dedicado, não no popover genérico de metadados.
-export const SKILL_MODEL_VALUES = ["opus", "sonnet", "haiku"] as const;
+export const SKILL_MODEL_VALUES = ["opus", "sonnet", "haiku", "fable"] as const;
 export const SKILL_EFFORT_VALUES = ["low", "medium", "high", "xhigh", "max"] as const;
 
 export const SKILL_STRING_FIELDS: SkillStringField[] = [

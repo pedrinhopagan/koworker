@@ -40,6 +40,8 @@ interface PromptBarState {
 	// Seção de invocação (alvo + knobs) revelada pelo botão robô na linha de ações. Vive abaixo do
 	// `expanded`: só aparece com o prompt aberto, mas lembra o próprio estado entre sessões.
 	invokeOpen: boolean;
+	// Prefixa `/kw` na cabeça do prompt — a skill koworker viaja junto com a invocação/cópia.
+	interactWithKw: boolean;
 	interactWithRoute: boolean;
 	interactWithInput: boolean;
 	invoke: InvokeConfig;
@@ -50,6 +52,7 @@ interface PromptBarState {
 	toggleExpanded: () => void;
 	setInvokeOpen: (open: boolean) => void;
 	toggleInvokeOpen: () => void;
+	setInteractWithKw: (value: boolean) => void;
 	setInteractWithRoute: (value: boolean) => void;
 	setInteractWithInput: (value: boolean) => void;
 	patchInvoke: (patch: Partial<InvokeConfig>) => void;
@@ -66,6 +69,7 @@ export const usePromptBarStore = create<PromptBarState>()(
 			text: "",
 			expanded: false,
 			invokeOpen: false,
+			interactWithKw: true,
 			interactWithRoute: true,
 			interactWithInput: true,
 			invoke: DEFAULT_INVOKE,
@@ -76,6 +80,7 @@ export const usePromptBarStore = create<PromptBarState>()(
 			toggleExpanded: () => set((state) => ({ expanded: !state.expanded })),
 			setInvokeOpen: (invokeOpen) => set({ invokeOpen }),
 			toggleInvokeOpen: () => set((state) => ({ invokeOpen: !state.invokeOpen })),
+			setInteractWithKw: (interactWithKw) => set({ interactWithKw }),
 			setInteractWithRoute: (interactWithRoute) => set({ interactWithRoute }),
 			setInteractWithInput: (interactWithInput) => set({ interactWithInput }),
 			patchInvoke: (patch) => set((state) => ({ invoke: { ...state.invoke, ...patch } })),
@@ -107,6 +112,7 @@ export const usePromptBarStore = create<PromptBarState>()(
 				text: state.text,
 				expanded: state.expanded,
 				invokeOpen: state.invokeOpen,
+				interactWithKw: state.interactWithKw,
 				interactWithRoute: state.interactWithRoute,
 				interactWithInput: state.interactWithInput,
 				// model/effort não persistem: são semeados do alvo a cada invocação. Salvo sempre como

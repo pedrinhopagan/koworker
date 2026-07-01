@@ -121,7 +121,7 @@ const highlightStyle = HighlightStyle.define([
 	},
 ]);
 
-const createEditorTheme = (fontSize: string) =>
+const createEditorTheme = (fontSize: string, proseMaxWidth?: string) =>
 	EditorView.theme(
 		{
 			"&": {
@@ -145,7 +145,12 @@ const createEditorTheme = (fontSize: string) =>
 				padding: "0",
 				caretColor: "transparent",
 			},
-			".cm-line": { padding: "0" },
+			// As linhas de texto ficam numa medida de leitura confortável e centralizada; tabelas e
+			// outros block widgets não são `.cm-line`, então seguem usando a largura cheia do editor.
+			".cm-line": {
+				padding: "0",
+				...(proseMaxWidth ? { maxWidth: proseMaxWidth, marginInline: "auto" } : {}),
+			},
 			".cm-cursor, .cm-dropCursor": {
 				borderLeftColor: "var(--primary)",
 				borderLeftWidth: "2px",
@@ -290,6 +295,9 @@ type MarkdownEditorProps = {
 	onHeadingMention?: (text: string) => void;
 	// Tamanho base da fonte; títulos e demais elementos usam `em`, então escalam junto.
 	fontSize?: string;
+	// Largura-limite da prosa: restringe `.cm-line` a uma medida de leitura e centraliza. Tabelas
+	// (block widgets) ignoram o limite e usam a largura cheia do editor. Sem valor, prosa livre.
+	proseMaxWidth?: string;
 	// Ponto de leitura salvo deste documento: ao montar, restaura o scroll para essa âncora.
 	initialAnchor?: HeadingAnchor | null;
 	// Captura debounced do ponto de leitura ao rolar (e na desmontagem) — alimenta a memória.
@@ -310,6 +318,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 			onInlineCodeClick,
 			onHeadingMention,
 			fontSize = "1rem",
+			proseMaxWidth,
 			initialAnchor,
 			onAnchorChange,
 			onPasteFrontmatter,
@@ -437,11 +446,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 				syntaxHighlighting(highlightStyle),
 				markdownLivePreview(stableCallbacks),
 				formattingKeymap,
-				createEditorTheme(fontSize),
+				createEditorTheme(fontSize, proseMaxWidth),
 				EditorView.lineWrapping,
 				placeholder("Comece a escrever…"),
 			],
-			[stableCallbacks, fontSize, pasteHandler],
+			[stableCallbacks, fontSize, proseMaxWidth, pasteHandler],
 		);
 
 		useImperativeHandle(ref, () => ({

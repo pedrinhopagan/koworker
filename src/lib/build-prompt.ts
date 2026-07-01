@@ -6,16 +6,21 @@ export function flattenPrompt(text: string): string {
 }
 
 // Prompt enviado ao agente: `/kw <target>` (caminho relativo à raiz do projeto, sem o caminho da
-// máquina) seguido do texto livre. O `target` já vem montado pelo chamador — é uniforme pra
-// tarefa/vault/docs/skill. Sem alvo (rota que não anexa caminho), copia só o texto.
-export function buildKoworkerPrompt(params: { target?: string | null; text: string }): string {
+// máquina) seguido do texto livre. `kw` decide se a skill `/kw` entra na cabeça; `target` já vem
+// montado pelo chamador. Cabeça vazia (sem `/kw` e sem rota) copia só o texto.
+export function buildKoworkerPrompt(params: {
+	kw: boolean;
+	target?: string | null;
+	text: string;
+}): string {
 	const text = params.text.trim();
+	const head = [params.kw ? "/kw" : null, params.target].filter(Boolean).join(" ");
 
-	if (!params.target) {
+	if (!head) {
 		return text;
 	}
 
-	const lines = [`/kw ${params.target}`];
+	const lines = [head];
 	if (text) {
 		lines.push("", text);
 	}

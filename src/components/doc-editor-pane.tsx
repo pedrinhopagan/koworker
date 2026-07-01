@@ -152,7 +152,7 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 						"mx-auto flex w-full flex-1 flex-col gap-4 overflow-y-auto",
 						reading
 							? "max-w-4xl px-6 py-10 lg:max-w-5xl lg:px-10 2xl:max-w-6xl"
-							: "max-w-3xl pt-6 pr-6 pb-6 pl-4 xl:max-w-4xl",
+							: "max-w-4xl pt-6 pr-6 pb-6 pl-4 xl:max-w-6xl",
 					)}
 					style={reading ? { paddingBottom: "calc(2.5rem + var(--prompt-bar-h, 0px))" } : undefined}
 				>
@@ -162,6 +162,7 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 							ref={editorRef}
 							initialContent={content}
 							fontSize={reading ? "1.25rem" : "1rem"}
+							proseMaxWidth={reading ? undefined : "44rem"}
 							initialAnchor={initialAnchor}
 							onAnchorChange={saveAnchor}
 							onChange={(next) => schedule({ name: fileName, content: next })}
@@ -187,7 +188,7 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 						"absolute inset-y-0 left-0 z-10 cursor-text",
 						reading
 							? "w-[max(0px,calc(50%_-_28rem))] lg:w-[max(0px,calc(50%_-_32rem))] 2xl:w-[max(0px,calc(50%_-_36rem))]"
-							: "w-[max(0px,calc(50%_-_24rem))] xl:w-[max(0px,calc(50%_-_28rem))]",
+							: "w-[max(0px,calc(50%_-_28rem))] xl:w-[max(0px,calc(50%_-_36rem))]",
 					)}
 				/>
 				{/** biome-ignore lint/a11y/noStaticElementInteractions: gutter decorativo só pra desfocar. */}
@@ -198,7 +199,7 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 						"absolute inset-y-0 right-0 z-10 cursor-text",
 						reading
 							? "w-[max(0px,calc(50%_-_28rem))] lg:w-[max(0px,calc(50%_-_32rem))] 2xl:w-[max(0px,calc(50%_-_36rem))]"
-							: "w-[max(0px,calc(50%_-_24rem))] xl:w-[max(0px,calc(50%_-_28rem))]",
+							: "w-[max(0px,calc(50%_-_28rem))] xl:w-[max(0px,calc(50%_-_36rem))]",
 					)}
 				/>
 			</div>

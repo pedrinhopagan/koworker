@@ -1,9 +1,11 @@
 import { toast } from "sonner";
 
 import {
+	closeInvocationSessions as tauriCloseInvocationSessions,
 	isTauri,
 	type OpenTerminalResult,
 	openTerminalForTask,
+	type ProjectRef,
 	closeProjectSession as tauriCloseProjectSession,
 	closeTaskWindow as tauriCloseTaskWindow,
 } from "./tauri";
@@ -455,6 +457,37 @@ export async function closeProjectTerminal(
 	} catch {
 		if (showToast) toast.error("Erro ao encerrar terminal");
 		return false;
+	}
+}
+
+/**
+ * Fecha as abas de invocação de agent/skill apenas dos projetos selecionados, preservando os
+ * terminais de projeto, tarefas e rotas. Retorna quantas foram encerradas.
+ */
+export async function closeInvocationTerminals(
+	projects: ProjectRef[],
+	options: OpenTerminalOptions = {},
+): Promise<number> {
+	const { showToast = true } = options;
+
+	if (!isTauri()) {
+		if (showToast) toast.warning("Terminal disponível apenas no app desktop");
+		return 0;
+	}
+
+	try {
+		const count = await tauriCloseInvocationSessions(projects);
+		if (showToast) {
+			toast.success(
+				count > 0
+					? `${count} terminal(is) de invocação encerrado(s)`
+					: "Nenhum terminal de invocação encerrado",
+			);
+		}
+		return count;
+	} catch {
+		if (showToast) toast.error("Erro ao encerrar terminais de invocação");
+		return 0;
 	}
 }
 

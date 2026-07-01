@@ -24,6 +24,7 @@ const MODEL_LABELS: Record<(typeof SKILL_MODEL_VALUES)[number], string> = {
 	opus: "Opus",
 	sonnet: "Sonnet",
 	haiku: "Haiku",
+	fable: "Fable",
 };
 
 const EFFORT_LABELS: Record<(typeof SKILL_EFFORT_VALUES)[number], string> = {

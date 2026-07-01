@@ -69,7 +69,7 @@ export function PageShell({
 				className={cn(
 					"mx-auto w-full max-w-6xl",
 					isGrid
-						? "flex flex-col-reverse gap-6 h-full min-h-0 md:grid md:grid-cols-[2fr_3fr] *:min-w-0"
+						? "flex min-h-0 flex-1 flex-col-reverse gap-6 md:grid md:grid-cols-[2fr_3fr] *:min-w-0"
 						: "min-h-0 flex-1 px-4",
 					contentClassName,
 				)}

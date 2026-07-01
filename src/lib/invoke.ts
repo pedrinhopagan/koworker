@@ -11,24 +11,30 @@ export type InvokeTarget =
 	| { kind: "agent"; slug: string; label: string }
 	| { kind: "skill"; slug: string; label: string };
 
-// Tudo já resolvido pelo chamador: `routePath` é o caminho `/kw` quando "rota" está ligada (senão
-// null) e `text` é o texto do prompt quando "input" está ligado (senão ""). Assim o builder não
-// reimplementa as regras dos checkboxes.
+// Tudo já resolvido pelo chamador: `kw` liga o prefixo `/kw`, `routePath` é o caminho quando "rota"
+// está ligada (senão null) e `text` é o texto do prompt quando "input" está ligado (senão ""). Assim
+// o builder não reimplementa as regras dos checkboxes.
 export type InvokeRequest = {
 	target: InvokeTarget;
+	kw: boolean;
 	routePath: string | null;
 	text: string;
 	config: InvokeConfig;
 };
 
 // Prompt sempre em UMA linha: `tmux send-keys` trata quebra como Enter e submeteria o comando cedo —
-// essa é a correção de fundo das invocações. Agent: `/kw <rota> <texto>`; skill: `/<slug> <rota>
-// <texto>`, com rota/texto como args posicionais.
-function buildPrompt({ target, routePath, text }: InvokeRequest): string {
+// essa é a correção de fundo das invocações. Agent: `/kw <rota> <texto>`; skill com kw ligado: `/kw
+// <rota> /<slug> <texto>` (o `/kw` assume a cabeça e a rota como alvo, a skill desce pro corpo);
+// skill sem kw: `/<slug> <rota> <texto>`, com rota/texto como args posicionais.
+function buildPrompt({ target, kw, routePath, text }: InvokeRequest): string {
 	if (target.kind === "agent") {
-		return flattenPrompt(buildKoworkerPrompt({ target: routePath, text }));
+		return flattenPrompt(buildKoworkerPrompt({ kw, target: routePath, text }));
 	}
-	return [`/${target.slug}`, routePath, flattenPrompt(text)].filter(Boolean).join(" ");
+	const skill = `/${target.slug}`;
+	const parts = kw
+		? ["/kw", routePath, skill, flattenPrompt(text)]
+		: [skill, routePath, flattenPrompt(text)];
+	return parts.filter(Boolean).join(" ");
 }
 
 // Mesmos escapes que o backend aplica antes de embutir o prompt em aspas no `tmux send-keys` — o
