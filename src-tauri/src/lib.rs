@@ -1,9 +1,10 @@
-mod autostart;
 mod backend;
 mod commands;
 mod shortcut;
 mod tray;
 mod window;
+
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -15,6 +16,10 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
         .invoke_handler(tauri::generate_handler![
             commands::hide_window,
             commands::show_window,
@@ -24,11 +29,16 @@ pub fn run() {
         ])
         .setup(|app| {
             backend::start(app.handle());
-            if let Err(error) = autostart::ensure_enabled(app.handle()) {
-                eprintln!(
-                    "[KOWORK] Falha ao configurar inicializacao automatica: {}",
-                    error
-                );
+            // Autostart cross-platform pelo plugin (grava .desktop no Linux, chave de registro no
+            // Windows, LaunchAgent no macOS). Só em release: em dev o executavel é o binario de
+            // desenvolvimento e nao deve entrar na inicializacao do SO.
+            if !cfg!(debug_assertions) {
+                if let Err(error) = app.autolaunch().enable() {
+                    eprintln!(
+                        "[KOWORK] Falha ao configurar inicializacao automatica: {}",
+                        error
+                    );
+                }
             }
             shortcut::register(app.handle())?;
             tray::setup(app)?;

@@ -9,7 +9,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { type UseProjectFocusReturn, useProjectFocus } from "@/hooks";
-import { getCapabilities } from "@/lib/capabilities";
+import { useCapabilities } from "@/hooks/use-capabilities";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { openProjectRoute, openProjectTerminal } from "@/lib/terminal";
 import { cn } from "@/lib/utils";
@@ -33,6 +33,7 @@ function ProjectRouteActions({ projectId, project }: ProjectRouteActionsProps) {
 	const [isOpeningTerminal, setIsOpeningTerminal] = useState(false);
 	const [isOpeningRoute, setIsOpeningRoute] = useState(false);
 	const isTerminalOpen = useIsProjectTerminalOpen(projectId);
+	const { canOpenTerminal } = useCapabilities();
 
 	async function handleTerminalClick() {
 		setIsOpeningTerminal(true);
@@ -67,7 +68,7 @@ function ProjectRouteActions({ projectId, project }: ProjectRouteActionsProps) {
 
 	return (
 		<>
-			{getCapabilities().canOpenTerminal && (
+			{canOpenTerminal && (
 				<>
 					{!project.hideTerminal && (
 						<TerminalShortcutMenu

@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 
+import { koworkerDataDir } from "../../src/lib/app-paths";
 import { KOWORK_PROD_API_ORIGIN } from "../../src/lib/runtime-config";
 
 type BumpType = "patch" | "minor" | "major";
@@ -218,7 +219,7 @@ async function installLocally(worktreeDir: string) {
 	run(["bun", "build", "src/cli/index.ts", "--compile", "--outfile", cliBinaryPath], worktreeDir);
 	await chmod(cliBinaryPath, 0o755);
 
-	const appDataDir = join(home, ".local", "share", "com.pedro.kowork");
+	const appDataDir = koworkerDataDir();
 	const backendBinDir = join(home, ".local", "lib", "kowork", "bin");
 	const backendSource = join(worktreeDir, "src-tauri", "bin", "kowork-backend");
 	const distSource = join(worktreeDir, "dist");

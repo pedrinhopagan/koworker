@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { koworkerDataDir } from "../../src/lib/app-paths";
 import { KOWORK_PROD_PORT } from "../../src/lib/runtime-config";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -13,7 +14,7 @@ const distSource = join(rootDir, "dist");
 const guiSource = join(rootDir, "src-tauri/target/release/kowork");
 const backendSource = join(rootDir, "src-tauri/bin/kowork-backend");
 
-const appDataDir = join(home, ".local/share/com.pedro.kowork");
+const appDataDir = koworkerDataDir();
 const distTarget = join(appDataDir, "dist");
 const guiTarget = join(home, ".local/bin/kowork");
 const backendTargetDir = join(home, ".local/lib/kowork/bin");

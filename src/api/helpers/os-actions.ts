@@ -118,6 +118,14 @@ async function copyFileToClipboard(zipPath: string): Promise<boolean> {
 	}
 }
 
+// Capacidades do host que a UI precisa conhecer, mas que só o backend sabe (ele roda na máquina do
+// usuário). A primeira versão Windows sai sem terminal — decisão do plano de portabilidade: a UI de
+// tarefas fica completa, a invocação por terminal chega depois. Nas demais plataformas o terminal é
+// um serviço do backend e está sempre disponível.
+export function systemCapabilities(): { canOpenTerminal: boolean } {
+	return { canOpenTerminal: process.platform !== "win32" };
+}
+
 export type DirectorySuggestion = { name: string; path: string };
 
 async function listChildDirs(dir: string, filter: string): Promise<DirectorySuggestion[]> {
