@@ -16,9 +16,3 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon", "image-png", "devtools"] }
 tauri-plugin-global-shortcut = "2"
 rfd = "0.16"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-shellexpand = "3"
-libc = "0.2"
-zip = { version = "4", default-features = false, features = ["deflate"] }
-walkdir = "2"

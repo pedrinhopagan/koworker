@@ -2,7 +2,6 @@ mod autostart;
 mod backend;
 mod commands;
 mod shortcut;
-mod terminal;
 mod tray;
 mod window;
 
@@ -21,17 +20,7 @@ pub fn run() {
             commands::show_window,
             commands::toggle_window,
             commands::pick_project_folder,
-            commands::open_folder,
-            commands::share_folder_as_zip,
-            commands::open_devtools,
-            terminal::open_terminal_for_task,
-            terminal::open_terminal_for_route,
-            terminal::close_project_session,
-            terminal::close_task_window,
-            terminal::list_invocation_sessions,
-            terminal::close_invocation_sessions,
-            terminal::get_active_sessions,
-            terminal::check_session_exists
+            commands::open_devtools
         ])
         .setup(|app| {
             backend::start(app.handle());

@@ -1,5 +1,6 @@
 import { INVOKE_INHERIT } from "@/constants/invoke";
 import { buildKoworkerPrompt, flattenPrompt } from "@/lib/build-prompt";
+import { buildClaudeCommand } from "@/lib/claude-command";
 import { recordPromptHistory } from "@/lib/prompt-history";
 import { executeInTerminal, type ProjectInfo } from "@/lib/terminal";
 import type { InvokeConfig } from "@/stores/prompt-bar";
@@ -37,16 +38,6 @@ function buildPrompt({ target, kw, routePath, text }: InvokeRequest): string {
 	return parts.filter(Boolean).join(" ");
 }
 
-// Mesmos escapes que o backend aplica antes de embutir o prompt em aspas no `tmux send-keys` — o
-// preview tem que bater 1:1 com o comando real (e ser colável num shell sem expandir `$`/crase).
-function shellEscape(value: string): string {
-	return value
-		.replaceAll("\\", "\\\\")
-		.replaceAll('"', '\\"')
-		.replaceAll("$", "\\$")
-		.replaceAll("`", "\\`");
-}
-
 export type InvokePlan = {
 	prompt: string;
 	model: string | undefined;
@@ -61,21 +52,15 @@ export function planInvocation(request: InvokeRequest): InvokePlan {
 	const model = config.model === INVOKE_INHERIT ? undefined : config.model;
 	const effort = config.effort === INVOKE_INHERIT ? undefined : config.effort;
 
-	const flags =
-		config.permissionMode === "bypass"
-			? ["--dangerously-skip-permissions"]
-			: [`--permission-mode ${config.permissionMode}`];
-	if (target.kind === "agent") {
-		flags.push(`--agent ${target.slug}`);
-	}
-	if (model) {
-		flags.push(`--model ${model}`);
-	}
-	if (effort) {
-		flags.push(`--effort ${effort}`);
-	}
+	const command = buildClaudeCommand({
+		prompt,
+		permissionMode: config.permissionMode,
+		...(target.kind === "agent" ? { agent: target.slug } : {}),
+		...(model ? { model } : {}),
+		...(effort ? { effort } : {}),
+	});
 
-	return { prompt, model, effort, command: `claude ${flags.join(" ")} "${shellEscape(prompt)}"` };
+	return { prompt, model, effort, command };
 }
 
 // Dispara a invocação numa aba do terminal do projeto e registra no histórico. Ponto único de

@@ -1,30 +1,61 @@
-import { z } from "zod";
+import { protectedProcedure, publicProcedure } from "../auth/context";
+import { getSystemSettings } from "../helpers/system-settings";
+import { Terminal } from "../helpers/terminal/service";
+import { PubSub } from "../pubsub";
+import {
+	CloseProjectSessionSchema,
+	CloseTaskWindowSchema,
+	InvocationSessionsSchema,
+	OpenForRouteSchema,
+	OpenForTaskSchema,
+} from "../schemas/terminal";
 
-import { publicProcedure } from "../auth/context";
-import { PubSub, type TerminalEvent, type TerminalEventType } from "../pubsub";
-
-const TerminalNotifySchema = z.object({
-	event_type: z.enum(["session_opened", "session_closed", "window_opened", "window_closed"]),
-	project_id: z.string(),
-	task_id: z.string().optional().nullable(),
-	session_name: z.string(),
-	window_name: z.string().optional().nullable(),
-});
+// Fronteira dona da config: lê as settings de SO e resolve o emulador/multiplexador que o serviço usa.
+async function terminalConfig() {
+	const settings = await getSystemSettings();
+	return { template: settings.terminalTemplate, multiplexer: settings.terminalMultiplexer };
+}
 
 export const terminalRouter = {
-	notify: publicProcedure.input(TerminalNotifySchema).handler(async ({ input }) => {
-		const event: TerminalEvent = {
-			eventType: input.event_type as TerminalEventType,
-			projectId: input.project_id,
-			taskId: input.task_id ?? undefined,
-			sessionName: input.session_name,
-			windowName: input.window_name ?? undefined,
-		};
+	openForTask: protectedProcedure
+		.input(OpenForTaskSchema)
+		.handler(async ({ input }) =>
+			Terminal.openForTask({ config: await terminalConfig(), ...input }),
+		),
 
-		await PubSub.terminal.publish(event);
+	openForRoute: protectedProcedure
+		.input(OpenForRouteSchema)
+		.handler(async ({ input }) =>
+			Terminal.openForRoute({ config: await terminalConfig(), ...input }),
+		),
 
+	closeProjectSession: protectedProcedure
+		.input(CloseProjectSessionSchema)
+		.handler(async ({ input }) => {
+			await Terminal.closeProjectSession({ config: await terminalConfig(), ...input });
+			return { ok: true };
+		}),
+
+	closeTaskWindow: protectedProcedure.input(CloseTaskWindowSchema).handler(async ({ input }) => {
+		await Terminal.closeTaskWindow({ config: await terminalConfig(), ...input });
 		return { ok: true };
 	}),
+
+	listInvocationSessions: protectedProcedure
+		.input(InvocationSessionsSchema)
+		.handler(async ({ input }) =>
+			Terminal.listInvocationSessions({ config: await terminalConfig(), projects: input.projects }),
+		),
+
+	closeInvocationSessions: protectedProcedure
+		.input(InvocationSessionsSchema)
+		.handler(async ({ input }) => {
+			const closed = await Terminal.closeInvocationSessions({
+				config: await terminalConfig(),
+				projects: input.projects,
+			});
+			return { closed };
+		}),
 };
 
 export const terminalWsRouter = {

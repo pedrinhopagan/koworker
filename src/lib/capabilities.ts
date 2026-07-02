@@ -10,14 +10,13 @@ export type Capabilities = {
 };
 
 export function getCapabilities(): Capabilities {
-	const tauri = isTauri();
-
 	return {
-		// O terminal ainda é spawnado pelo Rust do Tauri; fora do Tauri não há como abrir. A Fatia 3
-		// move o spawn para o backend e esta capacidade passa a vir de lá (emulador configurado?).
-		canOpenTerminal: tauri,
+		// O terminal é um serviço do backend (spawn via Bun.spawn na máquina local), com template de
+		// emulador sempre configurado por plataforma. Qualquer cliente — browser ou desktop — fala com o
+		// mesmo backend local, então a capacidade vale sempre.
+		canOpenTerminal: true,
 		// Só o Tauri tem o diálogo nativo de pasta. No browser a escolha vira campo de texto com
 		// autocomplete servido pelo backend (system.browseDirectory).
-		canPickFolderNatively: tauri,
+		canPickFolderNatively: isTauri(),
 	};
 }

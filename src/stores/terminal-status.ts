@@ -4,9 +4,7 @@ export type TerminalEventType =
 	| "session_opened"
 	| "session_closed"
 	| "window_opened"
-	| "window_closed"
-	| "route_opened"
-	| "route_closed";
+	| "window_closed";
 
 interface TerminalStatusState {
 	activeSessions: Map<string, string>;
@@ -81,13 +79,11 @@ export const useTerminalStatusStore = create<TerminalStatusState>()((set, get) =
 				state.setSessionClosed(projectId);
 				break;
 			case "window_opened":
-			case "route_opened":
 				if (taskId && windowName) {
 					state.setWindowActive(taskId, windowName);
 				}
 				break;
 			case "window_closed":
-			case "route_closed":
 				if (taskId) {
 					state.setWindowClosed(taskId);
 				}

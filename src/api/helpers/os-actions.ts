@@ -45,10 +45,10 @@ export function openInFileManager(path: string): void {
 	Bun.spawn([fileManagerOpener(), target], { stdout: "ignore", stderr: "ignore" });
 }
 
-// Compacta a pasta num `.zip` temporário e devolve o caminho. Sem clipboard-de-arquivo (isso é
-// best-effort só do desktop): o chamador revela o zip no gerenciador. O zip inclui a própria pasta
-// como raiz, então extrair recria a pasta inteira.
-export async function shareZip(path: string): Promise<{ zipPath: string }> {
+// Compacta a pasta num `.zip` temporário e copia o arquivo pro clipboard (best-effort Linux). O zip
+// inclui a própria pasta como raiz, então extrair recria a pasta inteira. `clipboard` false (não é
+// Linux, ferramenta ausente ou falhou) sinaliza ao chamador que ele deve revelar o zip no gerenciador.
+export async function shareZip(path: string): Promise<{ clipboard: boolean; zipPath: string }> {
 	const src = expandTilde(path);
 	const info = await stat(src).catch(() => null);
 	if (!info?.isDirectory()) {
@@ -63,7 +63,59 @@ export async function shareZip(path: string): Promise<{ zipPath: string }> {
 	await rm(zipPath, { force: true });
 	await writeFile(zipPath, bytes);
 
-	return { zipPath };
+	const clipboard = await copyFileToClipboard(zipPath);
+
+	return { clipboard, zipPath };
+}
+
+// Percent-encoda o caminho pro file-URI (RFC 3986), preservando `/` e os unreserved. Sem isso, nome de
+// pasta com espaço/acento gera URI não-conforme e o gerenciador não cola. Bytes multibyte (UTF-8)
+// viram %XX por byte.
+function encodeUriPath(path: string): string {
+	// Unreserved da RFC 3986 mais `/`: mantidos verbatim; todo o resto vira %XX por byte UTF-8.
+	const keep = /[A-Za-z0-9/\-_.~]/;
+	let out = "";
+
+	for (const byte of new TextEncoder().encode(path)) {
+		const char = String.fromCodePoint(byte);
+		out += keep.test(char) ? char : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+	}
+
+	return out;
+}
+
+// Coloca o `.zip` no clipboard como arquivo (só Linux). O alvo MIME depende do DE: a família GNOME
+// (Nautilus/Nemo/Caja) cola de `x-special/gnome-copied-files`; o resto (KDE, XFCE…) de `text/uri-list`.
+// Usa `wl-copy` no Wayland e `xclip` no X11. Retorna false se a ferramenta não existir/falhar — o
+// chamador então revela o zip no gerenciador.
+async function copyFileToClipboard(zipPath: string): Promise<boolean> {
+	if (process.platform !== "linux") {
+		return false;
+	}
+
+	const uri = `file://${encodeUriPath(zipPath)}`;
+	const desktop = (process.env.XDG_CURRENT_DESKTOP ?? "").toLowerCase();
+	const gnomeFamily = ["gnome", "cinnamon", "mate", "unity"].some((name) => desktop.includes(name));
+
+	const [mime, payload] = gnomeFamily
+		? ["x-special/gnome-copied-files", `copy\n${uri}`]
+		: ["text/uri-list", `${uri}\r\n`];
+
+	const argv = process.env.WAYLAND_DISPLAY
+		? ["wl-copy", "--type", mime]
+		: ["xclip", "-selection", "clipboard", "-t", mime];
+
+	try {
+		const proc = Bun.spawn(argv, {
+			stdin: new TextEncoder().encode(payload),
+			stdout: "ignore",
+			stderr: "ignore",
+		});
+
+		return (await proc.exited) === 0;
+	} catch {
+		return false;
+	}
 }
 
 export type DirectorySuggestion = { name: string; path: string };

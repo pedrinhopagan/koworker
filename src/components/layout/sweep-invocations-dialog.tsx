@@ -1,15 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { orpc } from "@/client";
+import { orpc, type RouterOutputs } from "@/client";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog } from "@/components/ui/dialog";
 import { closeInvocationTerminals } from "@/lib/terminal";
-import { type InvocationSessionInfo, listInvocationSessions } from "@/lib/tauri";
 
-// Dialog da vassoura: lista os projetos com invocações de agent/skill abertas no tmux, todos
+type InvocationSessionInfo = RouterOutputs["terminal"]["listInvocationSessions"][number];
+
+// Dialog da vassoura: lista os projetos com invocações de agent/skill abertas no terminal, todos
 // pré-selecionados. Desmarcar poupa o projeto; confirmar fecha só as abas de invocação dos marcados.
 export function SweepInvocationsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
@@ -30,7 +31,8 @@ export function SweepInvocationsDialog({ open, onClose }: { open: boolean; onClo
 		let cancelled = false;
 		setLoading(true);
 
-		listInvocationSessions(projects)
+		orpc.terminal.listInvocationSessions
+			.call({ projects })
 			.then((result) => {
 				if (cancelled) {
 					return;
