@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import chokidar from "chokidar";
 import { dbProjects } from "../db/projects";
 import { PubSub } from "../pubsub";
@@ -14,7 +14,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 function projectIdForPath(path: string): string | null {
 	for (const [root, projectId] of rootToProject) {
-		if (path === root || path.startsWith(`${root}/`)) return projectId;
+		if (path === root || path.startsWith(root + sep)) return projectId;
 	}
 	return null;
 }

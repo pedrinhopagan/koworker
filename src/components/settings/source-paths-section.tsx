@@ -1,10 +1,10 @@
 import { Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
+import { FolderPathInput } from "@/components/settings/folder-path-input";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
-import { Input } from "@/components/ui/input";
 import {
 	Select,
 	SelectContent,
@@ -13,7 +13,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Tooltip } from "@/components/ui/tooltip";
-import { isTauri, pickProjectFolder } from "@/lib/tauri";
 
 type PathRow = { id: string; tool: string; path: string };
 
@@ -46,24 +45,14 @@ export function SourcePathsSection<T extends string>({
 	onAdd,
 	onRemove,
 }: SourcePathsSectionProps<T>) {
-	const canPick = isTauri();
 	const [tool, setTool] = useState<T>(defaultTool);
 	const [path, setPath] = useState("");
-	const [picking, setPicking] = useState(false);
 
 	function handleAdd() {
 		const trimmed = path.trim();
 		if (!trimmed) return;
 		onAdd({ tool, path: trimmed });
 		setPath("");
-	}
-
-	async function handlePick() {
-		if (!canPick || picking) return;
-		setPicking(true);
-		const selected = await pickProjectFolder(path.trim() || undefined);
-		if (selected) setPath(selected);
-		setPicking(false);
 	}
 
 	return (
@@ -85,29 +74,13 @@ export function SourcePathsSection<T extends string>({
 							))}
 						</SelectContent>
 					</Select>
-					<Input
+					<FolderPathInput
 						value={path}
-						onChange={(event) => setPath(event.target.value)}
+						onChange={setPath}
+						onEnter={handleAdd}
 						placeholder={placeholder}
-						className="h-9 flex-1 font-mono"
-						onKeyDown={(event) => {
-							if (event.key === "Enter") {
-								event.preventDefault();
-								handleAdd();
-							}
-						}}
+						className="flex-1"
 					/>
-					{canPick && (
-						<Button
-							type="button"
-							variant="outline"
-							onClick={handlePick}
-							disabled={picking}
-							className="h-9 shrink-0 px-3"
-						>
-							...
-						</Button>
-					)}
 				</div>
 				<Button
 					type="button"

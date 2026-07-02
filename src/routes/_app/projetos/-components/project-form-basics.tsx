@@ -1,41 +1,25 @@
 import { FolderOpen } from "lucide-react";
-import { useState } from "react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 
+import { FolderPathInput } from "@/components/settings/folder-path-input";
 import { Text, Title } from "@/components/typography";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { isTauri, pickProjectFolder } from "@/lib/tauri";
 import type { ProjectFormValues } from "./project-form";
 
 export function ProjectFormBasics() {
 	const {
 		register,
+		control,
 		formState: { errors },
 		setValue,
-		getValues,
 	} = useFormContext<ProjectFormValues>();
-	const [picking, setPicking] = useState(false);
+
+	const mainRoute = useWatch({ control, name: "mainRoute" }) ?? "";
 
 	const hasNameError = !!errors.name;
 	const hasRouteError = !!errors.mainRoute;
-
-	const canPick = isTauri();
-
-	const handlePickFolder = async () => {
-		if (!canPick || picking) return;
-
-		setPicking(true);
-		const currentPath = getValues("mainRoute");
-		const selectedPath = await pickProjectFolder(currentPath?.trim() || undefined);
-
-		if (selectedPath) {
-			setValue("mainRoute", selectedPath, { shouldDirty: true, shouldTouch: true });
-		}
-		setPicking(false);
-	};
 
 	return (
 		<section className="rounded-lg border border-border bg-card/40 p-4">
@@ -70,32 +54,18 @@ export function ProjectFormBasics() {
 
 				<div className="grid gap-2">
 					<Label htmlFor="mainRoute">Caminho</Label>
-					<div className="flex gap-2">
-						<Input
-							id="mainRoute"
-							placeholder="/home/usuario/projeto"
-							aria-invalid={hasRouteError}
-							{...register("mainRoute")}
-							required
-						/>
-						<Button
-							type="button"
-							variant="outline"
-							onClick={handlePickFolder}
-							disabled={!canPick || picking}
-							className="shrink-0 px-3"
-						>
-							...
-						</Button>
-					</div>
+					<FolderPathInput
+						id="mainRoute"
+						value={mainRoute}
+						onChange={(value) =>
+							setValue("mainRoute", value, { shouldDirty: true, shouldValidate: true })
+						}
+						placeholder="~/projetos/meu-app"
+						invalid={hasRouteError}
+					/>
 					<Text size="xs" tone="muted">
 						Caminho absoluto para a pasta raiz do projeto
 					</Text>
-					{!canPick && (
-						<Text size="xs" tone="muted">
-							Seleção automática disponível apenas no desktop
-						</Text>
-					)}
 					{hasRouteError && (
 						<Text size="sm" tone="destructive">
 							Caminho obrigatório

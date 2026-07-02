@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { Server } from "bun";
 
 import "./api/arktype";
@@ -16,12 +17,11 @@ async function serveStatic(pathname: string) {
 	if (!distDir) return null;
 
 	const cleanPath = pathname.startsWith("/") ? pathname.slice(1) : pathname;
-	const fullPath = `${distDir}/${cleanPath}`.replaceAll(/\/+/g, "/");
-	const filePath = Bun.file(fullPath);
+	const filePath = Bun.file(join(distDir, cleanPath));
 	const exists = await filePath.exists();
 
 	if (!exists && pathname !== "/") {
-		const indexPath = Bun.file(`${distDir}/index.html`);
+		const indexPath = Bun.file(join(distDir, "index.html"));
 		const indexExists = await indexPath.exists();
 		if (indexExists) {
 			return new Response(indexPath, {

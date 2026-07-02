@@ -2,6 +2,7 @@ import { protectedProcedure } from "../auth/context";
 import type { project_routes, projects } from "../db/connection";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
+import { toDisplayPath } from "../helpers/display-path";
 import { listProjectDocs, writeProjectDoc } from "../helpers/project-docs";
 import { restartTasksWatcher } from "../helpers/tasks-watcher";
 import {
@@ -30,6 +31,7 @@ const mapProject = (row: projects & { routes?: project_routes[] }) => ({
 	description: row.description ?? undefined,
 	color: row.color,
 	mainRoute: row.main_route,
+	displayPath: toDisplayPath(row.main_route),
 	hideTerminal: row.hide_terminal === 1,
 	displayOrder: row.display_order,
 	createdAt: row.created_at,

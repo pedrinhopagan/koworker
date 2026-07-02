@@ -9,8 +9,8 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { type UseProjectFocusReturn, useProjectFocus } from "@/hooks";
+import { getCapabilities } from "@/lib/capabilities";
 import { LucideIcon } from "@/lib/lucide-icon";
-import { isTauri } from "@/lib/tauri";
 import { openProjectRoute, openProjectTerminal } from "@/lib/terminal";
 import { cn } from "@/lib/utils";
 import { useIsProjectTerminalOpen } from "@/stores/terminal-status";
@@ -67,7 +67,7 @@ function ProjectRouteActions({ projectId, project }: ProjectRouteActionsProps) {
 
 	return (
 		<>
-			{isTauri() && (
+			{getCapabilities().canOpenTerminal && (
 				<>
 					{!project.hideTerminal && (
 						<TerminalShortcutMenu

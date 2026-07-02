@@ -68,7 +68,7 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 	const pending = summary?.pending ?? 0;
 	const done = summary?.done ?? 0;
 	const progress = summary?.progress ?? 0;
-	const displayPath = project.mainRoute.replace(/^\/home\/[^/]+/, "");
+	const displayPath = project.displayPath;
 
 	return (
 		<div className="flex flex-col h-full min-h-0">

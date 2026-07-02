@@ -2,11 +2,11 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useFormContext } from "react-hook-form";
 
+import { FolderPathInput } from "@/components/settings/folder-path-input";
 import { Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { IconSelector } from "@/components/ui/icon-selector";
 import { Input } from "@/components/ui/input";
-import { isTauri, pickProjectFolder } from "@/lib/tauri";
 import type { ProjectFormValues } from "../../project-form";
 
 type NewRouteFormProps = {
@@ -22,7 +22,6 @@ type NewRouteFormProps = {
 };
 
 export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormProps) {
-	const canPick = isTauri();
 	const { getValues } = useFormContext<ProjectFormValues>();
 
 	const mainRoute = getValues("mainRoute");
@@ -31,7 +30,6 @@ export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormPr
 	const [route, setRoute] = useState(mainRoute || "");
 	const [icon, setIcon] = useState<string>("FolderOpen");
 	const [command, setCommand] = useState("");
-	const [pickingRoute, setPickingRoute] = useState(false);
 
 	function handleSubmit() {
 		const trimmedName = name.trim();
@@ -52,20 +50,6 @@ export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormPr
 		setRoute(mainRoute || "");
 		setIcon("FolderOpen");
 		setCommand("");
-	}
-
-	async function handlePickRoute() {
-		if (!canPick || pickingRoute) return;
-
-		setPickingRoute(true);
-		const mainRoute = getValues("mainRoute");
-		const startIn = route?.trim() || mainRoute?.trim() || undefined;
-		const selectedPath = await pickProjectFolder(startIn);
-
-		if (selectedPath) {
-			setRoute(selectedPath);
-		}
-		setPickingRoute(false);
 	}
 
 	return (
@@ -89,31 +73,12 @@ export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormPr
 						}}
 					/>
 				</div>
-				<div className="flex items-center gap-2">
-					<Input
-						value={route}
-						onChange={(e) => setRoute(e.target.value)}
-						placeholder="Caminho absoluto"
-						className="h-9 flex-1"
-						onKeyDown={(e) => {
-							if (e.key === "Enter") {
-								e.preventDefault();
-								handleSubmit();
-							}
-						}}
-					/>
-					{canPick && (
-						<Button
-							type="button"
-							variant="outline"
-							onClick={handlePickRoute}
-							disabled={pickingRoute}
-							className="shrink-0 px-3 h-9"
-						>
-							...
-						</Button>
-					)}
-				</div>
+				<FolderPathInput
+					value={route}
+					onChange={setRoute}
+					onEnter={handleSubmit}
+					placeholder="Caminho absoluto"
+				/>
 				<Input
 					value={command}
 					onChange={(e) => setCommand(e.target.value)}

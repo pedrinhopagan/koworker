@@ -18,7 +18,7 @@ export function ProjectFormPreview({ mode }: ProjectFormPreviewProps) {
 
 	const accentColor = color || defaultProjectColor;
 	const displayName = name?.trim() || "Projeto sem nome";
-	const displayRoute = mainRoute?.trim() || "/home/usuario/projeto";
+	const displayRoute = mainRoute?.trim() || "~/projetos/meu-app";
 	const displayDescription =
 		description?.trim() || "Descreva o objetivo e o escopo principal do projeto";
 

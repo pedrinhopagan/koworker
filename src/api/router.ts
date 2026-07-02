@@ -11,6 +11,7 @@ import { projectsRouter } from "./routers/projects";
 import { settingsRouter } from "./routers/settings";
 import { skillCategoriesRouter } from "./routers/skill-categories";
 import { skillsRouter } from "./routers/skills";
+import { systemRouter } from "./routers/system";
 import { taskGroupsRouter } from "./routers/task-groups";
 import { tasksRouter } from "./routers/tasks";
 import { terminalRouter, terminalWsRouter } from "./routers/terminal";
@@ -41,6 +42,7 @@ export const router = {
 	terminal: terminalRouter,
 	vault: vaultRouter,
 	settings: settingsRouter,
+	system: systemRouter,
 
 	testNotification: protectedProcedure.handler(async ({ context }) => {
 		await PubSub.publish("notification", String(context.user.id), {

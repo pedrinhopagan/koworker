@@ -21,7 +21,7 @@ export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 				? `${metrics.done} concluídas`
 				: `${pendingCount} pendente${pendingCount > 1 ? "s" : ""}`;
 
-	const displayPath = project.mainRoute.replace(/^\/home\/[^/]+/, "");
+	const displayPath = project.displayPath;
 
 	// Link absoluto inset-0 seleciona o projeto; o conteúdo é pointer-events-none acima dele (clique no
 	// corpo cai no link). Botão direito abre o menu pelo div externo. Igual ao TaskItem.
