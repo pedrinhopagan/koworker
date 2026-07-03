@@ -2,7 +2,7 @@ import { RPCHandler as WsRPCHandler } from "@orpc/server/bun-ws";
 import { RPCHandler as FetchRPCHandler } from "@orpc/server/fetch";
 import { CORSPlugin, RequestHeadersPlugin, ResponseHeadersPlugin } from "@orpc/server/plugins";
 
-import { DEFAULT_KOWORK_API_ORIGIN } from "@/lib/runtime-config";
+import { DEFAULT_KOWORK_API_ORIGIN, KOWORK_PROD_API_ORIGIN } from "@/lib/runtime-config";
 import { envVariables } from "./config/env";
 import { router, wsRouter } from "./router";
 
@@ -12,6 +12,9 @@ function buildAllowedOrigins(): Set<string> {
 		"http://localhost:1420",
 		"http://localhost:3000",
 		DEFAULT_KOWORK_API_ORIGIN,
+		KOWORK_PROD_API_ORIGIN,
+		"tauri://localhost",
+		"http://tauri.localhost",
 	]);
 
 	const extra = envVariables.KOWORK_ALLOWED_ORIGINS;

@@ -13,6 +13,7 @@ export const envSchema = type({
 	"KOWORK_ADMIN_PASSWORD?": "string",
 	"KOWORK_ALLOWED_ORIGINS?": "string",
 	"KOWORK_NOTIFY_TOKEN?": "string",
+	"KOWORK_REPO_DIR?": "string",
 });
 
 const result = envSchema(process.env);
@@ -23,4 +24,16 @@ if (result instanceof type.errors) {
 	process.exit(1);
 }
 
-export const envVariables = result;
+function emptyToUndefined(value: string | undefined): string | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+export const envVariables = {
+	...result,
+	KOWORK_DIST_DIR: emptyToUndefined(result.KOWORK_DIST_DIR),
+};

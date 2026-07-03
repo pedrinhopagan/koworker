@@ -2,7 +2,8 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { KOWORK_PROD_API_ORIGIN } from "../../src/lib/runtime-config";
+import { buildProductionIndexHtml } from "./inject-prod-index";
+import { buildProductionServiceWorker } from "./inject-prod-sw";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(scriptDir, "../..");
@@ -31,18 +32,14 @@ const packageJson = JSON.parse(await readFile(join(rootDir, "package.json"), "ut
 	version?: string;
 };
 const appVersion = packageJson.version || "0.0.0";
-const builtIndex = sourceIndex
-	.replace("./main.tsx", "./main.js")
-	.replace(
-		'window.__KOWORK_ENV__ = "development";',
-		`window.__KOWORK_ENV__ = "production";\n      window.__KOWORK_API_URL__ = "${KOWORK_PROD_API_ORIGIN}";`,
-	)
-	.replace(
-		'window.__KOWORK_APP_VERSION__ = "dev";',
-		`window.__KOWORK_APP_VERSION__ = "${appVersion}";`,
-	);
+const builtIndex = buildProductionIndexHtml(sourceIndex, appVersion);
 
 await writeFile(join(distDir, "index.html"), builtIndex);
 await cp(join(rootDir, "static"), join(distDir, "static"), { recursive: true });
+
+const sourceSwPath = join(rootDir, "static/sw.js");
+const sourceSw = await readFile(sourceSwPath, "utf8");
+const builtSw = buildProductionServiceWorker(sourceSw, appVersion);
+await writeFile(join(distDir, "sw.js"), builtSw);
 
 console.log(`Build web concluido em ${distDir}`);

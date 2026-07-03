@@ -16,7 +16,8 @@ import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 
 import { koworkerDataDir } from "../../src/lib/app-paths";
-import { KOWORK_PROD_API_ORIGIN } from "../../src/lib/runtime-config";
+import { buildProductionIndexHtml } from "./inject-prod-index";
+import { buildProductionServiceWorker } from "./inject-prod-sw";
 
 type BumpType = "patch" | "minor" | "major";
 
@@ -265,17 +266,23 @@ async function fallbackPrepare(worktreeDir: string) {
 	);
 
 	const sourceIndex = await readFile(join(worktreeDir, "src", "index.html"), "utf8");
-	const builtIndex = sourceIndex
-		.replace("./main.tsx", "./main.js")
-		.replace(
-			'window.__KOWORK_ENV__ = "development";',
-			`window.__KOWORK_ENV__ = "production";\n      window.__KOWORK_API_URL__ = "${KOWORK_PROD_API_ORIGIN}";`,
-		);
+	const packageJson = JSON.parse(await readFile(join(worktreeDir, "package.json"), "utf8")) as {
+		version?: string;
+	};
+	const appVersion = packageJson.version || "0.0.0";
+	const builtIndex = buildProductionIndexHtml(sourceIndex, appVersion);
 	await writeFile(join(distDir, "index.html"), builtIndex);
 
 	const staticDir = join(worktreeDir, "static");
 	if (await pathExists(staticDir)) {
 		await cp(staticDir, join(distDir, "static"), { recursive: true });
+
+		const sourceSwPath = join(staticDir, "sw.js");
+		if (await pathExists(sourceSwPath)) {
+			const sourceSw = await readFile(sourceSwPath, "utf8");
+			const builtSw = buildProductionServiceWorker(sourceSw, appVersion);
+			await writeFile(join(distDir, "sw.js"), builtSw);
+		}
 	}
 
 	await mkdir(join(worktreeDir, "src-tauri", "bin"), { recursive: true });

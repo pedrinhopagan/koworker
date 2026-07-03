@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import type { Server } from "bun";
 
@@ -11,7 +12,8 @@ import homepage from "./index.html";
 import { DEFAULT_KOWORK_PORT } from "./lib/runtime-config";
 
 const isProduction = envVariables.NODE_ENV === "production";
-const distDir = envVariables.KOWORK_DIST_DIR ?? (isProduction ? "./dist" : null);
+// hot-deploy grava KOWORK_DIST_DIR no ambiente; string vazia já vira undefined em env.ts
+const distDir = isProduction ? (envVariables.KOWORK_DIST_DIR ?? "./dist") : null;
 
 const NOTIFY_MAX_BODY_BYTES = 8192;
 
@@ -54,21 +56,28 @@ async function serveStatic(pathname: string) {
 		return null;
 	}
 
-	const filePath = Bun.file(resolvedPath);
-	const exists = await filePath.exists();
+	try {
+		const stats = await stat(resolvedPath);
+		if (stats.isFile()) {
+			return new Response(Bun.file(resolvedPath));
+		}
+	} catch {
+		// path não existe — cai no fallback SPA abaixo
+	}
 
-	if (!exists && pathname !== "/") {
-		const indexPath = Bun.file(join(distRoot, "index.html"));
-		const indexExists = await indexPath.exists();
-		if (indexExists) {
-			return new Response(indexPath, {
+	const indexPath = join(distRoot, "index.html");
+	try {
+		const indexStats = await stat(indexPath);
+		if (indexStats.isFile()) {
+			return new Response(Bun.file(indexPath), {
 				headers: { "Content-Type": "text/html" },
 			});
 		}
+	} catch {
 		return null;
 	}
 
-	return new Response(filePath);
+	return null;
 }
 
 const port = Number(envVariables.KOWORK_PORT) || DEFAULT_KOWORK_PORT;
