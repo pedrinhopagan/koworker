@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AttachmentsPanel } from "@/components/prompt-bar/attachments-panel";
+import { ExecutePanel } from "@/components/prompt-bar/execute-panel";
 import { GroupLabel, ToggleBox } from "@/components/prompt-bar/controls";
 import { InvokePanel } from "@/components/prompt-bar/invoke-panel";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,7 @@ export function GlobalPromptBar() {
 	const expanded = usePromptBarStore((s) => s.expanded);
 	const cli = usePromptBarStore((s) => s.cli);
 	const invokeOpen = usePromptBarStore((s) => s.invokeOpen);
+	const executeOpen = usePromptBarStore((s) => s.executeOpen);
 	const attachOpen = usePromptBarStore((s) => s.attachOpen);
 	const structureOpen = usePromptBarStore((s) => s.structureOpen);
 	const structureTemplate = usePromptBarStore((s) => s.structureTemplate);
@@ -76,6 +78,7 @@ export function GlobalPromptBar() {
 	const setExpanded = usePromptBarStore((s) => s.setExpanded);
 	const toggleExpanded = usePromptBarStore((s) => s.toggleExpanded);
 	const toggleInvokeOpen = usePromptBarStore((s) => s.toggleInvokeOpen);
+	const toggleExecuteOpen = usePromptBarStore((s) => s.toggleExecuteOpen);
 	const toggleAttachOpen = usePromptBarStore((s) => s.toggleAttachOpen);
 	const toggleStructureOpen = usePromptBarStore((s) => s.toggleStructureOpen);
 	const setInteractWithKw = usePromptBarStore((s) => s.setInteractWithKw);
@@ -389,6 +392,12 @@ export function GlobalPromptBar() {
 										open={invokeOpen}
 										onToggle={toggleInvokeOpen}
 									/>
+									<SectionTrigger
+										label="Execução"
+										hint="roda o prompt no projeto sem abrir terminal (headless)"
+										open={executeOpen}
+										onToggle={toggleExecuteOpen}
+									/>
 
 									<div className="ml-auto shrink-0">
 										<Button size="sm" variant="outline" onClick={() => void handleCopy()}>
@@ -439,6 +448,14 @@ export function GlobalPromptBar() {
 								    escolhido; os popovers do alvo são portalados, então o overflow-hidden não os clipa. */}
 								<CollapsibleSection open={invokeOpen}>
 									<InvokePanel
+										projectName={routeTarget.projectName}
+										routePath={routeTarget.path}
+										nextStage={routeTarget.nextStage}
+									/>
+								</CollapsibleSection>
+
+								<CollapsibleSection open={executeOpen}>
+									<ExecutePanel
 										projectName={routeTarget.projectName}
 										routePath={routeTarget.path}
 										nextStage={routeTarget.nextStage}

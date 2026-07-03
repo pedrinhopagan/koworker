@@ -84,6 +84,7 @@ interface PromptBarState {
 	// Seção de invocação (Alvo + Sessão) revelada pelo trigger "Invocação". Vive abaixo do `expanded`:
 	// só aparece com o prompt aberto, mas lembra o próprio estado entre sessões.
 	invokeOpen: boolean;
+	executeOpen: boolean;
 	// Seção "Anexos" (toggles kw/rota/input) revelada pelo trigger homônimo — mesmo regime do `invokeOpen`.
 	attachOpen: boolean;
 	// Seção "Estruturação" (estrutura Goal/Contexto/... + autofill) revelada pelo trigger homônimo.
@@ -111,6 +112,8 @@ interface PromptBarState {
 	setCli: (cli: InvokeCli) => void;
 	setInvokeOpen: (open: boolean) => void;
 	toggleInvokeOpen: () => void;
+	setExecuteOpen: (open: boolean) => void;
+	toggleExecuteOpen: () => void;
 	toggleAttachOpen: () => void;
 	toggleStructureOpen: () => void;
 	setStructureTemplate: (slug: string | null) => void;
@@ -148,6 +151,7 @@ export const usePromptBarStore = create<PromptBarState>()(
 			expanded: false,
 			cli: "claude",
 			invokeOpen: false,
+			executeOpen: false,
 			attachOpen: false,
 			structureOpen: false,
 			structureTemplate: null,
@@ -167,6 +171,8 @@ export const usePromptBarStore = create<PromptBarState>()(
 			setCli: (cli) => set({ cli }),
 			setInvokeOpen: (invokeOpen) => set({ invokeOpen }),
 			toggleInvokeOpen: () => set((state) => ({ invokeOpen: !state.invokeOpen })),
+			setExecuteOpen: (executeOpen) => set({ executeOpen }),
+			toggleExecuteOpen: () => set((state) => ({ executeOpen: !state.executeOpen })),
 			toggleAttachOpen: () => set((state) => ({ attachOpen: !state.attachOpen })),
 			toggleStructureOpen: () => set((state) => ({ structureOpen: !state.structureOpen })),
 			setStructureTemplate: (structureTemplate) => set({ structureTemplate }),
@@ -241,6 +247,7 @@ export const usePromptBarStore = create<PromptBarState>()(
 				expanded: state.expanded,
 				cli: state.cli,
 				invokeOpen: state.invokeOpen,
+				executeOpen: state.executeOpen,
 				attachOpen: state.attachOpen,
 				structureOpen: state.structureOpen,
 				structureTemplate: state.structureTemplate,

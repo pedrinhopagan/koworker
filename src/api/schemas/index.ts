@@ -22,7 +22,12 @@ export {
 	PriorityUpdateSchema,
 } from "./priorities";
 export { FlowTaskSchema } from "./flow";
-export { PromptAutofillResultSchema, PromptAutofillSchema } from "./prompt";
+export {
+	PromptAutofillResultSchema,
+	PromptAutofillSchema,
+	PromptExecuteSchema,
+	PromptRunIdSchema,
+} from "./prompt";
 export { PromptHistoryRecordSchema } from "./prompt-history";
 export {
 	ProjectRouteCreateSchema,

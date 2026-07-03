@@ -39,3 +39,22 @@ export const PromptAutofillResultSchema = z.object({
 });
 
 export type PromptAutofillResult = z.infer<typeof PromptAutofillResultSchema>;
+
+export const PromptExecuteSchema = z.object({
+	projectId: z.string().trim().min(1),
+	prompt: z.string().trim().min(1),
+	cli: z.enum(["claude", "codex"]),
+	permissionMode: z.string().trim().min(1).optional(),
+	agent: z.string().trim().min(1).optional(),
+	model: z.string().trim().min(1).optional(),
+	effort: z.string().trim().min(1).optional(),
+	approvalMode: z.string().trim().min(1).optional(),
+});
+
+export type PromptExecuteInput = z.infer<typeof PromptExecuteSchema>;
+
+export const PromptRunIdSchema = z.object({
+	runId: z.string().trim().min(1),
+});
+
+export type PromptRunIdInput = z.infer<typeof PromptRunIdSchema>;

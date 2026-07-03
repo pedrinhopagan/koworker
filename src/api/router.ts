@@ -18,7 +18,7 @@ import { taskGroupsRouter } from "./routers/task-groups";
 import { tasksRouter } from "./routers/tasks";
 import { terminalRouter, terminalWsRouter } from "./routers/terminal";
 import { vaultRouter } from "./routers/vault";
-import { EndpointSchemas, FlowTaskSchema } from "./schemas";
+import { EndpointSchemas, FlowTaskSchema, PromptRunIdSchema } from "./schemas";
 
 export const router = {
 	auth: {
@@ -74,6 +74,10 @@ export const wsRouter = {
 	flow: protectedProcedure
 		.input(FlowTaskSchema)
 		.handler(({ input, signal }) => PubSub.subscribe("flow", input.taskId, signal)),
+
+	promptRun: protectedProcedure
+		.input(PromptRunIdSchema)
+		.handler(({ input, signal }) => PubSub.subscribe("promptRun", input.runId, signal)),
 
 	terminal: terminalWsRouter,
 };

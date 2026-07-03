@@ -15,8 +15,16 @@ export type FlowEvent = {
 	message: string | null;
 };
 
+export type PromptRunEvent = {
+	runId: string;
+	status: "started" | "done" | "failed" | "timeout";
+	output?: string;
+	error?: string;
+};
+
 type PubSubChannels = {
 	flow: FlowEvent;
+	promptRun: PromptRunEvent;
 	notification: {
 		title: string;
 		message: string;
