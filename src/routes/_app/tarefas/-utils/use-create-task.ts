@@ -1,13 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { orpc } from "@/client";
+import type { TaskComplexity } from "@/constants/complexity";
 
 type CreateTaskInput = {
 	projectId: string;
 	title: string;
 	description?: string;
-	categoryId: string;
-	priorityId: string;
+	categoryId?: string;
+	priorityId?: string;
+	complexity: TaskComplexity;
 	groupId?: string;
 };
 

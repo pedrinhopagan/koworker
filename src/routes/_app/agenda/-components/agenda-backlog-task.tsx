@@ -2,6 +2,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { GripVertical } from "lucide-react";
 
 import { Text } from "@/components/typography";
+import { COMPLEXITY_COLORS, COMPLEXITY_LABELS } from "@/constants/complexity";
 import { cn } from "@/lib/utils";
 import type { TaskWithMeta } from "@/types/tasks";
 
@@ -29,8 +30,8 @@ export function AgendaBacklogTask({ task }: { task: TaskWithMeta }) {
 			<GripVertical className="size-3.5 shrink-0 text-muted-foreground" />
 			<span
 				className="size-2 shrink-0 rounded-full"
-				style={{ backgroundColor: task.priority.color }}
-				title={task.priority.name}
+				style={{ backgroundColor: task.priority?.color ?? COMPLEXITY_COLORS[task.complexity] }}
+				title={task.priority?.name ?? COMPLEXITY_LABELS[task.complexity]}
 			/>
 			<Text as="span" size="sm" className="min-w-0 flex-1 truncate">
 				{task.displayTitle}

@@ -3,6 +3,7 @@ import { CheckCircle2 } from "lucide-react";
 import { z } from "zod";
 
 import { PageShell } from "@/components/layout/page-shell";
+import { TASK_COMPLEXITIES, type TaskComplexity } from "@/constants/complexity";
 import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
 import {
 	GroupedTaskList,
@@ -38,6 +39,7 @@ const rawSearchSchema = z.object({
 	projectId: z.string().optional(),
 	taskTypeId: z.string().optional(),
 	priorityId: z.string().optional(),
+	complexity: z.enum(TASK_COMPLEXITIES).optional(),
 	includeCompleted: z.coerce.boolean().optional(),
 
 	// Legacy (PT-BR) — kept for backwards compatibility
@@ -51,6 +53,7 @@ const searchSchema = z.object({
 	projectId: z.string().optional(),
 	taskTypeId: z.string().optional(),
 	priorityId: z.string().optional(),
+	complexity: z.enum(TASK_COMPLEXITIES).optional(),
 	includeCompleted: z.boolean().optional(),
 });
 
@@ -62,6 +65,7 @@ export const Route = createFileRoute("/_app/tarefas/")({
 			projectId: raw.projectId ?? raw.projetoId,
 			taskTypeId: raw.taskTypeId ?? raw.categoriaId,
 			priorityId: raw.priorityId ?? raw.prioridadeId,
+			complexity: raw.complexity,
 			includeCompleted: raw.includeCompleted,
 		});
 	},
@@ -82,6 +86,7 @@ function TarefasPage() {
 		q?: string;
 		taskTypeId?: string;
 		priorityId?: string;
+		complexity?: TaskComplexity;
 		includeCompleted?: boolean;
 	}) {
 		navigate({
@@ -90,6 +95,7 @@ function TarefasPage() {
 				q: next.q,
 				taskTypeId: next.taskTypeId,
 				priorityId: next.priorityId,
+				complexity: next.complexity,
 				includeCompleted: next.includeCompleted,
 			}),
 			replace: true,
@@ -111,6 +117,7 @@ function TarefasPage() {
 							q: search.q,
 							taskTypeId: search.taskTypeId,
 							priorityId: search.priorityId,
+							complexity: search.complexity,
 							includeCompleted: search.includeCompleted,
 						},
 						onChange: handleSearchChange,

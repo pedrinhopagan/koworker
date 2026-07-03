@@ -100,6 +100,7 @@ export function executeInTerminal(
 	task: TaskInfo,
 	prompt: string,
 	options: OpenTerminalOptions & {
+		cli?: "claude" | "codex";
 		agent?: string;
 		model?: string;
 		effort?: string;
@@ -108,7 +109,16 @@ export function executeInTerminal(
 		background?: boolean;
 	} = {},
 ): Promise<TerminalResult> {
-	const { showToast = true, agent, model, effort, permissionMode, forceNew, background } = options;
+	const {
+		showToast = true,
+		cli,
+		agent,
+		model,
+		effort,
+		permissionMode,
+		forceNew,
+		background,
+	} = options;
 
 	return openTask(
 		{
@@ -118,6 +128,7 @@ export function executeInTerminal(
 			taskId: task.id,
 			taskTitle: task.title,
 			prompt,
+			...(cli ? { cli } : {}),
 			...(agent ? { agent } : {}),
 			...(model ? { model } : {}),
 			...(effort ? { effort } : {}),

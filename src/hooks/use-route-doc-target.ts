@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 
 import { orpc } from "@/client";
+import type { TaskStage } from "@/constants/complexity";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useSkillQuery } from "@/hooks/use-skills";
 
@@ -15,6 +16,14 @@ export type RouteDocTarget = {
 	// Projeto certo pro autocomplete de skill: o da tarefa na rota de tarefa; o do foco global
 	// nas demais. Sem isso, uma tarefa cujo projeto ≠ foco listaria as skills erradas.
 	projectName?: string;
+	// Identifica a tarefa aberta (rota de tarefa) pra ancorar a autosugestão de estrutura por tarefa.
+	taskId?: string;
+	// Estrutura de prompt vinculada à categoria da tarefa aberta (null se sem categoria/sem vínculo,
+	// ou undefined fora da rota de tarefa). Alimenta a pré-seleção do template no prompt bar.
+	categoryStructureSlug?: string | null;
+	// Próximo passo do fluxo, inferido pelo backend (null se completo, undefined fora da rota de
+	// tarefa). Alimenta o chip de invocação sugerida no painel.
+	nextStage?: TaskStage | null;
 };
 
 // Traduz a rota atual no alvo `/kw`, derivando tudo da URL + params + queries em cache (sem store
@@ -54,7 +63,14 @@ export function useRouteDocTarget(): RouteDocTarget {
 		// Lendo um `.md` específico da tarefa (rota `$taskId/$file`), o alvo é esse arquivo — é ele que
 		// o agent invocado deve executar. Na index da tarefa (sem `file`), o alvo é a pasta inteira.
 		const path = folder && file ? `${folder}/${file}` : folder;
-		return { kind, path, projectName: task?.project?.name };
+		return {
+			kind,
+			path,
+			projectName: task?.project?.name,
+			taskId,
+			categoryStructureSlug: task?.category?.structureSlug ?? null,
+			nextStage: task?.nextStage ?? null,
+		};
 	}
 
 	if (kind === "vault") {

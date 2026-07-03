@@ -38,19 +38,11 @@ export function useAgendaBacklog(projectId: string | null | undefined) {
 		const priorityMap = new Map((prioritiesQuery.data ?? []).map((p) => [p.id, p]));
 
 		const tasks: TaskWithMeta[] = (backlogQuery.data ?? []).map((task) => {
-			const category = categoryMap.get(task.categoryId);
-			const priority = priorityMap.get(task.priorityId);
+			const category = task.categoryId ? categoryMap.get(task.categoryId) : undefined;
+			const priority = task.priorityId ? priorityMap.get(task.priorityId) : undefined;
 			return Object.assign(task, {
-				category: {
-					id: category?.id ?? ``,
-					name: category?.name ?? `Sem categoria`,
-					color: category?.color ?? FALLBACK_COLOR,
-				},
-				priority: {
-					id: priority?.id ?? ``,
-					name: priority?.name ?? `Sem prioridade`,
-					color: priority?.color ?? FALLBACK_COLOR,
-				},
+				category: category ? { id: category.id, name: category.name, color: category.color } : null,
+				priority: priority ? { id: priority.id, name: priority.name, color: priority.color } : null,
 			});
 		});
 

@@ -104,7 +104,7 @@ async function getMappedEvent(id: string) {
 			taskCols = {
 				task_title: task.title ?? null,
 				task_project_id: task.project_id,
-				task_category_id: task.category_id,
+				task_category_id: task.category_id ?? null,
 				task_folder_path: task.folder_path,
 				task_done: task.done,
 			};

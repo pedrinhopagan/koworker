@@ -23,6 +23,7 @@ import { useMemo, useState } from "react";
 
 import { orpc } from "@/client";
 import { TaskItem } from "@/components/tasks";
+import { TASK_COMPLEXITIES } from "@/constants/complexity";
 import { Text } from "@/components/typography";
 import { RECENCY_FRESH_WINDOW_MS, RECENCY_HIGHLIGHT_DEPTH } from "@/constants/tasks";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,8 @@ import { type SortMode, TaskGroupHeader } from "./task-groups-controls";
 export const NO_GROUP = "__none__";
 // Categoria sentinela dos buckets "achatados" (modos que não clusterizam por categoria).
 const FLAT_CAT = "__all__";
+// Categoria sentinela das tasks sem categoria no modo "categoria" (category_id null).
+const NO_CATEGORY = "__no_cat__";
 
 // Chave de colapso do slot "Sem feature". Em "Todos os projetos" o sentinela NO_GROUP é o mesmo em
 // todos os projetos, então colapsá-lo namespaceia por projeto pra não fechar o "Sem feature" dos
@@ -81,7 +84,9 @@ type SortContext = {
 // o grupo é um bucket único e a categoria não separa.
 function taskBucketKey(task: TaskWithMeta, mode: SortMode) {
 	const groupId = task.groupId ?? null;
-	return mode === "categoria" ? bucketKey(groupId, task.categoryId) : bucketKey(groupId, FLAT_CAT);
+	return mode === "categoria"
+		? bucketKey(groupId, task.categoryId ?? NO_CATEGORY)
+		: bucketKey(groupId, FLAT_CAT);
 }
 
 // Comparador dentro do bucket. Concluídas sempre afundam; depois vem a chave do modo; o
@@ -90,10 +95,16 @@ function compareInBucket(a: TaskWithMeta, b: TaskWithMeta, ctx: SortContext) {
 	if (a.done !== b.done) return a.done ? 1 : -1;
 
 	if (ctx.mode === "prioridade") {
-		// level menor = mais importante (Alta=1), igual ao critério de getFocusTask.
-		const la = ctx.priorityLevel.get(a.priorityId) ?? Number.MAX_SAFE_INTEGER;
-		const lb = ctx.priorityLevel.get(b.priorityId) ?? Number.MAX_SAFE_INTEGER;
+		// level menor = mais importante (Alta=1), igual ao critério de getFocusTask. Sem prioridade
+		// afunda (MAX_SAFE_INTEGER).
+		const la = (a.priorityId && ctx.priorityLevel.get(a.priorityId)) || Number.MAX_SAFE_INTEGER;
+		const lb = (b.priorityId && ctx.priorityLevel.get(b.priorityId)) || Number.MAX_SAFE_INTEGER;
 		if (la !== lb) return la - lb;
+	} else if (ctx.mode === "complexidade") {
+		// Extremo (maior índice na constante) primeiro; desempate cai no display_order abaixo.
+		const ca = TASK_COMPLEXITIES.indexOf(a.complexity);
+		const cb = TASK_COMPLEXITIES.indexOf(b.complexity);
+		if (ca !== cb) return cb - ca;
 	} else if (ctx.mode === "recente") {
 		if (a.lastEditedAt !== b.lastEditedAt) return b.lastEditedAt - a.lastEditedAt;
 	} else if (ctx.mode === "alfabetica") {
@@ -294,7 +305,7 @@ export function GroupedTaskList({
 			const rawGroup = overId.slice("group::".length);
 			const groupId = rawGroup === NO_GROUP ? null : rawGroup;
 			return sortMode === "categoria"
-				? bucketKey(groupId, active.categoryId)
+				? bucketKey(groupId, active.categoryId ?? NO_CATEGORY)
 				: bucketKey(groupId, FLAT_CAT);
 		}
 		if (overId.includes("::")) return overId;
@@ -306,9 +317,12 @@ export function GroupedTaskList({
 
 	function persistBucket(targetKey: string, orderedIds: string[]) {
 		const { groupId, categoryId } = parseBucketKey(targetKey);
+		// FLAT_CAT (modos achatados) e NO_CATEGORY (cluster "Sem categoria") preservam a categoria de
+		// cada task — só clusters de categoria real reatribuem.
+		const isSentinel = categoryId === FLAT_CAT || categoryId === NO_CATEGORY;
 		reorderMutation.mutate({
 			groupId,
-			categoryId: categoryId === FLAT_CAT ? undefined : categoryId,
+			categoryId: isSentinel ? undefined : categoryId,
 			orderedIds,
 		});
 	}

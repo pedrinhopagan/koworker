@@ -7,6 +7,7 @@ import {
 	ChevronsUpDown,
 	Clock,
 	Flame,
+	Gauge,
 	LayoutGrid,
 	Palette,
 	Pencil,
@@ -20,6 +21,12 @@ import { type ReactNode, useCallback, useMemo, useState, useSyncExternalStore } 
 
 import { orpc, type RouterOutputs } from "@/client";
 import { Text } from "@/components/typography";
+import {
+	COMPLEXITY_COLORS,
+	COMPLEXITY_LABELS,
+	TASK_COMPLEXITIES,
+	type TaskComplexity,
+} from "@/constants/complexity";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -46,18 +53,20 @@ const GROUP_PALETTE = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#
 
 const TASK_TYPE_ALL_ID = "__all_task_type__";
 const PRIORITY_ALL_ID = "__all_priority__";
+const COMPLEXITY_ALL_ID = "__all_complexity__";
 
 type Category = RouterOutputs["categories"]["list"][number];
 type Priority = RouterOutputs["priorities"]["list"][number];
 
 // Modo de ordenação dentro dos grupos. "categoria" clusteriza por categoria (padrão); os demais
 // achatam o grupo e ordenam pela chave. É preferência de UI — vive no localStorage, não no banco.
-export type SortMode = "categoria" | "prioridade" | "recente" | "alfabetica";
+export type SortMode = "categoria" | "prioridade" | "complexidade" | "recente" | "alfabetica";
 
 const SORT_MODE_KEY = "tarefas:sortMode";
 const SORT_MODES: { mode: SortMode; label: string; icon: typeof LayoutGrid }[] = [
 	{ mode: "categoria", label: "Categoria", icon: LayoutGrid },
 	{ mode: "prioridade", label: "Prioridade", icon: Flame },
+	{ mode: "complexidade", label: "Complexidade", icon: Gauge },
 	{ mode: "recente", label: "Recente", icon: Clock },
 	{ mode: "alfabetica", label: "A-Z", icon: ArrowDownAZ },
 ];
@@ -98,6 +107,7 @@ type TaskSearchValue = {
 	q?: string;
 	taskTypeId?: string;
 	priorityId?: string;
+	complexity?: TaskComplexity;
 	includeCompleted?: boolean;
 };
 
@@ -182,9 +192,19 @@ function FiltersPopover({
 		[priorities],
 	);
 
+	const complexityItems = [
+		{ id: COMPLEXITY_ALL_ID, name: "Todas as complexidades", color: "#6b7280" },
+		...TASK_COMPLEXITIES.map((c) => ({
+			id: c,
+			name: COMPLEXITY_LABELS[c],
+			color: COMPLEXITY_COLORS[c],
+		})),
+	];
+
 	const activeFilters = [
 		value.taskTypeId,
 		value.priorityId,
+		value.complexity,
 		value.includeCompleted ? "done" : undefined,
 	].filter(Boolean).length;
 
@@ -223,6 +243,7 @@ function FiltersPopover({
 									...value,
 									taskTypeId: undefined,
 									priorityId: undefined,
+									complexity: undefined,
 									includeCompleted: undefined,
 								})
 							}
@@ -256,6 +277,21 @@ function FiltersPopover({
 						allId={PRIORITY_ALL_ID}
 						placeholder="Todas as prioridades"
 						onValueChange={(priorityId) => onChange({ ...value, priorityId })}
+					/>
+				</div>
+
+				<div className="space-y-1">
+					<Text size="xs" className="font-medium">
+						Complexidade
+					</Text>
+					<FilterSelect
+						items={complexityItems}
+						value={value.complexity ?? COMPLEXITY_ALL_ID}
+						allId={COMPLEXITY_ALL_ID}
+						placeholder="Todas as complexidades"
+						onValueChange={(complexity) =>
+							onChange({ ...value, complexity: complexity as TaskComplexity | undefined })
+						}
 					/>
 				</div>
 

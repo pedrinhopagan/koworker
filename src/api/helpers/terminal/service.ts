@@ -1,4 +1,5 @@
 import { buildClaudeCommand } from "@/lib/claude-command";
+import { buildCodexCommand } from "@/lib/codex-command";
 import type { TerminalMultiplexer } from "@/constants/terminal";
 import { PubSub, type TerminalEvent } from "../../pubsub";
 import { buildNoneCommandArgv, type EmulatorProcess, spawnEmulator } from "./emulator";
@@ -368,6 +369,7 @@ export const Terminal = {
 		taskId: string;
 		taskTitle: string;
 		prompt?: string;
+		cli?: "claude" | "codex";
 		agent?: string;
 		model?: string;
 		effort?: string;
@@ -376,13 +378,20 @@ export const Terminal = {
 		background?: boolean;
 	}): Promise<OpenTerminalResult> {
 		const command = params.prompt
-			? buildClaudeCommand({
-					prompt: params.prompt,
-					permissionMode: params.permissionMode ?? "bypass",
-					...(params.agent ? { agent: params.agent } : {}),
-					...(params.model ? { model: params.model } : {}),
-					...(params.effort ? { effort: params.effort } : {}),
-				})
+			? params.cli === "codex"
+				? buildCodexCommand({
+						prompt: params.prompt,
+						approvalMode: params.permissionMode ?? "bypass",
+						...(params.model ? { model: params.model } : {}),
+						...(params.effort ? { effort: params.effort } : {}),
+					})
+				: buildClaudeCommand({
+						prompt: params.prompt,
+						permissionMode: params.permissionMode ?? "bypass",
+						...(params.agent ? { agent: params.agent } : {}),
+						...(params.model ? { model: params.model } : {}),
+						...(params.effort ? { effort: params.effort } : {}),
+					})
 			: undefined;
 
 		return openTerminal({

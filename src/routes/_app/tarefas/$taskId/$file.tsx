@@ -45,6 +45,7 @@ import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
 import { FileDatePopover } from "./-components/file-date-popover";
+import { FlowRunButton } from "./-components/flow-run-button";
 
 export const Route = createFileRoute("/_app/tarefas/$taskId/$file")({
 	component: TaskFilePage,
@@ -405,15 +406,20 @@ function TaskFilePage() {
 							</Text>
 						)}
 						<TaskMetaControls
-							categoryId={task.categoryId}
-							priorityId={task.priorityId}
+							categoryId={task.categoryId ?? null}
+							priorityId={task.priorityId ?? null}
+							complexity={task.complexity}
 							editing={editing}
 							disabled={isMutating}
 							onToggleEdit={() => setEditing((value) => !value)}
 							onCategoryChange={(categoryId) => updateMutation.mutate({ id: task.id, categoryId })}
 							onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
+							onComplexityChange={(complexity) =>
+								updateMutation.mutate({ id: task.id, complexity })
+							}
 							onDelete={() => removeTaskMutation.mutate({ id: task.id })}
 						/>
+						<FlowRunButton taskId={taskId} />
 						<div className="h-5 w-px bg-border" aria-hidden="true" />
 						<DocToolbar
 							onCollapse={() => paneRef.current?.collapseAll()}
@@ -475,6 +481,7 @@ function TaskFilePage() {
 										<SortableFileTab
 											key={file.name}
 											file={file}
+											path={`${task.folderPath}/${file.name}`}
 											isActive={file.name === activeFile}
 											// Ponto só quando há mais de um arquivo: com um só, "o mais recente" é trivial.
 											level={task.files.length > 1 ? recencyLevels.get(file.name) : undefined}
@@ -571,6 +578,8 @@ function TaskFilePage() {
 
 type SortableFileTabProps = {
 	file: { name: string; createdAt: number; editedAt: number };
+	// Caminho do arquivo relativo à raiz do projeto, pra ação "Copiar caminho" do menu de contexto.
+	path: string;
 	isActive: boolean;
 	level: number | undefined;
 	isRenaming: boolean;
@@ -586,6 +595,7 @@ type SortableFileTabProps = {
 
 function SortableFileTab({
 	file,
+	path,
 	isActive,
 	level,
 	isRenaming,
@@ -633,7 +643,12 @@ function SortableFileTab({
 					className="h-full w-full bg-transparent px-3 text-center text-xs outline-none"
 				/>
 			) : (
-				<FileContextMenu name={file.name} onRename={onStartRename} onDelete={onRequestDelete}>
+				<FileContextMenu
+					name={file.name}
+					path={path}
+					onRename={onStartRename}
+					onDelete={onRequestDelete}
+				>
 					<button
 						type="button"
 						onClick={onSelect}

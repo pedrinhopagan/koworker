@@ -393,8 +393,8 @@ async function readProjectVault(project: { id: string; main_route: string }): Pr
 				folderPath: group.task.folder_path,
 				fileCount: group.files.length,
 				lastEditedAt: maxMtime(group.files),
-				categoryId: group.task.category_id,
-				priorityId: group.task.priority_id,
+				categoryId: group.task.category_id ?? undefined,
+				priorityId: group.task.priority_id ?? undefined,
 				done: Boolean(group.task.done),
 			})),
 	];
