@@ -7,6 +7,12 @@ import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { DeleteConfirmButton } from "@/components/ui/delete-confirm-button";
 import { Tooltip } from "@/components/ui/tooltip";
+import {
+	COMPLEXITY_COLORS,
+	COMPLEXITY_LABELS,
+	TASK_COMPLEXITIES,
+	type TaskComplexity,
+} from "@/constants/complexity";
 import { cn } from "@/lib/utils";
 
 // Seletor do conteúdo do dropdown (Radix Portal). Cliques aqui não contam como "clique
@@ -132,23 +138,34 @@ export function TaskTitleInput({
 // Cluster da direita compartilhado entre o item da lista e o header da rota dedicada:
 // selects de categoria/prioridade (clicáveis só em edição), lápis (toggle do modo) e
 // excluir. Apresentacional: o parent é dono das mutations e do que fazer ao excluir.
+const COMPLEXITY_ITEMS: ColoredItem[] = TASK_COMPLEXITIES.map((c) => ({
+	id: c,
+	name: COMPLEXITY_LABELS[c],
+	color: COMPLEXITY_COLORS[c],
+}));
+
 export function TaskMetaControls({
 	categoryId,
 	priorityId,
+	complexity,
 	editing,
 	disabled,
 	onToggleEdit,
 	onCategoryChange,
 	onPriorityChange,
+	onComplexityChange,
 	onDelete,
 }: {
-	categoryId: string;
-	priorityId: string;
+	// Categoria e prioridade são opcionais: sem valor, o select mostra o placeholder.
+	categoryId: string | null;
+	priorityId: string | null;
+	complexity: TaskComplexity;
 	editing: boolean;
 	disabled: boolean;
 	onToggleEdit: () => void;
 	onCategoryChange: (categoryId: string) => void;
 	onPriorityChange: (priorityId: string) => void;
+	onComplexityChange: (complexity: TaskComplexity) => void;
 	onDelete: () => void;
 }) {
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
@@ -157,15 +174,22 @@ export function TaskMetaControls({
 	return (
 		<div className="pointer-events-none relative z-10 flex shrink-0 items-center gap-2">
 			<MetaSelect
+				items={COMPLEXITY_ITEMS}
+				value={complexity}
+				placeholder="Complexidade"
+				interactive={editing}
+				onValueChange={(value) => onComplexityChange(value as TaskComplexity)}
+			/>
+			<MetaSelect
 				items={categoriesQuery.data ?? []}
-				value={categoryId}
+				value={categoryId ?? ""}
 				placeholder="Categoria"
 				interactive={editing}
 				onValueChange={onCategoryChange}
 			/>
 			<MetaSelect
 				items={prioritiesQuery.data ?? []}
-				value={priorityId}
+				value={priorityId ?? ""}
 				placeholder="Prioridade"
 				interactive={editing}
 				onValueChange={onPriorityChange}

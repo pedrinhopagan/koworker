@@ -13,6 +13,7 @@ const mapCategory = (row: categories) => ({
 	id: row.id,
 	name: row.name,
 	color: row.color,
+	structureSlug: row.structure_slug ?? null,
 	displayOrder: row.display_order,
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,
@@ -41,6 +42,7 @@ export const categoriesRouter = {
 			id,
 			name: input.name,
 			color: input.color,
+			structure_slug: input.structureSlug,
 		});
 
 		const row = await dbCategories.getById(id);
@@ -59,6 +61,7 @@ export const categoriesRouter = {
 			id: input.id,
 			name: input.name,
 			color: input.color,
+			structure_slug: input.structureSlug,
 		});
 
 		const row = await dbCategories.getById(input.id);

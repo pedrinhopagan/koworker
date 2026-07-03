@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { PROMPT_TEMPLATE_SLUGS } from "@/constants/prompt-templates";
+
 export const CategoryIdSchema = z.object({
 	id: z.string().min(1),
 });
@@ -10,6 +12,7 @@ export const CategoryCreateSchema = z.object({
 		.string()
 		.regex(/^#[0-9a-fA-F]{6}$/)
 		.optional(),
+	structureSlug: z.enum(PROMPT_TEMPLATE_SLUGS).nullable().optional(),
 });
 
 export const CategoryUpdateSchema = z.object({
@@ -19,6 +22,7 @@ export const CategoryUpdateSchema = z.object({
 		.string()
 		.regex(/^#[0-9a-fA-F]{6}$/)
 		.optional(),
+	structureSlug: z.enum(PROMPT_TEMPLATE_SLUGS).nullable().optional(),
 });
 
 export const CategoryMigrateAndDeleteSchema = z.object({
@@ -38,6 +42,7 @@ export const CategoryDbCreateSchema = z.object({
 	id: z.string().min(1),
 	name: z.string().min(1),
 	color: z.string().optional(),
+	structure_slug: z.enum(PROMPT_TEMPLATE_SLUGS).nullable().optional(),
 	display_order: z.number().int().optional(),
 	created_at: z.number().int().optional(),
 	updated_at: z.number().int().optional(),

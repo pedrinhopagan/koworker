@@ -15,18 +15,34 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip } from "@/components/ui/tooltip";
+import {
+	COMPLEXITY_COLORS,
+	COMPLEXITY_LABELS,
+	TASK_COMPLEXITIES,
+	type TaskComplexity,
+} from "@/constants/complexity";
 import { cn } from "@/lib/utils";
 import { useSelectedProjectStore } from "@/stores/selected-project";
 
 const InlineTaskCreateFormSchema = z.object({
 	title: z.string().trim().min(1, "Título obrigatório"),
 	description: z.string().optional(),
-	categoryId: z.string().min(1, "Categoria obrigatória"),
-	priorityId: z.string().min(1, "Prioridade obrigatória"),
+	// Categoria e prioridade são opcionais: a task pode nascer sem nenhuma das duas.
+	categoryId: z.string().optional(),
+	priorityId: z.string().optional(),
+	// Sempre preenchida (defaultValues = "medio"); sem `.default()` pra input e output coincidirem
+	// e o resolver do react-hook-form casar com o tipo do form.
+	complexity: z.enum(TASK_COMPLEXITIES),
 	groupId: z.string().optional(),
 });
 
 export type InlineTaskCreateFormValues = z.infer<typeof InlineTaskCreateFormSchema>;
+
+const COMPLEXITY_ITEMS = TASK_COMPLEXITIES.map((c) => ({
+	id: c,
+	name: COMPLEXITY_LABELS[c],
+	color: COMPLEXITY_COLORS[c],
+}));
 
 export type InlineTaskCreateFormSubmitInput = InlineTaskCreateFormValues & {
 	projectId: string;
@@ -126,6 +142,7 @@ export function InlineTaskCreateForm({
 			description: "",
 			categoryId: "",
 			priorityId: "",
+			complexity: "medio",
 			groupId: "",
 		},
 	});
@@ -147,8 +164,9 @@ export function InlineTaskCreateForm({
 				projectId: pid,
 				title: values.title.trim(),
 				description: description ? description : undefined,
-				categoryId: values.categoryId,
-				priorityId: values.priorityId,
+				categoryId: values.categoryId ? values.categoryId : undefined,
+				priorityId: values.priorityId ? values.priorityId : undefined,
+				complexity: values.complexity,
 				groupId: values.groupId ? values.groupId : undefined,
 			});
 
@@ -197,11 +215,54 @@ export function InlineTaskCreateForm({
 								disabled={fieldsDisabled}
 								compact={!isDialogVariant}
 							/>
-							{errors.categoryId?.message && (
-								<Text size="xs" tone="destructive">
-									{errors.categoryId.message}
-								</Text>
-							)}
+						</div>
+					)}
+				/>
+
+				<Controller
+					control={control}
+					name="complexity"
+					render={({ field }) => (
+						<div className="grid gap-1">
+							<CustomSelect
+								items={COMPLEXITY_ITEMS}
+								value={field.value}
+								onValueChange={(id) => field.onChange(id as TaskComplexity)}
+								disabled={fieldsDisabled}
+								variant="default"
+								size={isDialogVariant ? "md" : "sm"}
+								label="Complexidade"
+								renderTrigger={() => {
+									const selected = COMPLEXITY_ITEMS.find((item) => item.id === field.value);
+
+									return (
+										<>
+											<span className="flex min-w-0 items-center gap-2">
+												<span
+													className="size-2 shrink-0 rounded-full"
+													style={{ backgroundColor: selected?.color ?? "#6b7280" }}
+												/>
+												<span className="truncate text-sm">{selected?.name ?? "Complexidade"}</span>
+											</span>
+											<ChevronDown className="ml-1 size-4 text-muted-foreground" />
+										</>
+									);
+								}}
+								renderItem={(item, isSelected) => (
+									<div
+										className={cn(
+											"flex w-full items-center gap-2 px-3 py-2",
+											isSelected && "font-medium",
+										)}
+									>
+										<span
+											className="size-2 shrink-0 rounded-full"
+											style={{ backgroundColor: item.color }}
+										/>
+										<span className="truncate text-sm">{item.name}</span>
+									</div>
+								)}
+							/>
 						</div>
 					)}
 				/>
@@ -217,11 +278,6 @@ export function InlineTaskCreateForm({
 								disabled={fieldsDisabled}
 								compact={!isDialogVariant}
 							/>
-							{errors.priorityId?.message && (
-								<Text size="xs" tone="destructive">
-									{errors.priorityId.message}
-								</Text>
-							)}
 						</div>
 					)}
 				/>

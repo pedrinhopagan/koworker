@@ -1,3 +1,4 @@
+import { type TaskComplexity } from "@/constants/complexity";
 import { protectedProcedure } from "../auth/context";
 import { dbCategories } from "../db/categories";
 import type { tasks } from "../db/connection";
@@ -8,6 +9,7 @@ import {
 	buildFolderPath,
 	createTaskFolder,
 	deleteTaskFile,
+	inferTaskStage,
 	moveTaskFolderToProject,
 	readFirstMarkdownContent,
 	readTaskFiles,
@@ -51,8 +53,11 @@ const mapTask = (
 	// O displayTitle veio do início do 1º .md (a task não tem título). A UI usa isso pra
 	// explicar, na edição do nome, que o texto mostrado é só o começo do conteúdo.
 	titleFromContent: display.fromContent,
-	priorityId: row.priority_id,
-	categoryId: row.category_id,
+	priorityId: row.priority_id ?? undefined,
+	categoryId: row.category_id ?? undefined,
+	// O banco guarda texto livre; a garantia do conjunto vem da boundary zod na escrita. Único
+	// ponto onde a coluna larga vira a união — os consumidores confiam neste tipo.
+	complexity: row.complexity as TaskComplexity,
 	groupId: row.group_id ?? undefined,
 	displayOrder: row.display_order,
 	done: Boolean(row.done),
@@ -185,6 +190,7 @@ export const tasksRouter = {
 			taskTypeId: input.taskTypeId,
 			priorityId: input.priorityId,
 			priority: input.priority,
+			complexity: input.complexity,
 			q: input.q,
 		});
 
@@ -198,6 +204,7 @@ export const tasksRouter = {
 			taskTypeId: input.taskTypeId,
 			priorityId: input.priorityId,
 			priority: input.priority,
+			complexity: input.complexity,
 			q: input.q,
 		});
 
@@ -219,8 +226,8 @@ export const tasksRouter = {
 		if (!row) return null;
 
 		const [category, priority, project] = await Promise.all([
-			dbCategories.getById(row.category_id),
-			dbPriorities.getById(row.priority_id),
+			row.category_id ? dbCategories.getById(row.category_id) : null,
+			row.priority_id ? dbPriorities.getById(row.priority_id) : null,
 			dbProjects.getById(row.project_id),
 		]);
 
@@ -237,11 +244,24 @@ export const tasksRouter = {
 			firstContent: files.at(0)?.content,
 		});
 
+		const fileNames = files.map((file) => file.name);
+		const base = mapTask(row, display, { fileNames });
+
 		return {
-			...mapTask(row, display, { fileNames: files.map((file) => file.name) }),
+			...base,
+			// Próximo passo do fluxo da complexidade, inferido dos artefatos em disco. Alimenta o chip
+			// de invocação sugerida e a cabeça do prompt; o agente não relê o banco.
+			nextStage: inferTaskStage({ fileNames, complexity: base.complexity }),
 			files,
 			primaryFile,
-			category: category ? { id: category.id, name: category.name, color: category.color } : null,
+			category: category
+				? {
+						id: category.id,
+						name: category.name,
+						color: category.color,
+						structureSlug: category.structure_slug ?? null,
+					}
+				: null,
 			priority: priority
 				? { id: priority.id, name: priority.name, color: priority.color, level: priority.level }
 				: null,
@@ -277,6 +297,7 @@ export const tasksRouter = {
 			title: input.title,
 			priority_id: input.priorityId,
 			category_id: input.categoryId,
+			complexity: input.complexity,
 			group_id: input.groupId,
 		});
 
@@ -294,6 +315,7 @@ export const tasksRouter = {
 			title: input.title,
 			priority_id: input.priorityId,
 			category_id: input.categoryId,
+			complexity: input.complexity,
 			done: input.done === undefined ? undefined : input.done ? 1 : 0,
 			completed_at: input.done === undefined ? undefined : input.done ? Date.now() : null,
 		});

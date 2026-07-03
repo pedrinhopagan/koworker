@@ -9,6 +9,7 @@ import { orpc } from "@/client";
 import { Title } from "@/components/typography";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip } from "@/components/ui/tooltip";
+import { COMPLEXITY_COLORS, COMPLEXITY_LABELS } from "@/constants/complexity";
 import { recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
@@ -201,8 +202,8 @@ function TaskItemDefault({
 				id: task.id,
 				label: task.displayTitle,
 				done: isDone,
-				priorityId: task.priority.id,
-				categoryId: task.category.id,
+				priorityId: task.priority?.id ?? null,
+				categoryId: task.category?.id ?? null,
 			}}
 			data={taskMenuData}
 			actions={menuActions}
@@ -216,7 +217,8 @@ function TaskItemDefault({
 					isDone && "opacity-60",
 					!isDone && highlight === 1 && "bg-primary/[0.04]",
 				)}
-				style={{ borderColor: `${task.priority.color}30` }}
+				// Sem prioridade, a borda cai pra cor da complexidade — sempre há uma.
+				style={{ borderColor: `${task.priority?.color ?? COMPLEXITY_COLORS[task.complexity]}30` }}
 			>
 				{!isDone && highlight ? (
 					<span
@@ -238,6 +240,17 @@ function TaskItemDefault({
 				)}
 
 				<div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-3">
+					<Tooltip label={`Complexidade: ${COMPLEXITY_LABELS[task.complexity]}`}>
+						<span
+							className="pointer-events-auto inline-flex shrink-0 items-center"
+							aria-label={`Complexidade: ${COMPLEXITY_LABELS[task.complexity]}`}
+						>
+							<span
+								className="size-2.5 rounded-full"
+								style={{ backgroundColor: COMPLEXITY_COLORS[task.complexity] }}
+							/>
+						</span>
+					</Tooltip>
 					<Checkbox
 						className="pointer-events-auto"
 						checked={isDone}
@@ -299,13 +312,15 @@ function TaskItemDefault({
 				) : null}
 
 				<TaskMetaControls
-					categoryId={task.category.id}
-					priorityId={task.priority.id}
+					categoryId={task.category?.id ?? null}
+					priorityId={task.priority?.id ?? null}
+					complexity={task.complexity}
 					editing={editing}
 					disabled={isMutating}
 					onToggleEdit={() => setEditing((value) => !value)}
 					onCategoryChange={(categoryId) => updateMutation.mutate({ id: task.id, categoryId })}
 					onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
+					onComplexityChange={(complexity) => updateMutation.mutate({ id: task.id, complexity })}
 					onDelete={() => removeTaskMutation.mutate({ id: task.id })}
 				/>
 

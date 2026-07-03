@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { TASK_COMPLEXITIES } from "@/constants/complexity";
+
 export const TaskIdSchema = z.object({
 	id: z.string().min(1),
 });
@@ -20,6 +22,13 @@ export const TaskListFiltersSchema = z.object({
 	 */
 	priorityId: z.string().min(1).optional(),
 	priority: z.string().min(1).optional(),
+
+	/**
+	 * Filter by complexity.
+	 *
+	 * NOTE: In the DB this maps to `tasks.complexity`.
+	 */
+	complexity: z.enum(TASK_COMPLEXITIES).optional(),
 });
 
 export const TaskListByProjectSchema = z
@@ -41,8 +50,10 @@ export const TaskGetAllSchema = z
 export const TaskCreateSchema = z.object({
 	projectId: z.string().trim().min(1),
 	title: z.string().trim().min(1).optional(),
-	priorityId: z.string().trim().min(1),
-	categoryId: z.string().trim().min(1),
+	// Prioridade e categoria são opcionais: omitidas, a task nasce sem nenhuma delas.
+	priorityId: z.string().trim().min(1).optional(),
+	categoryId: z.string().trim().min(1).optional(),
+	complexity: z.enum(TASK_COMPLEXITIES).default("medio"),
 	// Vincular a task a uma feature (task group) já na criação. Opcional: omitido nasce sem feature.
 	groupId: z.string().trim().min(1).optional(),
 	// Semeia o index.md com o título (H1). Quem cria a task só pra receber arquivos (redirecionar
@@ -62,6 +73,7 @@ export const TaskUpdateSchema = z.object({
 		.transform((v) => (v === "" ? null : v)),
 	priorityId: z.string().trim().min(1).optional(),
 	categoryId: z.string().trim().min(1).optional(),
+	complexity: z.enum(TASK_COMPLEXITIES).optional(),
 	done: z.boolean().optional(),
 });
 
@@ -253,8 +265,9 @@ export const TaskDbCreateSchema = z.object({
 	project_id: z.string().min(1),
 	folder_path: z.string().min(1),
 	title: z.string().min(1).optional(),
-	priority_id: z.string().min(1),
-	category_id: z.string().min(1),
+	priority_id: z.string().min(1).nullable().optional(),
+	category_id: z.string().min(1).nullable().optional(),
+	complexity: z.enum(TASK_COMPLEXITIES).optional(),
 	group_id: z.string().min(1).nullable().optional(),
 	display_order: z.number().int().optional(),
 	file_order: z.string().nullable().optional(),

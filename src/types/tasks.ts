@@ -6,6 +6,7 @@ export type TaskFull = RouterOutputs["tasks"]["getFull"];
 export type TaskFile = NonNullable<TaskFull>["files"][number];
 
 export type TaskWithMeta = Task & {
-	category: { id: string; name: string; color: string };
-	priority: { id: string; name: string; color: string };
+	// Prioridade e categoria são opcionais: uma task pode não ter nenhuma das duas.
+	category: { id: string; name: string; color: string } | null;
+	priority: { id: string; name: string; color: string } | null;
 };

@@ -1,7 +1,7 @@
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
@@ -42,12 +42,16 @@ type EntityManagerDrawerProps<T extends BaseEntity> = {
 	// biome-ignore lint/suspicious/noExplicitAny: ORPC hooks have complex types
 	hooks: any;
 	listQuery: UseQueryResult<T[], Error>;
+	// Controle extra por item (ex.: estrutura de prompt da categoria). Renderizado entre o nome e o
+	// botão de remover; dono do próprio estado/mutação para não vazar concern de domínio pro genérico.
+	renderItemExtra?: (item: T) => ReactNode;
 };
 
 export function EntityManagerDrawer<T extends BaseEntity>({
 	config,
 	hooks,
 	listQuery,
+	renderItemExtra,
 }: EntityManagerDrawerProps<T>) {
 	const queryClient = useQueryClient();
 	const queryKey = hooks.list.queryOptions().queryKey;
@@ -214,6 +218,8 @@ export function EntityManagerDrawer<T extends BaseEntity>({
 						className="h-9 w-20"
 					/>
 				)}
+
+				{renderItemExtra?.(item)}
 
 				<Tooltip label={sorted.length <= 1 ? config.minOneMessage : `Remover ${config.entityName}`}>
 					<Button
