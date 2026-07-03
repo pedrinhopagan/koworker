@@ -100,7 +100,7 @@ export function ProjectList({ projects, selectedId, loading }: ProjectListProps)
 	}
 
 	return (
-		<section className="flex min-h-0 flex-1 flex-col gap-4">
+		<section className="flex flex-col gap-4 md:min-h-0 md:flex-1">
 			<div className="flex items-center justify-between">
 				<div>
 					<Title size="sm">Meus projetos</Title>
@@ -118,7 +118,7 @@ export function ProjectList({ projects, selectedId, loading }: ProjectListProps)
 					Carregando projetos...
 				</Text>
 			) : orderedItems.length === 0 ? null : (
-				<div className="min-h-0 flex-1 overflow-y-auto pr-2 pb-6 [scrollbar-gutter:stable]">
+				<div className="pr-2 pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto md:[scrollbar-gutter:stable]">
 					<SortableList
 						items={orderedItems}
 						onReorder={(items) => {

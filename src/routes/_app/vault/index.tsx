@@ -10,7 +10,7 @@ import {
 	useSensors,
 } from "@dnd-kit/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import {
 	ChevronsDownUp,
 	ChevronsUpDown,
@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { orpc } from "@/client";
 import { PageShell } from "@/components/layout/page-shell";
@@ -83,7 +84,12 @@ function computeDefaultExpanded(allProjects: boolean, projects: { id: string }[]
 	return new Set(keys);
 }
 
+const searchSchema = z.object({
+	searchQuery: z.string().optional(),
+});
+
 export const Route = createFileRoute("/_app/vault/")({
+	validateSearch: (search) => searchSchema.parse(search),
 	component: VaultPage,
 });
 
@@ -96,7 +102,17 @@ function folderEntries(node: TreeNode): VaultEntry[] {
 function VaultPage() {
 	const { projects, selectedProjectId, selectedProject, setSelectedProjectId } = useProjectFocus();
 	const queryClient = useQueryClient();
-	const navigate = useNavigate();
+	const navigate = Route.useNavigate();
+
+	// Busca vive na URL (searchQuery) — compartilhável e persistente ao navegar/voltar.
+	const { searchQuery } = Route.useSearch();
+	const search = searchQuery ?? "";
+	const setSearch = (value: string) => {
+		navigate({
+			search: (prev) => ({ ...prev, searchQuery: value.length > 0 ? value : undefined }),
+			replace: true,
+		});
+	};
 
 	// "Todos os projetos": sem projeto focado, a árvore agrupa por projeto e fica somente-leitura
 	// (mutations/DnD/menu dependem de um projectId único). Abrir um arquivo foca o projeto (drill-in).
@@ -109,7 +125,6 @@ function VaultPage() {
 	// Identidade estável da lista de projetos: o reset de expansão em "Todos" depende de quais
 	// projetos existem, mas não deve disparar a cada refetch que devolve um array novo.
 	const projectIdsKey = projects.map((project) => project.id).join(",");
-	const [search, setSearch] = useState("");
 	// Esconde tarefas concluídas por default — substitui o painel de 4 filtros da visão antiga.
 	const [hideCompleted, setHideCompleted] = useState(true);
 	// Ordenação das pastas de tarefa (controle inline na linha "Tarefas"). Local do vault — não
@@ -143,7 +158,6 @@ function VaultPage() {
 	// biome-ignore lint/correctness/useExhaustiveDependencies: projectIdsKey deriva de `projects`.
 	useEffect(() => {
 		setExpanded(computeDefaultExpanded(allProjects, projects));
-		setSearch("");
 		setHideCompleted(true);
 		setTaskSort("recente");
 		setCreatingTitle(null);
@@ -862,8 +876,8 @@ function VaultPage() {
 				</div>
 			) : (
 				<div className="flex h-full min-h-0 flex-col">
-					<div className="mb-4 flex items-center gap-1">
-						<div className="relative flex-1">
+					<div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-1">
+						<div className="relative w-full sm:w-auto sm:flex-1">
 							<Search
 								size={15}
 								className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -876,63 +890,66 @@ function VaultPage() {
 								aria-label="Buscar no vault"
 							/>
 						</div>
-						<Divider />
+						<div className="flex items-center gap-1">
+							<Divider className="hidden sm:block" />
 
-						<Tooltip label="Colapsar tudo">
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon-sm"
-								aria-label="Colapsar tudo"
-								className="text-muted-foreground"
-								onClick={() => setExpanded(new Set())}
-							>
-								<ChevronsDownUp className="size-4" />
-							</Button>
-						</Tooltip>
-						<Tooltip label="Expandir tudo">
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon-sm"
-								aria-label="Expandir tudo"
-								className="text-muted-foreground"
-								onClick={() => setExpanded(new Set(collectFolderKeys(tree)))}
-							>
-								<ChevronsUpDown className="size-4" />
-							</Button>
-						</Tooltip>
-						<Divider />
+							<Tooltip label="Colapsar tudo">
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-sm"
+									aria-label="Colapsar tudo"
+									className="text-muted-foreground"
+									onClick={() => setExpanded(new Set())}
+								>
+									<ChevronsDownUp className="size-4" />
+								</Button>
+							</Tooltip>
+							<Tooltip label="Expandir tudo">
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-sm"
+									aria-label="Expandir tudo"
+									className="text-muted-foreground"
+									onClick={() => setExpanded(new Set(collectFolderKeys(tree)))}
+								>
+									<ChevronsUpDown className="size-4" />
+								</Button>
+							</Tooltip>
+							<Divider />
 
-						<Tooltip label={hideCompleted ? "Mostrar concluídas" : "Ocultar concluídas"}>
-							<Button
-								type="button"
-								variant={hideCompleted ? "secondary" : "ghost"}
-								size="icon-sm"
-								aria-label="Ocultar tarefas concluídas"
-								aria-pressed={hideCompleted}
-								className={hideCompleted ? undefined : "text-muted-foreground"}
-								onClick={() => setHideCompleted((prev) => !prev)}
-							>
-								<CircleCheck className="size-4" />
-							</Button>
-						</Tooltip>
-						{!readOnly && (
-							<>
-								<Divider />
-								<Tooltip label="Nova nota solta">
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										onClick={() => setCreatingTitle("")}
-									>
-										<Plus className="size-4" />
-										Nova nota
-									</Button>
-								</Tooltip>
-							</>
-						)}
+							<Tooltip label={hideCompleted ? "Mostrar concluídas" : "Ocultar concluídas"}>
+								<Button
+									type="button"
+									variant={hideCompleted ? "secondary" : "ghost"}
+									size="icon-sm"
+									aria-label="Ocultar tarefas concluídas"
+									aria-pressed={hideCompleted}
+									className={hideCompleted ? undefined : "text-muted-foreground"}
+									onClick={() => setHideCompleted((prev) => !prev)}
+								>
+									<CircleCheck className="size-4" />
+								</Button>
+							</Tooltip>
+							{!readOnly && (
+								<>
+									<Divider className="hidden sm:block" />
+									<Tooltip label="Nova nota solta">
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											className="ml-auto sm:ml-0"
+											onClick={() => setCreatingTitle("")}
+										>
+											<Plus className="size-4" />
+											Nova nota
+										</Button>
+									</Tooltip>
+								</>
+							)}
+						</div>
 					</div>
 
 					{selection.keys.size > 0 && (
@@ -1183,8 +1200,8 @@ function VaultPage() {
 	);
 }
 
-function Divider() {
-	return <div className="mx-1 h-5 w-px shrink-0 bg-border" />;
+function Divider({ className }: { className?: string }) {
+	return <div className={cn("mx-1 h-5 w-px shrink-0 bg-border", className)} />;
 }
 
 const SORT_OPTIONS: { mode: TaskSortMode; label: string; icon: typeof Clock }[] = [

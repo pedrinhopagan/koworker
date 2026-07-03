@@ -62,6 +62,7 @@ function ConfiguracoesPage() {
 			title="Configurações"
 			description="Personalize o aplicativo de acordo com suas preferências"
 			icon={Settings}
+			contentClassName="min-h-0 flex-1 overflow-y-auto px-4 pb-8"
 		>
 			<div className="space-y-6">
 				<section className="space-y-3">

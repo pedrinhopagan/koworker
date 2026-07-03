@@ -184,9 +184,12 @@ export function InlineTaskCreateForm({
 				if (!effectiveProjectId) return;
 				submitWithProjectId(effectiveProjectId)(values);
 			})}
-			className={className ?? (stacked ? "grid gap-3" : "flex flex-wrap items-end gap-3")}
+			className={
+				className ??
+				(stacked ? "grid gap-3" : "flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end")
+			}
 		>
-			<div className={cn(stacked ? "w-full" : "flex-1 min-w-55")}>
+			<div className={cn(stacked ? "w-full" : "w-full sm:flex-1 sm:min-w-55")}>
 				<Input
 					placeholder="Nova tarefa..."
 					autoFocus={autoFocus}
@@ -203,230 +206,237 @@ export function InlineTaskCreateForm({
 				)}
 			</div>
 
-			<div className={cn(isHomeVariant ? "grid gap-3 sm:grid-cols-2" : "contents")}>
-				<Controller
-					control={control}
-					name="categoryId"
-					render={({ field }) => (
-						<div className="grid gap-1">
-							<CategorySelect
-								value={field.value ? field.value : null}
-								onValueChange={(id) => field.onChange(id ?? "")}
-								disabled={fieldsDisabled}
-								compact={!isDialogVariant}
-							/>
-						</div>
-					)}
-				/>
-
-				<Controller
-					control={control}
-					name="complexity"
-					render={({ field }) => {
-						const selected = COMPLEXITY_ITEMS.find((item) => item.id === field.value);
-
-						return (
+			<div className={cn(stacked ? "contents" : "flex flex-wrap items-end gap-3 sm:contents")}>
+				<div className={cn(isHomeVariant ? "grid gap-3 sm:grid-cols-2" : "contents")}>
+					<Controller
+						control={control}
+						name="categoryId"
+						render={({ field }) => (
 							<div className="grid gap-1">
-								<CustomSelect
-									items={COMPLEXITY_ITEMS}
-									value={field.value}
-									onValueChange={(id) => field.onChange(id as TaskComplexity)}
+								<CategorySelect
+									value={field.value ? field.value : null}
+									onValueChange={(id) => field.onChange(id ?? "")}
 									disabled={fieldsDisabled}
-									variant="default"
-									size="md"
-									label="Complexidade"
-									fitContent={!isDialogVariant}
-									renderTrigger={() =>
-										isDialogVariant ? (
-											<>
-												<span className="flex min-w-0 items-center gap-2">
-													<span
-														className="size-2 shrink-0 rounded-full"
-														style={{ backgroundColor: selected?.color ?? "#6b7280" }}
-													/>
-													<span className="truncate text-sm">
-														{selected?.name ?? "Complexidade"}
-													</span>
-												</span>
-												<ChevronDown className="ml-1 size-4 text-muted-foreground" />
-											</>
-										) : (
-											<>
-												<span
-													className="inline-flex shrink-0"
-													style={selected ? { color: selected.color } : undefined}
-												>
-													<Gauge className="size-4" />
-												</span>
-												<ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-												<span className="sr-only">
-													Complexidade: {selected?.name ?? "Complexidade"}
-												</span>
-											</>
-										)
-									}
-									renderItem={(item, isSelected) => (
-										<div
-											className={cn(
-												"flex w-full items-center gap-2 px-3 py-2 transition-all duration-150 ease-out",
-												isSelected && "font-medium",
-											)}
-											style={{
-												borderLeft: isSelected
-													? `2px solid ${item.color}`
-													: "2px solid transparent",
-											}}
-										>
-											<span
-												className="size-2 shrink-0 rounded-full"
-												style={{ backgroundColor: item.color }}
-											/>
-											<span className="flex-1 truncate text-sm">{item.name}</span>
-											{isSelected && (
-												<Check className="ml-auto size-4 shrink-0" style={{ color: item.color }} />
-											)}
-										</div>
-									)}
-									triggerStyle={{
-										boxShadow: `0 0 0 1px ${selected?.color ?? "#6b7280"}30`,
-									}}
-									triggerClassName={cn(
-										"gap-1",
-										isDialogVariant ? "min-w-[140px]" : "w-fit min-w-0 px-2",
-									)}
-									contentClassName={
-										isDialogVariant ? "min-w-[var(--radix-select-trigger-width)]" : "min-w-[180px]"
-									}
+									compact={!isDialogVariant}
 								/>
 							</div>
-						);
-					}}
-				/>
-
-				<Controller
-					control={control}
-					name="priorityId"
-					render={({ field }) => (
-						<div className="grid gap-1">
-							<PrioritySelect
-								value={field.value ? field.value : null}
-								onValueChange={(id) => field.onChange(id ?? "")}
-								disabled={fieldsDisabled}
-								compact={!isDialogVariant}
-							/>
-						</div>
-					)}
-				/>
-
-				<Controller
-					control={control}
-					name="groupId"
-					render={({ field }) => (
-						<div className="grid gap-1">
-							<FeatureSelect
-								projectId={effectiveProjectId ?? null}
-								value={field.value ? field.value : null}
-								onValueChange={(id) => field.onChange(id ?? "")}
-								disabled={fieldsDisabled}
-								compact={!isDialogVariant}
-							/>
-						</div>
-					)}
-				/>
-			</div>
-
-			{isHomeVariant && (
-				<div className="grid gap-1">
-					<Textarea
-						placeholder="Descrição (opcional)"
-						disabled={fieldsDisabled}
-						{...register("description")}
-						className="min-h-24 resize-none"
-					/>
-				</div>
-			)}
-
-			{shouldRenderProjectSelect && (
-				<div className="grid gap-1">
-					<CustomSelect
-						items={projects}
-						value={transientProjectId ?? undefined}
-						onValueChange={(newValue) => {
-							setTransientProjectId(newValue);
-						}}
-						disabled={fieldsDisabled}
-						loading={projectsQuery.isLoading}
-						error={projectsLoadError}
-						emptyMessage={projectsLoadError ? "" : "Nenhum projeto"}
-						variant="default"
-						size="md"
-						label="Projeto"
-						renderTrigger={() => (
-							<>
-								<ProjectChip project={selectedProject} />
-								<ChevronDown className="size-4 text-muted-foreground ml-1" />
-							</>
 						)}
-						renderItem={(item, isSelected) => {
-							const color = item.color ?? "#6b7280";
+					/>
+
+					<Controller
+						control={control}
+						name="complexity"
+						render={({ field }) => {
+							const selected = COMPLEXITY_ITEMS.find((item) => item.id === field.value);
 
 							return (
-								<div
-									className={cn(
-										"w-full px-3 py-2 flex items-center gap-2",
-										"transition-all duration-150 ease-out",
-										isSelected && "font-medium",
-									)}
-									style={{
-										color: isSelected ? (item.color ?? undefined) : undefined,
-										borderLeft: isSelected ? `2px solid ${color}` : "2px solid transparent",
-									}}
-								>
-									<span
-										className="size-2 rounded-full shrink-0"
-										style={{ backgroundColor: color }}
+								<div className="grid gap-1">
+									<CustomSelect
+										items={COMPLEXITY_ITEMS}
+										value={field.value}
+										onValueChange={(id) => field.onChange(id as TaskComplexity)}
+										disabled={fieldsDisabled}
+										variant="default"
+										size="md"
+										label="Complexidade"
+										fitContent={!isDialogVariant}
+										renderTrigger={() =>
+											isDialogVariant ? (
+												<>
+													<span className="flex min-w-0 items-center gap-2">
+														<span
+															className="size-2 shrink-0 rounded-full"
+															style={{ backgroundColor: selected?.color ?? "#6b7280" }}
+														/>
+														<span className="truncate text-sm">
+															{selected?.name ?? "Complexidade"}
+														</span>
+													</span>
+													<ChevronDown className="ml-1 size-4 text-muted-foreground" />
+												</>
+											) : (
+												<>
+													<span
+														className="inline-flex shrink-0"
+														style={selected ? { color: selected.color } : undefined}
+													>
+														<Gauge className="size-4" />
+													</span>
+													<ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+													<span className="sr-only">
+														Complexidade: {selected?.name ?? "Complexidade"}
+													</span>
+												</>
+											)
+										}
+										renderItem={(item, isSelected) => (
+											<div
+												className={cn(
+													"flex w-full items-center gap-2 px-3 py-2 transition-all duration-150 ease-out",
+													isSelected && "font-medium",
+												)}
+												style={{
+													borderLeft: isSelected
+														? `2px solid ${item.color}`
+														: "2px solid transparent",
+												}}
+											>
+												<span
+													className="size-2 shrink-0 rounded-full"
+													style={{ backgroundColor: item.color }}
+												/>
+												<span className="flex-1 truncate text-sm">{item.name}</span>
+												{isSelected && (
+													<Check
+														className="ml-auto size-4 shrink-0"
+														style={{ color: item.color }}
+													/>
+												)}
+											</div>
+										)}
+										triggerStyle={{
+											boxShadow: `0 0 0 1px ${selected?.color ?? "#6b7280"}30`,
+										}}
+										triggerClassName={cn(
+											"gap-1",
+											isDialogVariant ? "min-w-[140px]" : "w-fit min-w-0 px-2",
+										)}
+										contentClassName={
+											isDialogVariant
+												? "min-w-[var(--radix-select-trigger-width)]"
+												: "min-w-[180px]"
+										}
 									/>
-									<span className={cn("flex-1 text-sm truncate")}>{item.name}</span>
-
-									{isSelected && <Check className="size-4 ml-auto shrink-0" style={{ color }} />}
 								</div>
 							);
 						}}
-						triggerStyle={{
-							boxShadow: `0 0 0 1px ${selectedProject?.color ?? "#6b7280"}30`,
-						}}
-						triggerClassName={cn("gap-1 min-w-[160px]")}
-						contentClassName="min-w-[220px]"
 					/>
-					{projectsLoadError ? (
-						<Text size="xs" tone="destructive">
-							{projectsLoadError}
-						</Text>
+
+					<Controller
+						control={control}
+						name="priorityId"
+						render={({ field }) => (
+							<div className="grid gap-1">
+								<PrioritySelect
+									value={field.value ? field.value : null}
+									onValueChange={(id) => field.onChange(id ?? "")}
+									disabled={fieldsDisabled}
+									compact={!isDialogVariant}
+								/>
+							</div>
+						)}
+					/>
+
+					<Controller
+						control={control}
+						name="groupId"
+						render={({ field }) => (
+							<div className="grid gap-1">
+								<FeatureSelect
+									projectId={effectiveProjectId ?? null}
+									value={field.value ? field.value : null}
+									onValueChange={(id) => field.onChange(id ?? "")}
+									disabled={fieldsDisabled}
+									compact={!isDialogVariant}
+								/>
+							</div>
+						)}
+					/>
+				</div>
+
+				{isHomeVariant && (
+					<div className="grid gap-1">
+						<Textarea
+							placeholder="Descrição (opcional)"
+							disabled={fieldsDisabled}
+							{...register("description")}
+							className="min-h-24 resize-none"
+						/>
+					</div>
+				)}
+
+				{shouldRenderProjectSelect && (
+					<div className="grid gap-1">
+						<CustomSelect
+							items={projects}
+							value={transientProjectId ?? undefined}
+							onValueChange={(newValue) => {
+								setTransientProjectId(newValue);
+							}}
+							disabled={fieldsDisabled}
+							loading={projectsQuery.isLoading}
+							error={projectsLoadError}
+							emptyMessage={projectsLoadError ? "" : "Nenhum projeto"}
+							variant="default"
+							size="md"
+							label="Projeto"
+							renderTrigger={() => (
+								<>
+									<ProjectChip project={selectedProject} />
+									<ChevronDown className="size-4 text-muted-foreground ml-1" />
+								</>
+							)}
+							renderItem={(item, isSelected) => {
+								const color = item.color ?? "#6b7280";
+
+								return (
+									<div
+										className={cn(
+											"w-full px-3 py-2 flex items-center gap-2",
+											"transition-all duration-150 ease-out",
+											isSelected && "font-medium",
+										)}
+										style={{
+											color: isSelected ? (item.color ?? undefined) : undefined,
+											borderLeft: isSelected ? `2px solid ${color}` : "2px solid transparent",
+										}}
+									>
+										<span
+											className="size-2 rounded-full shrink-0"
+											style={{ backgroundColor: color }}
+										/>
+										<span className={cn("flex-1 text-sm truncate")}>{item.name}</span>
+
+										{isSelected && <Check className="size-4 ml-auto shrink-0" style={{ color }} />}
+									</div>
+								);
+							}}
+							triggerStyle={{
+								boxShadow: `0 0 0 1px ${selectedProject?.color ?? "#6b7280"}30`,
+							}}
+							triggerClassName={cn("gap-1 min-w-[160px]")}
+							contentClassName="min-w-[220px]"
+						/>
+						{projectsLoadError ? (
+							<Text size="xs" tone="destructive">
+								{projectsLoadError}
+							</Text>
+						) : (
+							transientProjectId && null
+						)}
+					</div>
+				)}
+
+				<div className={cn("grid gap-1", stacked ? "w-full" : "ml-auto sm:ml-0")}>
+					{stacked ? (
+						<Button type="submit" disabled={submitDisabled} className="w-full">
+							<Plus className="mr-1 size-4" />
+							{isDialogVariant ? "Adicionar tarefa" : "Submit"}
+						</Button>
 					) : (
-						transientProjectId && null
+						<Tooltip label="Adicionar tarefa">
+							<Button
+								type="submit"
+								size="icon-sm"
+								aria-label="Adicionar tarefa"
+								disabled={submitDisabled}
+								className="size-9"
+							>
+								<Plus className="size-4" />
+							</Button>
+						</Tooltip>
 					)}
 				</div>
-			)}
-
-			<div className={cn("grid gap-1", stacked && "w-full")}>
-				{stacked ? (
-					<Button type="submit" disabled={submitDisabled} className="w-full">
-						<Plus className="mr-1 size-4" />
-						{isDialogVariant ? "Adicionar tarefa" : "Submit"}
-					</Button>
-				) : (
-					<Tooltip label="Adicionar tarefa">
-						<Button
-							type="submit"
-							size="icon-sm"
-							aria-label="Adicionar tarefa"
-							disabled={submitDisabled}
-							className="size-9"
-						>
-							<Plus className="size-4" />
-						</Button>
-					</Tooltip>
-				)}
 			</div>
 		</form>
 	);

@@ -206,7 +206,7 @@ export function SkillsGrid({ skills, categories, loading }: SkillsGridProps) {
 
 			{!loading && (
 				<div className="min-h-0 flex-1 transform-gpu overflow-y-auto overscroll-contain pr-1">
-					<div className="grid grid-cols-3 lg:grid-cols-4 gap-3 pb-5">
+					<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pb-5">
 						<SkillCreateTile />
 					</div>
 
@@ -223,7 +223,7 @@ export function SkillsGrid({ skills, categories, loading }: SkillsGridProps) {
 									/>
 
 									{!isCollapsed && (
-										<div className="grid grid-cols-3 lg:grid-cols-4 gap-3">
+										<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
 											{sectionSkills.map((skill, index) => (
 												<SkillTile
 													key={skill.slug}

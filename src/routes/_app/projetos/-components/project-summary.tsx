@@ -71,7 +71,7 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 	const displayPath = project.displayPath;
 
 	return (
-		<div className="flex flex-col h-full min-h-0">
+		<div className="flex flex-col md:h-full md:min-h-0">
 			<div className="shrink-0 space-y-6 px-4 pt-4 pb-4">
 				<div className="flex items-start justify-between gap-4">
 					<div className="flex min-w-0 items-start gap-3">
@@ -143,7 +143,7 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 				</label>
 			</div>
 
-			<div className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable] px-4 pb-6 space-y-6">
+			<div className="px-4 pb-6 space-y-6 md:flex-1 md:min-h-0 md:overflow-y-auto md:[scrollbar-gutter:stable]">
 				<SummaryRoutes
 					key={project.id}
 					routes={project.routes}

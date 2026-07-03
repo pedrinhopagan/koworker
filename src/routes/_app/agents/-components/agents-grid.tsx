@@ -73,7 +73,7 @@ export function AgentsGrid({ agents, loading }: AgentsGridProps) {
 
 			{!loading && (
 				<div className="min-h-0 flex-1 transform-gpu overflow-y-auto overscroll-contain pr-1">
-					<div className="grid grid-cols-3 lg:grid-cols-4 gap-3">
+					<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
 						<AgentCreateTile />
 						{filtered.map((agent, index) => (
 							<AgentTile

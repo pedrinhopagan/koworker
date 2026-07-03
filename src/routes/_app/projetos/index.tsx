@@ -32,12 +32,13 @@ function ProjetosPage() {
 			description="Organize seus projetos e contextos"
 			icon={FolderKanban}
 			variant="grid"
+			contentClassName="flex-col overflow-y-auto md:overflow-visible"
 		>
-			<div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden px-4 pb-4">
+			<div className="order-2 flex min-w-0 flex-col px-4 pb-4 md:order-none md:h-full md:min-h-0 md:overflow-hidden">
 				<ProjectList projects={data.projects} selectedId={selectedId} loading={loading} />
 			</div>
 
-			<section className="min-h-0 min-w-0 h-full overflow-hidden">
+			<section className="order-1 min-w-0 md:order-none md:h-full md:min-h-0 md:overflow-hidden">
 				<ProjectSummary project={selectedProject} />
 			</section>
 		</PageShell>
