@@ -1,6 +1,9 @@
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Flag, Palette, Settings, SlidersHorizontal, Tags, Type } from "lucide-react";
+import { Flag, Palette, RefreshCw, Settings, SlidersHorizontal, Tags, Type } from "lucide-react";
+import { toast } from "sonner";
 
+import { orpc } from "@/client";
 import { ConfigCard } from "@/components/settings/config-card";
 import { CategoryManagerDrawer } from "@/components/tasks/CategoryManagerDrawer";
 import { PriorityManagerDrawer } from "@/components/tasks/PriorityManagerDrawer";
@@ -13,6 +16,42 @@ import { PageShell } from "../../components/layout/page-shell";
 export const Route = createFileRoute("/_app/configuracoes")({
 	component: ConfiguracoesPage,
 });
+
+function isRedeployConflict(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		(error as { code: string }).code === "CONFLICT"
+	);
+}
+
+function RedeployAppCard() {
+	const redeployMutation = useMutation({
+		...orpc.system.redeploy.mutationOptions(),
+		onSuccess: () => {
+			toast.success("Atualização iniciada — o app vai reiniciar em alguns minutos");
+		},
+		onError: (error) => {
+			if (isRedeployConflict(error)) {
+				toast.error("Já existe uma atualização em andamento");
+				return;
+			}
+
+			toast.error("Não foi possível iniciar a atualização");
+		},
+	});
+
+	return (
+		<ConfigCard
+			icon={RefreshCw}
+			title="Atualizar aplicativo"
+			description="Baixa a versão mais recente do repositório e publica no PC."
+			onClick={() => redeployMutation.mutate({})}
+			className={redeployMutation.isPending ? "opacity-60 pointer-events-none" : undefined}
+		/>
+	);
+}
 
 function ConfiguracoesPage() {
 	const openManageDrawer = useManageDrawerStore((s) => s.open);
@@ -91,6 +130,7 @@ function ConfiguracoesPage() {
 							description="Emulador, multiplexador, pasta base e fontes de agents/skills."
 							onClick={() => navigate({ to: "/sistema" })}
 						/>
+						<RedeployAppCard />
 					</div>
 				</section>
 			</div>
