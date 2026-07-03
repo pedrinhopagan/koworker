@@ -221,20 +221,6 @@
 	animation: modal-in 0.2s ease-out;
 }
 
-/* Slide from right */
-@keyframes slide-in {
-	from {
-		transform: translateX(100%);
-	}
-	to {
-		transform: translateX(0);
-	}
-}
-
-.animate-slide-in {
-	animation: slide-in 0.2s ease-out;
-}
-
 /* Fade in with subtle Y movement */
 @keyframes fade-in {
 	from {
@@ -266,22 +252,6 @@
 .animate-slide-down {
 	animation: slide-down 0.3s ease-out;
 	overflow: hidden;
-}
-
-/* Slide in from right with opacity */
-@keyframes slide-in-right {
-	from {
-		transform: translateX(100%);
-		opacity: 0;
-	}
-	to {
-		transform: translateX(0);
-		opacity: 1;
-	}
-}
-
-.animate-slide-in-right {
-	animation: slide-in-right 0.25s ease-out;
 }
 
 /* Scale in with subtle bounce */

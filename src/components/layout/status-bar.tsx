@@ -1,8 +1,17 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Bug, ChevronDown, DatabaseZap, SquareTerminal } from "lucide-react";
+import { Bug, ChevronDown, DatabaseZap, Ellipsis, SquareTerminal } from "lucide-react";
 import { type ComponentType, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { INVOKE_CLI_OPTIONS, type InvokeCli } from "@/constants/invoke";
 import { getAppEnv, getAppVersionFallback, isDevelopmentEnvironment } from "@/lib/env";
@@ -36,6 +45,8 @@ export function StatusBar() {
 	const [appVersion, setAppVersion] = useState(getAppVersionFallback());
 	const appEnv = getAppEnv();
 	const isDev = isDevelopmentEnvironment();
+	const cli = usePromptBarStore((s) => s.cli);
+	const setCli = usePromptBarStore((s) => s.setCli);
 
 	useEffect(() => {
 		let active = true;
@@ -85,12 +96,18 @@ export function StatusBar() {
 		}, 120);
 	}
 
+	const cliOptions = INVOKE_CLI_OPTIONS.map((option) => ({
+		id: option.value,
+		label: option.label,
+		hint: option.hint,
+	}));
+
 	return (
-		<footer className="h-8 px-3 border-t border-border/80 bg-chrome flex items-center justify-between gap-3 text-xs">
-			<div className="min-w-0 flex items-center gap-2">
+		<footer className="flex h-9 items-center justify-between gap-2 border-t border-border/80 bg-chrome px-3 text-xs md:h-8 md:gap-3 md:px-3">
+			<div className="min-w-0 flex items-center gap-2 truncate">
 				<div
 					className={cn(
-						"px-2 py-0.5 rounded border text-[11px] uppercase tracking-wide bg-muted/25 text-muted-foreground",
+						"shrink-0 px-2 py-0.5 rounded border text-[11px] uppercase tracking-wide bg-muted/25 text-muted-foreground",
 						isDev
 							? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-amber-200/75"
 							: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/5 dark:text-emerald-200/75",
@@ -99,20 +116,61 @@ export function StatusBar() {
 					{appEnv}
 				</div>
 
-				<div className="text-muted-foreground/85">v{appVersion}</div>
+				<div className="truncate text-muted-foreground/85">v{appVersion}</div>
 			</div>
 
-			<div className="flex items-center gap-1 min-w-0">
+			<div className="hidden md:flex items-center gap-1 min-w-0">
 				<CliSelect />
 				<ActionButton onClick={handleOpenConsole} label="Console" icon={Bug} />
 				<ActionButton onClick={handleClearCache} label="Limpar Cache" icon={DatabaseZap} />
+			</div>
+
+			<div className="md:hidden shrink-0">
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="size-8"
+							aria-label="Mais opções da barra de status"
+						>
+							<Ellipsis size={14} />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end" className="min-w-[200px]">
+						<DropdownMenuLabel>CLI de trabalho</DropdownMenuLabel>
+						{cliOptions.map((option) => (
+							<DropdownMenuItem
+								key={option.id}
+								onClick={() => setCli(option.id as InvokeCli)}
+								className={cn(option.id === cli && "font-medium text-foreground")}
+							>
+								<SquareTerminal size={14} />
+								<div className="flex flex-col">
+									<span className="text-xs">{option.label}</span>
+									<span className="text-[11px] text-muted-foreground">{option.hint}</span>
+								</div>
+							</DropdownMenuItem>
+						))}
+
+						<DropdownMenuSeparator />
+
+						<DropdownMenuItem onClick={handleOpenConsole}>
+							<Bug size={14} />
+							Console
+						</DropdownMenuItem>
+
+						<DropdownMenuItem onClick={handleClearCache}>
+							<DatabaseZap size={14} />
+							Limpar Cache
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</div>
 		</footer>
 	);
 }
 
-// Seletor global do CLI de trabalho (claude|codex): interfere no prompt inteiro — comando, knobs de
-// sessão e grafia das skills — então vive aqui na StatusBar como um modo da sessão, não um knob local.
 function CliSelect() {
 	const cli = usePromptBarStore((s) => s.cli);
 	const setCli = usePromptBarStore((s) => s.setCli);

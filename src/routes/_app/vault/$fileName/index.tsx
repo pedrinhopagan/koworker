@@ -1,11 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ArrowUpRight, Link2, Loader2, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { ArrowLeft, ArrowUpRight, Link2, Loader2, MoreVertical, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
+import {
+	docSheetAction,
+	DocMobileActionsDrawer,
+	DocSheetActionButton,
+	DocSheetDivider,
+} from "@/components/doc-mobile-actions-drawer";
 import { DocToolbar } from "@/components/doc-toolbar";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
@@ -28,6 +34,7 @@ function VaultFilePage() {
 	const paneRef = useRef<DocEditorPaneHandle>(null);
 	const reading = useReadingModeStore((s) => s.reading);
 	const setReading = useReadingModeStore((s) => s.setReading);
+	const [actionsOpen, setActionsOpen] = useState(false);
 
 	useEffect(() => () => setReading(false), [setReading]);
 
@@ -121,6 +128,25 @@ function VaultFilePage() {
 		promoteMutation.mutate({ projectId, name: fileName });
 	}
 
+	function closeActions() {
+		setActionsOpen(false);
+	}
+
+	const docToolbarProps = {
+		onCollapse: () => paneRef.current?.collapseAll(),
+		onExpand: () => paneRef.current?.expandAll(),
+		onCopyContent: () => void paneRef.current?.copyContent(),
+		onCopyPath: () => void paneRef.current?.copyPath(),
+		onReading: () => setReading(true),
+		pinned,
+		onTogglePin: togglePin,
+		share: selectedProject
+			? {
+					onOpenInOs: () => void openFolderInOs(joinPath(selectedProject.mainRoute, ".koworker")),
+				}
+			: undefined,
+	};
+
 	if (!selectedProjectId) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center gap-4">
@@ -175,54 +201,87 @@ function VaultFilePage() {
 						<Text size="sm" className="min-w-0 flex-1 truncate font-display font-semibold">
 							{file.title}
 						</Text>
-						<LinkTaskPopover
-							tasks={taskOptions}
-							loading={tasksQuery.isLoading}
-							fileNames={[file.name]}
-							pending={linkMutation.isPending || createTaskMutation.isPending}
-							onConfirm={(taskId, targetName) => void link(taskId, targetName)}
-							onConfirmNew={(payload, targetName) => void linkNew(payload, targetName)}
-						>
-							<Button variant="outline" size="sm" disabled={linkMutation.isPending}>
-								{linkMutation.isPending ? (
+						<div className="hidden md:contents">
+							<LinkTaskPopover
+								tasks={taskOptions}
+								loading={tasksQuery.isLoading}
+								fileNames={[file.name]}
+								pending={linkMutation.isPending || createTaskMutation.isPending}
+								onConfirm={(taskId, targetName) => void link(taskId, targetName)}
+								onConfirmNew={(payload, targetName) => void linkNew(payload, targetName)}
+							>
+								<Button variant="outline" size="sm" disabled={linkMutation.isPending}>
+									{linkMutation.isPending ? (
+										<Loader2 size={14} className="animate-spin" />
+									) : (
+										<Link2 size={14} />
+									)}
+									Vincular a tarefa
+								</Button>
+							</LinkTaskPopover>
+							<Button size="sm" onClick={() => void promote()} disabled={promoteMutation.isPending}>
+								{promoteMutation.isPending ? (
 									<Loader2 size={14} className="animate-spin" />
 								) : (
-									<Link2 size={14} />
+									<ArrowUpRight size={14} />
 								)}
-								Vincular a tarefa
+								Promover a tarefa
 							</Button>
-						</LinkTaskPopover>
-						<Button size="sm" onClick={() => void promote()} disabled={promoteMutation.isPending}>
-							{promoteMutation.isPending ? (
-								<Loader2 size={14} className="animate-spin" />
-							) : (
-								<ArrowUpRight size={14} />
-							)}
-							Promover a tarefa
+							<div className="h-5 w-px bg-border" aria-hidden="true" />
+							<DocToolbar {...docToolbarProps} />
+						</div>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon-sm"
+							onClick={() => setActionsOpen(true)}
+							aria-label="Ações do documento"
+							className="h-8 w-8 shrink-0 md:hidden"
+						>
+							<MoreVertical className="h-4 w-4" />
 						</Button>
-						<div className="h-5 w-px bg-border" aria-hidden="true" />
-						<DocToolbar
-							onCollapse={() => paneRef.current?.collapseAll()}
-							onExpand={() => paneRef.current?.expandAll()}
-							onCopyContent={() => void paneRef.current?.copyContent()}
-							onCopyPath={() => void paneRef.current?.copyPath()}
-							onReading={() => setReading(true)}
-							pinned={pinned}
-							onTogglePin={togglePin}
-							share={
-								selectedProject
-									? {
-											// Nota solta vive em `.koworker/`; "Abrir no sistema" revela a pasta-mãe. Sem
-											// copiar conteúdo (já é o botão da toolbar — arquivo único) nem zip (não é pasta).
-											onOpenInOs: () =>
-												void openFolderInOs(joinPath(selectedProject.mainRoute, ".koworker")),
-										}
-									: undefined
-							}
-						/>
 					</div>
 				</div>
 			)}
+
+			<DocMobileActionsDrawer open={actionsOpen} onClose={closeActions}>
+				<LinkTaskPopover
+					tasks={taskOptions}
+					loading={tasksQuery.isLoading}
+					fileNames={[file.name]}
+					pending={linkMutation.isPending || createTaskMutation.isPending}
+					onConfirm={(taskId, targetName) => void link(taskId, targetName)}
+					onConfirmNew={(payload, targetName) => void linkNew(payload, targetName)}
+				>
+					<button type="button" disabled={linkMutation.isPending} className={docSheetAction()}>
+						<span className="flex size-[18px] shrink-0 items-center justify-center">
+							{linkMutation.isPending ? (
+								<Loader2 className="size-[18px] animate-spin" />
+							) : (
+								<Link2 className="size-[18px]" />
+							)}
+						</span>
+						<span className="min-w-0 flex-1 truncate text-left">Vincular a tarefa</span>
+					</button>
+				</LinkTaskPopover>
+				<DocSheetActionButton
+					icon={
+						promoteMutation.isPending ? (
+							<Loader2 className="size-[18px] animate-spin" />
+						) : (
+							<ArrowUpRight className="size-[18px]" />
+						)
+					}
+					label="Promover a tarefa"
+					onClick={() => {
+						void promote();
+						closeActions();
+					}}
+					disabled={promoteMutation.isPending}
+				/>
+				<DocSheetDivider />
+				<DocToolbar {...docToolbarProps} layout="stacked" onAction={closeActions} />
+			</DocMobileActionsDrawer>
 
 			{/* Mesma ideia da página de tarefa: overlay em tela cheia na leitura, `display:contents`
 			    fora dela. O botão de sair vem depois do editor (posicionado absoluto) pra não deslocar

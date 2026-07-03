@@ -1,4 +1,4 @@
-import { protectedProcedure, publicProcedure } from "../auth/context";
+import { protectedProcedure } from "../auth/context";
 import { getSystemSettings } from "../helpers/system-settings";
 import { Terminal } from "../helpers/terminal/service";
 import { PubSub } from "../pubsub";
@@ -59,5 +59,5 @@ export const terminalRouter = {
 };
 
 export const terminalWsRouter = {
-	events: publicProcedure.handler(({ signal }) => PubSub.terminal.subscribe(signal)),
+	events: protectedProcedure.handler(({ signal }) => PubSub.terminal.subscribe(signal)),
 };

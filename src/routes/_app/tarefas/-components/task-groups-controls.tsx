@@ -41,6 +41,7 @@ import {
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { Drawer } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
@@ -165,7 +166,7 @@ function FilterSelect<T extends { id: string; name: string; color: string; level
 	);
 }
 
-function FiltersPopover({
+function TaskFiltersPanel({
 	value,
 	categories,
 	priorities,
@@ -209,6 +210,109 @@ function FiltersPopover({
 	].filter(Boolean).length;
 
 	return (
+		<div className="space-y-3">
+			<div className="flex items-center justify-between">
+				<Text size="sm" className="font-medium">
+					Filtros
+				</Text>
+				{activeFilters > 0 && (
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						className="h-6 px-2 text-muted-foreground"
+						onClick={() =>
+							onChange({
+								...value,
+								taskTypeId: undefined,
+								priorityId: undefined,
+								complexity: undefined,
+								includeCompleted: undefined,
+							})
+						}
+					>
+						<X className="size-3.5" />
+						Limpar
+					</Button>
+				)}
+			</div>
+
+			<div className="space-y-1">
+				<Text size="xs" className="font-medium">
+					Tipo
+				</Text>
+				<FilterSelect
+					items={taskTypeItems}
+					value={value.taskTypeId ?? TASK_TYPE_ALL_ID}
+					allId={TASK_TYPE_ALL_ID}
+					placeholder="Todos os tipos"
+					onValueChange={(taskTypeId) => onChange({ ...value, taskTypeId })}
+				/>
+			</div>
+
+			<div className="space-y-1">
+				<Text size="xs" className="font-medium">
+					Prioridade
+				</Text>
+				<FilterSelect
+					items={priorityItems}
+					value={value.priorityId ?? PRIORITY_ALL_ID}
+					allId={PRIORITY_ALL_ID}
+					placeholder="Todas as prioridades"
+					onValueChange={(priorityId) => onChange({ ...value, priorityId })}
+				/>
+			</div>
+
+			<div className="space-y-1">
+				<Text size="xs" className="font-medium">
+					Complexidade
+				</Text>
+				<FilterSelect
+					items={complexityItems}
+					value={value.complexity ?? COMPLEXITY_ALL_ID}
+					allId={COMPLEXITY_ALL_ID}
+					placeholder="Todas as complexidades"
+					onValueChange={(complexity) =>
+						onChange({ ...value, complexity: complexity as TaskComplexity | undefined })
+					}
+				/>
+			</div>
+
+			<label className="flex cursor-pointer items-center justify-between gap-2">
+				<Text size="xs" className="font-medium">
+					Ver concluídas
+				</Text>
+				<Switch
+					checked={Boolean(value.includeCompleted)}
+					onCheckedChange={(checked) =>
+						onChange({ ...value, includeCompleted: checked || undefined })
+					}
+					size="default"
+				/>
+			</label>
+		</div>
+	);
+}
+
+function FiltersPopover({
+	value,
+	categories,
+	priorities,
+	onChange,
+}: {
+	value: TaskSearchValue;
+	categories: Category[];
+	priorities: Priority[];
+	onChange: (next: TaskSearchValue) => void;
+}) {
+	const activeFilters = [
+		value.taskTypeId,
+		value.priorityId,
+		value.complexity,
+		value.includeCompleted ? "done" : undefined,
+	].filter(Boolean).length;
+
+	return (
 		<Popover>
 			<PopoverTrigger asChild>
 				<Button
@@ -228,85 +332,12 @@ function FiltersPopover({
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-64 space-y-3 p-3">
-				<div className="flex items-center justify-between">
-					<Text size="sm" className="font-medium">
-						Filtros
-					</Text>
-					{activeFilters > 0 && (
-						<Button
-							type="button"
-							variant="ghost"
-							size="sm"
-							className="h-6 px-2 text-muted-foreground"
-							onClick={() =>
-								onChange({
-									...value,
-									taskTypeId: undefined,
-									priorityId: undefined,
-									complexity: undefined,
-									includeCompleted: undefined,
-								})
-							}
-						>
-							<X className="size-3.5" />
-							Limpar
-						</Button>
-					)}
-				</div>
-
-				<div className="space-y-1">
-					<Text size="xs" className="font-medium">
-						Tipo
-					</Text>
-					<FilterSelect
-						items={taskTypeItems}
-						value={value.taskTypeId ?? TASK_TYPE_ALL_ID}
-						allId={TASK_TYPE_ALL_ID}
-						placeholder="Todos os tipos"
-						onValueChange={(taskTypeId) => onChange({ ...value, taskTypeId })}
-					/>
-				</div>
-
-				<div className="space-y-1">
-					<Text size="xs" className="font-medium">
-						Prioridade
-					</Text>
-					<FilterSelect
-						items={priorityItems}
-						value={value.priorityId ?? PRIORITY_ALL_ID}
-						allId={PRIORITY_ALL_ID}
-						placeholder="Todas as prioridades"
-						onValueChange={(priorityId) => onChange({ ...value, priorityId })}
-					/>
-				</div>
-
-				<div className="space-y-1">
-					<Text size="xs" className="font-medium">
-						Complexidade
-					</Text>
-					<FilterSelect
-						items={complexityItems}
-						value={value.complexity ?? COMPLEXITY_ALL_ID}
-						allId={COMPLEXITY_ALL_ID}
-						placeholder="Todas as complexidades"
-						onValueChange={(complexity) =>
-							onChange({ ...value, complexity: complexity as TaskComplexity | undefined })
-						}
-					/>
-				</div>
-
-				<label className="flex cursor-pointer items-center justify-between gap-2">
-					<Text size="xs" className="font-medium">
-						Ver concluídas
-					</Text>
-					<Switch
-						checked={Boolean(value.includeCompleted)}
-						onCheckedChange={(checked) =>
-							onChange({ ...value, includeCompleted: checked || undefined })
-						}
-						size="default"
-					/>
-				</label>
+				<TaskFiltersPanel
+					value={value}
+					categories={categories}
+					priorities={priorities}
+					onChange={onChange}
+				/>
 			</PopoverContent>
 		</Popover>
 	);
@@ -340,6 +371,7 @@ export function TaskListControls({
 	const queryClient = useQueryClient();
 	const [creating, setCreating] = useState(false);
 	const [name, setName] = useState("");
+	const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
 	const groupsQuery = orpc.taskGroups.list.queryOptions({ input: { projectId: projectId ?? "" } });
 	const createMutation = useMutation({
@@ -359,9 +391,18 @@ export function TaskListControls({
 		createMutation.mutate({ projectId, name: trimmed, color });
 	}
 
-	return (
-		<div className="flex items-center gap-1">
-			<div className="relative flex-1">
+	const activeFilters = [
+		search.value.taskTypeId,
+		search.value.priorityId,
+		search.value.complexity,
+		search.value.includeCompleted ? "done" : undefined,
+	].filter(Boolean).length;
+
+	const mobileControlsActive = activeFilters > 0 || sortMode !== "categoria";
+
+	function searchInput(className?: string) {
+		return (
+			<div className={cn("relative", className)}>
 				<Search className="-translate-y-1/2 absolute top-1/2 left-2.5 size-4 text-muted-foreground" />
 				<Input
 					placeholder="Buscar tarefas..."
@@ -373,86 +414,194 @@ export function TaskListControls({
 					className="h-9 pl-8"
 				/>
 			</div>
+		);
+	}
 
-			<FiltersPopover
-				value={search.value}
-				categories={categories}
-				priorities={priorities}
-				onChange={search.onChange}
-			/>
+	function newFeatureControls(fullWidth?: boolean) {
+		if (!projectId) return null;
 
-			<Divider />
+		if (creating) {
+			return (
+				<div className={cn("flex items-center gap-1", fullWidth && "w-full")}>
+					<Input
+						autoFocus
+						value={name}
+						onChange={(e) => setName(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") submit();
+							if (e.key === "Escape") setCreating(false);
+						}}
+						placeholder="Nome da feature"
+						className={cn("h-8", fullWidth ? "min-w-0 flex-1" : "w-40")}
+					/>
+					<Button size="sm" className="h-8" onClick={submit} disabled={createMutation.isPending}>
+						Criar
+					</Button>
+					<Button variant="ghost" size="icon-sm" onClick={() => setCreating(false)}>
+						<X className="size-4" />
+					</Button>
+				</div>
+			);
+		}
 
-			{SORT_MODES.map(({ mode, label, icon: Icon }) => (
-				<Tooltip key={mode} label={label}>
+		return (
+			<Button
+				variant="outline"
+				size="sm"
+				className={cn("h-8", fullWidth && "w-full")}
+				onClick={() => setCreating(true)}
+			>
+				<Plus className="size-4" />
+				Nova feature
+			</Button>
+		);
+	}
+
+	return (
+		<>
+			<div className="flex flex-col gap-2 md:hidden">
+				{searchInput("w-full")}
+				<Button
+					type="button"
+					variant={mobileControlsActive ? "secondary" : "outline"}
+					size="sm"
+					className="h-12 w-full"
+					onClick={() => setMobileSheetOpen(true)}
+				>
+					<SlidersHorizontal className="size-4" />
+					Filtros e ordenação
+					{mobileControlsActive && (
+						<span className="ml-auto flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+							{activeFilters + (sortMode === "categoria" ? 0 : 1)}
+						</span>
+					)}
+				</Button>
+			</div>
+
+			<div className="hidden items-center gap-1 md:flex">
+				{searchInput("flex-1")}
+
+				<FiltersPopover
+					value={search.value}
+					categories={categories}
+					priorities={priorities}
+					onChange={search.onChange}
+				/>
+
+				<Divider />
+
+				{SORT_MODES.map(({ mode, label, icon: Icon }) => (
+					<Tooltip key={mode} label={label}>
+						<Button
+							type="button"
+							variant={sortMode === mode ? "secondary" : "ghost"}
+							size="icon-sm"
+							aria-label={label}
+							className={cn(sortMode !== mode && "text-muted-foreground")}
+							onClick={() => onSortModeChange(mode)}
+						>
+							<Icon className="size-4" />
+						</Button>
+					</Tooltip>
+				))}
+
+				<Tooltip label="Colapsar tudo">
 					<Button
 						type="button"
-						variant={sortMode === mode ? "secondary" : "ghost"}
+						variant="ghost"
 						size="icon-sm"
-						aria-label={label}
-						className={cn(sortMode !== mode && "text-muted-foreground")}
-						onClick={() => onSortModeChange(mode)}
+						aria-label="Colapsar tudo"
+						className="text-muted-foreground"
+						onClick={onCollapseAll}
 					>
-						<Icon className="size-4" />
+						<ChevronsDownUp className="size-4" />
 					</Button>
 				</Tooltip>
-			))}
-
-			<Tooltip label="Colapsar tudo">
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon-sm"
-					aria-label="Colapsar tudo"
-					className="text-muted-foreground"
-					onClick={onCollapseAll}
-				>
-					<ChevronsDownUp className="size-4" />
-				</Button>
-			</Tooltip>
-			<Tooltip label="Expandir tudo">
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon-sm"
-					aria-label="Expandir tudo"
-					className="text-muted-foreground"
-					onClick={onExpandAll}
-				>
-					<ChevronsUpDown className="size-4" />
-				</Button>
-			</Tooltip>
-
-			{projectId && <Divider />}
-
-			{projectId &&
-				(creating ? (
-					<div className="flex items-center gap-1">
-						<Input
-							autoFocus
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter") submit();
-								if (e.key === "Escape") setCreating(false);
-							}}
-							placeholder="Nome da feature"
-							className="h-8 w-40"
-						/>
-						<Button size="sm" className="h-8" onClick={submit} disabled={createMutation.isPending}>
-							Criar
-						</Button>
-						<Button variant="ghost" size="icon-sm" onClick={() => setCreating(false)}>
-							<X className="size-4" />
-						</Button>
-					</div>
-				) : (
-					<Button variant="outline" size="sm" className="h-8" onClick={() => setCreating(true)}>
-						<Plus className="size-4" />
-						Nova feature
+				<Tooltip label="Expandir tudo">
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon-sm"
+						aria-label="Expandir tudo"
+						className="text-muted-foreground"
+						onClick={onExpandAll}
+					>
+						<ChevronsUpDown className="size-4" />
 					</Button>
-				))}
-		</div>
+				</Tooltip>
+
+				{projectId && <Divider />}
+
+				{newFeatureControls()}
+			</div>
+
+			<Drawer
+				open={mobileSheetOpen}
+				onClose={() => setMobileSheetOpen(false)}
+				side="right"
+				title="Filtros e ordenação"
+			>
+				<div className="space-y-6">
+					<TaskFiltersPanel
+						value={search.value}
+						categories={categories}
+						priorities={priorities}
+						onChange={search.onChange}
+					/>
+
+					<div className="space-y-2">
+						<Text size="sm" className="font-medium">
+							Ordenação
+						</Text>
+						<div className="grid grid-cols-2 gap-3">
+							{SORT_MODES.map(({ mode, label, icon: Icon }) => (
+								<Button
+									key={mode}
+									type="button"
+									variant={sortMode === mode ? "secondary" : "outline"}
+									size="sm"
+									className="h-12 justify-start gap-2"
+									onClick={() => onSortModeChange(mode)}
+								>
+									<Icon className="size-4 shrink-0" />
+									{label}
+								</Button>
+							))}
+						</div>
+					</div>
+
+					<div className="space-y-2">
+						<Text size="sm" className="font-medium">
+							Grupos
+						</Text>
+						<div className="grid grid-cols-2 gap-3">
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="h-12 justify-start gap-2"
+								onClick={onCollapseAll}
+							>
+								<ChevronsDownUp className="size-4" />
+								Colapsar tudo
+							</Button>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="h-12 justify-start gap-2"
+								onClick={onExpandAll}
+							>
+								<ChevronsUpDown className="size-4" />
+								Expandir tudo
+							</Button>
+						</div>
+					</div>
+
+					{newFeatureControls(true)}
+				</div>
+			</Drawer>
+		</>
 	);
 }
 

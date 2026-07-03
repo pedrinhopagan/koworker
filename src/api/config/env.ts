@@ -9,6 +9,10 @@ export const envSchema = type({
 	// `process.env` apaga in-place qualquer chave fora daqui antes do server.ts lê-las.
 	"KOWORK_PORT?": "string",
 	"KOWORK_DIST_DIR?": "string",
+	"KOWORK_ADMIN_USER?": "string",
+	"KOWORK_ADMIN_PASSWORD?": "string",
+	"KOWORK_ALLOWED_ORIGINS?": "string",
+	"KOWORK_NOTIFY_TOKEN?": "string",
 });
 
 const result = envSchema(process.env);

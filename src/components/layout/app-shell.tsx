@@ -50,7 +50,7 @@ export function AppShell({ children }: AppShellProps) {
 				<TabBar />
 
 				<div
-					className="flex items-center justify-start border-b border-border px-3 py-2 bg-chrome"
+					className="flex min-w-0 items-center justify-start border-b border-border px-2 py-2 bg-chrome md:px-3"
 					style={focusBarStyle}
 				>
 					<ProjectFocusBar />

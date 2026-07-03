@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
+import { docSheetAction } from "@/components/doc-mobile-actions-drawer";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,12 +17,20 @@ type FileDatePopoverProps = {
 	taskId: string;
 	file: TaskFile;
 	onChanged: () => void;
+	layout?: "inline" | "stacked";
+	onAction?: () => void;
 };
 
 // Datas do arquivo ativo num ícone do header da tarefa: criação (birthtime, imutável) e atualização
 // (mtime, editável). Regravar a atualização (utimes no backend) reordena a recência na lista e nas
 // abas sem tocar no conteúdo — o jeito de jogar pra trás arquivos que não interessam.
-export function FileDatePopover({ taskId, file, onChanged }: FileDatePopoverProps) {
+export function FileDatePopover({
+	taskId,
+	file,
+	onChanged,
+	layout = "inline",
+	onAction,
+}: FileDatePopoverProps) {
 	const [open, setOpen] = useState(false);
 	const [value, setValue] = useState("");
 
@@ -30,6 +39,7 @@ export function FileDatePopover({ taskId, file, onChanged }: FileDatePopoverProp
 		onSuccess: () => {
 			onChanged();
 			setOpen(false);
+			onAction?.();
 			toast.success("Data de atualização alterada");
 		},
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Falha ao alterar a data"),
@@ -53,19 +63,30 @@ export function FileDatePopover({ taskId, file, onChanged }: FileDatePopoverProp
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
-			<Tooltip label="Datas do arquivo">
+			{layout === "stacked" ? (
 				<PopoverTrigger asChild>
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon-sm"
-						aria-label="Datas do arquivo"
-						className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
-					>
-						<CalendarClock className="h-3.5 w-3.5" />
-					</Button>
+					<button type="button" className={docSheetAction()}>
+						<span className="flex size-[18px] shrink-0 items-center justify-center">
+							<CalendarClock className="size-[18px]" />
+						</span>
+						<span className="min-w-0 flex-1 truncate text-left">Datas do arquivo</span>
+					</button>
 				</PopoverTrigger>
-			</Tooltip>
+			) : (
+				<Tooltip label="Datas do arquivo">
+					<PopoverTrigger asChild>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon-sm"
+							aria-label="Datas do arquivo"
+							className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+						>
+							<CalendarClock className="h-3.5 w-3.5" />
+						</Button>
+					</PopoverTrigger>
+				</Tooltip>
+			)}
 			<PopoverContent align="end" className="flex w-auto flex-col gap-3 p-3">
 				<div className="flex flex-col gap-0.5">
 					<Text size="xs" tone="muted">

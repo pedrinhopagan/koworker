@@ -19,11 +19,17 @@ export async function notifyTasksChanged(input: {
 		action: input.action,
 	});
 
+	const headers: Record<string, string> = { "Content-Type": "application/json" };
+	const notifyToken = process.env.KOWORK_NOTIFY_TOKEN;
+	if (notifyToken) {
+		headers.Authorization = `Bearer ${notifyToken}`;
+	}
+
 	await Promise.all(
 		[...ports].map((port) =>
 			fetch(`http://localhost:${port}/api/tasks/notify`, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers,
 				body,
 			}).catch(() => {}),
 		),

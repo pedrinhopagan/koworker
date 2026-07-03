@@ -37,7 +37,7 @@ O que ele faz:
 1. Copia `.env.example` → `.env` (se não existir)
 2. Instala dependências (`bun install`)
 3. Cria o banco SQLite e roda migrações
-4. Roda seed (usuário admin, categorias, prioridades, skills)
+4. Roda seed (usuário admin via env, categorias, prioridades, skills)
 5. Builda o frontend em `dist/`
 6. Compila o backend binary em `src-tauri/bin/kowork-backend`
 7. Verifica se `cargo-tauri` e `webkit2gtk` estão instalados
@@ -74,7 +74,7 @@ O Koworker usa **SQLite** como banco local via `@lobomfz/db` + **Kysely** (query
 
 O seed (`bun seed`) cria:
 
-- Usuário `admin` com senha `password`
+- Usuário admin (se `KOWORK_ADMIN_USER` e `KOWORK_ADMIN_PASSWORD` estiverem definidas no `.env`)
 - Categorias padrão: feature, fix, test, doc
 - Prioridades padrão: Alta, Media, Baixa
 - Skills builtin importadas de `~/.config/opencode/skills/` ou `static/skills/`
@@ -174,12 +174,14 @@ bun cli update-task '{"taskId": "uuid", "status": "executed"}'
 | `DATABASE_URL` | sim         | Caminho do arquivo SQLite              | `db.sqlite`      |
 | `JWT_SECRET`   | sim         | Secret para assinatura de tokens JWT   | —                |
 | `NODE_ENV`     | não         | `development` ou `production`          | `development`    |
+| `KOWORK_ADMIN_USER` | não    | Nome do usuário admin inicial          | —                |
+| `KOWORK_ADMIN_PASSWORD` | não | Senha do usuário admin inicial         | —                |
 
 ## Conexão Front ↔ API
 
 - O front usa ORPC em `/rpc` (HTTP) e `/ws` (WebSocket) na mesma origem
 - Rotas do app (`/_app`) exigem sessão válida via `auth.me`
-- Login padrão: `admin` / `password`
+- Credenciais de login vêm de `KOWORK_ADMIN_USER` / `KOWORK_ADMIN_PASSWORD` no `.env` (sem defaults hardcoded)
 - Em produção/desktop sem servidor embarcado, o backend roda em `http://localhost:4178` ou via `window.__KOWORK_API_URL__`
 
 ## Documentação

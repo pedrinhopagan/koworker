@@ -4,10 +4,24 @@ import {
 	type RegisteredRouter,
 	useRouterState,
 } from "@tanstack/react-router";
-import { CheckCheckIcon, ChevronDownIcon, FolderKanbanIcon, Plus, Terminal } from "lucide-react";
+import {
+	CheckCheckIcon,
+	ChevronDownIcon,
+	Ellipsis,
+	FolderKanbanIcon,
+	Plus,
+	Terminal,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { type UseProjectFocusReturn, useProjectFocus } from "@/hooks";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { LucideIcon } from "@/lib/lucide-icon";
@@ -68,80 +82,126 @@ function ProjectRouteActions({ projectId, project }: ProjectRouteActionsProps) {
 
 	return (
 		<>
-			{canOpenTerminal && (
-				<>
-					{!project.hideTerminal && (
-						<TerminalShortcutMenu
-							projectId={projectId}
-							project={{ id: projectId, name: project.name, mainRoute: project.mainRoute }}
-							isTerminal
-						>
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={handleTerminalClick}
-								disabled={isOpeningTerminal}
-								className={cn(
-									"h-9 px-3 gap-2 transition-all",
-									isTerminalOpen && "text-green-500 hover:text-green-400",
-								)}
-								title={isTerminalOpen ? "Focar terminal do projeto" : "Abrir terminal do projeto"}
-							>
-								<Terminal className={cn("size-4", isOpeningTerminal && "animate-pulse")} />
-								<span className="text-xs hidden sm:inline">Terminal</span>
-							</Button>
-						</TerminalShortcutMenu>
-					)}
-
-					{project.routes
-						?.sort((a, b) => a.displayOrder - b.displayOrder)
-						.map((route) => (
+			<div className="hidden md:contents">
+				{canOpenTerminal && (
+					<>
+						{!project.hideTerminal && (
 							<TerminalShortcutMenu
-								key={route.id}
 								projectId={projectId}
 								project={{ id: projectId, name: project.name, mainRoute: project.mainRoute }}
-								route={{
-									id: route.id,
-									name: route.name,
-									route: route.route,
-									command: route.command,
-								}}
+								isTerminal
 							>
 								<Button
 									variant="ghost"
 									size="sm"
-									onClick={() => handleRouteClick(route)}
-									disabled={isOpeningRoute}
-									className={cn("h-9 px-3 gap-2 transition-all")}
-									title={
-										route.command
-											? `${route.name}: ${route.command}`
-											: `Abrir terminal em ${route.name}`
-									}
+									onClick={handleTerminalClick}
+									disabled={isOpeningTerminal}
+									className={cn(
+										"h-9 px-3 gap-2 transition-all",
+										isTerminalOpen && "text-green-500 hover:text-green-400",
+									)}
+									title={isTerminalOpen ? "Focar terminal do projeto" : "Abrir terminal do projeto"}
 								>
-									<LucideIcon
-										name={route.icon ?? "FolderOpen"}
-										className={cn("size-4", isOpeningRoute && "animate-pulse")}
-									/>
-									<span className="text-xs hidden sm:inline">{route.name}</span>
+									<Terminal className={cn("size-4", isOpeningTerminal && "animate-pulse")} />
+									<span className="text-xs hidden sm:inline">Terminal</span>
 								</Button>
 							</TerminalShortcutMenu>
-						))}
-				</>
-			)}
+						)}
 
-			<Button
-				variant="ghost"
-				size="sm"
-				asChild
-				className="h-9 px-2 gap-1 text-muted-foreground hover:text-foreground transition-colors"
-				title="Adicionar rota personalizada"
-			>
-				<Link to="/projetos/$projetoId" params={{ projetoId: projectId }}>
-					<Plus className="size-3" />
-					<span className="text-xs hidden sm:inline">Adicionar</span>
-				</Link>
-			</Button>
+						{project.routes
+							?.sort((a, b) => a.displayOrder - b.displayOrder)
+							.map((route) => (
+								<TerminalShortcutMenu
+									key={route.id}
+									projectId={projectId}
+									project={{ id: projectId, name: project.name, mainRoute: project.mainRoute }}
+									route={{
+										id: route.id,
+										name: route.name,
+										route: route.route,
+										command: route.command,
+									}}
+								>
+									<Button
+										variant="ghost"
+										size="sm"
+										onClick={() => handleRouteClick(route)}
+										disabled={isOpeningRoute}
+										className={cn("h-9 px-3 gap-2 transition-all")}
+										title={
+											route.command
+												? `${route.name}: ${route.command}`
+												: `Abrir terminal em ${route.name}`
+										}
+									>
+										<LucideIcon
+											name={route.icon ?? "FolderOpen"}
+											className={cn("size-4", isOpeningRoute && "animate-pulse")}
+										/>
+										<span className="text-xs hidden sm:inline">{route.name}</span>
+									</Button>
+								</TerminalShortcutMenu>
+							))}
+					</>
+				)}
+
+				<Button
+					variant="ghost"
+					size="sm"
+					asChild
+					className="h-9 px-2 gap-1 text-muted-foreground hover:text-foreground transition-colors"
+					title="Adicionar rota personalizada"
+				>
+					<Link to="/projetos/$projetoId" params={{ projetoId: projectId }}>
+						<Plus className="size-3" />
+						<span className="text-xs hidden sm:inline">Adicionar</span>
+					</Link>
+				</Button>
+			</div>
+
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="size-10 md:hidden"
+						aria-label="Ações do projeto"
+					>
+						<Ellipsis className="size-4" />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end" className="min-w-[200px]">
+					{canOpenTerminal && !project.hideTerminal && (
+						<DropdownMenuItem onClick={handleTerminalClick} disabled={isOpeningTerminal}>
+							<Terminal className={cn("size-4", isTerminalOpen && "text-green-500")} />
+							{isTerminalOpen ? "Focar terminal" : "Abrir terminal"}
+						</DropdownMenuItem>
+					)}
+
+					{canOpenTerminal &&
+						project.routes
+							?.sort((a, b) => a.displayOrder - b.displayOrder)
+							.map((route) => (
+								<DropdownMenuItem
+									key={route.id}
+									onClick={() => handleRouteClick(route)}
+									disabled={isOpeningRoute}
+								>
+									<LucideIcon name={route.icon ?? "FolderOpen"} className="size-4" />
+									{route.name}
+								</DropdownMenuItem>
+							))}
+
+					<DropdownMenuSeparator />
+
+					<DropdownMenuItem asChild>
+						<Link to="/projetos/$projetoId" params={{ projetoId: projectId }}>
+							<Plus className="size-4" />
+							Adicionar rota
+						</Link>
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
 		</>
 	);
 }
@@ -190,8 +250,8 @@ export function ProjectFocusBar() {
 	const disableChangeFocus = DISABLED_PATHS.has(currentRoutePath as any);
 
 	return (
-		<div className="flex items-center gap-3">
-			<span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+		<div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
+			<span className="hidden text-xs text-muted-foreground font-medium uppercase tracking-wide md:inline">
 				Projeto
 			</span>
 
@@ -203,7 +263,7 @@ export function ProjectFocusBar() {
 				disabled={isEmpty || disableChangeFocus}
 				loading={loading}
 				triggerClassName={cn(
-					"flex items-center gap-3 px-3 py-1.5 min-w-[220px] border border-border bg-card/60 transition-colors hover:bg-card",
+					"flex min-w-0 flex-1 items-center gap-3 border border-border bg-card/60 px-3 py-2 transition-colors hover:bg-card md:min-w-[220px] md:flex-none md:py-1.5",
 				)}
 				triggerStyle={
 					accent

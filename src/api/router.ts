@@ -1,5 +1,8 @@
+import { ORPCError } from "@orpc/server";
+
 import { protectedProcedure, publicProcedure } from "./auth/context";
 import { Auth } from "./auth/login";
+import { getPromptRun } from "./helpers/prompt-run";
 import { PubSub } from "./pubsub";
 import { agentsRouter } from "./routers/agents";
 import { categoriesRouter } from "./routers/categories";
@@ -75,9 +78,13 @@ export const wsRouter = {
 		.input(FlowTaskSchema)
 		.handler(({ input, signal }) => PubSub.subscribe("flow", input.taskId, signal)),
 
-	promptRun: protectedProcedure
-		.input(PromptRunIdSchema)
-		.handler(({ input, signal }) => PubSub.subscribe("promptRun", input.runId, signal)),
+	promptRun: protectedProcedure.input(PromptRunIdSchema).handler(({ input, context, signal }) => {
+		const record = getPromptRun(input.runId, String(context.user.id));
+		if (!record) {
+			throw new ORPCError("NOT_FOUND", { message: "Execução não encontrada" });
+		}
+		return PubSub.subscribe("promptRun", input.runId, signal);
+	}),
 
 	terminal: terminalWsRouter,
 };

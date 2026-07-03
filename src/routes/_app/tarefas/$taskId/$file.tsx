@@ -15,12 +15,13 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Loader2, Plus, X } from "lucide-react";
+import { ArrowLeft, Loader2, MoreVertical, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
+import { DocMobileActionsDrawer, DocSheetDivider } from "@/components/doc-mobile-actions-drawer";
 import { DocToolbar } from "@/components/doc-toolbar";
 import { FileContextMenu } from "@/components/file-context-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -179,6 +180,10 @@ function TaskFilePage() {
 	const [renameValue, setRenameValue] = useState("");
 	const [creatingFile, setCreatingFile] = useState(false);
 	const [newFileValue, setNewFileValue] = useState("");
+	const [actionsOpen, setActionsOpen] = useState(false);
+	const [dndEnabled, setDndEnabled] = useState(
+		() => typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches,
+	);
 	const renameInputRef = useRef<HTMLInputElement>(null);
 	const newFileInputRef = useRef<HTMLInputElement>(null);
 	const headerRef = useRef<HTMLDivElement>(null);
@@ -186,6 +191,15 @@ function TaskFilePage() {
 
 	// O modo leitura vive num store (o footer global o lê pra ficar sutil); reseta ao sair da página.
 	useEffect(() => () => setReading(false), [setReading]);
+
+	useEffect(() => {
+		const mq = window.matchMedia("(min-width: 768px)");
+		function onChange() {
+			setDndEnabled(mq.matches);
+		}
+		mq.addEventListener("change", onChange);
+		return () => mq.removeEventListener("change", onChange);
+	}, []);
 
 	useClickOutside(headerRef, () => setEditing(false), {
 		enabled: editing,
@@ -362,6 +376,27 @@ function TaskFilePage() {
 		reorderFilesMutation.mutate({ id: taskId, orderedNames: arrayMove(names, oldIndex, newIndex) });
 	}
 
+	function closeActions() {
+		setActionsOpen(false);
+	}
+
+	const docToolbarProps = {
+		onCollapse: () => paneRef.current?.collapseAll(),
+		onExpand: () => paneRef.current?.expandAll(),
+		onCopyContent: () => void paneRef.current?.copyContent(),
+		onCopyPath: () => void paneRef.current?.copyPath(),
+		onReading: () => setReading(true),
+		pinned,
+		onTogglePin: togglePin,
+		share: folderAbs
+			? {
+					onOpenInOs: () => void openFolderInOs(folderAbs),
+					onCopyContent: () => void copyTaskContent(),
+					onCopyZip: () => void copyTaskZip(),
+				}
+			: undefined,
+	};
+
 	return (
 		<div className="relative flex h-full w-full flex-col">
 			{reading ? null : (
@@ -405,54 +440,88 @@ function TaskFilePage() {
 								{task.displayTitle}
 							</Text>
 						)}
-						<TaskMetaControls
-							categoryId={task.categoryId ?? null}
-							priorityId={task.priorityId ?? null}
-							complexity={task.complexity}
-							editing={editing}
-							disabled={isMutating}
-							onToggleEdit={() => setEditing((value) => !value)}
-							onCategoryChange={(categoryId) => updateMutation.mutate({ id: task.id, categoryId })}
-							onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
-							onComplexityChange={(complexity) =>
-								updateMutation.mutate({ id: task.id, complexity })
-							}
-							onDelete={() => removeTaskMutation.mutate({ id: task.id })}
-						/>
-						<FlowRunButton taskId={taskId} />
-						<div className="h-5 w-px bg-border" aria-hidden="true" />
-						<DocToolbar
-							onCollapse={() => paneRef.current?.collapseAll()}
-							onExpand={() => paneRef.current?.expandAll()}
-							onCopyContent={() => void paneRef.current?.copyContent()}
-							onCopyPath={() => void paneRef.current?.copyPath()}
-							onReading={() => setReading(true)}
-							pinned={pinned}
-							onTogglePin={togglePin}
-							share={
-								folderAbs
-									? {
-											onOpenInOs: () => void openFolderInOs(folderAbs),
-											onCopyContent: () => void copyTaskContent(),
-											onCopyZip: () => void copyTaskZip(),
-										}
-									: undefined
-							}
-						/>
-						{current ? (
-							<FileDatePopover
-								taskId={taskId}
-								file={current}
-								onChanged={() =>
-									queryClient.invalidateQueries(
-										orpc.tasks.getFull.queryOptions({ input: { id: taskId } }),
-									)
+						<div className="hidden md:contents">
+							<TaskMetaControls
+								categoryId={task.categoryId ?? null}
+								priorityId={task.priorityId ?? null}
+								complexity={task.complexity}
+								editing={editing}
+								disabled={isMutating}
+								onToggleEdit={() => setEditing((value) => !value)}
+								onCategoryChange={(categoryId) =>
+									updateMutation.mutate({ id: task.id, categoryId })
 								}
+								onPriorityChange={(priorityId) =>
+									updateMutation.mutate({ id: task.id, priorityId })
+								}
+								onComplexityChange={(complexity) =>
+									updateMutation.mutate({ id: task.id, complexity })
+								}
+								onDelete={() => removeTaskMutation.mutate({ id: task.id })}
 							/>
-						) : null}
+							<FlowRunButton taskId={taskId} />
+							<div className="h-5 w-px bg-border" aria-hidden="true" />
+							<DocToolbar {...docToolbarProps} />
+							{current ? (
+								<FileDatePopover
+									taskId={taskId}
+									file={current}
+									onChanged={() =>
+										queryClient.invalidateQueries(
+											orpc.tasks.getFull.queryOptions({ input: { id: taskId } }),
+										)
+									}
+								/>
+							) : null}
+						</div>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon-sm"
+							onClick={() => setActionsOpen(true)}
+							aria-label="Ações do documento"
+							className="h-8 w-8 shrink-0 md:hidden"
+						>
+							<MoreVertical className="h-4 w-4" />
+						</Button>
 					</div>
 				</div>
 			)}
+
+			<DocMobileActionsDrawer open={actionsOpen} onClose={closeActions}>
+				<div className="pointer-events-auto px-1 pb-2">
+					<TaskMetaControls
+						layout="stacked"
+						categoryId={task.categoryId ?? null}
+						priorityId={task.priorityId ?? null}
+						complexity={task.complexity}
+						editing
+						disabled={isMutating}
+						className="pointer-events-auto"
+						onToggleEdit={() => setEditing((value) => !value)}
+						onCategoryChange={(categoryId) => updateMutation.mutate({ id: task.id, categoryId })}
+						onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
+						onComplexityChange={(complexity) => updateMutation.mutate({ id: task.id, complexity })}
+						onDelete={() => removeTaskMutation.mutate({ id: task.id })}
+					/>
+				</div>
+				<DocSheetDivider />
+				<FlowRunButton taskId={taskId} layout="stacked" onAction={closeActions} />
+				<DocToolbar {...docToolbarProps} layout="stacked" onAction={closeActions} />
+				{current ? (
+					<FileDatePopover
+						taskId={taskId}
+						file={current}
+						layout="stacked"
+						onAction={closeActions}
+						onChanged={() =>
+							queryClient.invalidateQueries(
+								orpc.tasks.getFull.queryOptions({ input: { id: taskId } }),
+							)
+						}
+					/>
+				) : null}
+			</DocMobileActionsDrawer>
 
 			{/* Na leitura este wrapper vira overlay em tela cheia (cobre a navegação do app, header
 			    e rodapé) com as tabs no topo; fora dela é `display:contents`, então tabs e editor
@@ -469,11 +538,9 @@ function TaskFilePage() {
 							strategy={horizontalListSortingStrategy}
 						>
 							<div className="mx-auto flex h-8 w-full max-w-6xl items-stretch">
-								{/* No modo leitura as tabs perdem destaque, mas seguem navegáveis pra trocar de
-							    arquivo sem sair da leitura; o dim mora aqui pra não atingir o botão de sair. */}
 								<div
 									className={cn(
-										"flex min-w-0 flex-1 items-stretch transition-opacity",
+										"flex min-w-0 flex-1 items-stretch overflow-x-auto md:overflow-x-visible",
 										reading && "opacity-40 hover:opacity-100",
 									)}
 								>
@@ -483,11 +550,11 @@ function TaskFilePage() {
 											file={file}
 											path={`${task.folderPath}/${file.name}`}
 											isActive={file.name === activeFile}
-											// Ponto só quando há mais de um arquivo: com um só, "o mais recente" é trivial.
 											level={task.files.length > 1 ? recencyLevels.get(file.name) : undefined}
 											isRenaming={renamingFile === file.name}
 											renameValue={renameValue}
 											renameInputRef={renameInputRef}
+											dndEnabled={dndEnabled}
 											onSelect={() => void selectFile(file.name)}
 											onStartRename={() => startRename(file.name)}
 											onRequestDelete={() => setDeletingFile(file.name)}
@@ -497,7 +564,7 @@ function TaskFilePage() {
 										/>
 									))}
 									{creatingFile ? (
-										<div className="min-w-0 flex-1 border-l border-border bg-secondary text-foreground">
+										<div className="min-w-28 shrink-0 border-l border-border bg-secondary text-foreground md:min-w-0 md:flex-1">
 											<input
 												ref={newFileInputRef}
 												value={newFileValue}
@@ -578,13 +645,13 @@ function TaskFilePage() {
 
 type SortableFileTabProps = {
 	file: { name: string; createdAt: number; editedAt: number };
-	// Caminho do arquivo relativo à raiz do projeto, pra ação "Copiar caminho" do menu de contexto.
 	path: string;
 	isActive: boolean;
 	level: number | undefined;
 	isRenaming: boolean;
 	renameValue: string;
 	renameInputRef: React.RefObject<HTMLInputElement | null>;
+	dndEnabled: boolean;
 	onSelect: () => void;
 	onStartRename: () => void;
 	onRequestDelete: () => void;
@@ -601,6 +668,7 @@ function SortableFileTab({
 	isRenaming,
 	renameValue,
 	renameInputRef,
+	dndEnabled,
 	onSelect,
 	onStartRename,
 	onRequestDelete,
@@ -610,8 +678,7 @@ function SortableFileTab({
 }: SortableFileTabProps) {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
 		id: file.name,
-		// Renomeando não arrasta: o input precisa do gesto de seleção/teclado livre.
-		disabled: isRenaming,
+		disabled: isRenaming || !dndEnabled,
 	});
 
 	const style: React.CSSProperties = {
@@ -625,7 +692,7 @@ function SortableFileTab({
 			ref={setNodeRef}
 			style={style}
 			className={cn(
-				"min-w-0 flex-1 border-l border-border",
+				"min-w-28 shrink-0 border-l border-border md:min-w-0 md:flex-1",
 				isActive ? "bg-secondary text-foreground" : "text-muted-foreground",
 				isDragging && "opacity-60",
 			)}
@@ -654,12 +721,17 @@ function SortableFileTab({
 						onClick={onSelect}
 						onDoubleClick={onStartRename}
 						className={cn(
-							"flex h-full w-full touch-none items-center justify-center gap-1.5 px-3 text-center text-xs transition-colors",
+							"flex h-full w-full items-center justify-center gap-1.5 px-3 text-center text-xs transition-colors",
+							dndEnabled && "touch-none",
 							!isActive && "hover:bg-secondary/50",
 						)}
-						title={`Criado ${relativeTimeFrom(file.createdAt)} · editado ${relativeTimeFrom(file.editedAt)} — arraste para reordenar · duplo clique ou botão direito para renomear`}
-						{...attributes}
-						{...(listeners as React.HTMLAttributes<HTMLButtonElement>)}
+						title={
+							dndEnabled
+								? `Criado ${relativeTimeFrom(file.createdAt)} · editado ${relativeTimeFrom(file.editedAt)} — arraste para reordenar · duplo clique ou botão direito para renomear`
+								: `Criado ${relativeTimeFrom(file.createdAt)} · editado ${relativeTimeFrom(file.editedAt)} — duplo clique ou botão direito para renomear`
+						}
+						{...(dndEnabled ? attributes : {})}
+						{...(dndEnabled ? (listeners as React.HTMLAttributes<HTMLButtonElement>) : {})}
 					>
 						{level === undefined ? null : (
 							<span

@@ -686,7 +686,7 @@ function SortableTaskRow({
 			<button
 				type="button"
 				aria-label="Arrastar tarefa"
-				className="cursor-grab touch-none p-1 text-muted-foreground/50 transition-colors hover:text-foreground"
+				className="hidden cursor-grab touch-none p-1 text-muted-foreground/50 transition-colors hover:text-foreground md:flex"
 				{...attributes}
 				{...(listeners as React.HTMLAttributes<HTMLButtonElement>)}
 			>

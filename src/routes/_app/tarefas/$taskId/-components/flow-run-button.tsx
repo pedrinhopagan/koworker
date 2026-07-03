@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc, orpcWs, type RouterOutputs } from "@/client";
+import { DocSheetActionButton } from "@/components/doc-mobile-actions-drawer";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +41,15 @@ function describeEvent(event: FlowEvent | null): string | null {
 // Dispara o fluxo autônomo da tarefa e acompanha o progresso: hidrata do `status` ao montar, segue
 // os eventos ao vivo pelo WS e avisa por toast a cada desfecho terminal. O botão fica travado e vira
 // spinner enquanto uma etapa roda.
-export function FlowRunButton({ taskId }: { taskId: string }) {
+export function FlowRunButton({
+	taskId,
+	layout = "inline",
+	onAction,
+}: {
+	taskId: string;
+	layout?: "inline" | "stacked";
+	onAction?: () => void;
+}) {
 	const statusQuery = useQuery(orpc.flow.status.queryOptions({ input: { taskId } }));
 	const [live, setLive] = useState<FlowEvent | null>(null);
 
@@ -102,11 +111,33 @@ export function FlowRunButton({ taskId }: { taskId: string }) {
 	const disabled = isRunning || runMutation.isPending;
 	const label = describeEvent(event);
 
+	function handleClick() {
+		runMutation.mutate({ taskId });
+		onAction?.();
+	}
+
+	if (layout === "stacked") {
+		return (
+			<DocSheetActionButton
+				icon={
+					isRunning ? (
+						<Loader2 className="size-[18px] animate-spin" />
+					) : (
+						<Workflow className="size-[18px]" />
+					)
+				}
+				label={isRunning ? (label ?? "Rodando fluxo…") : "Rodar fluxo"}
+				onClick={handleClick}
+				disabled={disabled}
+			/>
+		);
+	}
+
 	return (
 		<Tooltip label={isRunning ? (label ?? "Rodando fluxo…") : "Rodar o fluxo da tarefa"}>
 			<button
 				type="button"
-				onClick={() => runMutation.mutate({ taskId })}
+				onClick={handleClick}
 				disabled={disabled}
 				className={cn(
 					"flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground",

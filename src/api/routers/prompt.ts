@@ -11,13 +11,14 @@ export const promptRouter = {
 		.input(PromptAutofillSchema)
 		.handler(({ input }) => runPromptAutofill(input)),
 
-	execute: protectedProcedure.input(PromptExecuteSchema).handler(async ({ input }) => {
+	execute: protectedProcedure.input(PromptExecuteSchema).handler(async ({ input, context }) => {
 		const project = await dbProjects.getById(input.projectId);
 		if (!project?.main_route) {
 			throw new ORPCError("NOT_FOUND", { message: "Projeto não encontrado" });
 		}
 
 		return startPromptRun({
+			userId: String(context.user.id),
 			projectId: input.projectId,
 			cwd: project.main_route,
 			prompt: input.prompt,
@@ -30,7 +31,11 @@ export const promptRouter = {
 		});
 	}),
 
-	runStatus: protectedProcedure
-		.input(PromptRunIdSchema)
-		.handler(({ input }) => getPromptRun(input.runId)),
+	runStatus: protectedProcedure.input(PromptRunIdSchema).handler(({ input, context }) => {
+		const record = getPromptRun(input.runId, String(context.user.id));
+		if (!record) {
+			throw new ORPCError("NOT_FOUND", { message: "Execução não encontrada" });
+		}
+		return record;
+	}),
 };

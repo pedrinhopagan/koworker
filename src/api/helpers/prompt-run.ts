@@ -10,6 +10,7 @@ export type PromptRunStatus = "running" | "done" | "failed" | "timeout";
 
 export type PromptRunRecord = {
 	runId: string;
+	userId: string;
 	status: PromptRunStatus;
 	startedAt: number;
 	finishedAt?: number;
@@ -165,6 +166,7 @@ async function runInBackground(params: {
 }
 
 export function startPromptRun(params: {
+	userId: string;
 	projectId: string;
 	cwd: string;
 	prompt: string;
@@ -180,6 +182,7 @@ export function startPromptRun(params: {
 
 	const record: PromptRunRecord = {
 		runId,
+		userId: params.userId,
 		status: "running",
 		startedAt,
 		projectId: params.projectId,
@@ -214,6 +217,10 @@ export function startPromptRun(params: {
 	return { runId };
 }
 
-export function getPromptRun(runId: string): PromptRunRecord | null {
-	return runs.get(runId) ?? null;
+export function getPromptRun(runId: string, userId: string): PromptRunRecord | null {
+	const record = runs.get(runId);
+	if (!record || record.userId !== userId) {
+		return null;
+	}
+	return record;
 }

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Clock, FileText } from "lucide-react";
+import { Clock, FileText, MoreVertical } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { tv, type VariantProps } from "tailwind-variants";
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import type { TaskGroup, TaskWithMeta } from "@/types/tasks";
 import { CompleteTaskFeatureDialog } from "./CompleteTaskFeatureDialog";
 import { type TaskMenuActions, type TaskMenuData, TaskContextMenu } from "./task-context-menu";
+import { TaskMobileActionsDrawer } from "./task-mobile-actions-drawer";
 import {
 	TASK_SELECT_CONTENT_SELECTOR,
 	TaskMetaControls,
@@ -69,6 +70,7 @@ function TaskItemDefault({
 	// clicáveis. Fora dele o item inteiro é um link para a rota da tarefa.
 	const [editing, setEditing] = useState(false);
 	const [linkingFeature, setLinkingFeature] = useState(false);
+	const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
 	const cardRef = useRef<HTMLDivElement>(null);
 
 	// Clicar fora conclui a edição: o blur do input já salvou o título; o dropdown do
@@ -312,6 +314,7 @@ function TaskItemDefault({
 				) : null}
 
 				<TaskMetaControls
+					className="hidden md:flex"
 					categoryId={task.category?.id ?? null}
 					priorityId={task.priority?.id ?? null}
 					complexity={task.complexity}
@@ -322,6 +325,37 @@ function TaskItemDefault({
 					onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
 					onComplexityChange={(complexity) => updateMutation.mutate({ id: task.id, complexity })}
 					onDelete={() => removeTaskMutation.mutate({ id: task.id })}
+				/>
+
+				<button
+					type="button"
+					onClick={(event) => {
+						event.preventDefault();
+						event.stopPropagation();
+						setMobileActionsOpen(true);
+					}}
+					disabled={isMutating}
+					aria-label="Ações da tarefa"
+					className="pointer-events-auto relative z-10 flex shrink-0 items-center justify-center p-1 text-muted-foreground hover:text-foreground md:hidden"
+				>
+					<MoreVertical className="size-4" />
+				</button>
+
+				<TaskMobileActionsDrawer
+					open={mobileActionsOpen}
+					onClose={() => setMobileActionsOpen(false)}
+					target={{
+						id: task.id,
+						label: task.displayTitle,
+						done: isDone,
+						priorityId: task.priority?.id ?? null,
+						categoryId: task.category?.id ?? null,
+					}}
+					data={taskMenuData}
+					actions={menuActions}
+					complexity={task.complexity}
+					onComplexityChange={(complexity) => updateMutation.mutate({ id: task.id, complexity })}
+					disabled={isMutating}
 				/>
 
 				{features && (

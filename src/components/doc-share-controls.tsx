@@ -1,5 +1,6 @@
 import { ClipboardCopy, FileArchive, FolderOpen, Share2 } from "lucide-react";
 
+import { DocSheetActionButton } from "@/components/doc-mobile-actions-drawer";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -18,7 +19,47 @@ export type DocShareHandlers = {
 	onCopyZip?: () => void;
 };
 
-export function DocShareControls({ onOpenInOs, onCopyContent, onCopyZip }: DocShareHandlers) {
+export function DocShareControls({
+	onOpenInOs,
+	onCopyContent,
+	onCopyZip,
+	layout = "inline",
+	onAction,
+}: DocShareHandlers & {
+	layout?: "inline" | "stacked";
+	onAction?: () => void;
+}) {
+	function runAction(fn: () => void) {
+		fn();
+		onAction?.();
+	}
+
+	if (layout === "stacked") {
+		return (
+			<>
+				<DocSheetActionButton
+					icon={<FolderOpen className="size-[18px]" />}
+					label="Abrir no sistema"
+					onClick={() => runAction(onOpenInOs)}
+				/>
+				{onCopyContent ? (
+					<DocSheetActionButton
+						icon={<ClipboardCopy className="size-[18px]" />}
+						label="Copiar conteúdo"
+						onClick={() => runAction(onCopyContent)}
+					/>
+				) : null}
+				{onCopyZip ? (
+					<DocSheetActionButton
+						icon={<FileArchive className="size-[18px]" />}
+						label="Copiar zip"
+						onClick={() => runAction(onCopyZip)}
+					/>
+				) : null}
+			</>
+		);
+	}
+
 	return (
 		<div className="flex shrink-0 items-center gap-1">
 			<Tooltip label="Abrir no sistema">

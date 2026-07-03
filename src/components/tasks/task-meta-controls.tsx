@@ -29,19 +29,27 @@ function MetaSelect({
 	value,
 	placeholder,
 	interactive,
+	layout = "inline",
 	onValueChange,
 }: {
 	items: ColoredItem[];
 	value: string;
 	placeholder: string;
 	interactive: boolean;
+	layout?: "inline" | "stacked";
 	onValueChange: (value: string) => void;
 }) {
 	const selected = items.find((item) => item.id === value) ?? null;
+	const widthClass = layout === "stacked" ? "w-full" : "w-32";
 
 	if (!interactive) {
 		return (
-			<div className="pointer-events-none flex w-32 shrink-0 items-center gap-1.5 px-2 text-muted-foreground">
+			<div
+				className={cn(
+					"pointer-events-none flex shrink-0 items-center gap-1.5 px-2 text-muted-foreground",
+					widthClass,
+				)}
+			>
 				<span
 					className="size-2 shrink-0 rounded-full"
 					style={{ backgroundColor: selected?.color ?? "#6b7280" }}
@@ -52,7 +60,7 @@ function MetaSelect({
 	}
 
 	return (
-		<div className="pointer-events-auto w-32 shrink-0">
+		<div className={cn("pointer-events-auto shrink-0", widthClass)}>
 			<CustomSelect
 				items={items}
 				value={value}
@@ -150,18 +158,21 @@ export function TaskMetaControls({
 	complexity,
 	editing,
 	disabled,
+	layout = "inline",
+	className,
 	onToggleEdit,
 	onCategoryChange,
 	onPriorityChange,
 	onComplexityChange,
 	onDelete,
 }: {
-	// Categoria e prioridade são opcionais: sem valor, o select mostra o placeholder.
 	categoryId: string | null;
 	priorityId: string | null;
 	complexity: TaskComplexity;
 	editing: boolean;
 	disabled: boolean;
+	layout?: "inline" | "stacked";
+	className?: string;
 	onToggleEdit: () => void;
 	onCategoryChange: (categoryId: string) => void;
 	onPriorityChange: (priorityId: string) => void;
@@ -170,14 +181,22 @@ export function TaskMetaControls({
 }) {
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
+	const stacked = layout === "stacked";
 
 	return (
-		<div className="pointer-events-none relative z-10 flex shrink-0 items-center gap-2">
+		<div
+			className={cn(
+				"pointer-events-none relative z-10 flex shrink-0 gap-2",
+				stacked ? "w-full flex-col" : "items-center",
+				className,
+			)}
+		>
 			<MetaSelect
 				items={COMPLEXITY_ITEMS}
 				value={complexity}
 				placeholder="Complexidade"
 				interactive={editing}
+				layout={layout}
 				onValueChange={(value) => onComplexityChange(value as TaskComplexity)}
 			/>
 			<MetaSelect
@@ -185,6 +204,7 @@ export function TaskMetaControls({
 				value={categoryId ?? ""}
 				placeholder="Categoria"
 				interactive={editing}
+				layout={layout}
 				onValueChange={onCategoryChange}
 			/>
 			<MetaSelect
@@ -192,33 +212,38 @@ export function TaskMetaControls({
 				value={priorityId ?? ""}
 				placeholder="Prioridade"
 				interactive={editing}
+				layout={layout}
 				onValueChange={onPriorityChange}
 			/>
-			<Tooltip label={editing ? "Concluir edição" : "Editar tarefa"}>
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon-sm"
-					onClick={onToggleEdit}
-					disabled={disabled}
-					aria-label={editing ? "Concluir edição" : "Editar tarefa"}
-					aria-pressed={editing}
-					className={cn(
-						"pointer-events-auto h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground",
-						editing && "text-foreground",
-					)}
-				>
-					<PencilLine className="h-3 w-3" />
-				</Button>
-			</Tooltip>
-			<DeleteConfirmButton
-				className="pointer-events-auto"
-				onDelete={onDelete}
-				disabled={disabled}
-				sizeVariant="xs"
-				title="Excluir tarefa"
-				confirmTitle="Clique de novo para excluir"
-			/>
+			{!stacked && (
+				<>
+					<Tooltip label={editing ? "Concluir edição" : "Editar tarefa"}>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon-sm"
+							onClick={onToggleEdit}
+							disabled={disabled}
+							aria-label={editing ? "Concluir edição" : "Editar tarefa"}
+							aria-pressed={editing}
+							className={cn(
+								"pointer-events-auto h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground",
+								editing && "text-foreground",
+							)}
+						>
+							<PencilLine className="h-3 w-3" />
+						</Button>
+					</Tooltip>
+					<DeleteConfirmButton
+						className="pointer-events-auto"
+						onDelete={onDelete}
+						disabled={disabled}
+						sizeVariant="xs"
+						title="Excluir tarefa"
+						confirmTitle="Clique de novo para excluir"
+					/>
+				</>
+			)}
 		</div>
 	);
 }

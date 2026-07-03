@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import type { Server } from "bun";
 
 import "./api/arktype";
@@ -13,15 +13,52 @@ import { DEFAULT_KOWORK_PORT } from "./lib/runtime-config";
 const isProduction = envVariables.NODE_ENV === "production";
 const distDir = envVariables.KOWORK_DIST_DIR ?? (isProduction ? "./dist" : null);
 
+const NOTIFY_MAX_BODY_BYTES = 8192;
+
+function isLocalRequest(request: Request, server: Server<WsData>): boolean {
+	const ip = server.requestIP(request);
+	if (ip?.address === "127.0.0.1" || ip?.address === "::1") {
+		return true;
+	}
+
+	const host = request.headers.get("host");
+	if (!host) {
+		return false;
+	}
+
+	return host.startsWith("localhost:") || host === "localhost" || host.startsWith("127.0.0.1:");
+}
+
+function isNotifyAuthorized(request: Request, server: Server<WsData>): boolean {
+	const notifyToken = envVariables.KOWORK_NOTIFY_TOKEN;
+	if (notifyToken) {
+		const authHeader = request.headers.get("authorization");
+		const customToken = request.headers.get("x-kowork-token");
+		const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+		const token = bearerToken ?? customToken;
+		return token === notifyToken;
+	}
+
+	return isLocalRequest(request, server);
+}
+
 async function serveStatic(pathname: string) {
 	if (!distDir) return null;
 
 	const cleanPath = pathname.startsWith("/") ? pathname.slice(1) : pathname;
-	const filePath = Bun.file(join(distDir, cleanPath));
+	const distRoot = resolve(distDir);
+	const resolvedPath = resolve(distRoot, cleanPath);
+	const relativePath = relative(distRoot, resolvedPath);
+
+	if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+		return null;
+	}
+
+	const filePath = Bun.file(resolvedPath);
 	const exists = await filePath.exists();
 
 	if (!exists && pathname !== "/") {
-		const indexPath = Bun.file(join(distDir, "index.html"));
+		const indexPath = Bun.file(join(distRoot, "index.html"));
 		const indexExists = await indexPath.exists();
 		if (indexExists) {
 			return new Response(indexPath, {
@@ -63,10 +100,14 @@ await startTasksWatcher();
 
 Bun.serve<WsData>({
 	port,
-	development: {
-		hmr: true,
-		console: true,
-	},
+	...(isProduction
+		? {}
+		: {
+				development: {
+					hmr: true,
+					console: true,
+				},
+			}),
 	routes: {
 		"/rpc/*": async (request: Request) => {
 			const { response } = await rpcHandler.handle(request, {
@@ -76,13 +117,33 @@ Bun.serve<WsData>({
 
 			return response ?? new Response("Not Found", { status: 404 });
 		},
-		"/api/tasks/notify": async (request: Request) => {
+		"/api/tasks/notify": async (request: Request, server: Server<WsData>) => {
 			if (request.method !== "POST") {
 				return new Response("Method Not Allowed", { status: 405 });
 			}
 
+			if (!isNotifyAuthorized(request, server)) {
+				return new Response("Unauthorized", { status: 401 });
+			}
+
+			const contentLength = Number(request.headers.get("content-length") ?? 0);
+			if (contentLength > NOTIFY_MAX_BODY_BYTES) {
+				return new Response("Payload Too Large", { status: 413 });
+			}
+
+			let rawBody: string;
 			try {
-				const body = (await request.json()) as {
+				rawBody = await request.text();
+			} catch {
+				return new Response("Bad Request", { status: 400 });
+			}
+
+			if (rawBody.length > NOTIFY_MAX_BODY_BYTES) {
+				return new Response("Payload Too Large", { status: 413 });
+			}
+
+			try {
+				const body = JSON.parse(rawBody) as {
 					project_id: string;
 					task_id?: string;
 					action: "created" | "updated" | "deleted";

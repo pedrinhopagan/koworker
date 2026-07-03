@@ -1,5 +1,6 @@
 import { BookOpen, ChevronsDownUp, ChevronsUpDown, ClipboardCopy, Link2, Pin } from "lucide-react";
 
+import { DocSheetActionButton } from "@/components/doc-mobile-actions-drawer";
 import { DocShareControls, type DocShareHandlers } from "@/components/doc-share-controls";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -18,6 +19,8 @@ export function DocToolbar({
 	pinned,
 	onTogglePin,
 	share,
+	layout = "inline",
+	onAction,
 }: {
 	onCollapse: () => void;
 	onExpand: () => void;
@@ -27,7 +30,55 @@ export function DocToolbar({
 	pinned?: boolean;
 	onTogglePin?: () => void;
 	share?: DocShareHandlers;
+	layout?: "inline" | "stacked";
+	onAction?: () => void;
 }) {
+	function runAction(fn: () => void) {
+		fn();
+		onAction?.();
+	}
+
+	if (layout === "stacked") {
+		return (
+			<>
+				{onTogglePin ? (
+					<DocSheetActionButton
+						icon={<Pin className={cn("size-[18px]", pinned && "fill-current")} />}
+						label={pinned ? "Desafixar sessão de leitura" : "Fixar sessão de leitura"}
+						onClick={() => runAction(onTogglePin)}
+						aria-pressed={pinned}
+					/>
+				) : null}
+				<DocSheetActionButton
+					icon={<BookOpen className="size-[18px]" />}
+					label="Modo leitura"
+					onClick={() => runAction(onReading)}
+				/>
+				<DocSheetActionButton
+					icon={<ChevronsDownUp className="size-[18px]" />}
+					label="Recolher todos os títulos"
+					onClick={() => runAction(onCollapse)}
+				/>
+				<DocSheetActionButton
+					icon={<ChevronsUpDown className="size-[18px]" />}
+					label="Expandir todos os títulos"
+					onClick={() => runAction(onExpand)}
+				/>
+				<DocSheetActionButton
+					icon={<ClipboardCopy className="size-[18px]" />}
+					label="Copiar conteúdo do arquivo"
+					onClick={() => runAction(onCopyContent)}
+				/>
+				<DocSheetActionButton
+					icon={<Link2 className="size-[18px]" />}
+					label="Copiar caminho do arquivo"
+					onClick={() => runAction(onCopyPath)}
+				/>
+				{share ? <DocShareControls {...share} layout="stacked" onAction={onAction} /> : null}
+			</>
+		);
+	}
+
 	return (
 		<div className="flex shrink-0 items-center gap-1">
 			{onTogglePin ? (
