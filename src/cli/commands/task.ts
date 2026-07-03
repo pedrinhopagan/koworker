@@ -4,7 +4,7 @@ import type { TaskDbUpdateInput } from "@/api/schemas/tasks";
 import { removeTaskFolder } from "@/api/helpers/task-folder";
 import { parseArgs } from "../args";
 import { notifyTasksChanged } from "../notify";
-import { resolveCategoryId, resolvePriorityId, resolveTask } from "../resolve";
+import { resolveCategoryId, resolveComplexity, resolvePriorityId, resolveTask } from "../resolve";
 
 export function runTask(args: string[]): Promise<void> {
 	const [sub, ...rest] = args;
@@ -24,7 +24,7 @@ async function runTaskSet(args: string[]): Promise<void> {
 	const raw = positionals[0];
 	if (!raw) {
 		throw new Error(
-			"Uso: kw-cli task set <taskId|caminho> [--title ...] [--category <nome|id>] [--priority <nome|id>]",
+			"Uso: kw-cli task set <taskId|caminho> [--title ...] [--category <nome|id>] [--priority <nome|id>] [--complexity <simples|medio|complexo|extremo>]",
 		);
 	}
 
@@ -44,6 +44,9 @@ async function runTaskSet(args: string[]): Promise<void> {
 	}
 	if (flags.priority !== undefined) {
 		update.priority_id = await resolvePriorityId(flags.priority);
+	}
+	if (flags.complexity !== undefined) {
+		update.complexity = resolveComplexity(flags.complexity);
 	}
 
 	await dbTasks.update(update);

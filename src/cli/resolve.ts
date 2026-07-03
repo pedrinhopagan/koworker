@@ -3,6 +3,7 @@ import { realpathSync } from "node:fs";
 import { dbCategories } from "@/api/db/categories";
 import { dbPriorities } from "@/api/db/priorities";
 import { dbTasks } from "@/api/db/tasks";
+import { TASK_COMPLEXITIES, type TaskComplexity } from "@/constants/complexity";
 
 // Caminho real e normalizado: resolve symlinks (o main_route pode ter sido cadastrado por um
 // symlink que o cwd já entrega resolvido) e tira a barra final.
@@ -67,4 +68,14 @@ export async function resolvePriorityId(arg: string): Promise<string> {
 	if (byId) return byId.id;
 
 	throw new Error(`Prioridade não encontrada: ${arg}`);
+}
+
+// Complexidade é boundary: valida contra a união finita. Erro quando não casa.
+export function resolveComplexity(arg: string): TaskComplexity {
+	const value = arg.trim().toLowerCase();
+	if ((TASK_COMPLEXITIES as readonly string[]).includes(value)) {
+		return value as TaskComplexity;
+	}
+
+	throw new Error(`Complexidade inválida: ${arg} (use: ${TASK_COMPLEXITIES.join(", ")})`);
 }

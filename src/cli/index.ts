@@ -25,9 +25,9 @@ if (!handler) {
 	console.log(`kw-cli - CLI
 
 Tarefas:
-  create [título] [--category <nome|id>] [--priority <nome|id>]
+  create [título] [--category <nome|id>] [--priority <nome|id>] [--complexity <simples|medio|complexo|extremo>]
                           Cria uma tarefa no projeto do cwd; imprime taskId + a pasta (.koworker/<id>)
-  task set <taskId|caminho> [--title ...] [--category ...] [--priority ...]
+  task set <taskId|caminho> [--title ...] [--category ...] [--priority ...] [--complexity ...]
                           Edita metadados de uma tarefa
   done <taskId|caminho>   Marca a tarefa como concluída
   task rm <taskId|caminho>
