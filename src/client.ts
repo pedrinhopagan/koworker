@@ -8,19 +8,12 @@ import { DEFAULT_KOWORK_API_ORIGIN, resolveApiOrigin } from "@/lib/runtime-confi
 import { isTauri } from "@/lib/tauri";
 import type { API, WsAPI } from "./server";
 
-declare global {
-	interface Window {
-		__KOWORK_API_URL__?: string;
-	}
-}
-
 const apiOrigin = (() => {
 	if (typeof window === "undefined") {
 		return DEFAULT_KOWORK_API_ORIGIN;
 	}
 
 	return resolveApiOrigin({
-		windowApiUrl: window.__KOWORK_API_URL__,
 		windowOrigin: window.location.origin,
 		isTauriEnvironment: isTauri(),
 		appEnv: getAppEnv(),
