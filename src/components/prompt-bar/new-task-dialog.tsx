@@ -31,6 +31,7 @@ export function NewTaskDialog({ open, onClose }: NewTaskDialogProps) {
 				title: data.title,
 				priorityId: data.priorityId,
 				categoryId: data.categoryId,
+				complexity: data.complexity,
 			});
 			if (!task) throw new Error("Não foi possível criar a tarefa");
 

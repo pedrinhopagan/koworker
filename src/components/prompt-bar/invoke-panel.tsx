@@ -1,46 +1,29 @@
-import { useQuery } from "@tanstack/react-query";
-import {
-	Bot,
-	ChevronDown,
-	ChevronRight,
-	Copy,
-	Cpu,
-	Gauge,
-	Play,
-	ShieldCheck,
-	Sparkles,
-	X,
-} from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Bot, ChevronRight, Copy, Cpu, Gauge, Play, ShieldCheck, Sparkles, X } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { orpc } from "@/client";
+import { GroupLabel, MiniSelect, ToggleBox } from "@/components/prompt-bar/controls";
+import { type Selection, useInvocation } from "@/components/prompt-bar/use-invocation";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { CustomSelect } from "@/components/ui/custom-select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
 import {
+	CODEX_APPROVAL_OPTIONS,
+	CODEX_EFFORT_OPTIONS,
+	CODEX_MODEL_OPTIONS,
+	type CodexApprovalMode,
 	INVOKE_EFFORT_OPTIONS,
-	INVOKE_INHERIT,
 	INVOKE_MODEL_OPTIONS,
-	type InvokeOption,
 	INVOKE_PERMISSION_OPTIONS,
 	type InvokePermissionMode,
-	reflectValue,
 } from "@/constants/invoke";
-import { useAgentsQuery } from "@/hooks/use-agents";
-import { useSkillsQuery } from "@/hooks/use-skills";
-import { buildKoworkerPrompt, copyToClipboard, flattenPrompt } from "@/lib/build-prompt";
-import { type InvokeTarget, planInvocation, runInvocation } from "@/lib/invoke";
+import type { TaskStage } from "@/constants/complexity";
+import { copyToClipboard } from "@/lib/build-prompt";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 import type { TaskAgent } from "@/types/agents";
-import type { TaskSkill } from "@/types/skills";
-
-type Selection = { kind: "agent"; agent: TaskAgent } | { kind: "skill"; skill: TaskSkill } | null;
 
 // Estrutura mínima compartilhada por agent e skill — o que o picker precisa pra listar e filtrar.
 type TargetEntry = {
@@ -65,115 +48,44 @@ function matches(
 	);
 }
 
-function toTarget(selection: NonNullable<Selection>): InvokeTarget {
-	if (selection.kind === "agent") {
-		return { kind: "agent", slug: selection.agent.slug, label: selection.agent.label };
-	}
-	return { kind: "skill", slug: selection.skill.slug, label: selection.skill.label };
-}
-
-// Padrão de model/effort que o alvo carrega no frontmatter. String não-vazia vira a pré-seleção do
-// select; ausência cai em `INVOKE_INHERIT` ("padrão" = sem flag). Um ID de modelo completo passa
-// reto — o select ganha um item extra pra refleti-lo.
-function metaDefault(value: unknown): string {
-	return typeof value === "string" && value.trim() ? value.trim() : INVOKE_INHERIT;
-}
-
-// Painel de invocação: vive abaixo da linha de ações do prompt-bar, revelado pelo botão robô. No topo
-// o alvo (Skills | Agent) e o botão Invocar; abaixo os knobs que viajam junto (rota, input, sessão,
-// modelo, esforço, permissão). Escolher um alvo pré-seleciona o model/effort padrão dele. Embaixo, o
-// comando `claude` exato ao vivo.
+// Painel de invocação: revelado pelo trigger "Invocação". No topo o Alvo (Skills | Agent + chip);
+// abaixo a Sessão do CLI ativo — Sessão claude (modelo/esforço/permissão) ou Sessão codex
+// (modelo/esforço/aprovação) — junto das preferências de aba. Embaixo, o comando exato ao vivo. O
+// botão Invocar mora na seção de ações do prompt-bar; os dois compartilham o mesmo estado via
+// useInvocation.
 export function InvokePanel({
 	projectName,
 	routePath,
+	nextStage,
 }: {
 	projectName?: string;
 	routePath: string | null;
+	nextStage?: TaskStage | null;
 }) {
-	const text = usePromptBarStore((s) => s.text);
-	const interactWithKw = usePromptBarStore((s) => s.interactWithKw);
-	const interactWithRoute = usePromptBarStore((s) => s.interactWithRoute);
-	const interactWithInput = usePromptBarStore((s) => s.interactWithInput);
+	const cli = usePromptBarStore((s) => s.cli);
 	const invoke = usePromptBarStore((s) => s.invoke);
-	const setInteractWithKw = usePromptBarStore((s) => s.setInteractWithKw);
-	const setInteractWithRoute = usePromptBarStore((s) => s.setInteractWithRoute);
-	const setInteractWithInput = usePromptBarStore((s) => s.setInteractWithInput);
 	const patchInvoke = usePromptBarStore((s) => s.patchInvoke);
+	const patchClaudeSession = usePromptBarStore((s) => s.patchClaudeSession);
+	const patchCodexSession = usePromptBarStore((s) => s.patchCodexSession);
 
-	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
-	const { taskAgents, isLoading: agentsLoading } = useAgentsQuery();
-	const { taskSkills, isLoading: skillsLoading } = useSkillsQuery(projectName);
-	const [selection, setSelection] = useState<Selection>(null);
-
-	// Skills são scoped por projeto: ao trocar o projeto em foco, a skill escolhida pode nem existir
-	// mais. Zera o alvo (e os defaults que ele pré-selecionou) pra não invocar a definição errada.
-	useEffect(() => {
-		setSelection(null);
-		patchInvoke({ model: INVOKE_INHERIT, effort: INVOKE_INHERIT });
-	}, [projectName, patchInvoke]);
-
-	// Só skills com invocação rápida entram na lista (mesmo critério do menu /).
-	const skillList = useMemo(() => taskSkills.filter((skill) => skill.quickInvoke), [taskSkills]);
-
-	const effectiveRoute = interactWithRoute ? routePath : null;
-	const effectiveText = interactWithInput ? text : "";
-
-	// Escolher um alvo fixa a seleção e puxa o model/effort padrão dele pros selects — é o que o
-	// usuário vê e pode sobrescrever antes de invocar. Dono do default é o frontmatter do alvo; os
-	// selects são só a janela editável disso, então model/effort não persistem (ver store).
-	function selectTarget(next: NonNullable<Selection>) {
-		setSelection(next);
-		const metadata = next.kind === "agent" ? next.agent.metadata : next.skill.metadata;
-		patchInvoke({ model: metaDefault(metadata.model), effort: metaDefault(metadata.effort) });
-	}
-
-	// Limpar o alvo solta também os defaults pré-selecionados: sem alvo, sem model/effort.
-	function clearTarget() {
-		setSelection(null);
-		patchInvoke({ model: INVOKE_INHERIT, effort: INVOKE_INHERIT });
-	}
-
-	// Com alvo: o comando `claude` exato. Sem alvo: o prompt que "Copiar prompt" produz — assim os
-	// checkboxes têm feedback visível mesmo antes de escolher agent/skill.
-	const preview = useMemo(() => {
-		if (selection) {
-			return planInvocation({
-				target: toTarget(selection),
-				kw: interactWithKw,
-				routePath: effectiveRoute,
-				text: effectiveText,
-				config: invoke,
-			}).command;
-		}
-		const prompt = flattenPrompt(
-			buildKoworkerPrompt({ kw: interactWithKw, target: effectiveRoute, text: effectiveText }),
-		);
-		return prompt || null;
-	}, [selection, interactWithKw, effectiveRoute, effectiveText, invoke]);
-
-	function handleInvoke() {
-		const project = projectsQuery.data?.find((p) => p.name === projectName);
-		if (!project || !selection) {
-			toast.error("Projeto da rota não encontrado");
-			return;
-		}
-		runInvocation({
-			project: { id: project.id, name: project.name, mainRoute: project.mainRoute },
-			request: {
-				target: toTarget(selection),
-				kw: interactWithKw,
-				routePath: effectiveRoute,
-				text: effectiveText,
-				config: invoke,
-			},
-		});
-	}
-
-	const canInvoke = !!projectName && !!selection;
+	const {
+		selection,
+		selectTarget,
+		clearTarget,
+		suggestedAgent,
+		skillList,
+		taskAgents,
+		agentsLoading,
+		skillsLoading,
+		preview,
+		canInvoke,
+		handleInvoke,
+	} = useInvocation({ projectName, routePath, nextStage });
 
 	return (
 		<div className="mt-2 flex flex-col gap-2 border-t border-border pt-2">
-			{/* Topo: alvo (Skills | Agent) + Invocar. */}
+			{/* Alvo: Skills | Agent + chip do alvo/sugestão do fluxo. Agents são do claude. O Invocar
+			    fica no fim da linha, à direita. */}
 			<div className="flex flex-wrap items-center gap-2">
 				<GroupLabel>Alvo</GroupLabel>
 				<TargetMenu
@@ -185,61 +97,97 @@ export function InvokePanel({
 					slash
 					onSelect={(skill) => selectTarget({ kind: "skill", skill })}
 				/>
-				<TargetMenu
-					icon={Bot}
-					label="Agent"
-					items={taskAgents}
-					loading={agentsLoading}
-					empty="Nenhum agent encontrado"
-					onSelect={(agent) => selectTarget({ kind: "agent", agent })}
-				/>
-				{selection ? <SelectedChip selection={selection} onClear={clearTarget} /> : null}
-
-				<div className="ml-auto">
-					<Tooltip
-						label={
-							projectName ? "Invocar numa nova aba do terminal" : "Selecione um projeto em foco"
-						}
-						triggerClassName="inline-flex shrink-0"
-					>
-						<Button size="sm" disabled={!canInvoke} onClick={handleInvoke}>
-							<Play size={14} />
-							Invocar{selection ? ` ${selection.kind}` : ""}
-						</Button>
+				{cli === "claude" ? (
+					<TargetMenu
+						icon={Bot}
+						label="Agent"
+						items={taskAgents}
+						loading={agentsLoading}
+						empty="Nenhum agent encontrado"
+						onSelect={(agent) => selectTarget({ kind: "agent", agent })}
+					/>
+				) : (
+					<Tooltip label="Agents (--agent) são um recurso do claude">
+						<span className="flex h-8 cursor-not-allowed items-center gap-1.5 border border-border bg-card px-2.5 text-sm text-muted-foreground opacity-40">
+							<Bot className="h-3.5 w-3.5" />
+							Agent
+						</span>
 					</Tooltip>
-				</div>
+				)}
+				{selection ? (
+					<SelectedChip selection={selection} onClear={clearTarget} />
+				) : suggestedAgent ? (
+					<SuggestionChip
+						agent={suggestedAgent}
+						onSelect={() => selectTarget({ kind: "agent", agent: suggestedAgent })}
+					/>
+				) : null}
+
+				<Tooltip
+					label={
+						canInvoke
+							? "Invocar numa nova aba do terminal"
+							: "Escolha um agent ou skill pra invocar"
+					}
+					triggerClassName="ml-auto inline-flex shrink-0"
+				>
+					<Button size="sm" disabled={!canInvoke} onClick={handleInvoke}>
+						<Play size={14} />
+						Invocar{selection ? ` ${selection.kind}` : ""}
+					</Button>
+				</Tooltip>
 			</div>
 
 			<div className="h-px bg-border" aria-hidden />
 
-			{/* Toggles: o que viaja junto com a invocação. Anexar (kw/rota/input) e Sessão (aba/background)
-			    dividem a linha em metades iguais, separadas pelo divisor central. */}
-			<div className="flex items-center gap-3">
-				<ToggleGroup label="Anexar" className="flex-1">
-					<ToggleBox
-						label="kw"
-						hint="prefixa a skill /kw na cabeça do prompt"
-						checked={interactWithKw}
-						onChange={setInteractWithKw}
-					/>
-					<ToggleBox
-						label="rota"
-						hint={routePath ? `caminho ${routePath}` : "esta rota não anexa caminho"}
-						checked={interactWithRoute}
-						disabled={!routePath}
-						onChange={setInteractWithRoute}
-					/>
-					<ToggleBox
-						label="input"
-						hint="anexa o texto digitado ao prompt"
-						checked={interactWithInput}
-						onChange={setInteractWithInput}
-					/>
-				</ToggleGroup>
+			{/* Sessão do CLI ativo: knobs próprios de cada um + preferências de aba do terminal. */}
+			<div className="flex flex-wrap items-center gap-2">
+				<GroupLabel>{cli === "codex" ? "Sessão codex" : "Sessão claude"}</GroupLabel>
+				{cli === "codex" ? (
+					<>
+						<MiniSelect
+							icon={Cpu}
+							value={invoke.codex.model}
+							onChange={(v) => patchCodexSession({ model: v })}
+							options={CODEX_MODEL_OPTIONS}
+						/>
+						<MiniSelect
+							icon={Gauge}
+							value={invoke.codex.effort}
+							onChange={(v) => patchCodexSession({ effort: v })}
+							options={CODEX_EFFORT_OPTIONS}
+						/>
+						<MiniSelect
+							icon={ShieldCheck}
+							value={invoke.codex.approvalMode}
+							onChange={(v) => patchCodexSession({ approvalMode: v as CodexApprovalMode })}
+							options={CODEX_APPROVAL_OPTIONS}
+						/>
+					</>
+				) : (
+					<>
+						<MiniSelect
+							icon={Cpu}
+							value={invoke.claude.model}
+							onChange={(v) => patchClaudeSession({ model: v })}
+							options={INVOKE_MODEL_OPTIONS}
+						/>
+						<MiniSelect
+							icon={Gauge}
+							value={invoke.claude.effort}
+							onChange={(v) => patchClaudeSession({ effort: v })}
+							options={INVOKE_EFFORT_OPTIONS}
+						/>
+						<MiniSelect
+							icon={ShieldCheck}
+							value={invoke.claude.permissionMode}
+							onChange={(v) => patchClaudeSession({ permissionMode: v as InvokePermissionMode })}
+							options={INVOKE_PERMISSION_OPTIONS}
+						/>
+					</>
+				)}
 
-				<div className="h-5 w-px bg-border" aria-hidden />
-
-				<ToggleGroup label="Sessão" className="flex-1">
+				<div className="ml-auto flex items-center gap-2">
 					<ToggleBox
 						label="nova aba"
 						hint="abre numa aba tmux nova em vez de reusar a do alvo"
@@ -252,138 +200,11 @@ export function InvokePanel({
 						checked={invoke.background}
 						onChange={(v) => patchInvoke({ background: v })}
 					/>
-				</ToggleGroup>
-			</div>
-
-			{/* Selects da sessão claude juntos: modelo, esforço e permissão. */}
-			<div className="flex flex-wrap items-center gap-2">
-				<GroupLabel>Sessão claude</GroupLabel>
-				<MiniSelect
-					icon={Cpu}
-					value={invoke.model}
-					onChange={(v) => patchInvoke({ model: v })}
-					options={INVOKE_MODEL_OPTIONS}
-				/>
-				<MiniSelect
-					icon={Gauge}
-					value={invoke.effort}
-					onChange={(v) => patchInvoke({ effort: v })}
-					options={INVOKE_EFFORT_OPTIONS}
-				/>
-				<MiniSelect
-					icon={ShieldCheck}
-					value={invoke.permissionMode}
-					onChange={(v) => patchInvoke({ permissionMode: v as InvokePermissionMode })}
-					options={INVOKE_PERMISSION_OPTIONS}
-				/>
+				</div>
 			</div>
 
 			<CommandPreview command={preview} hasTarget={!!selection} />
 		</div>
-	);
-}
-
-function GroupLabel({ children }: { children: React.ReactNode }) {
-	return (
-		<span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/60">
-			{children}
-		</span>
-	);
-}
-
-function ToggleGroup({
-	label,
-	className,
-	children,
-}: {
-	label: string;
-	className?: string;
-	children: React.ReactNode;
-}) {
-	return (
-		<div className={cn("flex items-center gap-2", className)}>
-			<GroupLabel>{label}</GroupLabel>
-			{children}
-		</div>
-	);
-}
-
-// Botão-chip de toggle: checkbox e rótulo num bloco bordado clicável inteiro. Ativo ganha realce
-// primário; o `<label>` faz o clique em qualquer ponto do chip alternar a checkbox.
-function ToggleBox({
-	label,
-	hint,
-	checked,
-	disabled,
-	onChange,
-}: {
-	label: string;
-	hint: string;
-	checked: boolean;
-	disabled?: boolean;
-	onChange: (value: boolean) => void;
-}) {
-	return (
-		<Tooltip label={hint}>
-			<label
-				className={cn(
-					"flex h-7 shrink-0 cursor-pointer select-none items-center gap-1.5 border px-2 text-xs transition-colors",
-					checked
-						? "border-primary/40 bg-primary/10 text-foreground"
-						: "border-border bg-card text-muted-foreground hover:border-muted-foreground hover:text-foreground",
-					disabled &&
-						"cursor-not-allowed opacity-40 hover:border-border hover:text-muted-foreground",
-				)}
-			>
-				<Checkbox
-					size="sm"
-					checked={checked}
-					disabled={disabled}
-					onCheckedChange={(value) => onChange(value === true)}
-				/>
-				{label}
-			</label>
-		</Tooltip>
-	);
-}
-
-function MiniSelect({
-	icon: Icon,
-	value,
-	onChange,
-	options,
-}: {
-	icon: typeof Cpu;
-	value: string;
-	onChange: (value: string) => void;
-	options: InvokeOption[];
-}) {
-	const items = reflectValue(options, value).map((option) => ({
-		id: option.value,
-		label: option.label,
-		hint: option.hint,
-	}));
-	const active = items.find((option) => option.id === value);
-
-	return (
-		<Tooltip label={active?.hint ?? ""}>
-			<CustomSelect
-				items={items}
-				value={value}
-				onValueChange={(next) => onChange(next)}
-				size="sm"
-				fitContent
-				triggerClassName="gap-1.5 px-2"
-				renderTrigger={() => (
-					<>
-						<Icon className="size-3.5 shrink-0 text-muted-foreground" />
-						<span className="truncate text-left text-xs">{active?.label ?? ""}</span>
-						<ChevronDown className="size-3.5 shrink-0 opacity-50" />
-					</>
-				)}
-				renderItem={(option) => <span className="text-xs">{option.label}</span>}
-			/>
-		</Tooltip>
 	);
 }
 
@@ -418,8 +239,26 @@ function SelectedChip({
 	);
 }
 
-// `command` com alvo é o comando `claude` exato; sem alvo é só o prompt que o "Copiar prompt" copia.
-// Em ambos os casos é o reflexo ao vivo do que rota/input/modelo/esforço/permissão produzem.
+// Chip da invocação sugerida pelo fluxo: mesmo formato do SelectedChip, mas clicável inteiro pra
+// pré-selecionar o agente do próximo passo. Só aparece sem alvo escolhido; escolher fixa a seleção.
+function SuggestionChip({ agent, onSelect }: { agent: TaskAgent; onSelect: () => void }) {
+	return (
+		<Tooltip label={`Sugestão do fluxo: invocar ${agent.label}`}>
+			<button
+				type="button"
+				onClick={onSelect}
+				className="flex h-8 items-center gap-1.5 border border-dashed border-primary/40 bg-primary/5 px-2 text-sm transition-colors hover:bg-primary/10"
+				style={{ color: agent.color }}
+			>
+				<Sparkles className="h-3.5 w-3.5 shrink-0" />
+				<span className="max-w-32 truncate text-foreground">{agent.label}</span>
+			</button>
+		</Tooltip>
+	);
+}
+
+// `command` com alvo é o comando exato do cli ativo; sem alvo é só o prompt que o "Copiar prompt"
+// copia. Em ambos os casos é o reflexo ao vivo do que os toggles e knobs produzem.
 function CommandPreview({ command, hasTarget }: { command: string | null; hasTarget: boolean }) {
 	// Colapsado por default: o comando numa linha truncada. O chevron à esquerda expande pra ver o
 	// texto inteiro quebrado em linhas.

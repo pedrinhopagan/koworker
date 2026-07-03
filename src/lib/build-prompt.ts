@@ -1,3 +1,18 @@
+import type { TaskComplexity } from "@/constants/complexity";
+import type { InvokeCli } from "@/constants/invoke";
+import { PROMPT_TEMPLATES } from "@/constants/prompt-templates";
+
+// No codex, skills são custom prompts invocados com `$slug` — converte toda chamada `/slug` do prompt
+// (inclusive o `/kw` da cabeça e as digitadas com `/` no texto) pro prefixo `$`. Só casa `/` em início
+// de palavra seguido de um slug terminado em fronteira — caminhos como `/mnt/data` têm outra `/` logo
+// depois e passam retos. No claude o texto passa intacto.
+export function convertSkillCallsForCli(text: string, cli: InvokeCli): string {
+	if (cli !== "codex") {
+		return text;
+	}
+	return text.replaceAll(/(^|\s)\/([a-z0-9][a-z0-9_-]*)(?=\s|$)/gm, "$1$$$2");
+}
+
 // O prompt vai como argumento único de `claude "<texto>"` enviado por `tmux send-keys`, onde uma quebra
 // de linha vira Enter e dispara o comando cedo. Achatamos toda quebra (e a indentação ao redor) num
 // espaço pra manter o prompt inteiro numa string só.
@@ -5,16 +20,20 @@ export function flattenPrompt(text: string): string {
 	return text.replaceAll(/\s*\n+\s*/g, " ").trim();
 }
 
-// Prompt enviado ao agente: `/kw <target>` (caminho relativo à raiz do projeto, sem o caminho da
-// máquina) seguido do texto livre. `kw` decide se a skill `/kw` entra na cabeça; `target` já vem
-// montado pelo chamador. Cabeça vazia (sem `/kw` e sem rota) copia só o texto.
+// Prompt enviado ao agente: `/kw <target> [complexidade: <valor>]` (caminho relativo à raiz do
+// projeto, sem o caminho da máquina) seguido do texto livre. `kw` decide se a skill `/kw` entra na
+// cabeça; `target` já vem montado pelo chamador. A complexidade só acompanha o `/kw` (é um conceito
+// da skill de fluxo) e traz o dado sem o agente reler o banco. Cabeça vazia copia só o texto.
 export function buildKoworkerPrompt(params: {
 	kw: boolean;
 	target?: string | null;
 	text: string;
+	complexity?: TaskComplexity;
 }): string {
 	const text = params.text.trim();
-	const head = [params.kw ? "/kw" : null, params.target].filter(Boolean).join(" ");
+	const complexityTag =
+		params.kw && params.complexity ? `[complexidade: ${params.complexity}]` : null;
+	const head = [params.kw ? "/kw" : null, params.target, complexityTag].filter(Boolean).join(" ");
 
 	if (!head) {
 		return text;
@@ -26,6 +45,27 @@ export function buildKoworkerPrompt(params: {
 	}
 
 	return lines.join("\n");
+}
+
+// Corpo do prompt: os campos preenchidos do template ativo ("Label: valor", um por linha) seguidos do
+// texto livre. Campos vazios não entram; sem template (ou tudo vazio), o corpo é só o texto.
+export function buildPromptBody(params: {
+	templateSlug: string | null;
+	values: Record<string, Record<string, string>>;
+	text: string;
+}): string {
+	const template = PROMPT_TEMPLATES.find((entry) => entry.slug === params.templateSlug);
+	const structure = template
+		? template.fields
+				.map((field) => {
+					const value = (params.values[template.slug]?.[field.key] ?? "").trim();
+					return value ? `${field.label}: ${value}` : null;
+				})
+				.filter(Boolean)
+				.join("\n")
+		: "";
+
+	return [structure, params.text.trim()].filter(Boolean).join("\n\n");
 }
 
 export async function copyToClipboard(text: string): Promise<boolean> {

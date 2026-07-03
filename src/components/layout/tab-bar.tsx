@@ -5,11 +5,15 @@
  */
 
 import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Brush, Layers, RefreshCw, Settings, X } from "lucide-react";
+import { Brush, FilePlus2, Layers, RefreshCw, Settings, SquarePen, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { tv } from "tailwind-variants";
 import { SweepInvocationsDialog } from "@/components/layout/sweep-invocations-dialog";
+import { NewTaskDialog } from "@/components/prompt-bar/new-task-dialog";
+import { NewVaultNoteDialog } from "@/components/prompt-bar/new-vault-note-dialog";
 import { Tooltip } from "@/components/ui/tooltip";
+import { copyToClipboard } from "@/lib/build-prompt";
 import { getAppEnv } from "@/lib/env";
 import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
@@ -109,8 +113,13 @@ export function TabBar() {
 	const currentKey = useDocSwitcherStore((s) => s.current?.key ?? null);
 	const currentInList = currentKey !== null && recents.some((r) => r.key === currentKey);
 
-	// Current route path for debug display (optional)
+	// Padrão da rota atual (ex.: /tarefas/$taskId/$file), exibido no centro e copiável ao clique.
 	const currentRoutePath = routerState.matches.at(-1)?.fullPath ?? "/";
+
+	async function handleCopyRoutePath() {
+		const ok = await copyToClipboard(currentRoutePath);
+		toast[ok ? "success" : "error"](ok ? "Rota copiada" : "Falha ao copiar rota");
+	}
 
 	return (
 		<nav
@@ -144,10 +153,23 @@ export function TabBar() {
 				))}
 			</div>
 
-			{/* Spacer with route path debug info */}
+			{/* Espaçador com o padrão da rota atual — clicar copia o texto (ex.: /tarefas/$taskId/$file). */}
 			<div className="flex-1 text-center">
-				<span className="text-xs text-muted-foreground opacity-30">{currentRoutePath}</span>
+				<Tooltip label="Copiar o padrão da rota">
+					<button
+						type="button"
+						onClick={() => void handleCopyRoutePath()}
+						className="text-xs text-muted-foreground opacity-30 transition-opacity hover:opacity-70"
+					>
+						{currentRoutePath}
+					</button>
+				</Tooltip>
 			</div>
+
+			{/* Criação rápida: nova tarefa e nova nota no vault — os dialogs semeiam do rascunho do
+			    prompt global. */}
+			<NewTaskButton />
+			<NewVaultNoteButton />
 
 			{/* Switcher de sessões de leitura (Alt+`). O contador conta o MRU; abrir o switcher (ou o
 			    dwell) grava o doc em foco, e aí o ícone também assume o acento do projeto. */}
@@ -210,6 +232,46 @@ export function TabBar() {
 				</Tooltip>
 			)}
 		</nav>
+	);
+}
+
+function NewTaskButton() {
+	const [open, setOpen] = useState(false);
+
+	return (
+		<>
+			<Tooltip label="Nova tarefa">
+				<button
+					type="button"
+					onClick={() => setOpen(true)}
+					className={iconButton({ active: open })}
+					aria-label="Nova tarefa"
+				>
+					<SquarePen size={16} />
+				</button>
+			</Tooltip>
+			<NewTaskDialog open={open} onClose={() => setOpen(false)} />
+		</>
+	);
+}
+
+function NewVaultNoteButton() {
+	const [open, setOpen] = useState(false);
+
+	return (
+		<>
+			<Tooltip label="Nova nota no vault">
+				<button
+					type="button"
+					onClick={() => setOpen(true)}
+					className={iconButton({ active: open })}
+					aria-label="Nova nota no vault"
+				>
+					<FilePlus2 size={16} />
+				</button>
+			</Tooltip>
+			<NewVaultNoteDialog open={open} onClose={() => setOpen(false)} />
+		</>
 	);
 }
 

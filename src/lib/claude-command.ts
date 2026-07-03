@@ -38,7 +38,8 @@ export function buildClaudeCommand({
 
 // Escapa o prompt pra caber entre aspas duplas num comando de shell sem expandir `$`/crase — o mesmo
 // escape que o backend aplica antes de embutir o prompt, então o preview bate 1:1 com o comando real.
-function shellEscape(value: string): string {
+// Compartilhado com o comando `codex`.
+export function shellEscape(value: string): string {
 	return value
 		.replaceAll("\\", "\\\\")
 		.replaceAll('"', '\\"')

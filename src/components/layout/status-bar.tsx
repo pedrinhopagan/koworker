@@ -1,10 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Bug, DatabaseZap } from "lucide-react";
+import { Bug, ChevronDown, DatabaseZap, SquareTerminal } from "lucide-react";
 import { type ComponentType, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { CustomSelect } from "@/components/ui/custom-select";
+import { Tooltip } from "@/components/ui/tooltip";
+import { INVOKE_CLI_OPTIONS, type InvokeCli } from "@/constants/invoke";
 import { getAppEnv, getAppVersionFallback, isDevelopmentEnvironment } from "@/lib/env";
 import { isTauri, openDevtools } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
+import { usePromptBarStore } from "@/stores/prompt-bar";
 
 type ActionButtonProps = {
 	onClick: () => void | Promise<void>;
@@ -99,9 +103,50 @@ export function StatusBar() {
 			</div>
 
 			<div className="flex items-center gap-1 min-w-0">
+				<CliSelect />
 				<ActionButton onClick={handleOpenConsole} label="Console" icon={Bug} />
 				<ActionButton onClick={handleClearCache} label="Limpar Cache" icon={DatabaseZap} />
 			</div>
 		</footer>
+	);
+}
+
+// Seletor global do CLI de trabalho (claude|codex): interfere no prompt inteiro — comando, knobs de
+// sessão e grafia das skills — então vive aqui na StatusBar como um modo da sessão, não um knob local.
+function CliSelect() {
+	const cli = usePromptBarStore((s) => s.cli);
+	const setCli = usePromptBarStore((s) => s.setCli);
+
+	const items = INVOKE_CLI_OPTIONS.map((option) => ({
+		id: option.value,
+		label: option.label,
+		hint: option.hint,
+	}));
+	const active = items.find((option) => option.id === cli);
+
+	return (
+		<Tooltip label={active?.hint ?? ""}>
+			<CustomSelect
+				items={items}
+				value={cli}
+				onValueChange={(next) => setCli(next as InvokeCli)}
+				size="sm"
+				fitContent
+				triggerClassName="h-6 gap-1 border-border/70 bg-muted/40 px-2 text-[11px] text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+				renderTrigger={() => (
+					<>
+						<SquareTerminal size={12} className="shrink-0" />
+						<span className="truncate text-left">{active?.label ?? ""}</span>
+						<ChevronDown size={12} className="shrink-0 opacity-50" />
+					</>
+				)}
+				renderItem={(option) => (
+					<div className="flex flex-col">
+						<span className="text-xs font-medium">{option.label}</span>
+						<span className="text-[11px] text-muted-foreground">{option.hint}</span>
+					</div>
+				)}
+			/>
+		</Tooltip>
 	);
 }

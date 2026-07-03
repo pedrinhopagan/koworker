@@ -21,6 +21,8 @@ export {
 	PriorityReorderSchema,
 	PriorityUpdateSchema,
 } from "./priorities";
+export { FlowTaskSchema } from "./flow";
+export { PromptAutofillResultSchema, PromptAutofillSchema } from "./prompt";
 export { PromptHistoryRecordSchema } from "./prompt-history";
 export {
 	ProjectRouteCreateSchema,
