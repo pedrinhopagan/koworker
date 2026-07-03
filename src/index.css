@@ -14,46 +14,48 @@
 }
 
 .light {
-	/* WorkOpilot theme - earthy/terminal aesthetic (light mode) */
-	--background: oklch(0.97 0.007 107);
-	--foreground: oklch(0.23 0 90);
+	/* Tema claro "book": base de papel bege/amarelada alinhada ao terminal.
+	   As superfícies elevadas ficam em creme quente — nunca branco puro — e o texto
+	   secundário/bordas são escuros o bastante pra ler sobre o papel. */
+	--background: oklch(0.936 0.036 92);
+	--foreground: oklch(0.3 0.014 74);
 
-	/* Superfície das barras (TabBar, ProjectFocusBar, StatusBar): divisão sutil sobre o bg */
-	--chrome: oklch(0.945 0.008 107);
+	/* Superfície das barras (TabBar, ProjectFocusBar, StatusBar): papel mais fundo que o bg */
+	--chrome: oklch(0.902 0.036 90);
 
-	--card: oklch(1 0 90);
-	--card-foreground: oklch(0.23 0 90);
+	--card: oklch(0.96 0.028 92);
+	--card-foreground: oklch(0.3 0.014 74);
 
-	--popover: oklch(1 0 90);
-	--popover-foreground: oklch(0.23 0 90);
+	--popover: oklch(0.963 0.026 92);
+	--popover-foreground: oklch(0.3 0.014 74);
 
-	--select: oklch(1 0 90);
-	--select-foreground: oklch(0.5 0 90);
+	--select: oklch(0.948 0.03 92);
+	--select-foreground: oklch(0.42 0.024 72);
 
 	--primary: oklch(0.55 0.08 251);
-	--primary-foreground: oklch(0.97 0.007 107);
+	--primary-foreground: oklch(0.965 0.03 92);
 
-	--secondary: oklch(0.93 0.011 107);
-	--secondary-foreground: oklch(0.23 0 90);
+	--secondary: oklch(0.893 0.036 90);
+	--secondary-foreground: oklch(0.3 0.014 74);
 
-	--muted: oklch(0.93 0.011 107);
-	--muted-foreground: oklch(0.5 0 90);
+	--muted: oklch(0.893 0.036 90);
+	--muted-foreground: oklch(0.435 0.026 72);
 
 	--accent: oklch(0.34 0.082 148);
-	--accent-foreground: oklch(0.97 0.007 107);
+	--accent-foreground: oklch(0.965 0.03 92);
 
-	--destructive: oklch(0.58 0.133 24);
-	--destructive-foreground: oklch(0.97 0.007 107);
+	--destructive: oklch(0.53 0.15 25);
+	--destructive-foreground: oklch(0.965 0.03 92);
 
-	--warning: oklch(0.66 0.104 43);
-	--warning-foreground: oklch(0.23 0 90);
+	--warning: oklch(0.6 0.12 55);
+	--warning-foreground: oklch(0.3 0.014 74);
 
 	--success: oklch(0.55 0.08 251);
-	--success-foreground: oklch(0.97 0.007 107);
+	--success-foreground: oklch(0.965 0.03 92);
 
-	--border: oklch(0.87 0.019 107);
+	--border: oklch(0.78 0.032 88);
 
-	--input: oklch(0.87 0.019 107);
+	--input: oklch(0.795 0.032 88);
 
 	--ring: oklch(0.55 0.08 251);
 }

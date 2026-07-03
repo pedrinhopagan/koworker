@@ -92,8 +92,8 @@ export function StatusBar() {
 					className={cn(
 						"px-2 py-0.5 rounded border text-[11px] uppercase tracking-wide bg-muted/25 text-muted-foreground",
 						isDev
-							? "border-amber-500/20 bg-amber-500/5 text-amber-200/75"
-							: "border-emerald-500/20 bg-emerald-500/5 text-emerald-200/75",
+							? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-amber-200/75"
+							: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/5 dark:text-emerald-200/75",
 					)}
 				>
 					{appEnv}

@@ -11,6 +11,7 @@ import {
 	deleteTaskFile,
 	inferTaskStage,
 	moveTaskFolderToProject,
+	parseTaskFileOrder,
 	readFirstMarkdownContent,
 	readTaskFiles,
 	readTaskFolderMeta,
@@ -146,18 +147,6 @@ async function mapTasks(rows: tasks[]) {
 	});
 }
 
-// file_order é JSON livre vindo do banco (boundary): só vira ordem se for array de strings.
-function parseFileOrder(raw: string | null | undefined): string[] {
-	if (!raw) return [];
-	try {
-		const parsed = JSON.parse(raw);
-		if (Array.isArray(parsed) && parsed.every((name) => typeof name === "string")) return parsed;
-	} catch {
-		// JSON corrompido cai na ordem-base por birthtime.
-	}
-	return [];
-}
-
 async function publishTaskEvent(
 	taskId: string,
 	projectId: string,
@@ -235,7 +224,7 @@ export const tasksRouter = {
 			? await readTaskFiles({
 					projectRoute: project.main_route,
 					folderPath: row.folder_path,
-					order: parseFileOrder(row.file_order),
+					order: parseTaskFileOrder(row.file_order),
 				})
 			: { files: [], primaryFile: null };
 
@@ -459,7 +448,7 @@ export const tasksRouter = {
 
 		// Renomear preserva a posição na aba: troca o nome no file_order in-place. Sem isso o
 		// arquivo cairia como leftover e pularia pra direita.
-		const order = parseFileOrder(row.file_order);
+		const order = parseTaskFileOrder(row.file_order);
 		const at = order.indexOf(input.oldName);
 		if (at >= 0) {
 			order[at] = input.newName;
@@ -483,7 +472,7 @@ export const tasksRouter = {
 			name: input.name,
 		});
 
-		const order = parseFileOrder(row.file_order);
+		const order = parseTaskFileOrder(row.file_order);
 		const next = order.filter((name) => name !== input.name);
 		if (next.length !== order.length) {
 			await dbTasks.update({ id: row.id, file_order: JSON.stringify(next) });

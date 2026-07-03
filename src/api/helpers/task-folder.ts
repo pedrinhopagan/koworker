@@ -261,6 +261,43 @@ export async function readTaskFiles(params: {
 	return { files: ordered, primaryFile };
 }
 
+export function parseTaskFileOrder(raw: string | null | undefined): string[] {
+	if (!raw) return [];
+	try {
+		const parsed = JSON.parse(raw);
+		if (Array.isArray(parsed) && parsed.every((name) => typeof name === "string")) return parsed;
+	} catch {
+		return [];
+	}
+	return [];
+}
+
+export async function taskFileExists(params: {
+	projectRoute: string;
+	folderPath: string;
+	name: string;
+}): Promise<boolean> {
+	try {
+		await stat(join(params.projectRoute, params.folderPath, params.name));
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export async function readTaskFile(params: {
+	projectRoute: string;
+	folderPath: string;
+	name: string;
+}): Promise<string> {
+	const path = join(params.projectRoute, params.folderPath, params.name);
+	const file = Bun.file(path);
+	if (!(await file.exists())) {
+		throw new Error(`Arquivo "${params.name}" não encontrado nesta tarefa`);
+	}
+	return file.text();
+}
+
 export async function writeTaskFile(params: {
 	projectRoute: string;
 	folderPath: string;

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown, Gauge, Plus } from "lucide-react";
 import { type ComponentProps, useEffect, useState } from "react";
 import { Controller, type SubmitHandler, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -222,49 +222,85 @@ export function InlineTaskCreateForm({
 				<Controller
 					control={control}
 					name="complexity"
-					render={({ field }) => (
-						<div className="grid gap-1">
-							<CustomSelect
-								items={COMPLEXITY_ITEMS}
-								value={field.value}
-								onValueChange={(id) => field.onChange(id as TaskComplexity)}
-								disabled={fieldsDisabled}
-								variant="default"
-								size={isDialogVariant ? "md" : "sm"}
-								label="Complexidade"
-								renderTrigger={() => {
-									const selected = COMPLEXITY_ITEMS.find((item) => item.id === field.value);
+					render={({ field }) => {
+						const selected = COMPLEXITY_ITEMS.find((item) => item.id === field.value);
 
-									return (
-										<>
-											<span className="flex min-w-0 items-center gap-2">
+						return (
+							<div className="grid gap-1">
+								<CustomSelect
+									items={COMPLEXITY_ITEMS}
+									value={field.value}
+									onValueChange={(id) => field.onChange(id as TaskComplexity)}
+									disabled={fieldsDisabled}
+									variant="default"
+									size="md"
+									label="Complexidade"
+									fitContent={!isDialogVariant}
+									renderTrigger={() =>
+										isDialogVariant ? (
+											<>
+												<span className="flex min-w-0 items-center gap-2">
+													<span
+														className="size-2 shrink-0 rounded-full"
+														style={{ backgroundColor: selected?.color ?? "#6b7280" }}
+													/>
+													<span className="truncate text-sm">
+														{selected?.name ?? "Complexidade"}
+													</span>
+												</span>
+												<ChevronDown className="ml-1 size-4 text-muted-foreground" />
+											</>
+										) : (
+											<>
 												<span
-													className="size-2 shrink-0 rounded-full"
-													style={{ backgroundColor: selected?.color ?? "#6b7280" }}
-												/>
-												<span className="truncate text-sm">{selected?.name ?? "Complexidade"}</span>
-											</span>
-											<ChevronDown className="ml-1 size-4 text-muted-foreground" />
-										</>
-									);
-								}}
-								renderItem={(item, isSelected) => (
-									<div
-										className={cn(
-											"flex w-full items-center gap-2 px-3 py-2",
-											isSelected && "font-medium",
-										)}
-									>
-										<span
-											className="size-2 shrink-0 rounded-full"
-											style={{ backgroundColor: item.color }}
-										/>
-										<span className="truncate text-sm">{item.name}</span>
-									</div>
-								)}
-							/>
-						</div>
-					)}
+													className="inline-flex shrink-0"
+													style={selected ? { color: selected.color } : undefined}
+												>
+													<Gauge className="size-4" />
+												</span>
+												<ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+												<span className="sr-only">
+													Complexidade: {selected?.name ?? "Complexidade"}
+												</span>
+											</>
+										)
+									}
+									renderItem={(item, isSelected) => (
+										<div
+											className={cn(
+												"flex w-full items-center gap-2 px-3 py-2 transition-all duration-150 ease-out",
+												isSelected && "font-medium",
+											)}
+											style={{
+												borderLeft: isSelected
+													? `2px solid ${item.color}`
+													: "2px solid transparent",
+											}}
+										>
+											<span
+												className="size-2 shrink-0 rounded-full"
+												style={{ backgroundColor: item.color }}
+											/>
+											<span className="flex-1 truncate text-sm">{item.name}</span>
+											{isSelected && (
+												<Check className="ml-auto size-4 shrink-0" style={{ color: item.color }} />
+											)}
+										</div>
+									)}
+									triggerStyle={{
+										boxShadow: `0 0 0 1px ${selected?.color ?? "#6b7280"}30`,
+									}}
+									triggerClassName={cn(
+										"gap-1",
+										isDialogVariant ? "min-w-[140px]" : "w-fit min-w-0 px-2",
+									)}
+									contentClassName={
+										isDialogVariant ? "min-w-[var(--radix-select-trigger-width)]" : "min-w-[180px]"
+									}
+								/>
+							</div>
+						);
+					}}
 				/>
 
 				<Controller

@@ -25,13 +25,32 @@ if (!handler) {
 	console.log(`kw-cli - CLI
 
 Tarefas:
-  create [título] [--category <nome|id>] [--priority <nome|id>] [--complexity <simples|medio|complexo|extremo>]
-                          Cria uma tarefa no projeto do cwd; imprime taskId + a pasta (.koworker/<id>)
-  task set <taskId|caminho> [--title ...] [--category ...] [--priority ...] [--complexity ...]
+  create [título] [--type <nome|id>] [--category <nome|id>] [--priority <nome|id>] [--complexity <simples|medio|complexo|extremo>]
+                          Cria uma tarefa no projeto do cwd; imprime taskId + pasta (.koworker/<id>)
+  task create [título] [...] Alias de create
+  task list [busca] [--all|--done|--pending] [--type ...] [--priority ...] [--complexity ...]
+                          Lista tarefas do projeto do cwd; use --all-projects para todos
+  task show <taskId|caminho>
+                          Mostra metadados e arquivos da tarefa
+  task set <taskId|caminho> [--title ...] [--type ...] [--priority ...] [--complexity ...] [--done|--pending]
                           Edita metadados de uma tarefa
+  task done <taskId|caminho>
   done <taskId|caminho>   Marca a tarefa como concluída
+  task reopen <taskId|caminho>
+                          Reabre uma tarefa concluída
   task rm <taskId|caminho>
                           Remove a tarefa (soft delete + apaga a pasta)
+  task options            Lista complexidades, tipos/categorias e prioridades
+
+Arquivos de tarefa:
+  task file list <taskId|caminho>
+  task file read <taskId|arquivo.md> [arquivo.md]
+  task file create <taskId|arquivo.md> [arquivo.md] [--content ...|--from <path>|--stdin]
+  task file write <taskId|arquivo.md> [arquivo.md] [--content ...|--from <path>|--stdin]
+  task file rename <taskId|arquivo.md> <old.md> <new.md>
+  task file rm <taskId|arquivo.md> [arquivo.md]
+  task file reorder <taskId|caminho> <a.md> <b.md> [...]
+  task file date <taskId|arquivo.md> [arquivo.md] --edited-at <ISO|epoch-ms>
 
 Projetos e rotas:
   project list            Lista os projetos (id, nome, rota)

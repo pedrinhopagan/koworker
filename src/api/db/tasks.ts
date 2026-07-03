@@ -85,6 +85,77 @@ export const dbTasks = {
 		return query.execute();
 	},
 
+	listForCli: (
+		input: {
+			id?: string;
+			projectId?: string | null;
+			includeCompleted?: boolean;
+			done?: boolean;
+		} & TaskListFiltersInput,
+	) => {
+		let query = db
+			.selectFrom("tasks as t")
+			.innerJoin("projects as p", "p.id", "t.project_id")
+			.leftJoin("categories as c", "c.id", "t.category_id")
+			.leftJoin("priorities as pr", "pr.id", "t.priority_id")
+			.select([
+				"t.id as id",
+				"t.project_id as project_id",
+				"t.folder_path as folder_path",
+				"t.title as title",
+				"t.priority_id as priority_id",
+				"t.category_id as category_id",
+				"t.complexity as complexity",
+				"t.file_order as file_order",
+				"t.done as done",
+				"t.completed_at as completed_at",
+				"t.created_at as created_at",
+				"t.updated_at as updated_at",
+				"p.name as project_name",
+				"p.main_route as project_main_route",
+				"c.name as category_name",
+				"pr.name as priority_name",
+			])
+			.where("t.deleted_at", "is", null)
+			.where("p.deleted_at", "is", null);
+
+		if (input.id) {
+			query = query.where("t.id", "=", input.id);
+		}
+
+		if (input.projectId) {
+			query = query.where("t.project_id", "=", input.projectId);
+		}
+
+		if (input.taskTypeId) {
+			query = query.where("t.category_id", "=", input.taskTypeId);
+		}
+
+		const priorityId = input.priorityId ?? input.priority;
+		if (priorityId) {
+			query = query.where("t.priority_id", "=", priorityId);
+		}
+
+		if (input.complexity) {
+			query = query.where("t.complexity", "=", input.complexity);
+		}
+
+		if (input.q) {
+			const term = `%${input.q.trim()}%`;
+			query = query.where((eb) =>
+				eb.or([eb("t.title", "like", term), eb("t.folder_path", "like", term)]),
+			);
+		}
+
+		if (input.done !== undefined) {
+			query = query.where("t.done", "=", input.done ? 1 : 0);
+		} else if (!input.includeCompleted) {
+			query = query.where("t.done", "=", 0);
+		}
+
+		return query.orderBy("p.display_order", "asc").orderBy("t.display_order", "asc").execute();
+	},
+
 	// Backlog da agenda: tarefas pendentes ainda NÃO ligadas a um event. Fonte do DnD para
 	// agendar. "Sem agendamento" agora = sem event de ligação (a tabela events é dona do tempo).
 	listBacklog: (input: { projectId?: string | null } & TaskListFiltersInput) => {
@@ -114,7 +185,7 @@ export const dbTasks = {
 		const parsed = TaskDbCreateSchema.parse(input);
 		return db
 			.insertInto("tasks")
-			.values(parsed as tasks)
+			.values({ ...(parsed as tasks), created_at: parsed.created_at ?? Date.now() })
 			.onConflict((oc) => oc.column("id").doNothing())
 			.executeTakeFirst();
 	},

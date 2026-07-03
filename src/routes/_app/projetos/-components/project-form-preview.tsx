@@ -156,8 +156,8 @@ function PreviewTask({
 			<span
 				className={cn(
 					"rounded-sm px-2 py-0.5 text-[10px] uppercase tracking-wide",
-					status === "working" && "bg-amber-500/20 text-amber-200",
-					status === "done" && "bg-emerald-500/20 text-emerald-200",
+					status === "working" && "bg-amber-500/20 text-amber-700 dark:text-amber-200",
+					status === "done" && "bg-emerald-500/20 text-emerald-700 dark:text-emerald-200",
 					status === "idle" && "bg-muted text-muted-foreground",
 				)}
 			>

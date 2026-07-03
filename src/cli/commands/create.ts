@@ -1,19 +1,13 @@
-import { dbProjects } from "@/api/db/projects";
 import { dbTasks } from "@/api/db/tasks";
 import { buildFolderPath, createTaskFolder } from "@/api/helpers/task-folder";
 import { parseArgs } from "../args";
 import { notifyTasksChanged } from "../notify";
-import { canonicalPath, resolveCategoryId, resolveComplexity, resolvePriorityId } from "../resolve";
-
-// Resolve o projeto koworker cujo main_route é exatamente o cwd — o repositório onde o agente
-// trabalha. Match exato (não por prefixo) de propósito: previsível e imune a um projeto com
-// main_route raiz (`/`) que casaria com qualquer caminho.
-async function resolveProjectByCwd() {
-	const cwd = canonicalPath(process.cwd());
-	const projects = await dbProjects.getAll();
-
-	return projects.find((project) => canonicalPath(project.main_route) === cwd) ?? null;
-}
+import {
+	resolveCategoryId,
+	resolveComplexity,
+	resolvePriorityId,
+	resolveProjectByCwd,
+} from "../resolve";
 
 export async function runCreate(args: string[]): Promise<void> {
 	const { positionals, flags } = parseArgs(args);
@@ -28,9 +22,10 @@ export async function runCreate(args: string[]): Promise<void> {
 	}
 
 	// Prioridade e categoria são opcionais: sem a flag, a task nasce sem nenhuma delas (null).
+	const category = flags.category ?? flags.type;
 	const [priorityId, categoryId] = await Promise.all([
 		flags.priority ? resolvePriorityId(flags.priority) : undefined,
-		flags.category ? resolveCategoryId(flags.category) : undefined,
+		category ? resolveCategoryId(category) : undefined,
 	]);
 	const complexity = flags.complexity ? resolveComplexity(flags.complexity) : "medio";
 

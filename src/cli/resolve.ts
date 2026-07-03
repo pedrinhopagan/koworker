@@ -2,6 +2,7 @@ import { realpathSync } from "node:fs";
 
 import { dbCategories } from "@/api/db/categories";
 import { dbPriorities } from "@/api/db/priorities";
+import { dbProjects } from "@/api/db/projects";
 import { dbTasks } from "@/api/db/tasks";
 import { TASK_COMPLEXITIES, type TaskComplexity } from "@/constants/complexity";
 
@@ -14,6 +15,13 @@ export function canonicalPath(path: string): string {
 	} catch {
 		return normalized;
 	}
+}
+
+export async function resolveProjectByCwd() {
+	const cwd = canonicalPath(process.cwd());
+	const projects = await dbProjects.getAll();
+
+	return projects.find((project) => canonicalPath(project.main_route) === cwd) ?? null;
 }
 
 // Resolve a tarefa a partir de um taskId (uuid completo), de um caminho dentro de `.koworker/`
@@ -59,6 +67,13 @@ export async function resolveCategoryId(arg: string): Promise<string> {
 	throw new Error(`Categoria não encontrada: ${arg}`);
 }
 
+export async function resolveCategoryIdOrNull(arg: string): Promise<string | null> {
+	if (isNullEntityInput(arg)) {
+		return null;
+	}
+	return await resolveCategoryId(arg);
+}
+
 // Prioridade por nome (normalizado) ou por id. Erro quando nenhum casa.
 export async function resolvePriorityId(arg: string): Promise<string> {
 	const byName = await dbPriorities.findByNormalizedName(arg);
@@ -70,6 +85,13 @@ export async function resolvePriorityId(arg: string): Promise<string> {
 	throw new Error(`Prioridade não encontrada: ${arg}`);
 }
 
+export async function resolvePriorityIdOrNull(arg: string): Promise<string | null> {
+	if (isNullEntityInput(arg)) {
+		return null;
+	}
+	return await resolvePriorityId(arg);
+}
+
 // Complexidade é boundary: valida contra a união finita. Erro quando não casa.
 export function resolveComplexity(arg: string): TaskComplexity {
 	const value = arg.trim().toLowerCase();
@@ -78,4 +100,8 @@ export function resolveComplexity(arg: string): TaskComplexity {
 	}
 
 	throw new Error(`Complexidade inválida: ${arg} (use: ${TASK_COMPLEXITIES.join(", ")})`);
+}
+
+function isNullEntityInput(arg: string): boolean {
+	return ["", "none", "null", "nenhum", "nenhuma", "sem"].includes(arg.trim().toLowerCase());
 }

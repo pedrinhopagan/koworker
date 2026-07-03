@@ -34,3 +34,7 @@ export function parseArgs(argv: string[]): {
 
 	return { positionals, flags };
 }
+
+export function hasFlag(flags: Record<string, string>, key: string): boolean {
+	return Object.hasOwn(flags, key);
+}
