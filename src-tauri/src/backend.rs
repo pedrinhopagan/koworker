@@ -124,6 +124,8 @@ fn spawn_dev_backend() -> Option<Child> {
         .arg("--watch")
         .arg(script)
         .current_dir(root)
+        .env("NODE_ENV", "development")
+        .env("KOWORK_PORT", DEV_PORT.to_string())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit())

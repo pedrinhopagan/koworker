@@ -21,6 +21,7 @@ const backendTargetDir = join(home, ".local/lib/kowork/bin");
 const backendTarget = join(backendTargetDir, "kowork-backend");
 
 const healthUrl = `http://localhost:${KOWORK_PROD_PORT}/index.html`;
+const systemdBackendUnit = "kowork-backend.service";
 
 function run(command: string[], env?: Record<string, string>) {
 	const result = Bun.spawnSync(command, {
@@ -58,6 +59,33 @@ async function portOccupied(): Promise<boolean> {
 	} catch {
 		return false;
 	}
+}
+
+function systemdBackendUnitExists(): boolean {
+	const result = Bun.spawnSync(["systemctl", "--user", "cat", systemdBackendUnit], {
+		stdio: ["ignore", "ignore", "ignore"],
+	});
+	return result.exitCode === 0;
+}
+
+function restartBackendViaSystemd() {
+	console.log(`→ Reiniciando backend via systemd (${systemdBackendUnit})...`);
+	run(["systemctl", "--user", "restart", systemdBackendUnit]);
+}
+
+function waitForBackendHealth(timeoutMs: number, stepMs: number): Promise<boolean> {
+	return waitFor(
+		async () => {
+			try {
+				const res = await fetch(healthUrl, { signal: AbortSignal.timeout(1000) });
+				return res.ok;
+			} catch {
+				return false;
+			}
+		},
+		timeoutMs,
+		stepMs,
+	);
 }
 
 // KOWORK_SHOW_ON_START faz a GUI abrir a janela ja visivel (ela sobe oculta na tray por padrao).
@@ -126,18 +154,32 @@ await installFile(backendSource, backendTarget);
 await installDir(distSource, distTarget);
 
 console.log("→ Reiniciando o app de prod...");
+const backendManagedBySystemd = systemdBackendUnitExists();
+
 try {
-	kill(backendTarget);
 	kill(guiTarget);
 
-	const freed = await waitFor(async () => !(await portOccupied()), 6000, 200);
-	if (!freed) {
-		kill(backendTarget, "-KILL");
-		const freedHard = await waitFor(async () => !(await portOccupied()), 4000, 200);
-		if (!freedHard) {
+	if (backendManagedBySystemd) {
+		// Nao usar pkill no backend: systemd ressuscitaria o processo antigo (inode velho) no meio do deploy.
+		restartBackendViaSystemd();
+		const live = await waitForBackendHealth(40000, 500);
+		if (!live) {
 			throw new Error(
-				`Porta ${KOWORK_PROD_PORT} segue ocupada por um backend antigo; abortando para nao servir codigo defasado.`,
+				`Backend systemd nao respondeu 200 em ${healthUrl} apos restart de ${systemdBackendUnit}.`,
 			);
+		}
+	} else {
+		kill(backendTarget);
+
+		const freed = await waitFor(async () => !(await portOccupied()), 6000, 200);
+		if (!freed) {
+			kill(backendTarget, "-KILL");
+			const freedHard = await waitFor(async () => !(await portOccupied()), 4000, 200);
+			if (!freedHard) {
+				throw new Error(
+					`Porta ${KOWORK_PROD_PORT} segue ocupada por um backend antigo; abortando para nao servir codigo defasado.`,
+				);
+			}
 		}
 	}
 
@@ -147,18 +189,7 @@ try {
 	throw error;
 }
 
-const live = await waitFor(
-	async () => {
-		try {
-			const res = await fetch(healthUrl, { signal: AbortSignal.timeout(1000) });
-			return res.ok;
-		} catch {
-			return false;
-		}
-	},
-	40000,
-	500,
-);
+const live = backendManagedBySystemd ? true : await waitForBackendHealth(40000, 500);
 
 if (!live) {
 	throw new Error(`Prod nao respondeu 200 em ${healthUrl} apos relancar a GUI.`);

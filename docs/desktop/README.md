@@ -15,9 +15,9 @@ Criar uma base simples e robusta para rodar no desktop com o minimo de Rust, man
 
 ## Backend local
 
-O app desktop depende do backend ORPC rodando em `http://localhost:4178` (HTTP + WS). Sem isso, o front não carrega dados. Para builds estáticos, também é possível definir `window.__KOWORK_API_URL__` antes do bundle carregar.
+O app desktop depende do backend ORPC rodando em `http://localhost:2841` (dev) ou `http://localhost:2842` (prod) — HTTP + WS. Sem isso, o front não carrega dados. Para builds estáticos, também é possível definir `window.__KOWORK_API_URL__` antes do bundle carregar.
 
-No desktop, o app tenta subir o backend automaticamente quando abre. Se já existir um backend rodando na porta 4178, ele não inicia outro.
+No desktop, o app tenta subir o backend automaticamente quando abre. Se já existir um backend rodando na porta esperada (2841 em dev, 2842 em prod), ele não inicia outro.
 
 - Em desenvolvimento, sobe via `bun --watch src/server.ts`.
 - Em build de produção, sobe via binário `kowork-backend` empacotado no bundle Tauri.

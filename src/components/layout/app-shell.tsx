@@ -41,7 +41,7 @@ export function AppShell({ children }: AppShellProps) {
 
 	return (
 		<div
-			className="flex-1 flex bg-background text-foreground overflow-hidden h-screen"
+			className="flex-1 flex bg-background text-foreground overflow-hidden h-dvh"
 			style={shellStyle}
 		>
 			{/*<AccentStripe />*/}

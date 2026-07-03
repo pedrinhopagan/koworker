@@ -182,7 +182,7 @@ bun cli update-task '{"taskId": "uuid", "status": "executed"}'
 - O front usa ORPC em `/rpc` (HTTP) e `/ws` (WebSocket) na mesma origem
 - Rotas do app (`/_app`) exigem sessão válida via `auth.me`
 - Credenciais de login vêm de `KOWORK_ADMIN_USER` / `KOWORK_ADMIN_PASSWORD` no `.env` (sem defaults hardcoded)
-- Em produção/desktop sem servidor embarcado, o backend roda em `http://localhost:4178` ou via `window.__KOWORK_API_URL__`
+- Em dev, o backend roda em `http://localhost:2841`; em produção/desktop, em `http://localhost:2842` (ou via `window.__KOWORK_API_URL__`)
 
 ## Documentação
 
