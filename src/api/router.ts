@@ -4,7 +4,9 @@ import { PubSub } from "./pubsub";
 import { agentsRouter } from "./routers/agents";
 import { categoriesRouter } from "./routers/categories";
 import { eventsRouter } from "./routers/events";
+import { flowRouter } from "./routers/flow";
 import { prioritiesRouter } from "./routers/priorities";
+import { promptRouter } from "./routers/prompt";
 import { promptHistoryRouter } from "./routers/prompt-history";
 import { projectRoutesRouter } from "./routers/project-routes";
 import { projectsRouter } from "./routers/projects";
@@ -16,7 +18,7 @@ import { taskGroupsRouter } from "./routers/task-groups";
 import { tasksRouter } from "./routers/tasks";
 import { terminalRouter, terminalWsRouter } from "./routers/terminal";
 import { vaultRouter } from "./routers/vault";
-import { EndpointSchemas } from "./schemas";
+import { EndpointSchemas, FlowTaskSchema } from "./schemas";
 
 export const router = {
 	auth: {
@@ -35,9 +37,11 @@ export const router = {
 	events: eventsRouter,
 	categories: categoriesRouter,
 	priorities: prioritiesRouter,
+	flow: flowRouter,
 	skills: skillsRouter,
 	skillCategories: skillCategoriesRouter,
 	agents: agentsRouter,
+	prompt: promptRouter,
 	promptHistory: promptHistoryRouter,
 	terminal: terminalRouter,
 	vault: vaultRouter,
@@ -66,6 +70,10 @@ export const wsRouter = {
 	tasks: protectedProcedure.handler(({ signal }) => PubSub.subscribe("tasks", "global", signal)),
 
 	events: protectedProcedure.handler(({ signal }) => PubSub.subscribe("events", "global", signal)),
+
+	flow: protectedProcedure
+		.input(FlowTaskSchema)
+		.handler(({ input, signal }) => PubSub.subscribe("flow", input.taskId, signal)),
 
 	terminal: terminalWsRouter,
 };

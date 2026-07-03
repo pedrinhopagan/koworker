@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { db } from "../src/api/db/connection";
 import { jsonStringify } from "../src/api/helpers/json";
+import { DEFAULT_CATEGORIES } from "../src/constants/categories";
 import { readSkillFile, type SkillFile } from "../src/lib/skills/parser";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
@@ -116,25 +117,19 @@ await db
 	})
 	.execute();
 
-const defaultCategories = [
-	{ name: "feature", color: "#22c55e" },
-	{ name: "fix", color: "#ef4444" },
-	{ name: "test", color: "#3b82f6" },
-	{ name: "doc", color: "#a855f7" },
-];
-
 const existingCategories = await db.selectFrom("categories").select(["name"]).execute();
 const existingCategoryNames = new Set(existingCategories.map((item) => normalizeName(item.name)));
 
-const categoriesToInsert = defaultCategories
-	.filter((item) => !existingCategoryNames.has(normalizeName(item.name)))
-	.map((item, index) => ({
-		id: createId(),
-		name: item.name,
-		color: item.color,
-		display_order: index,
-		created_at: now,
-	}));
+const categoriesToInsert = DEFAULT_CATEGORIES.filter(
+	(item) => !existingCategoryNames.has(normalizeName(item.name)),
+).map((item, index) => ({
+	id: createId(),
+	name: item.name,
+	color: item.color,
+	structure_slug: item.structureSlug,
+	display_order: index,
+	created_at: now,
+}));
 
 if (categoriesToInsert.length > 0) {
 	await db.insertInto("categories").values(categoriesToInsert).execute();

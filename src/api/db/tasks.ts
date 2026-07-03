@@ -30,6 +30,10 @@ const applyTaskListFilters = (
 		query = query.where("priority_id", "=", priorityId);
 	}
 
+	if (filters.complexity) {
+		query = query.where("complexity", "=", filters.complexity);
+	}
+
 	if (filters.q) {
 		query = query.where("title", "like", `%${filters.q.trim()}%`);
 	}

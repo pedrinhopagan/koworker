@@ -1,8 +1,22 @@
 import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
 
+import type { TaskStage } from "@/constants/complexity";
+
 const publisher = new MemoryPublisher<Record<string, object>>();
 
+// Progresso do fluxo autônomo de uma tarefa, publicado por taskId. `stage`/`agent` nomeiam o que
+// está rodando (null na revisão final e no arranque); `message` carrega só o fato que o frontend não
+// deriva sozinho — o motivo da falha (timeout × código) ou a nota de por que parou no usuário.
+export type FlowEvent = {
+	taskId: string;
+	status: "running" | "waiting-user" | "failed" | "completed";
+	stage: TaskStage | null;
+	agent: string | null;
+	message: string | null;
+};
+
 type PubSubChannels = {
+	flow: FlowEvent;
 	notification: {
 		title: string;
 		message: string;

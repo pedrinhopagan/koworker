@@ -45,8 +45,13 @@ const tasksSchema = type({
 	// Título editável da task. Nullable: a task pode nascer sem nome e cair no fallback
 	// do primeiro .md (resolveDisplayTitle). O H1 do index.md não é mais o título.
 	"title?": "string",
-	priority_id: type("string").configure({ references: "priorities.id", onDelete: "restrict" }),
-	category_id: type("string").configure({ references: "categories.id", onDelete: "restrict" }),
+	// Prioridade e categoria são opcionais: a task pode nascer sem nenhuma das duas (nullable).
+	// A referência e o onDelete: "restrict" seguem valendo — só não são mais obrigatórias.
+	"priority_id?": type("string").configure({ references: "priorities.id", onDelete: "restrict" }),
+	"category_id?": type("string").configure({ references: "categories.id", onDelete: "restrict" }),
+	// Complexidade da task (conjunto finito em constants/complexity.ts). Texto com default "medio":
+	// tasks existentes migram para "medio", novas nascem "medio" quando não informado.
+	complexity: type("string").configure({ default: "medio" }),
 	// Grupo (opcional) ao qual a task pertence. Nulo = pseudo-grupo "Sem grupo". SET NULL para
 	// que deletar um grupo apenas solte as tasks de volta pro "Sem grupo".
 	"group_id?": type("string").configure({ references: "task_groups.id", onDelete: "set null" }),
@@ -101,6 +106,9 @@ const categoriesSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	name: "string",
 	color: type("string").configure({ default: "#000000" }),
+	// Estrutura de prompt vinculada (slug em constants/prompt-templates.ts). Nullable: a categoria
+	// pode não sugerir template. O conjunto finito é garantido na boundary zod, não no DSL de tabela.
+	"structure_slug?": "string",
 	display_order: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",

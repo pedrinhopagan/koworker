@@ -1,6 +1,8 @@
 import { cp, mkdir, readdir, rename, rm, stat, utimes } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
+import { COMPLEXITY_FLOWS, type TaskComplexity, type TaskStage } from "@/constants/complexity";
+
 // Garante que `.koworker/` está no `.gitignore` do projeto. O conteúdo das tasks é
 // canônico no FS mas nunca deve ir pro git. Idempotente: só faz append se faltar.
 async function ensureKoworkerGitignored(projectRoute: string): Promise<void> {
@@ -159,6 +161,40 @@ export async function readTaskFolderMeta(params: {
 	);
 
 	return { fileNames: names, lastEditedAt: Math.max(...mtimes) };
+}
+
+// Etapas cujo artefato já existe na pasta, provadas por convenção de nome. O index.md não conta;
+// grill*.md prova o grill, plano*.md/plan*.md o plano, revis*.md a revisão, e qualquer outro .md
+// prova que a execução (em fase única ou em fases) começou.
+function provenStages(fileNames: string[]): Set<TaskStage> {
+	const proven = new Set<TaskStage>();
+	for (const name of fileNames) {
+		const lower = name.toLowerCase();
+		if (lower === PRIMARY_FILE) continue;
+
+		if (lower.startsWith("grill")) {
+			proven.add("grill");
+		} else if (lower.startsWith("plano") || lower.startsWith("plan")) {
+			proven.add("plano");
+		} else if (lower.startsWith("revis")) {
+			proven.add("revisao");
+		} else {
+			proven.add("execucao");
+			proven.add("execucao-fases");
+		}
+	}
+	return proven;
+}
+
+// Primeira etapa do fluxo da complexidade ainda sem artefato na pasta — o próximo passo da tarefa.
+// null quando o fluxo está completo. A complexidade vem do banco (união já garantida na boundary);
+// os artefatos vêm do disco, então uma etapa feita direto pelo agente conta sem passar pela UI.
+export function inferTaskStage(params: {
+	fileNames: string[];
+	complexity: TaskComplexity;
+}): TaskStage | null {
+	const proven = provenStages(params.fileNames);
+	return COMPLEXITY_FLOWS[params.complexity].find((stage) => !proven.has(stage)) ?? null;
 }
 
 // Conteúdo do primeiro .md da pasta (mesma ordem de readTaskFiles), para o fallback de

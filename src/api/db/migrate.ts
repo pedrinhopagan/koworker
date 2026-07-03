@@ -110,6 +110,9 @@ export function ensureDbSchema() {
 			ensureColumn(sqlite, "categories", "display_order INTEGER NOT NULL DEFAULT 0");
 			resequenceDisplayOrder(sqlite, "categories");
 		}
+		if (!hasColumn(cols, "structure_slug")) {
+			ensureColumn(sqlite, "categories", "structure_slug TEXT");
+		}
 
 		deduplicateNamedEntities(sqlite, {
 			table: "categories",
@@ -181,6 +184,43 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		}
 		if (!hasColumn(cols, "file_order")) {
 			ensureColumn(sqlite, "tasks", "file_order TEXT");
+		}
+		if (!hasColumn(cols, "complexity")) {
+			// Migração: tasks existentes viram "medio" (o DEFAULT preenche as linhas atuais).
+			ensureColumn(sqlite, "tasks", "complexity TEXT NOT NULL DEFAULT 'medio'");
+		}
+	}
+
+	// tasks.priority_id / tasks.category_id: eram NOT NULL (toda task tinha prioridade e categoria).
+	// Agora são opcionais — a task pode existir sem nenhuma das duas. SQLite não solta o NOT NULL via
+	// ALTER, então rebuild da tabela preservando dados e definição (FKs, defaults), derivando o CREATE
+	// do próprio sqlite_master pra não duplicar o schema. Mesmo precedente do NOT NULL do title.
+	// Idempotente: só roda enquanto uma das colunas ainda estiver NOT NULL.
+	{
+		const cols = tableInfo(sqlite, "tasks");
+		const priorityCol = cols.find((c) => c.name === "priority_id");
+		const categoryCol = cols.find((c) => c.name === "category_id");
+		const createSql = sqlite
+			.query<{ sql: string }, []>(
+				"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tasks'",
+			)
+			.get()?.sql;
+
+		if ((priorityCol?.notnull === 1 || categoryCol?.notnull === 1) && createSql) {
+			const newCreateSql = createSql
+				.replace(/CREATE TABLE "?tasks"?/, 'CREATE TABLE "tasks_new"')
+				.replace(/("priority_id"\s+TEXT)\s+NOT NULL/, "$1")
+				.replace(/("category_id"\s+TEXT)\s+NOT NULL/, "$1");
+			const colNames = cols.map((c) => `"${c.name}"`).join(", ");
+
+			sqlite.exec("PRAGMA foreign_keys=OFF");
+			sqlite.transaction(() => {
+				sqlite.exec(newCreateSql);
+				sqlite.exec(`INSERT INTO tasks_new (${colNames}) SELECT ${colNames} FROM tasks`);
+				sqlite.exec("DROP TABLE tasks");
+				sqlite.exec("ALTER TABLE tasks_new RENAME TO tasks");
+			})();
+			sqlite.exec("PRAGMA foreign_keys=ON");
 		}
 	}
 
