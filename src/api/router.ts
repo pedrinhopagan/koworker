@@ -31,7 +31,10 @@ export const router = {
 
 		logout: protectedProcedure.handler(({ context }) => Auth.logout(context.resHeaders)),
 
-		me: protectedProcedure.handler(({ context }) => context.user),
+		me: protectedProcedure.handler(({ context }) => ({
+			id: context.user.id,
+			name: context.user.name,
+		})),
 	},
 	projects: projectsRouter,
 	projectRoutes: projectRoutesRouter,
@@ -63,7 +66,10 @@ export const router = {
 
 export const wsRouter = {
 	auth: {
-		me: protectedProcedure.handler(({ context }) => context.user),
+		me: protectedProcedure.handler(({ context }) => ({
+			id: context.user.id,
+			name: context.user.name,
+		})),
 	},
 
 	notifications: protectedProcedure.handler(({ context, signal }) =>
