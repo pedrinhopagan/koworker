@@ -7,9 +7,15 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
-import type { SkillFolder, TaskFolder, TreeNode } from "../-utils/build-vault-tree";
+import type { AgentFolder, SkillFolder, TaskFolder, TreeNode } from "../-utils/build-vault-tree";
 
-const FOLDER_KINDS = new Set(["feature", "taskFolder", "looseFolder", "skillFolder"]);
+const FOLDER_KINDS = new Set([
+	"feature",
+	"taskFolder",
+	"looseFolder",
+	"agentFolder",
+	"skillFolder",
+]);
 
 function isFolder(node: TreeNode): boolean {
 	return FOLDER_KINDS.has(node.kind);
@@ -25,6 +31,7 @@ type TreeProps = {
 	// Clique num arquivo: o dono decide abrir (clique simples) vs selecionar (Ctrl/Shift). Sempre
 	// chamado, mesmo no arquivo inerte — a seleção independe de ter rota de edição.
 	onActivateFile: (node: TreeNode, modifiers: ClickModifiers) => void;
+	onOpenAgent: (slug: string) => void;
 	onOpenSkill: (slug: string) => void;
 	// Envolve a linha (gatilho do menu de contexto). Presentation-only: o dono decide as ações.
 	// `onOpenChange` avisa a row quando o menu abre/fecha, pra ela silenciar a tooltip enquanto aberto.
@@ -48,8 +55,16 @@ export function Tree(props: TreeProps) {
 }
 
 function TreeRow({ node, depth, ...props }: TreeProps & { node: TreeNode; depth: number }) {
-	const { expanded, selectedKeys, onToggle, onActivateFile, onOpenSkill, wrapNode, canDrop } =
-		props;
+	const {
+		expanded,
+		selectedKeys,
+		onToggle,
+		onActivateFile,
+		onOpenAgent,
+		onOpenSkill,
+		wrapNode,
+		canDrop,
+	} = props;
 	const folder = isFolder(node);
 	const open = expanded.has(node.key);
 	const selected = selectedKeys.has(node.key);
@@ -79,6 +94,10 @@ function TreeRow({ node, depth, ...props }: TreeProps & { node: TreeNode; depth:
 		}
 		if (node.kind === "fileLeaf") {
 			onActivateFile(node, { ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey });
+			return;
+		}
+		if (node.kind === "agentSourceLeaf") {
+			onOpenAgent(node.slug);
 			return;
 		}
 		if (node.kind === "skillSourceLeaf") {
@@ -124,10 +143,12 @@ function TreeRow({ node, depth, ...props }: TreeProps & { node: TreeNode; depth:
 	);
 
 	const base = wrapNode ? wrapNode(node, row, setMenuOpen) : row;
-	// Tooltip rica em pasta de tarefa (prioridade/categoria/edição) e skill (infos básicas).
+	// Tooltip rica em pasta de tarefa (prioridade/categoria/edição), agent e skill (infos básicas).
 	const tip =
 		node.kind === "taskFolder" ? (
 			<TaskFolderTooltip node={node} />
+		) : node.kind === "agentFolder" ? (
+			<AgentFolderTooltip node={node} />
 		) : node.kind === "skillFolder" ? (
 			<SkillFolderTooltip node={node} />
 		) : null;
@@ -235,8 +256,25 @@ function SkillFolderTooltip({ node }: { node: SkillFolder }) {
 	);
 }
 
+function AgentFolderTooltip({ node }: { node: AgentFolder }) {
+	return (
+		<div className="flex max-w-[260px] flex-col gap-1">
+			<span className="flex items-center gap-1.5 font-medium text-foreground">
+				<LucideIcon name={node.icon} className="size-3.5 shrink-0" style={{ color: node.color }} />
+				Agent
+			</span>
+			{node.description && <span className="text-muted-foreground">{node.description}</span>}
+			<span className="flex items-center gap-1.5">
+				<span className="text-muted-foreground">Fontes</span>
+				<span className="text-foreground">{node.sourceCount}</span>
+			</span>
+			{node.conflict && <span className="text-destructive">Há conflito entre fontes</span>}
+		</div>
+	);
+}
+
 function NodeIcon({ node, open }: { node: TreeNode; open: boolean }) {
-	if (node.kind === "skillFolder") {
+	if (node.kind === "agentFolder" || node.kind === "skillFolder") {
 		return (
 			<LucideIcon name={node.icon} className="size-4 shrink-0" style={{ color: node.color }} />
 		);

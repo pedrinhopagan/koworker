@@ -1,4 +1,5 @@
 import type { RouterOutputs } from "@/client";
+import type { TaskAgent } from "@/types/agents";
 import type { TaskSkill } from "@/types/skills";
 
 type VaultListOutput = RouterOutputs["vault"]["listEntries"];
@@ -52,6 +53,20 @@ export type TreeNode =
 	  }
 	| { kind: "looseFolder"; key: string; label: string; folderName: string; children: TreeNode[] }
 	| {
+			kind: "agentFolder";
+			key: string;
+			label: string;
+			slug: string;
+			icon: string;
+			color: string;
+			description: string;
+			sourceCount: number;
+			conflict: boolean;
+			primaryDir: string;
+			instructions: string;
+			children: TreeNode[];
+	  }
+	| {
 			kind: "skillFolder";
 			key: string;
 			label: string;
@@ -66,10 +81,12 @@ export type TreeNode =
 			children: TreeNode[];
 	  }
 	| { kind: "fileLeaf"; key: string; label: string; title: string; entry: VaultEntry }
+	| { kind: "agentSourceLeaf"; key: string; label: string; slug: string }
 	| { kind: "skillSourceLeaf"; key: string; label: string; slug: string };
 
 export type FileLeaf = Extract<TreeNode, { kind: "fileLeaf" }>;
 export type TaskFolder = Extract<TreeNode, { kind: "taskFolder" }>;
+export type AgentFolder = Extract<TreeNode, { kind: "agentFolder" }>;
 export type SkillFolder = Extract<TreeNode, { kind: "skillFolder" }>;
 
 export const ROOT_KEY = ".koworker";
@@ -111,6 +128,7 @@ function filesOf(entries: VaultEntry[], groupKey: string, keyPrefix: string): Tr
 export function buildVaultTree({
 	entries,
 	groups,
+	agents,
 	skills,
 	priorities,
 	categories,
@@ -122,6 +140,7 @@ export function buildVaultTree({
 }: {
 	entries: VaultEntry[];
 	groups: VaultGroup[];
+	agents: TaskAgent[];
 	skills: TaskSkill[];
 	priorities: Priority[];
 	categories: Category[];
@@ -214,6 +233,28 @@ export function buildVaultTree({
 			})),
 		}));
 
+	const agentFolders: TreeNode[] = [...agents]
+		.sort((a, b) => a.label.localeCompare(b.label))
+		.map((agent) => ({
+			kind: "agentFolder",
+			key: `${keyPrefix}agent:${agent.slug}`,
+			label: agent.label,
+			slug: agent.slug,
+			icon: agent.icon,
+			color: agent.color,
+			description: agent.description,
+			sourceCount: agent.sources.length,
+			conflict: agent.conflict,
+			primaryDir: agent.primaryDir,
+			instructions: agent.instructions,
+			children: agent.sources.map((source, index) => ({
+				kind: "agentSourceLeaf",
+				key: `${keyPrefix}agentsrc:${agent.slug}:${source.tool}:${source.scope}:${index}`,
+				label: `${source.tool} · ${source.scope}`,
+				slug: agent.slug,
+			})),
+		}));
+
 	const looseFolders: TreeNode[] = groups
 		.filter((group) => group.kind === "folder")
 		.sort((a, b) => a.title.localeCompare(b.title))
@@ -242,8 +283,8 @@ export function buildVaultTree({
 					kind: "feature",
 					key: `${keyPrefix}${AGENTS_KEY}`,
 					label: "Agents",
-					children: [],
-					placeholder: "Em breve",
+					children: agentFolders,
+					placeholder: "Nenhum agent",
 				},
 			]
 		: [];

@@ -159,7 +159,7 @@ function TaskPickerSub({
 	);
 }
 
-// Itens do menu por kind/origin. null = nó sem ações (feature, skill) → renderiza só a linha.
+// Itens do menu por kind/origin. null = nó sem ações (feature) → renderiza só a linha.
 function menuItems(
 	node: TreeNode,
 	tasks: TaskOption[],
@@ -170,7 +170,7 @@ function menuItems(
 		return taskFolderItems(node, taskMenuData, actions);
 	}
 
-	if (node.kind === "skillFolder") {
+	if (node.kind === "agentFolder" || node.kind === "skillFolder") {
 		return <ShareItems node={node} actions={actions} folder />;
 	}
 

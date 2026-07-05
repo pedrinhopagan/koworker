@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useAgentsQuery } from "@/hooks/use-agents";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useSkillsQuery } from "@/hooks/use-skills";
 import { copyMarkdown, joinPath, openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
@@ -191,6 +192,7 @@ function VaultPage() {
 		enabled: Boolean(selectedProjectId),
 	});
 	const { taskSkills } = useSkillsQuery(selectedProject?.name);
+	const { taskAgents } = useAgentsQuery();
 
 	const entries = entriesQuery.data?.entries ?? [];
 	const groups = entriesQuery.data?.groups ?? [];
@@ -245,6 +247,7 @@ function VaultPage() {
 			return buildVaultTree({
 				entries,
 				groups,
+				agents: taskAgents,
 				skills: taskSkills,
 				priorities,
 				categories,
@@ -266,6 +269,7 @@ function VaultPage() {
 			const children = buildVaultTree({
 				entries: projectEntries,
 				groups: projectGroups,
+				agents: [],
 				skills: [],
 				priorities,
 				categories,
@@ -290,6 +294,7 @@ function VaultPage() {
 		projects,
 		entries,
 		groups,
+		taskAgents,
 		taskSkills,
 		prioritiesQuery.data,
 		categoriesQuery.data,
@@ -346,6 +351,10 @@ function VaultPage() {
 			setSelectedProjectId(entry.projectId);
 		}
 		navigate({ to: "/vault/$fileName", params: { fileName: entry.name } });
+	}
+
+	function openAgent(slug: string) {
+		navigate({ to: "/agents/$slug", params: { slug } });
 	}
 
 	function openSkill(slug: string) {
@@ -659,12 +668,13 @@ function VaultPage() {
 		return folderPath ? joinPath(route, folderPath) : null;
 	}
 
-	// Diretório absoluto de um nó pros comandos do SO. A skill traz o dir absoluto; tarefa/pasta
+	// Diretório absoluto de um nó pros comandos do SO. Agent/skill trazem o dir absoluto; tarefa/pasta
 	// solta/arquivo resolvem pelo folder_path do backend (via groupFolderPath). A nota solta vive na
 	// raiz do vault (ROOT_KEY). Sem projeto/folder_path resolvido, null (as ações viram no-op).
 	function nodeDir(node: TreeNode): string | null {
 		const route = selectedProject?.mainRoute;
 		if (!route) return null;
+		if (node.kind === "agentFolder") return node.primaryDir;
 		if (node.kind === "skillFolder") return node.primaryDir;
 		if (node.kind === "taskFolder") return dirFromGroup(route, node.taskId);
 		if (node.kind === "looseFolder") return dirFromGroup(route, node.folderName);
@@ -677,9 +687,13 @@ function VaultPage() {
 		return null;
 	}
 
-	// Conteúdo concatenado de uma pasta de tarefa/solta (via backend) ou as instruções da skill
+	// Conteúdo concatenado de uma pasta de tarefa/solta (via backend) ou as instruções de agent/skill
 	// (já carregadas no nó). Só chamado em pastas — o submenu Compartilhar não aparece em arquivo.
 	async function shareNodeContent(node: TreeNode) {
+		if (node.kind === "agentFolder") {
+			await copyMarkdown(node.instructions);
+			return;
+		}
 		if (node.kind === "skillFolder") {
 			await copyMarkdown(node.instructions);
 			return;
@@ -980,6 +994,7 @@ function VaultPage() {
 									selectedKeys={selection.keys}
 									onToggle={toggle}
 									onActivateFile={onActivateFile}
+									onOpenAgent={openAgent}
 									onOpenSkill={openSkill}
 									canDrop={readOnly ? undefined : canDrop}
 									renderAccessory={
