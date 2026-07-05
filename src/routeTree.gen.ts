@@ -18,6 +18,7 @@ import { Route as AppConfiguracoesRouteImport } from './routes/_app/configuracoe
 import { Route as AppVaultIndexRouteImport } from './routes/_app/vault/index'
 import { Route as AppTarefasIndexRouteImport } from './routes/_app/tarefas/index'
 import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
+import { Route as AppPromptsIndexRouteImport } from './routes/_app/prompts/index'
 import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/index'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents/index'
 import { Route as AppAgendaIndexRouteImport } from './routes/_app/agenda/index'
@@ -72,6 +73,11 @@ const AppTarefasIndexRoute = AppTarefasIndexRouteImport.update({
 const AppSkillsIndexRoute = AppSkillsIndexRouteImport.update({
   id: '/skills/',
   path: '/skills/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPromptsIndexRoute = AppPromptsIndexRouteImport.update({
+  id: '/prompts/',
+  path: '/prompts/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProjetosIndexRoute = AppProjetosIndexRouteImport.update({
@@ -141,6 +147,7 @@ export interface FileRoutesByFullPath {
   '/agenda/': typeof AppAgendaIndexRoute
   '/agents/': typeof AppAgentsIndexRoute
   '/projetos/': typeof AppProjetosIndexRoute
+  '/prompts/': typeof AppPromptsIndexRoute
   '/skills/': typeof AppSkillsIndexRoute
   '/tarefas/': typeof AppTarefasIndexRoute
   '/vault/': typeof AppVaultIndexRoute
@@ -162,6 +169,7 @@ export interface FileRoutesByTo {
   '/agenda': typeof AppAgendaIndexRoute
   '/agents': typeof AppAgentsIndexRoute
   '/projetos': typeof AppProjetosIndexRoute
+  '/prompts': typeof AppPromptsIndexRoute
   '/skills': typeof AppSkillsIndexRoute
   '/tarefas': typeof AppTarefasIndexRoute
   '/vault': typeof AppVaultIndexRoute
@@ -185,6 +193,7 @@ export interface FileRoutesById {
   '/_app/agenda/': typeof AppAgendaIndexRoute
   '/_app/agents/': typeof AppAgentsIndexRoute
   '/_app/projetos/': typeof AppProjetosIndexRoute
+  '/_app/prompts/': typeof AppPromptsIndexRoute
   '/_app/skills/': typeof AppSkillsIndexRoute
   '/_app/tarefas/': typeof AppTarefasIndexRoute
   '/_app/vault/': typeof AppVaultIndexRoute
@@ -208,6 +217,7 @@ export interface FileRouteTypes {
     | '/agenda/'
     | '/agents/'
     | '/projetos/'
+    | '/prompts/'
     | '/skills/'
     | '/tarefas/'
     | '/vault/'
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/agents'
     | '/projetos'
+    | '/prompts'
     | '/skills'
     | '/tarefas'
     | '/vault'
@@ -251,6 +262,7 @@ export interface FileRouteTypes {
     | '/_app/agenda/'
     | '/_app/agents/'
     | '/_app/projetos/'
+    | '/_app/prompts/'
     | '/_app/skills/'
     | '/_app/tarefas/'
     | '/_app/vault/'
@@ -332,6 +344,13 @@ declare module '@tanstack/react-router' {
       path: '/skills'
       fullPath: '/skills/'
       preLoaderRoute: typeof AppSkillsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/prompts/': {
+      id: '/_app/prompts/'
+      path: '/prompts'
+      fullPath: '/prompts/'
+      preLoaderRoute: typeof AppPromptsIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/projetos/': {
@@ -422,6 +441,7 @@ interface AppRouteChildren {
   AppAgendaIndexRoute: typeof AppAgendaIndexRoute
   AppAgentsIndexRoute: typeof AppAgentsIndexRoute
   AppProjetosIndexRoute: typeof AppProjetosIndexRoute
+  AppPromptsIndexRoute: typeof AppPromptsIndexRoute
   AppSkillsIndexRoute: typeof AppSkillsIndexRoute
   AppTarefasIndexRoute: typeof AppTarefasIndexRoute
   AppVaultIndexRoute: typeof AppVaultIndexRoute
@@ -443,6 +463,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAgendaIndexRoute: AppAgendaIndexRoute,
   AppAgentsIndexRoute: AppAgentsIndexRoute,
   AppProjetosIndexRoute: AppProjetosIndexRoute,
+  AppPromptsIndexRoute: AppPromptsIndexRoute,
   AppSkillsIndexRoute: AppSkillsIndexRoute,
   AppTarefasIndexRoute: AppTarefasIndexRoute,
   AppVaultIndexRoute: AppVaultIndexRoute,

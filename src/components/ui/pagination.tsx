@@ -8,9 +8,19 @@ type PaginationProps = {
 	total: number;
 	onPageChange: (page: number) => void;
 	className?: string;
+	singularLabel?: string;
+	pluralLabel?: string;
 };
 
-function Pagination({ page, totalPages, total, onPageChange, className }: PaginationProps) {
+function Pagination({
+	page,
+	totalPages,
+	total,
+	onPageChange,
+	className,
+	singularLabel = "tarefa",
+	pluralLabel = "tarefas",
+}: PaginationProps) {
 	if (totalPages <= 1) return null;
 
 	const canGoPrev = page > 1;
@@ -24,7 +34,7 @@ function Pagination({ page, totalPages, total, onPageChange, className }: Pagina
 			)}
 		>
 			<span className="text-xs text-muted-foreground">
-				{total} {total === 1 ? "tarefa" : "tarefas"}
+				{total} {total === 1 ? singularLabel : pluralLabel}
 			</span>
 
 			<div className="flex items-center gap-1">

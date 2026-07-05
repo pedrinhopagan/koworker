@@ -18,8 +18,23 @@ routes/
 │   │   ├── -components/
 │   │   └── -utils/
 │   ├── configuracoes.tsx
+│   ├── sistema.tsx
+│   ├── agents/
+│   │   ├── index.tsx
+│   │   ├── $slug/index.tsx
+│   │   ├── -components/
+│   │   └── -utils/
+│   ├── prompts/
+│   │   ├── index.tsx
+│   │   └── -components/
 │   ├── skills/
 │   │   ├── index.tsx
+│   │   ├── $slug/index.tsx
+│   │   ├── -components/
+│   │   └── -utils/
+│   ├── vault/
+│   │   ├── index.tsx
+│   │   ├── $fileName/index.tsx
 │   │   ├── -components/
 │   │   └── -utils/
 │   ├── tarefas/
@@ -49,6 +64,13 @@ routes/
 - `/projetos/$projetoId`
 - `/agenda`
 - `/skills`
+- `/skills/$slug`
+- `/agents`
+- `/agents/$slug`
+- `/prompts`
+- `/vault`
+- `/vault/$fileName`
+- `/sistema`
 - `/configuracoes`
 
 ## LAYOUTS E GUARDA

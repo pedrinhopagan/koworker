@@ -28,7 +28,12 @@ export {
 	PromptExecuteSchema,
 	PromptRunIdSchema,
 } from "./prompt";
-export { PromptHistoryRecordSchema } from "./prompt-history";
+export {
+	PromptHistoryCreateSchema,
+	PromptHistoryListSchema,
+	PromptHistoryRecordSchema,
+	PromptHistoryUpdateSchema,
+} from "./prompt-history";
 export {
 	ProjectRouteCreateSchema,
 	ProjectRouteIdSchema,

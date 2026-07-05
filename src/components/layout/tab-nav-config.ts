@@ -1,4 +1,12 @@
-export type TabPath = "/" | "/projetos" | "/tarefas" | "/vault" | "/agenda" | "/skills" | "/agents";
+export type TabPath =
+	| "/"
+	| "/projetos"
+	| "/tarefas"
+	| "/vault"
+	| "/agenda"
+	| "/skills"
+	| "/agents"
+	| "/prompts";
 export type Tab = { path: TabPath; label: string; altKey: string };
 
 export const tabs: Tab[] = [
@@ -9,6 +17,7 @@ export const tabs: Tab[] = [
 	{ path: "/agenda", label: "Agenda", altKey: "5" },
 	{ path: "/skills", label: "Skills", altKey: "6" },
 	{ path: "/agents", label: "Agents", altKey: "7" },
+	{ path: "/prompts", label: "Prompts", altKey: "8" },
 ];
 
 export function isTabActive(currentPath: string, tabPath: string): boolean {

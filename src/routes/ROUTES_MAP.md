@@ -38,6 +38,9 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
 | `src/routes/_app/sistema.tsx` | `/_app/sistema` | `/sistema` | `__root` + `AppShell` + `PageShell` (subpágina de `/configuracoes`) |
 | `src/routes/_app/skills/index.tsx` | `/_app/skills/` | `/skills` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/skills/$slug/index.tsx` | `/_app/skills/$slug/` | `/skills/$slug` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
+| `src/routes/_app/agents/index.tsx` | `/_app/agents/` | `/agents` | `__root` + `AppShell` + `PageShell` |
+| `src/routes/_app/agents/$slug/index.tsx` | `/_app/agents/$slug/` | `/agents/$slug` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
+| `src/routes/_app/prompts/index.tsx` | `/_app/prompts/` | `/prompts` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/configuracoes.tsx` | `/_app/configuracoes` | `/configuracoes` | `__root` + `AppShell` + `PageShell` |
 
 ## Estrutura de pastas em `src/routes`
@@ -50,6 +53,7 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
   - `/tarefas/$taskId/$file` (`$file` é o nome do `.md` ativo da tarefa, ex. `plan.md` — match exato, sem slug)
   - `/vault/$fileName` (`$fileName` é o nome do `.md` solto, ex. `notas.md` — não é uma task)
   - `/skills/$slug` (`$slug` é o slug da skill, ex. `commit` — edita o `SKILL.md` da pasta dona)
+  - `/agents/$slug` (`$slug` é o slug do agent, ex. `planner` — edita o `.md` da pasta dona)
 
 ## Evidências verificadas
 
