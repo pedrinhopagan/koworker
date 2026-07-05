@@ -20,6 +20,8 @@ export const tabs: Tab[] = [
 	{ path: "/prompts", label: "Prompts", altKey: "8" },
 ];
 
+export const topTabs = tabs.slice(0, 3);
+
 export function isTabActive(currentPath: string, tabPath: string): boolean {
 	if (tabPath === "/") {
 		return currentPath === "/" || currentPath === "/home";

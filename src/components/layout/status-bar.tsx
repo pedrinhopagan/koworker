@@ -1,5 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Bug, ChevronDown, DatabaseZap, Ellipsis, SquareTerminal } from "lucide-react";
+import {
+	Bug,
+	ChevronDown,
+	DatabaseZap,
+	Ellipsis,
+	FolderKanban,
+	SquareTerminal,
+} from "lucide-react";
 import { type ComponentType, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,6 +21,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { INVOKE_CLI_OPTIONS, type InvokeCli } from "@/constants/invoke";
+import { useProjectFocus } from "@/hooks";
+import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
 import { getAppEnv, getAppVersionFallback, isDevelopmentEnvironment } from "@/lib/env";
 import { isTauri, openDevtools } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
@@ -120,6 +129,7 @@ export function StatusBar() {
 			</div>
 
 			<div className="hidden md:flex items-center gap-1 min-w-0">
+				<ProjectSelectTrigger />
 				<CliSelect />
 				<ActionButton onClick={handleOpenConsole} label="Console" icon={Bug} />
 				<ActionButton onClick={handleClearCache} label="Limpar Cache" icon={DatabaseZap} />
@@ -168,6 +178,36 @@ export function StatusBar() {
 				</DropdownMenu>
 			</div>
 		</footer>
+	);
+}
+
+function ProjectSelectTrigger() {
+	const openDialog = useProjectSelectDialogStore((s) => s.openDialog);
+	const { selectedProjectId, selectedProject, accent, loading } = useProjectFocus();
+
+	const label =
+		selectedProjectId === undefined
+			? "Todos os projetos"
+			: (selectedProject?.name ?? (loading ? "Carregando..." : "Selecionar projeto"));
+	const accentColor = accent?.color ?? null;
+
+	return (
+		<Tooltip label="Alt+P">
+			<button
+				type="button"
+				onClick={openDialog}
+				className="inline-flex h-6 max-w-[180px] items-center gap-1 border border-border/70 bg-muted/40 px-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+				style={accent ? { borderColor: accent.border } : undefined}
+			>
+				{accentColor ? (
+					<span className="size-2 shrink-0 rounded-sm" style={{ backgroundColor: accentColor }} />
+				) : (
+					<FolderKanban size={12} className="shrink-0" />
+				)}
+				<span className="truncate text-left">{label}</span>
+				<ChevronDown size={12} className="shrink-0 opacity-50" />
+			</button>
+		</Tooltip>
 	);
 }
 

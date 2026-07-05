@@ -27,7 +27,7 @@ src-tauri/
 
 - Inicia oculta (`visible: false`)
 - Sem decorações nativas (`decorations: false`)
-- Shortcut global (Alt+O) toggle visibilidade
+- Shortcut global (Alt+K prod / Alt+L e Alt+O dev) toggle visibilidade
 - Skip taskbar quando minimizada
 
 ## BUILD

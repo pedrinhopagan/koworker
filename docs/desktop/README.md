@@ -71,8 +71,8 @@ Esse comando:
 
 ## Atalho global de abrir app
 
-- Desenvolvimento: `Alt+O`
-- Produção: `Alt+P`
+- Desenvolvimento: `Alt+L` (primário) e `Alt+O` (legado)
+- Produção: `Alt+K`
 
 ## Inicialização com o desktop
 

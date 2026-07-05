@@ -4,19 +4,14 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 
 pub fn toggle_shortcut_label() -> &'static str {
     if cfg!(debug_assertions) {
-        "Alt+O"
+        "Alt+L"
     } else {
-        "Alt+P"
+        "Alt+K"
     }
 }
 
-pub fn register(app: &AppHandle) -> Result<(), String> {
-    let shortcut_code = if cfg!(debug_assertions) {
-        Code::KeyO
-    } else {
-        Code::KeyP
-    };
-    let shortcut = Shortcut::new(Some(Modifiers::ALT), shortcut_code);
+fn register_toggle_shortcut(app: &AppHandle, code: Code) -> Result<(), String> {
+    let shortcut = Shortcut::new(Some(Modifiers::ALT), code);
 
     app.global_shortcut()
         .on_shortcut(shortcut, move |app, _shortcut, event| {
@@ -25,6 +20,17 @@ pub fn register(app: &AppHandle) -> Result<(), String> {
             }
         })
         .map_err(|e| format!("Falha ao registrar shortcut: {}", e))?;
+
+    Ok(())
+}
+
+pub fn register(app: &AppHandle) -> Result<(), String> {
+    if cfg!(debug_assertions) {
+        register_toggle_shortcut(app, Code::KeyL)?;
+        register_toggle_shortcut(app, Code::KeyO)?;
+    } else {
+        register_toggle_shortcut(app, Code::KeyK)?;
+    }
 
     Ok(())
 }

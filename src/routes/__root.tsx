@@ -29,7 +29,7 @@ function RootComponent() {
 
 	return (
 		<div className={theme} data-theme-root>
-			<div className="h-dvh flex flex-col bg-background border-0 md:border-4 md:border-[#141414]">
+			<div className="h-dvh flex flex-col bg-background border-l border-[#141414]">
 				<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 					<ErrorBoundary>
 						<Outlet />

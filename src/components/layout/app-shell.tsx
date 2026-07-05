@@ -1,10 +1,13 @@
 import type { CSSProperties, ReactNode } from "react";
+import { AppSidebar } from "@/components/layout/app-sidebar";
 import { DocSessionSwitcher } from "@/components/doc-session-switcher";
-import { ProjectFocusBar } from "@/components/layout/project-focus-bar";
+import { NavActionDialogs } from "@/components/layout/nav-action-dialogs";
+import { ProjectSelectDialog } from "@/components/layout/project-select-dialog";
 import { StatusBar } from "@/components/layout/status-bar";
 import { TabBar } from "@/components/layout/tab-bar";
 import { GlobalPromptBar } from "@/components/prompt-bar/global-prompt-bar";
 import { usePrimaryColor, useProjectFocus, useUser } from "@/hooks";
+import { useProjectSelectDialog } from "@/hooks/use-project-select-dialog";
 
 type AppShellProps = {
 	children: ReactNode;
@@ -14,6 +17,7 @@ export function AppShell({ children }: AppShellProps) {
 	useUser();
 	usePrimaryColor();
 	const { accent } = useProjectFocus();
+	const { open, closeDialog } = useProjectSelectDialog();
 
 	const baseAccentStyle = {
 		"--project-accent-soft": "color-mix(in oklab, var(--primary) 12%, transparent)",
@@ -33,28 +37,15 @@ export function AppShell({ children }: AppShellProps) {
 			} as CSSProperties)
 		: baseAccentStyle;
 
-	const focusBarStyle = accent
-		? {
-				boxShadow: `inset 2px 0 0 ${accent.color}`,
-			}
-		: undefined;
-
 	return (
 		<div
-			className="flex-1 flex bg-background text-foreground overflow-hidden h-dvh"
+			className="flex flex-1 flex-row overflow-hidden h-dvh bg-background text-foreground"
 			style={shellStyle}
 		>
-			{/*<AccentStripe />*/}
+			<AppSidebar />
 
-			<div className="flex flex-col flex-1 min-h-0 min-w-0">
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 				<TabBar />
-
-				<div
-					className="flex min-w-0 items-center justify-start border-b border-border px-2 py-2 bg-chrome md:px-3"
-					style={focusBarStyle}
-				>
-					<ProjectFocusBar />
-				</div>
 
 				<main className="flex-1 flex flex-col overflow-hidden min-h-0 bg-background">
 					{children}
@@ -66,6 +57,8 @@ export function AppShell({ children }: AppShellProps) {
 			</div>
 
 			<DocSessionSwitcher />
+			<ProjectSelectDialog open={open} onClose={closeDialog} />
+			<NavActionDialogs />
 		</div>
 	);
 }
