@@ -6,12 +6,14 @@ export async function spawnCapture(params: {
 	cmd: string[];
 	cwd: string;
 	timeoutMs: number;
+	env?: Record<string, string>;
 }): Promise<{ stdout: string; exitCode: number; timedOut: boolean }> {
 	const proc = Bun.spawn(params.cmd, {
 		cwd: params.cwd,
 		stdout: "pipe",
 		stderr: "ignore",
 		stdin: "ignore",
+		...(params.env ? { env: { ...process.env, ...params.env } } : {}),
 	});
 
 	let timedOut = false;

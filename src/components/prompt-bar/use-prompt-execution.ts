@@ -105,7 +105,12 @@ export function usePromptExecution(params: {
 	const statusQuery = useQuery({
 		...orpc.prompt.runStatus.queryOptions({ input: { runId: runId ?? "" } }),
 		enabled: !!runId,
-		refetchInterval: (query) => (query.state.data?.status === "running" ? 5000 : false),
+		refetchInterval: (query) => {
+			if (query.state.status === "error") {
+				return false;
+			}
+			return query.state.data?.status === "running" ? 5000 : false;
+		},
 	});
 
 	const executeMutation = useMutation({
@@ -150,8 +155,16 @@ export function usePromptExecution(params: {
 	}, [runId]);
 
 	const record = statusQuery.data;
-	const resolvedStatus =
-		live?.status === "started" ? "running" : (live?.status ?? record?.status ?? null);
+	// O registro do run vive num Map em memória do backend; um restart (redeploy remoto) ou o teto de
+	// MAX_RUNS o apaga e o codex filho morre junto. Sem isso o status ficaria preso em "running" pra
+	// sempre — o React Query mantém o último `data` ("running") e nenhum evento terminal chega. Um run
+	// que o backend não reconhece mais é uma execução interrompida, não uma execução viva.
+	const runLost = !!runId && statusQuery.isError;
+	const resolvedStatus = runLost
+		? "failed"
+		: live?.status === "started"
+			? "running"
+			: (live?.status ?? record?.status ?? null);
 	const isTerminal =
 		resolvedStatus === "done" || resolvedStatus === "failed" || resolvedStatus === "timeout";
 	const isRunning = executeMutation.isPending || (!!runId && !isTerminal);
@@ -177,7 +190,9 @@ export function usePromptExecution(params: {
 	}, [isRunning, executeMutation.isPending, record?.startedAt]);
 
 	const output = live?.output ?? record?.output ?? null;
-	const error = live?.error ?? record?.error ?? null;
+	const error = runLost
+		? "A execução foi interrompida — o servidor reiniciou ou perdeu o registro do run."
+		: (live?.error ?? record?.error ?? null);
 
 	useEffect(() => {
 		if (!resolvedStatus || resolvedStatus === "running") {

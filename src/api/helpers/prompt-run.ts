@@ -6,6 +6,21 @@ const RUN_TIMEOUT_MS = 45 * 60_000;
 const MAX_OUTPUT_CHARS = 20_000;
 const MAX_RUNS = 20;
 
+// A execução roda sem TTY e sem ninguém pra responder um prompt: qualquer subprocesso que o agente
+// dispare (git, editor, pager) precisa falhar rápido em vez de bloquear esperando entrada que nunca
+// vem. Sem estes guards, um `git commit` sem `-m` abre editor, um `git push` sem credencial pede
+// senha e um comando com pager trava — a sessão fica presa até o teto de 45 min.
+const HEADLESS_ENV: Record<string, string> = {
+	GIT_TERMINAL_PROMPT: "0",
+	GIT_EDITOR: "true",
+	GIT_PAGER: "cat",
+	EDITOR: "true",
+	VISUAL: "true",
+	PAGER: "cat",
+	CI: "true",
+	DEBIAN_FRONTEND: "noninteractive",
+};
+
 export type PromptRunStatus = "running" | "done" | "failed" | "timeout";
 
 export type PromptRunRecord = {
@@ -108,6 +123,7 @@ async function runInBackground(params: {
 			cmd,
 			cwd,
 			timeoutMs: RUN_TIMEOUT_MS,
+			env: HEADLESS_ENV,
 		});
 
 		const record = runs.get(runId);
