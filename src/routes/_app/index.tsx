@@ -39,6 +39,7 @@ function HomePage() {
 				title="Home"
 				description="Preparando o painel do projeto em foco"
 				icon={LayoutDashboardIcon}
+				contentClassName="overflow-y-auto pb-6"
 			>
 				<div className="mx-auto flex h-full w-full max-w-5xl items-center justify-center px-4 pb-8">
 					<Text tone="muted">Carregando projeto em foco...</Text>
@@ -53,6 +54,7 @@ function HomePage() {
 				title="Home"
 				description="Selecione o foco do dia para ver o painel"
 				icon={LayoutDashboardIcon}
+				contentClassName="overflow-y-auto pb-6"
 			>
 				<div className="mx-auto flex h-full w-full max-w-5xl items-center justify-center px-4 pb-8">
 					<div className="w-full border border-dashed border-border/60 bg-card/60 px-8 py-14 text-center backdrop-blur">
@@ -82,6 +84,7 @@ function HomePage() {
 				title="Home"
 				description="Preparando o painel do projeto em foco"
 				icon={LayoutDashboardIcon}
+				contentClassName="overflow-y-auto pb-6"
 			>
 				<div className="mx-auto flex h-full w-full max-w-5xl items-center justify-center px-4 pb-8">
 					<Text tone="muted">Carregando projeto em foco...</Text>
@@ -98,6 +101,7 @@ function HomePage() {
 				title="Home"
 				description="Projeto em foco não encontrado"
 				icon={LayoutDashboardIcon}
+				contentClassName="overflow-y-auto pb-6"
 			>
 				<div className="mx-auto flex h-full w-full max-w-5xl items-center justify-center px-4 pb-8">
 					<Text tone="muted">Crie um projeto</Text>
@@ -111,6 +115,7 @@ function HomePage() {
 			title="Home"
 			description="Vitrine visual do projeto selecionado"
 			icon={LayoutDashboardIcon}
+			contentClassName="overflow-y-auto pb-6"
 		>
 			<HomeProjectShowcase project={project} />
 		</PageShell>

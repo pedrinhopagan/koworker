@@ -15,7 +15,7 @@ export function HomeProjectShowcase({ project }: HomeProjectShowcaseProps) {
 	const done = project.tasksSummary.done ?? 0;
 
 	return (
-		<div className="mx-auto flex h-full w-full max-w-4xl flex-col justify-center px-2 pb-10 md:px-4">
+		<div className="mx-auto flex h-full min-h-[28rem] w-full max-w-4xl flex-col justify-center px-2 pb-10 md:min-h-[34rem] md:px-4">
 			<div className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-muted-foreground">
 				<span className="size-2 shrink-0" style={{ backgroundColor: accentColor }} />
 				Projeto em foco

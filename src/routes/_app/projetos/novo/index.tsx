@@ -19,6 +19,7 @@ function NovoProjetoPage() {
 			title="Novo Projeto"
 			description="Crie um novo projeto para organizar suas tarefas"
 			icon={FolderPlus}
+			contentClassName="overflow-y-auto pb-6 md:overflow-hidden md:pb-0"
 			actions={
 				<ProjectHeaderActions
 					mode="create"

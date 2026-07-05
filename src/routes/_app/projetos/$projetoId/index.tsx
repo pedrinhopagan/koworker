@@ -63,6 +63,7 @@ function EditarProjetoPage() {
 			title="Editar Projeto"
 			description="Ajuste as informações do projeto selecionado"
 			icon={FolderOpen}
+			contentClassName="overflow-y-auto pb-6 md:overflow-hidden md:pb-0"
 			actions={
 				<ProjectHeaderActions
 					mode="edit"
@@ -75,7 +76,7 @@ function EditarProjetoPage() {
 				/>
 			}
 		>
-			<div className="flex flex-col gap-8 h-full min-h-0 overflow-y-auto">
+			<div className="flex min-h-full flex-col gap-8 md:h-full md:min-h-0">
 				<ProjectForm
 					mode="edit"
 					formId={formId}

@@ -82,12 +82,12 @@ export function ProjectForm({
 			<form
 				id={resolvedFormId}
 				onSubmit={methods.handleSubmit(handleSubmit)}
-				className="flex flex-col-reverse gap-6 h-full min-h-0 md:grid md:grid-cols-[2fr_3fr]"
+				className="flex flex-col-reverse gap-6 md:grid md:h-full md:min-h-0 md:grid-cols-[2fr_3fr]"
 			>
 				<div className="lg:sticky lg:top-4 self-start">
 					<ProjectFormPreview mode={mode} />
 				</div>
-				<div className="space-y-4 min-h-0 h-full overflow-y-auto pr-2 pb-6">
+				<div className="space-y-4 pb-6 md:h-full md:min-h-0 md:overflow-y-auto md:pr-2">
 					<ProjectFormBasics />
 					<ProjectFormColors />
 					{mode === "edit" && projectId && projectName && (
