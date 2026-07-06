@@ -17,10 +17,10 @@ type AssetViewerProps = {
 	onOpenInOs?: () => void;
 };
 
-// Renderiza um asset (HTML autocontido ou PDF) a partir de um Blob, via object URL revogado no
-// unmount/troca. HTML de artefato roda em iframe com `sandbox="allow-scripts"` SEM
-// allow-same-origin: origem opaca, o deck navega seus slides mas não alcança DOM/cookies do app.
-// PDF vai sem sandbox, pro viewer nativo do browser assumir.
+// Renderiza um asset (imagem, HTML autocontido ou PDF) a partir de um Blob, via object URL revogado
+// no unmount/troca. Imagem vai em <img> contido e centrado sobre xadrez. HTML de artefato roda em
+// iframe com `sandbox="allow-scripts"` SEM allow-same-origin: origem opaca, o deck navega seus
+// slides mas não alcança DOM/cookies do app. PDF vai sem sandbox, pro viewer nativo do browser.
 export function AssetViewer({ blob, name, isLoading, isError, onOpenInOs }: AssetViewerProps) {
 	const [url, setUrl] = useState<string | null>(null);
 
@@ -60,6 +60,14 @@ export function AssetViewer({ blob, name, isLoading, isError, onOpenInOs }: Asse
 						Abrir no sistema
 					</Button>
 				) : null}
+			</div>
+		);
+	}
+
+	if (blob.type.startsWith("image/")) {
+		return (
+			<div className="flex h-full w-full items-center justify-center overflow-auto bg-muted/40 p-4">
+				<img src={url} alt={name} className="max-h-full max-w-full object-contain" />
 			</div>
 		);
 	}

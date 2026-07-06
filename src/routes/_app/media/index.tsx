@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { FileCode2, FileText, Image, Loader2 } from "lucide-react";
+import { Image, Loader2 } from "lucide-react";
 
 import { orpc } from "@/client";
 import { PageShell } from "@/components/layout/page-shell";
@@ -40,7 +40,7 @@ function MediaPage() {
 						Nenhuma mídia neste projeto.
 					</Text>
 					<Text size="xs" tone="muted">
-						Solte arquivos (.pdf, .html) em <code>.koworker/medias/</code>.
+						Solte imagens (.png, .jpg, .webp, .gif, .svg…) em <code>.koworker/medias/</code>.
 					</Text>
 				</div>
 			) : (
@@ -53,7 +53,9 @@ function MediaPage() {
 							search={{ projectId: entry.projectId }}
 							className="group flex items-start gap-3 border border-border p-3 transition-colors hover:border-[var(--project-accent,var(--primary))] hover:bg-muted/30"
 						>
-							<AssetIcon mime={entry.mime} />
+							<span className="flex size-9 shrink-0 items-center justify-center border border-border bg-muted/40 text-muted-foreground">
+								<Image size={18} />
+							</span>
 							<div className="min-w-0 flex-1">
 								<Text size="sm" className="truncate font-medium group-hover:text-foreground">
 									{entry.name}
@@ -68,14 +70,5 @@ function MediaPage() {
 				</div>
 			)}
 		</PageShell>
-	);
-}
-
-function AssetIcon({ mime }: { mime: string }) {
-	const Icon = mime === "application/pdf" ? FileText : FileCode2;
-	return (
-		<span className="flex size-9 shrink-0 items-center justify-center border border-border bg-muted/40 text-muted-foreground">
-			<Icon size={18} />
-		</span>
 	);
 }

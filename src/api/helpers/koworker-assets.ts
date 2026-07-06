@@ -1,7 +1,12 @@
 import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 
-import { ASSET_MIME_BY_EXT, MEDIAS_DIRNAME, MOSTRUARIO_DIRNAME } from "@/constants/koworker";
+import {
+	DOC_MIME_BY_EXT,
+	IMAGE_MIME_BY_EXT,
+	MEDIAS_DIRNAME,
+	MOSTRUARIO_DIRNAME,
+} from "@/constants/koworker";
 
 const KOWORKER_DIR = ".koworker";
 
@@ -20,12 +25,14 @@ export type MostruarioFolder = {
 	files: AssetFileMeta[];
 };
 
-// MIME de um nome de arquivo pela extensão, ou null quando a extensão não é renderizável — o que
-// também serve de filtro: só arquivos com MIME conhecido entram nas listagens e podem ser lidos.
-function mimeForAsset(name: string): string | null {
+// MIME de um nome de arquivo pela extensão dentro da whitelist do destino, ou null quando a extensão
+// não pertence a ele — o que também serve de filtro: `medias/` passa IMAGE_MIME_BY_EXT (só imagens)
+// e `mostruario/`/tarefa passam DOC_MIME_BY_EXT (só HTML/PDF), então cada pasta só lista e só lê o
+// seu próprio tipo.
+function mimeForAsset(name: string, mimeByExt: Record<string, string>): string | null {
 	const dot = name.lastIndexOf(".");
 	if (dot < 0) return null;
-	return ASSET_MIME_BY_EXT[name.slice(dot).toLowerCase()] ?? null;
+	return mimeByExt[name.slice(dot).toLowerCase()] ?? null;
 }
 
 function mediasDir(projectRoute: string): string {
@@ -37,11 +44,15 @@ function mostruarioDir(projectRoute: string): string {
 }
 
 // Metadata-only dos assets direto numa pasta (não recursivo), do mais recente pro mais antigo.
-// Pasta inexistente vira lista vazia. Ignora `.md` e qualquer extensão sem MIME conhecido.
-async function listAssetsIn(dir: string): Promise<AssetFileMeta[]> {
+// Pasta inexistente vira lista vazia. `mimeByExt` é a whitelist do destino: ignora `.md` e qualquer
+// extensão fora dela (um PDF numa pasta de mídia, uma imagem no mostruário).
+async function listAssetsIn(
+	dir: string,
+	mimeByExt: Record<string, string>,
+): Promise<AssetFileMeta[]> {
 	const named = (await readdir(dir, { withFileTypes: true }).catch(() => []))
 		.filter((entry) => entry.isFile())
-		.map((entry) => ({ name: entry.name, mime: mimeForAsset(entry.name) }))
+		.map((entry) => ({ name: entry.name, mime: mimeForAsset(entry.name, mimeByExt) }))
 		.filter((entry): entry is { name: string; mime: string } => entry.mime !== null);
 
 	const metas = await Promise.all(
@@ -55,9 +66,14 @@ async function listAssetsIn(dir: string): Promise<AssetFileMeta[]> {
 }
 
 // Bytes de um asset como File (nome + MIME), pronto pro oRPC transportar como Blob. null quando a
-// extensão não é renderizável ou o arquivo não existe — a rota trata como "não encontrado".
-async function readAssetFile(dir: string, name: string): Promise<File | null> {
-	const mime = mimeForAsset(name);
+// extensão está fora da whitelist do destino ou o arquivo não existe — a rota trata como "não
+// encontrado", então uma rota nunca serve o tipo da outra mesmo se o nome for adivinhado.
+async function readAssetFile(
+	dir: string,
+	name: string,
+	mimeByExt: Record<string, string>,
+): Promise<File | null> {
+	const mime = mimeForAsset(name, mimeByExt);
 	if (!mime) return null;
 
 	const file = Bun.file(join(dir, name));
@@ -85,14 +101,14 @@ async function removeIfEmpty(dir: string): Promise<void> {
 // ---------- medias/ (mídia solta do projeto) ----------
 
 export function listMediaFiles(projectRoute: string): Promise<AssetFileMeta[]> {
-	return listAssetsIn(mediasDir(projectRoute));
+	return listAssetsIn(mediasDir(projectRoute), IMAGE_MIME_BY_EXT);
 }
 
 export function readMediaFile(params: {
 	projectRoute: string;
 	name: string;
 }): Promise<File | null> {
-	return readAssetFile(mediasDir(params.projectRoute), params.name);
+	return readAssetFile(mediasDir(params.projectRoute), params.name, IMAGE_MIME_BY_EXT);
 }
 
 export async function deleteMediaFile(params: {
@@ -124,7 +140,7 @@ export async function listMostruarioFolders(projectRoute: string): Promise<Mostr
 	const folders = await Promise.all(
 		taskFolders.map(async (taskFolder) => ({
 			taskFolder,
-			files: await listAssetsIn(join(root, taskFolder)),
+			files: await listAssetsIn(join(root, taskFolder), DOC_MIME_BY_EXT),
 		})),
 	);
 
@@ -138,7 +154,11 @@ export function readMostruarioFile(params: {
 	taskFolder: string;
 	name: string;
 }): Promise<File | null> {
-	return readAssetFile(join(mostruarioDir(params.projectRoute), params.taskFolder), params.name);
+	return readAssetFile(
+		join(mostruarioDir(params.projectRoute), params.taskFolder),
+		params.name,
+		DOC_MIME_BY_EXT,
+	);
 }
 
 export async function deleteMostruarioFile(params: {
@@ -168,7 +188,7 @@ export function listTaskArtifacts(params: {
 	projectRoute: string;
 	folderPath: string;
 }): Promise<AssetFileMeta[]> {
-	return listAssetsIn(join(params.projectRoute, params.folderPath));
+	return listAssetsIn(join(params.projectRoute, params.folderPath), DOC_MIME_BY_EXT);
 }
 
 export function readTaskArtifact(params: {
@@ -176,7 +196,7 @@ export function readTaskArtifact(params: {
 	folderPath: string;
 	name: string;
 }): Promise<File | null> {
-	return readAssetFile(join(params.projectRoute, params.folderPath), params.name);
+	return readAssetFile(join(params.projectRoute, params.folderPath), params.name, DOC_MIME_BY_EXT);
 }
 
 // Move os artefatos da pasta da tarefa pra `mostruario/<id>/`, sob a subpasta do mesmo id curto
@@ -193,7 +213,7 @@ export async function moveTaskArtifactsToMostruario(params: {
 	const srcDir = join(params.projectRoute, params.taskFolderPath);
 	const destDir = join(mostruarioDir(params.projectRoute), basename(params.taskFolderPath));
 
-	const all = await listAssetsIn(srcDir);
+	const all = await listAssetsIn(srcDir, DOC_MIME_BY_EXT);
 	const chosen = params.names ? all.filter((asset) => params.names?.includes(asset.name)) : all;
 	if (chosen.length === 0) return { moved: [] };
 
