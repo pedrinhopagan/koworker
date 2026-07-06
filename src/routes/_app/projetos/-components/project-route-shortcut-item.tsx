@@ -91,7 +91,7 @@ export function ProjectRouteShortcutItem({
 			disabled={isOpening}
 			title={title}
 			className={cn(
-				"flex min-w-0 flex-1 items-center gap-2.5 text-left transition-colors hover:bg-accent/50",
+				"flex w-full min-w-0 items-center gap-2.5 px-2 py-2 text-left transition-colors",
 				isTerminal && isTerminalOpen && "text-green-500 hover:text-green-400",
 			)}
 		>
@@ -124,29 +124,32 @@ export function ProjectRouteShortcutItem({
 	return (
 		<div
 			className={cn(
-				"flex items-center gap-0 border border-border bg-card",
+				"flex items-stretch border border-border bg-card transition-colors hover:bg-accent/50",
 				sortable?.isDragging && "opacity-60",
 			)}
 		>
 			{sortable ? (
-				<div className="px-1" onClick={(e) => e.stopPropagation()}>
+				<div className="flex items-center px-1" onClick={(e) => e.stopPropagation()}>
 					<DragHandle
 						attributes={sortable.dragHandleProps.attributes}
 						listeners={sortable.dragHandleProps.listeners}
 					/>
 				</div>
-			) : null}
+			) : (
+				// Sem reorder (Terminal): espaçador da largura da coluna do handle pra alinhar o ícone
+				// com os atalhos arrastáveis.
+				<div className="w-8 shrink-0" aria-hidden />
+			)}
 
-			<div className="min-w-0 flex-1 px-2 py-2">
-				<TerminalShortcutMenu
-					projectId={project.id}
-					project={{ id: project.id, name: project.name, mainRoute: project.mainRoute }}
-					route={menuRoute}
-					isTerminal={isTerminal}
-				>
-					{content}
-				</TerminalShortcutMenu>
-			</div>
+			<TerminalShortcutMenu
+				projectId={project.id}
+				project={{ id: project.id, name: project.name, mainRoute: project.mainRoute }}
+				route={menuRoute}
+				isTerminal={isTerminal}
+				className="min-w-0 flex-1"
+			>
+				{content}
+			</TerminalShortcutMenu>
 		</div>
 	);
 }

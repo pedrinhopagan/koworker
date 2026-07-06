@@ -300,33 +300,35 @@ function SummaryRoutes({ project, routes, onReorder }: SummaryRoutesProps) {
 				Atalhos ({shortcutCount})
 			</Text>
 
-			{showTerminal ? (
-				<ProjectRouteShortcutItem
-					project={{
-						id: project.id,
-						name: project.name,
-						mainRoute: project.mainRoute,
-					}}
-					isTerminal
-				/>
-			) : null}
+			<div className="flex flex-col gap-1">
+				{showTerminal ? (
+					<ProjectRouteShortcutItem
+						project={{
+							id: project.id,
+							name: project.name,
+							mainRoute: project.mainRoute,
+						}}
+						isTerminal
+					/>
+				) : null}
 
-			{ordered.length === 0 ? (
-				showTerminal ? null : (
-					<Text size="sm" tone="muted" className="py-3">
-						Nenhum atalho cadastrado.
-					</Text>
-				)
-			) : (
-				<SortableList
-					items={ordered}
-					onReorder={(items) => {
-						setOrdered(items);
-						onReorder(items.map((i) => i.id));
-					}}
-					renderItem={renderItem}
-				/>
-			)}
+				{ordered.length === 0 ? (
+					showTerminal ? null : (
+						<Text size="sm" tone="muted" className="py-3">
+							Nenhum atalho cadastrado.
+						</Text>
+					)
+				) : (
+					<SortableList
+						items={ordered}
+						onReorder={(items) => {
+							setOrdered(items);
+							onReorder(items.map((i) => i.id));
+						}}
+						renderItem={renderItem}
+					/>
+				)}
+			</div>
 
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
 				<Text size="xs" tone="muted">
