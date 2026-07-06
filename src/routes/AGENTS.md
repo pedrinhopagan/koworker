@@ -37,6 +37,12 @@ routes/
 │   │   ├── $fileName/index.tsx
 │   │   ├── -components/
 │   │   └── -utils/
+│   ├── media/
+│   │   ├── index.tsx
+│   │   └── $fileName/index.tsx
+│   ├── mostruario/
+│   │   ├── index.tsx
+│   │   └── $taskFolder/$fileName/index.tsx
 │   ├── tarefas/
 │   │   ├── index.tsx
 │   │   ├── $taskId/index.tsx   (só redirect → $file)
@@ -70,6 +76,10 @@ routes/
 - `/prompts`
 - `/vault`
 - `/vault/$fileName`
+- `/media`
+- `/media/$fileName`
+- `/mostruario`
+- `/mostruario/$taskFolder/$fileName`
 - `/sistema`
 - `/configuracoes`
 

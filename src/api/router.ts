@@ -8,6 +8,8 @@ import { agentsRouter } from "./routers/agents";
 import { categoriesRouter } from "./routers/categories";
 import { eventsRouter } from "./routers/events";
 import { flowRouter } from "./routers/flow";
+import { mediaRouter } from "./routers/media";
+import { mostruarioRouter } from "./routers/mostruario";
 import { prioritiesRouter } from "./routers/priorities";
 import { promptRouter } from "./routers/prompt";
 import { promptHistoryRouter } from "./routers/prompt-history";
@@ -51,6 +53,8 @@ export const router = {
 	promptHistory: promptHistoryRouter,
 	terminal: terminalRouter,
 	vault: vaultRouter,
+	media: mediaRouter,
+	mostruario: mostruarioRouter,
 	settings: settingsRouter,
 	system: systemRouter,
 

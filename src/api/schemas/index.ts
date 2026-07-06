@@ -2,6 +2,18 @@ import { AuthLoginSchema } from "./auth";
 
 export { AuthLoginSchema } from "./auth";
 export {
+	MediaDeleteSchema,
+	MediaListSchema,
+	MediaReadFileSchema,
+	MediaRenameSchema,
+	MostruarioDeleteSchema,
+	MostruarioListSchema,
+	MostruarioMoveFromTaskSchema,
+	MostruarioReadFileSchema,
+	MostruarioRenameSchema,
+	TaskReadArtifactSchema,
+} from "./assets";
+export {
 	EventCreateSchema,
 	EventIdSchema,
 	EventListByRangeSchema,

@@ -7,9 +7,11 @@ import {
 	FilePlus2,
 	FolderKanban,
 	Home,
+	Image,
 	Layers,
 	ListChecks,
 	MessageSquareText,
+	Presentation,
 	RefreshCw,
 	Settings,
 	Sparkles,
@@ -24,7 +26,7 @@ export type SidebarNavRouteItem = {
 	path: string;
 	label: string;
 	icon: LucideIcon;
-	altKey: string;
+	altKey?: string;
 };
 
 export type SidebarNavActionId =
@@ -60,9 +62,6 @@ export type SidebarNavGroup = {
 	items: SidebarNavItem[];
 };
 
-/**
- * Rotas principais exibidas apenas na variante drawer/mobile — no desktop elas ficam na TabBar.
- */
 export const sidebarSelectProjectItem: SidebarNavSelectProjectItem = {
 	kind: "selectProject",
 	label: "Selecionar projeto",
@@ -70,13 +69,18 @@ export const sidebarSelectProjectItem: SidebarNavSelectProjectItem = {
 	altKey: "P",
 };
 
-export const drawerTopRoutes: SidebarNavRouteItem[] = [
-	{ kind: "route", path: "/", label: "Home", icon: Home, altKey: "1" },
-	{ kind: "route", path: "/projetos", label: "Projetos", icon: FolderKanban, altKey: "2" },
-	{ kind: "route", path: "/tarefas", label: "Tarefas", icon: ListChecks, altKey: "3" },
-];
-
 export const sidebarNavGroups: SidebarNavGroup[] = [
+	{
+		// Rotas principais no topo: as três do header (Home/Projetos/Tarefas) mais as duas novas
+		// (Mostruário/Mídia), sempre visíveis na sidebar e no drawer.
+		items: [
+			{ kind: "route", path: "/", label: "Home", icon: Home, altKey: "1" },
+			{ kind: "route", path: "/projetos", label: "Projetos", icon: FolderKanban, altKey: "2" },
+			{ kind: "route", path: "/tarefas", label: "Tarefas", icon: ListChecks, altKey: "3" },
+			{ kind: "route", path: "/mostruario", label: "Mostruário", icon: Presentation, altKey: "9" },
+			{ kind: "route", path: "/media", label: "Mídia", icon: Image },
+		],
+	},
 	{
 		items: [
 			{ kind: "route", path: "/vault", label: "Vault", icon: Archive, altKey: "4" },

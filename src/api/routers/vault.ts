@@ -1,5 +1,6 @@
 import { basename } from "node:path";
 
+import { RESERVED_KOWORKER_FOLDERS } from "@/constants/koworker";
 import { protectedProcedure } from "../auth/context";
 import type { tasks } from "../db/connection";
 import { dbCategories } from "../db/categories";
@@ -355,7 +356,12 @@ async function readProjectVault(project: { id: string; main_route: string }): Pr
 }> {
 	const route = project.main_route;
 	const tasks = await dbTasks.listByProject({ projectId: project.id });
-	const knownFolderNames = new Set(tasks.map((task) => basename(task.folder_path)));
+	// Pastas de task + as pastas reservadas (medias/mostruario) ficam de fora das "pastas soltas":
+	// medias/mostruario têm dono próprio e não podem ser adotadas como tarefa por engano.
+	const knownFolderNames = new Set([
+		...tasks.map((task) => basename(task.folder_path)),
+		...RESERVED_KOWORKER_FOLDERS,
+	]);
 
 	const [looseFiles, folders, taskGroups] = await Promise.all([
 		listVaultFiles(route),

@@ -20,6 +20,8 @@ import { Route as AppTarefasIndexRouteImport } from './routes/_app/tarefas/index
 import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
 import { Route as AppPromptsIndexRouteImport } from './routes/_app/prompts/index'
 import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/index'
+import { Route as AppMostruarioIndexRouteImport } from './routes/_app/mostruario/index'
+import { Route as AppMediaIndexRouteImport } from './routes/_app/media/index'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents/index'
 import { Route as AppAgendaIndexRouteImport } from './routes/_app/agenda/index'
 import { Route as AppVaultFileNameIndexRouteImport } from './routes/_app/vault/$fileName/index'
@@ -27,8 +29,10 @@ import { Route as AppTarefasTaskIdIndexRouteImport } from './routes/_app/tarefas
 import { Route as AppSkillsSlugIndexRouteImport } from './routes/_app/skills/$slug/index'
 import { Route as AppProjetosNovoIndexRouteImport } from './routes/_app/projetos/novo/index'
 import { Route as AppProjetosProjetoIdIndexRouteImport } from './routes/_app/projetos/$projetoId/index'
+import { Route as AppMediaFileNameIndexRouteImport } from './routes/_app/media/$fileName/index'
 import { Route as AppAgentsSlugIndexRouteImport } from './routes/_app/agents/$slug/index'
 import { Route as AppTarefasTaskIdFileRouteImport } from './routes/_app/tarefas/$taskId/$file'
+import { Route as AppMostruarioTaskFolderFileNameIndexRouteImport } from './routes/_app/mostruario/$taskFolder/$fileName/index'
 import { Route as AppProjetosProjetoIdDocsSplatRouteImport } from './routes/_app/projetos/$projetoId/docs/$'
 
 const LoginRoute = LoginRouteImport.update({
@@ -85,6 +89,16 @@ const AppProjetosIndexRoute = AppProjetosIndexRouteImport.update({
   path: '/projetos/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMostruarioIndexRoute = AppMostruarioIndexRouteImport.update({
+  id: '/mostruario/',
+  path: '/mostruario/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMediaIndexRoute = AppMediaIndexRouteImport.update({
+  id: '/media/',
+  path: '/media/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAgentsIndexRoute = AppAgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
@@ -121,6 +135,11 @@ const AppProjetosProjetoIdIndexRoute =
     path: '/projetos/$projetoId/',
     getParentRoute: () => AppRoute,
   } as any)
+const AppMediaFileNameIndexRoute = AppMediaFileNameIndexRouteImport.update({
+  id: '/media/$fileName/',
+  path: '/media/$fileName/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAgentsSlugIndexRoute = AppAgentsSlugIndexRouteImport.update({
   id: '/agents/$slug/',
   path: '/agents/$slug/',
@@ -131,6 +150,12 @@ const AppTarefasTaskIdFileRoute = AppTarefasTaskIdFileRouteImport.update({
   path: '/tarefas/$taskId/$file',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMostruarioTaskFolderFileNameIndexRoute =
+  AppMostruarioTaskFolderFileNameIndexRouteImport.update({
+    id: '/mostruario/$taskFolder/$fileName/',
+    path: '/mostruario/$taskFolder/$fileName/',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppProjetosProjetoIdDocsSplatRoute =
   AppProjetosProjetoIdDocsSplatRouteImport.update({
     id: '/projetos/$projetoId/docs/$',
@@ -146,6 +171,8 @@ export interface FileRoutesByFullPath {
   '/sistema': typeof AppSistemaRoute
   '/agenda/': typeof AppAgendaIndexRoute
   '/agents/': typeof AppAgentsIndexRoute
+  '/media/': typeof AppMediaIndexRoute
+  '/mostruario/': typeof AppMostruarioIndexRoute
   '/projetos/': typeof AppProjetosIndexRoute
   '/prompts/': typeof AppPromptsIndexRoute
   '/skills/': typeof AppSkillsIndexRoute
@@ -153,12 +180,14 @@ export interface FileRoutesByFullPath {
   '/vault/': typeof AppVaultIndexRoute
   '/tarefas/$taskId/$file': typeof AppTarefasTaskIdFileRoute
   '/agents/$slug/': typeof AppAgentsSlugIndexRoute
+  '/media/$fileName/': typeof AppMediaFileNameIndexRoute
   '/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo/': typeof AppProjetosNovoIndexRoute
   '/skills/$slug/': typeof AppSkillsSlugIndexRoute
   '/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/vault/$fileName/': typeof AppVaultFileNameIndexRoute
   '/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
+  '/mostruario/$taskFolder/$fileName/': typeof AppMostruarioTaskFolderFileNameIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -168,6 +197,8 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/agenda': typeof AppAgendaIndexRoute
   '/agents': typeof AppAgentsIndexRoute
+  '/media': typeof AppMediaIndexRoute
+  '/mostruario': typeof AppMostruarioIndexRoute
   '/projetos': typeof AppProjetosIndexRoute
   '/prompts': typeof AppPromptsIndexRoute
   '/skills': typeof AppSkillsIndexRoute
@@ -175,12 +206,14 @@ export interface FileRoutesByTo {
   '/vault': typeof AppVaultIndexRoute
   '/tarefas/$taskId/$file': typeof AppTarefasTaskIdFileRoute
   '/agents/$slug': typeof AppAgentsSlugIndexRoute
+  '/media/$fileName': typeof AppMediaFileNameIndexRoute
   '/projetos/$projetoId': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo': typeof AppProjetosNovoIndexRoute
   '/skills/$slug': typeof AppSkillsSlugIndexRoute
   '/tarefas/$taskId': typeof AppTarefasTaskIdIndexRoute
   '/vault/$fileName': typeof AppVaultFileNameIndexRoute
   '/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
+  '/mostruario/$taskFolder/$fileName': typeof AppMostruarioTaskFolderFileNameIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -192,6 +225,8 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/agenda/': typeof AppAgendaIndexRoute
   '/_app/agents/': typeof AppAgentsIndexRoute
+  '/_app/media/': typeof AppMediaIndexRoute
+  '/_app/mostruario/': typeof AppMostruarioIndexRoute
   '/_app/projetos/': typeof AppProjetosIndexRoute
   '/_app/prompts/': typeof AppPromptsIndexRoute
   '/_app/skills/': typeof AppSkillsIndexRoute
@@ -199,12 +234,14 @@ export interface FileRoutesById {
   '/_app/vault/': typeof AppVaultIndexRoute
   '/_app/tarefas/$taskId/$file': typeof AppTarefasTaskIdFileRoute
   '/_app/agents/$slug/': typeof AppAgentsSlugIndexRoute
+  '/_app/media/$fileName/': typeof AppMediaFileNameIndexRoute
   '/_app/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/_app/projetos/novo/': typeof AppProjetosNovoIndexRoute
   '/_app/skills/$slug/': typeof AppSkillsSlugIndexRoute
   '/_app/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/_app/vault/$fileName/': typeof AppVaultFileNameIndexRoute
   '/_app/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
+  '/_app/mostruario/$taskFolder/$fileName/': typeof AppMostruarioTaskFolderFileNameIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -216,6 +253,8 @@ export interface FileRouteTypes {
     | '/sistema'
     | '/agenda/'
     | '/agents/'
+    | '/media/'
+    | '/mostruario/'
     | '/projetos/'
     | '/prompts/'
     | '/skills/'
@@ -223,12 +262,14 @@ export interface FileRouteTypes {
     | '/vault/'
     | '/tarefas/$taskId/$file'
     | '/agents/$slug/'
+    | '/media/$fileName/'
     | '/projetos/$projetoId/'
     | '/projetos/novo/'
     | '/skills/$slug/'
     | '/tarefas/$taskId/'
     | '/vault/$fileName/'
     | '/projetos/$projetoId/docs/$'
+    | '/mostruario/$taskFolder/$fileName/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -238,6 +279,8 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/agents'
+    | '/media'
+    | '/mostruario'
     | '/projetos'
     | '/prompts'
     | '/skills'
@@ -245,12 +288,14 @@ export interface FileRouteTypes {
     | '/vault'
     | '/tarefas/$taskId/$file'
     | '/agents/$slug'
+    | '/media/$fileName'
     | '/projetos/$projetoId'
     | '/projetos/novo'
     | '/skills/$slug'
     | '/tarefas/$taskId'
     | '/vault/$fileName'
     | '/projetos/$projetoId/docs/$'
+    | '/mostruario/$taskFolder/$fileName'
   id:
     | '__root__'
     | '/_app'
@@ -261,6 +306,8 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/agenda/'
     | '/_app/agents/'
+    | '/_app/media/'
+    | '/_app/mostruario/'
     | '/_app/projetos/'
     | '/_app/prompts/'
     | '/_app/skills/'
@@ -268,12 +315,14 @@ export interface FileRouteTypes {
     | '/_app/vault/'
     | '/_app/tarefas/$taskId/$file'
     | '/_app/agents/$slug/'
+    | '/_app/media/$fileName/'
     | '/_app/projetos/$projetoId/'
     | '/_app/projetos/novo/'
     | '/_app/skills/$slug/'
     | '/_app/tarefas/$taskId/'
     | '/_app/vault/$fileName/'
     | '/_app/projetos/$projetoId/docs/$'
+    | '/_app/mostruario/$taskFolder/$fileName/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -360,6 +409,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjetosIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/mostruario/': {
+      id: '/_app/mostruario/'
+      path: '/mostruario'
+      fullPath: '/mostruario/'
+      preLoaderRoute: typeof AppMostruarioIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/media/': {
+      id: '/_app/media/'
+      path: '/media'
+      fullPath: '/media/'
+      preLoaderRoute: typeof AppMediaIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/agents/': {
       id: '/_app/agents/'
       path: '/agents'
@@ -409,6 +472,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjetosProjetoIdIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/media/$fileName/': {
+      id: '/_app/media/$fileName/'
+      path: '/media/$fileName'
+      fullPath: '/media/$fileName/'
+      preLoaderRoute: typeof AppMediaFileNameIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/agents/$slug/': {
       id: '/_app/agents/$slug/'
       path: '/agents/$slug'
@@ -421,6 +491,13 @@ declare module '@tanstack/react-router' {
       path: '/tarefas/$taskId/$file'
       fullPath: '/tarefas/$taskId/$file'
       preLoaderRoute: typeof AppTarefasTaskIdFileRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/mostruario/$taskFolder/$fileName/': {
+      id: '/_app/mostruario/$taskFolder/$fileName/'
+      path: '/mostruario/$taskFolder/$fileName'
+      fullPath: '/mostruario/$taskFolder/$fileName/'
+      preLoaderRoute: typeof AppMostruarioTaskFolderFileNameIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/projetos/$projetoId/docs/$': {
@@ -440,6 +517,8 @@ interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppAgendaIndexRoute: typeof AppAgendaIndexRoute
   AppAgentsIndexRoute: typeof AppAgentsIndexRoute
+  AppMediaIndexRoute: typeof AppMediaIndexRoute
+  AppMostruarioIndexRoute: typeof AppMostruarioIndexRoute
   AppProjetosIndexRoute: typeof AppProjetosIndexRoute
   AppPromptsIndexRoute: typeof AppPromptsIndexRoute
   AppSkillsIndexRoute: typeof AppSkillsIndexRoute
@@ -447,12 +526,14 @@ interface AppRouteChildren {
   AppVaultIndexRoute: typeof AppVaultIndexRoute
   AppTarefasTaskIdFileRoute: typeof AppTarefasTaskIdFileRoute
   AppAgentsSlugIndexRoute: typeof AppAgentsSlugIndexRoute
+  AppMediaFileNameIndexRoute: typeof AppMediaFileNameIndexRoute
   AppProjetosProjetoIdIndexRoute: typeof AppProjetosProjetoIdIndexRoute
   AppProjetosNovoIndexRoute: typeof AppProjetosNovoIndexRoute
   AppSkillsSlugIndexRoute: typeof AppSkillsSlugIndexRoute
   AppTarefasTaskIdIndexRoute: typeof AppTarefasTaskIdIndexRoute
   AppVaultFileNameIndexRoute: typeof AppVaultFileNameIndexRoute
   AppProjetosProjetoIdDocsSplatRoute: typeof AppProjetosProjetoIdDocsSplatRoute
+  AppMostruarioTaskFolderFileNameIndexRoute: typeof AppMostruarioTaskFolderFileNameIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -462,6 +543,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppAgendaIndexRoute: AppAgendaIndexRoute,
   AppAgentsIndexRoute: AppAgentsIndexRoute,
+  AppMediaIndexRoute: AppMediaIndexRoute,
+  AppMostruarioIndexRoute: AppMostruarioIndexRoute,
   AppProjetosIndexRoute: AppProjetosIndexRoute,
   AppPromptsIndexRoute: AppPromptsIndexRoute,
   AppSkillsIndexRoute: AppSkillsIndexRoute,
@@ -469,12 +552,15 @@ const AppRouteChildren: AppRouteChildren = {
   AppVaultIndexRoute: AppVaultIndexRoute,
   AppTarefasTaskIdFileRoute: AppTarefasTaskIdFileRoute,
   AppAgentsSlugIndexRoute: AppAgentsSlugIndexRoute,
+  AppMediaFileNameIndexRoute: AppMediaFileNameIndexRoute,
   AppProjetosProjetoIdIndexRoute: AppProjetosProjetoIdIndexRoute,
   AppProjetosNovoIndexRoute: AppProjetosNovoIndexRoute,
   AppSkillsSlugIndexRoute: AppSkillsSlugIndexRoute,
   AppTarefasTaskIdIndexRoute: AppTarefasTaskIdIndexRoute,
   AppVaultFileNameIndexRoute: AppVaultFileNameIndexRoute,
   AppProjetosProjetoIdDocsSplatRoute: AppProjetosProjetoIdDocsSplatRoute,
+  AppMostruarioTaskFolderFileNameIndexRoute:
+    AppMostruarioTaskFolderFileNameIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

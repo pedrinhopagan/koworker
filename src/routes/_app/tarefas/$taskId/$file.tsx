@@ -47,6 +47,7 @@ import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
 import { FileDatePopover } from "./-components/file-date-popover";
 import { FlowRunButton } from "./-components/flow-run-button";
+import { TaskAttachments } from "./-components/task-attachments";
 
 export const Route = createFileRoute("/_app/tarefas/$taskId/$file")({
 	component: TaskFilePage,
@@ -460,6 +461,7 @@ function TaskFilePage() {
 								onDelete={() => removeTaskMutation.mutate({ id: task.id })}
 							/>
 							<FlowRunButton taskId={taskId} />
+							<TaskAttachments taskId={taskId} attachments={task.attachments} />
 							<div className="h-5 w-px bg-border" aria-hidden="true" />
 							<DocToolbar {...docToolbarProps} />
 							{current ? (

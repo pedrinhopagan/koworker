@@ -2,7 +2,6 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { tv } from "tailwind-variants";
 
 import {
-	drawerTopRoutes,
 	formatSidebarShortcut,
 	isSidebarRouteActive,
 	sidebarNavGroups,
@@ -317,12 +316,9 @@ export function SidebarNavContent({
 			<nav className={cn(variant === "drawer" && "-mx-5 -mt-5 flex flex-col")}>
 				{renderSelectProjectItem()}
 				<div className="mb-2 border-t border-border" />
-				{variant === "drawer" ? <div>{drawerTopRoutes.map(renderItem)}</div> : null}
 				{sidebarNavGroups.map((group, groupIndex) => (
 					<div key={groupIndex}>
-						{groupIndex > 0 || variant === "drawer" ? (
-							<div className="my-2 border-t border-border" />
-						) : null}
+						{groupIndex > 0 ? <div className="my-2 border-t border-border" /> : null}
 						{group.items.map(renderItem)}
 					</div>
 				))}

@@ -6,7 +6,7 @@
  */
 
 import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Menu } from "lucide-react";
+import { Menu, SquarePen, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { tv } from "tailwind-variants";
@@ -14,9 +14,11 @@ import { getActiveTabLabel, MobileNavDrawer } from "@/components/layout/mobile-n
 import { NewVaultNoteButton } from "@/components/layout/sidebar-nav-actions";
 import { isTabActive, tabs, topTabs } from "@/components/layout/tab-nav-config";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useNavActionDialogsStore } from "@/hooks/use-nav-action-dialogs";
 import { copyToClipboard } from "@/lib/build-prompt";
-import { isTauri, startWindowDrag } from "@/lib/tauri";
+import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
+import { getWindowToggleShortcutTooltip } from "@/lib/window-shortcut";
 
 const tabItem = tv({
 	base: "px-4 py-2.5 text-sm transition-colors cursor-pointer shadow-[inset_0_-2px_0_transparent]",
@@ -43,6 +45,7 @@ export function TabBar() {
 	const routerState = useRouterState();
 	const currentPath = location.pathname;
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
+	const openActionDialog = useNavActionDialogsStore((s) => s.open);
 
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
@@ -133,6 +136,33 @@ export function TabBar() {
 						className={cn(iconButton(), "min-h-12 min-w-12 px-4 py-3")}
 						iconSize={20}
 					/>
+				</div>
+
+				{/* Réplica desktop das ações de "nova tarefa" e "esconder janela": nova tarefa abre o
+				    dialog global (já montado no AppShell); esconder janela só no Tauri, como na sidebar. */}
+				<div className="hidden items-center pr-1 md:flex">
+					<Tooltip label="Nova tarefa">
+						<button
+							type="button"
+							onClick={() => openActionDialog("newTask")}
+							className={iconButton()}
+							aria-label="Nova tarefa"
+						>
+							<SquarePen size={16} />
+						</button>
+					</Tooltip>
+					{isTauri() ? (
+						<Tooltip label={`Esconder janela — ${getWindowToggleShortcutTooltip()}`}>
+							<button
+								type="button"
+								onClick={() => hideWindow()}
+								className={cn(iconButton(), "hover:text-destructive")}
+								aria-label="Esconder janela"
+							>
+								<X size={16} />
+							</button>
+						</Tooltip>
+					) : null}
 				</div>
 			</nav>
 

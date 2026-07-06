@@ -5,6 +5,7 @@ import type { tasks } from "../db/connection";
 import { dbPriorities } from "../db/priorities";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
+import { listTaskArtifacts, readTaskArtifact } from "../helpers/koworker-assets";
 import {
 	buildFolderPath,
 	createTaskFolder,
@@ -32,6 +33,7 @@ import {
 	TaskListByProjectSchema,
 	TaskMetricsSchema,
 	TaskMoveToProjectSchema,
+	TaskReadArtifactSchema,
 	TaskRenameFileSchema,
 	TaskReorderFilesSchema,
 	TaskReorderSchema,
@@ -236,12 +238,20 @@ export const tasksRouter = {
 		const fileNames = files.map((file) => file.name);
 		const base = mapTask(row, display, { fileNames });
 
+		// Artefatos não-texto (.html/.pdf) soltos na pasta da tarefa — invisíveis nas abas de `.md`.
+		// Campo à parte de `files`/`fileNames` de propósito: alargá-los corromperia inferTaskStage e a
+		// ordem das abas, ambos contratados em `.md`. A página da tarefa os mostra pra visualizar/mover.
+		const attachments = project
+			? await listTaskArtifacts({ projectRoute: project.main_route, folderPath: row.folder_path })
+			: [];
+
 		return {
 			...base,
 			// Próximo passo do fluxo da complexidade, inferido dos artefatos em disco. Alimenta o chip
 			// de invocação sugerida e a cabeça do prompt; o agente não relê o banco.
 			nextStage: inferTaskStage({ fileNames, complexity: base.complexity }),
 			files,
+			attachments,
 			primaryFile,
 			category: category
 				? {
@@ -263,6 +273,25 @@ export const tasksRouter = {
 					}
 				: null,
 		};
+	}),
+
+	// Bytes de um artefato (.html/.pdf) ainda dentro da pasta da tarefa — pra visualizar antes de
+	// mover pro mostruário. Devolve File (Blob no front), como media/mostruario readFile.
+	readArtifact: protectedProcedure.input(TaskReadArtifactSchema).handler(async ({ input }) => {
+		const row = await dbTasks.getById(input.id);
+		if (!row) throw new Error("Tarefa não encontrada");
+
+		const project = await dbProjects.getById(row.project_id);
+		if (!project) throw new Error("Projeto não encontrado");
+
+		const file = await readTaskArtifact({
+			projectRoute: project.main_route,
+			folderPath: row.folder_path,
+			name: input.name,
+		});
+		if (!file) throw new Error("Arquivo não encontrado");
+
+		return file;
 	}),
 
 	create: protectedProcedure.input(TaskCreateSchema).handler(async ({ input }) => {

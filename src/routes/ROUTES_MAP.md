@@ -31,6 +31,10 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
 | `src/routes/_app/tarefas/$taskId/$file.tsx` | `/_app/tarefas/$taskId/$file` | `/tarefas/$taskId/$file` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
 | `src/routes/_app/vault/index.tsx` | `/_app/vault/` | `/vault` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/vault/$fileName/index.tsx` | `/_app/vault/$fileName/` | `/vault/$fileName` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
+| `src/routes/_app/media/index.tsx` | `/_app/media/` | `/media` | `__root` + `AppShell` + `PageShell` |
+| `src/routes/_app/media/$fileName/index.tsx` | `/_app/media/$fileName/` | `/media/$fileName` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
+| `src/routes/_app/mostruario/index.tsx` | `/_app/mostruario/` | `/mostruario` | `__root` + `AppShell` + `PageShell` |
+| `src/routes/_app/mostruario/$taskFolder/$fileName/index.tsx` | `/_app/mostruario/$taskFolder/$fileName/` | `/mostruario/$taskFolder/$fileName` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
 | `src/routes/_app/projetos/index.tsx` | `/_app/projetos/` | `/projetos` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/projetos/novo/index.tsx` | `/_app/projetos/novo/` | `/projetos/novo` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/projetos/$projetoId/index.tsx` | `/_app/projetos/$projetoId/` | `/projetos/$projetoId` | `__root` + `AppShell` + `PageShell` |
@@ -52,6 +56,8 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
   - `/tarefas/$taskId` (redirect → `/tarefas/$taskId/$file`)
   - `/tarefas/$taskId/$file` (`$file` é o nome do `.md` ativo da tarefa, ex. `plan.md` — match exato, sem slug)
   - `/vault/$fileName` (`$fileName` é o nome do `.md` solto, ex. `notas.md` — não é uma task)
+  - `/media/$fileName` (`$fileName` é o asset em `.koworker/medias/`; `?projectId` no search identifica o projeto)
+  - `/mostruario/$taskFolder/$fileName` (`$taskFolder` é o id curto da tarefa, `$fileName` o artefato; `?projectId` no search)
   - `/skills/$slug` (`$slug` é o slug da skill, ex. `commit` — edita o `SKILL.md` da pasta dona)
   - `/agents/$slug` (`$slug` é o slug do agent, ex. `planner` — edita o `.md` da pasta dona)
 
