@@ -156,8 +156,10 @@ const createEditorTheme = (fontSize: string, proseMaxWidth?: string) =>
 				borderLeftWidth: "2px",
 				boxShadow: "0 0 6px -1px var(--primary)",
 			},
+			// Seleção neutra derivada do foreground (não do --primary, que pode ser um preset verde):
+			// realce cinza legível, alinhado à regra global de ::selection.
 			"&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
-				backgroundColor: "color-mix(in oklab, var(--primary) 28%, transparent)",
+				backgroundColor: "color-mix(in oklab, var(--foreground) 22%, transparent)",
 			},
 			".cm-scroller": { fontFamily: "inherit" },
 			".cm-placeholder": { color: "var(--muted-foreground)", fontStyle: "italic" },

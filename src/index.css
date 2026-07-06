@@ -41,8 +41,10 @@
 	--muted: oklch(0.893 0.036 90);
 	--muted-foreground: oklch(0.435 0.026 72);
 
-	--accent: oklch(0.34 0.082 148);
-	--accent-foreground: oklch(0.965 0.03 92);
+	/* Superfície de realce (hover/focus de itens): papel um degrau mais fundo que o bg, texto escuro.
+	   É superfície sutil, não cor de marca — por isso todo `hover:bg-accent` fica legível sem par. */
+	--accent: oklch(0.87 0.035 90);
+	--accent-foreground: oklch(0.3 0.014 74);
 
 	--destructive: oklch(0.53 0.15 25);
 	--destructive-foreground: oklch(0.965 0.03 92);
@@ -87,7 +89,8 @@
 	--muted: oklch(0.29 0 90);
 	--muted-foreground: oklch(0.7 0 90);
 
-	--accent: oklch(0.39 0.082 148);
+	/* Superfície de realce (hover/focus): cinza um degrau acima do card, texto claro. */
+	--accent: oklch(0.32 0 90);
 	--accent-foreground: oklch(0.88 0 90);
 
 	--destructive: oklch(0.58 0.133 24);
@@ -171,6 +174,15 @@
 		font-size: 14px;
 		line-height: 1.45;
 		@apply bg-background text-foreground;
+	}
+	/* Seleção de texto explícita: sem esta regra o WebKitGTK (Tauri/Linux) pinta a seleção com o
+	   accent do tema GTK do sistema (verde no CachyOS) sobre texto preto — contraste péssimo. Tom
+	   NEUTRO derivado do foreground (não do --primary, que pode ser um preset verde tipo Olive/
+	   Emerald): fica um realce cinza legível nos dois modos, nunca verde. Escopado no `[data-theme-
+	   root]` (onde a classe de tema vive) pra `var()` resolver. */
+	[data-theme-root] ::selection {
+		background-color: color-mix(in oklab, var(--foreground) 22%, transparent);
+		color: var(--foreground);
 	}
 }
 
