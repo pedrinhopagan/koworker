@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Clock, FileText, MoreVertical } from "lucide-react";
-import { useRef, useState } from "react";
+import { Clock, FileStack, FileText, MoreVertical } from "lucide-react";
+import { memo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { tv, type VariantProps } from "tailwind-variants";
 
@@ -9,10 +9,11 @@ import { orpc } from "@/client";
 import { Title } from "@/components/typography";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip } from "@/components/ui/tooltip";
-import { COMPLEXITY_COLORS, COMPLEXITY_LABELS } from "@/constants/complexity";
+import { COMPLEXITY_COLORS } from "@/constants/complexity";
 import { recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
+import { copyToClipboard } from "@/lib/build-prompt";
 import { copyMarkdown, joinPath, openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
@@ -53,17 +54,7 @@ type TaskItemProps = {
 	features?: TaskGroup[];
 };
 
-function TaskItemDefault({
-	task,
-	variant,
-	highlight,
-	features,
-}: {
-	task: TaskWithMeta;
-	variant: "default" | "compact";
-	highlight?: number;
-	features?: TaskGroup[];
-}) {
+function TaskItemImpl({ task, variant = "default", highlight, features }: TaskItemProps) {
 	const queryClient = useQueryClient();
 	const isDone = task.done;
 	// Modo de edição (toggle pelo lápis): libera o input de título e torna os selects
@@ -167,7 +158,17 @@ function TaskItemDefault({
 		}
 	}
 
+	async function copyTaskPath(target: { folderPath?: string }) {
+		if (!target.folderPath) {
+			return;
+		}
+		const path = target.folderPath.endsWith("/") ? target.folderPath : `${target.folderPath}/`;
+		const ok = await copyToClipboard(path);
+		toast[ok ? "success" : "error"](ok ? "Caminho da tarefa copiado" : "Falha ao copiar caminho");
+	}
+
 	const menuActions: TaskMenuActions = {
+		onCopyPath: (target) => void copyTaskPath(target),
 		onOpen: () => navigate({ to: "/tarefas/$taskId", params: { taskId: task.id } }),
 		onShareContent: () => void shareContent(),
 		onShareZip: () => {
@@ -198,12 +199,42 @@ function TaskItemDefault({
 		updateMutation.mutate({ id: task.id, title: next });
 	}
 
+	const artifactNames = task.artifactNames ?? [];
+	const totalFileCount = task.fileNames.length + artifactNames.length;
+	const hasArtifacts = artifactNames.length > 0;
+	const fileBadgeLabel = hasArtifacts ? (
+		<div className="flex flex-col gap-1">
+			{task.fileNames.length > 0 ? (
+				<div className="flex flex-col gap-0.5">
+					<span className="font-medium text-muted-foreground">Arquivos</span>
+					{task.fileNames.map((name) => (
+						<span key={name}>- {name.replace(/\.md$/, "")}</span>
+					))}
+				</div>
+			) : null}
+			<div className="flex flex-col gap-0.5">
+				<span className="font-medium text-muted-foreground">Artefatos</span>
+				{artifactNames.map((name) => (
+					<span key={name}>- {name}</span>
+				))}
+			</div>
+		</div>
+	) : (
+		<div className="flex flex-col gap-0.5">
+			<span className="font-medium text-muted-foreground">Arquivos</span>
+			{task.fileNames.map((name) => (
+				<span key={name}>- {name.replace(/\.md$/, "")}</span>
+			))}
+		</div>
+	);
+
 	return (
 		<TaskContextMenu
 			target={{
 				id: task.id,
 				label: task.displayTitle,
 				done: isDone,
+				folderPath: task.folderPath,
 				priorityId: task.priority?.id ?? null,
 				categoryId: task.category?.id ?? null,
 			}}
@@ -242,17 +273,6 @@ function TaskItemDefault({
 				)}
 
 				<div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-3">
-					<Tooltip label={`Complexidade: ${COMPLEXITY_LABELS[task.complexity]}`}>
-						<span
-							className="pointer-events-auto inline-flex shrink-0 items-center"
-							aria-label={`Complexidade: ${COMPLEXITY_LABELS[task.complexity]}`}
-						>
-							<span
-								className="size-2.5 rounded-full"
-								style={{ backgroundColor: COMPLEXITY_COLORS[task.complexity] }}
-							/>
-						</span>
-					</Tooltip>
 					<Checkbox
 						className="pointer-events-auto"
 						checked={isDone}
@@ -260,20 +280,11 @@ function TaskItemDefault({
 						disabled={isMutating}
 						aria-label={isDone ? "Marcar como não concluída" : "Marcar como concluída"}
 					/>
-					{task.fileNames.length > 0 && (
-						<Tooltip
-							label={
-								<div className="flex flex-col gap-0.5">
-									<span className="font-medium text-muted-foreground">Arquivos</span>
-									{task.fileNames.map((name) => (
-										<span key={name}>- {name.replace(/\.md$/, "")}</span>
-									))}
-								</div>
-							}
-						>
+					{totalFileCount > 0 && (
+						<Tooltip label={fileBadgeLabel}>
 							<span className="pointer-events-auto inline-flex items-center gap-1 rounded-md border border-border bg-secondary/40 px-1.5 py-0.5 text-muted-foreground text-xs">
-								<FileText className="size-3" />
-								{task.fileNames.length}
+								{hasArtifacts ? <FileStack className="size-3" /> : <FileText className="size-3" />}
+								{totalFileCount}
 							</span>
 						</Tooltip>
 					)}
@@ -348,6 +359,7 @@ function TaskItemDefault({
 						id: task.id,
 						label: task.displayTitle,
 						done: isDone,
+						folderPath: task.folderPath,
 						priorityId: task.priority?.id ?? null,
 						categoryId: task.category?.id ?? null,
 					}}
@@ -373,8 +385,7 @@ function TaskItemDefault({
 	);
 }
 
-export function TaskItem({ task, variant = "default", highlight, features }: TaskItemProps) {
-	return (
-		<TaskItemDefault task={task} variant={variant} highlight={highlight} features={features} />
-	);
-}
+// Memoizado de propósito: a lista de tarefas monta dezenas destas linhas (cada uma com menu de
+// contexto, drawer e selects) e os eventos de tasks re-renderizam a lista toda; com as referências
+// de task/features estáveis (use-tasks-data memoiza), só as linhas que mudaram re-renderizam.
+export const TaskItem = memo(TaskItemImpl);

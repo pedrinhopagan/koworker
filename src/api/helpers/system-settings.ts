@@ -18,8 +18,10 @@ const SETTINGS_KEY = {
 	terminalMultiplexer: "terminal_multiplexer",
 } as const;
 
-// Defaults calculados por `process.platform`: alacritty+tmux no Linux, Terminal.app+tmux no macOS,
-// Windows Terminal+none no Windows (tmux não existe lá). A pasta base é `~/Projects`.
+// Defaults calculados por `process.platform`: kw-terminal (workspace persistente) no Linux/macOS,
+// none no Windows (kw-terminal/tmux não existem lá). O `terminalTemplate` segue por preset, mas só é
+// usado nos modos tmux/none — o kw-terminal é um TUI que o usuário roda no terminal que quiser. A
+// pasta base é `~/Projects`.
 export function defaultSystemSettings(): SystemSettings {
 	const preset =
 		process.platform === "win32"
@@ -31,7 +33,7 @@ export function defaultSystemSettings(): SystemSettings {
 	return {
 		projectsBasePath: join(homedir(), "Projects"),
 		terminalTemplate: TERMINAL_PRESETS[preset].template,
-		terminalMultiplexer: process.platform === "win32" ? "none" : "tmux",
+		terminalMultiplexer: process.platform === "win32" ? "none" : "kw-terminal",
 	};
 }
 
@@ -44,7 +46,9 @@ export async function getSystemSettings(): Promise<SystemSettings> {
 		projectsBasePath: stored.get(SETTINGS_KEY.projectsBasePath) ?? defaults.projectsBasePath,
 		terminalTemplate: stored.get(SETTINGS_KEY.terminalTemplate) ?? defaults.terminalTemplate,
 		terminalMultiplexer:
-			multiplexer === "tmux" || multiplexer === "none" ? multiplexer : defaults.terminalMultiplexer,
+			multiplexer === "tmux" || multiplexer === "none" || multiplexer === "kw-terminal"
+				? multiplexer
+				: defaults.terminalMultiplexer,
 	};
 }
 

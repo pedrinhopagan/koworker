@@ -6,12 +6,14 @@ import {
 	listMediaFiles,
 	readMediaFile,
 	renameMediaFile,
+	saveMediaFile,
 } from "../helpers/koworker-assets";
 import {
 	MediaDeleteSchema,
 	MediaListSchema,
 	MediaReadFileSchema,
 	MediaRenameSchema,
+	MediaUploadSchema,
 } from "../schemas";
 
 // Mídia solta de `.koworker/medias/`, marcada com o projeto de origem. Em "Todos os projetos" o
@@ -60,6 +62,15 @@ export const mediaRouter = {
 		if (!file) throw new Error("Arquivo não encontrado");
 
 		return file;
+	}),
+
+	// Imagem colada no prompt bar: entra em `.koworker/medias/` com nome gerado e volta a meta
+	// confirmada pelo disco — é com esse nome que o front monta o placeholder e a listagem de /media.
+	uploadFile: protectedProcedure.input(MediaUploadSchema).handler(async ({ input }) => {
+		const project = await dbProjects.getById(input.projectId);
+		if (!project) throw new Error("Projeto não encontrado");
+
+		return saveMediaFile({ projectRoute: project.main_route, file: input.file });
 	}),
 
 	deleteFile: protectedProcedure.input(MediaDeleteSchema).handler(async ({ input }) => {

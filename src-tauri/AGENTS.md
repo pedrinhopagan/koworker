@@ -2,15 +2,14 @@
 
 ## OBJETIVO
 
-Wrapper desktop leve para o app React. Responsável por: janela, shortcut global, tray e gerenciamento de terminais tmux.
+Wrapper desktop leve para o app React. Responsável por: janela, shortcut global e tray.
 
 ## ESTRUTURA
 
 ```
 src-tauri/
 ├── src/
-│   ├── lib.rs           # Entry point
-│   └── terminal.rs      # Comandos de terminal (tmux)
+│   └── lib.rs           # Entry point
 ├── Cargo.toml
 ├── tauri.conf.json      # Configuração do Tauri
 └── icons/
@@ -18,9 +17,9 @@ src-tauri/
 
 ## REGRAS
 
-- Tauri é wrapper, não tem lógica de negócio (exceto terminal)
-- Comandos Tauri para funcionalidades nativas (shortcut, window, tray, terminal)
-- Frontend se comunica via ORPC para dados, Tauri IPC para terminal
+- Tauri é wrapper, não tem lógica de negócio
+- Comandos Tauri para funcionalidades nativas (shortcut, window, tray)
+- Frontend se comunica via ORPC para dados e terminais
 - Manter configuração mínima
 
 ## JANELA
@@ -52,16 +51,4 @@ Registrar no builder:
 .invoke_handler(tauri::generate_handler![meu_comando])
 ```
 
-## COMANDOS DE TERMINAL
-
-Os comandos de terminal estão em `terminal.rs`. Ver documentação completa em `docs/TERMINAL.md`.
-
-| Comando | Descrição |
-|---------|-----------|
-| `open_terminal_for_task` | Abre/cria sessão tmux e window para tarefa |
-| `close_project_session` | Fecha sessão tmux inteira do projeto |
-| `close_task_window` | Fecha apenas a window de uma tarefa |
-| `get_active_sessions` | Lista sessões ativas |
-| `check_session_exists` | Verifica se sessão existe |
-
-**Importante:** Usar `#[tauri::command(rename_all = "camelCase")]` para parâmetros.
+Terminais são gerenciados pelo backend Bun (ORPC). Ver `docs/TERMINAL.md`.

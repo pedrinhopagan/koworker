@@ -1,6 +1,25 @@
 import type { TaskComplexity } from "@/constants/complexity";
 import type { InvokeCli } from "@/constants/invoke";
+import { mediaRelativePath } from "@/constants/koworker";
 import { PROMPT_TEMPLATES } from "@/constants/prompt-templates";
+
+// Marcador de imagem colada no textarea — o que o usuário vê e move livremente pelo texto. Na
+// composição do prompt ele vira `@.koworker/medias/<arquivo>`: a mention de arquivo que o claude
+// code anexa como imagem de verdade, no exato ponto do texto onde o marcador estava.
+export function imagePlaceholder(index: number): string {
+	return `[Imagem ${index}]`;
+}
+
+export function resolveImagePlaceholders(
+	text: string,
+	images: { index: number; name: string }[],
+): string {
+	return images.reduce(
+		(acc, image) =>
+			acc.replaceAll(imagePlaceholder(image.index), `@${mediaRelativePath(image.name)}`),
+		text,
+	);
+}
 
 // No codex, skills são custom prompts invocados com `$slug` — converte toda chamada `/slug` do prompt
 // (inclusive o `/kw` da cabeça e as digitadas com `/` no texto) pro prefixo `$`. Só casa `/` em início
@@ -48,11 +67,13 @@ export function buildKoworkerPrompt(params: {
 }
 
 // Corpo do prompt: os campos preenchidos do template ativo ("Label: valor", um por linha) seguidos do
-// texto livre. Campos vazios não entram; sem template (ou tudo vazio), o corpo é só o texto.
+// texto livre. Campos vazios não entram; sem template (ou tudo vazio), o corpo é só o texto. Com
+// `images`, os marcadores `[Imagem N]` do corpo inteiro viram paths de mídia.
 export function buildPromptBody(params: {
 	templateSlug: string | null;
 	values: Record<string, Record<string, string>>;
 	text: string;
+	images?: { index: number; name: string }[];
 }): string {
 	const template = PROMPT_TEMPLATES.find((entry) => entry.slug === params.templateSlug);
 	const structure = template
@@ -65,7 +86,9 @@ export function buildPromptBody(params: {
 				.join("\n")
 		: "";
 
-	return [structure, params.text.trim()].filter(Boolean).join("\n\n");
+	const body = [structure, params.text.trim()].filter(Boolean).join("\n\n");
+
+	return params.images?.length ? resolveImagePlaceholders(body, params.images) : body;
 }
 
 export async function copyToClipboard(text: string): Promise<boolean> {

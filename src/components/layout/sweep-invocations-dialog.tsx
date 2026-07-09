@@ -20,7 +20,7 @@ export function SweepInvocationsDialog({ open, onClose }: { open: boolean; onClo
 	const [loading, setLoading] = useState(false);
 	const [closing, setClosing] = useState(false);
 
-	// Snapshot vivo do tmux a cada abertura: o estado muda fora do React (invocações abrem/fecham nos
+	// Snapshot vivo do multiplexador a cada abertura: o estado muda fora do React (invocações abrem/fecham nos
 	// terminais), então não dá pra cachear. Tudo pré-selecionado ao chegar.
 	useEffect(() => {
 		if (!open) {

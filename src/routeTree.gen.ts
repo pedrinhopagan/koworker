@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSistemaRouteImport } from './routes/_app/sistema'
+import { Route as AppKwTerminalRouteImport } from './routes/_app/kw-terminal'
 import { Route as AppFontesRouteImport } from './routes/_app/fontes'
 import { Route as AppConfiguracoesRouteImport } from './routes/_app/configuracoes'
 import { Route as AppVaultIndexRouteImport } from './routes/_app/vault/index'
@@ -32,7 +33,6 @@ import { Route as AppProjetosProjetoIdIndexRouteImport } from './routes/_app/pro
 import { Route as AppMediaFileNameIndexRouteImport } from './routes/_app/media/$fileName/index'
 import { Route as AppAgentsSlugIndexRouteImport } from './routes/_app/agents/$slug/index'
 import { Route as AppTarefasTaskIdFileRouteImport } from './routes/_app/tarefas/$taskId/$file'
-import { Route as AppMostruarioTaskFolderFileNameIndexRouteImport } from './routes/_app/mostruario/$taskFolder/$fileName/index'
 import { Route as AppProjetosProjetoIdDocsSplatRouteImport } from './routes/_app/projetos/$projetoId/docs/$'
 
 const LoginRoute = LoginRouteImport.update({
@@ -52,6 +52,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppSistemaRoute = AppSistemaRouteImport.update({
   id: '/sistema',
   path: '/sistema',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppKwTerminalRoute = AppKwTerminalRouteImport.update({
+  id: '/kw-terminal',
+  path: '/kw-terminal',
   getParentRoute: () => AppRoute,
 } as any)
 const AppFontesRoute = AppFontesRouteImport.update({
@@ -150,12 +155,6 @@ const AppTarefasTaskIdFileRoute = AppTarefasTaskIdFileRouteImport.update({
   path: '/tarefas/$taskId/$file',
   getParentRoute: () => AppRoute,
 } as any)
-const AppMostruarioTaskFolderFileNameIndexRoute =
-  AppMostruarioTaskFolderFileNameIndexRouteImport.update({
-    id: '/mostruario/$taskFolder/$fileName/',
-    path: '/mostruario/$taskFolder/$fileName/',
-    getParentRoute: () => AppRoute,
-  } as any)
 const AppProjetosProjetoIdDocsSplatRoute =
   AppProjetosProjetoIdDocsSplatRouteImport.update({
     id: '/projetos/$projetoId/docs/$',
@@ -168,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
   '/fontes': typeof AppFontesRoute
+  '/kw-terminal': typeof AppKwTerminalRoute
   '/sistema': typeof AppSistemaRoute
   '/agenda/': typeof AppAgendaIndexRoute
   '/agents/': typeof AppAgentsIndexRoute
@@ -187,12 +187,12 @@ export interface FileRoutesByFullPath {
   '/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/vault/$fileName/': typeof AppVaultFileNameIndexRoute
   '/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
-  '/mostruario/$taskFolder/$fileName/': typeof AppMostruarioTaskFolderFileNameIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
   '/fontes': typeof AppFontesRoute
+  '/kw-terminal': typeof AppKwTerminalRoute
   '/sistema': typeof AppSistemaRoute
   '/': typeof AppIndexRoute
   '/agenda': typeof AppAgendaIndexRoute
@@ -213,7 +213,6 @@ export interface FileRoutesByTo {
   '/tarefas/$taskId': typeof AppTarefasTaskIdIndexRoute
   '/vault/$fileName': typeof AppVaultFileNameIndexRoute
   '/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
-  '/mostruario/$taskFolder/$fileName': typeof AppMostruarioTaskFolderFileNameIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -221,6 +220,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_app/configuracoes': typeof AppConfiguracoesRoute
   '/_app/fontes': typeof AppFontesRoute
+  '/_app/kw-terminal': typeof AppKwTerminalRoute
   '/_app/sistema': typeof AppSistemaRoute
   '/_app/': typeof AppIndexRoute
   '/_app/agenda/': typeof AppAgendaIndexRoute
@@ -241,7 +241,6 @@ export interface FileRoutesById {
   '/_app/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/_app/vault/$fileName/': typeof AppVaultFileNameIndexRoute
   '/_app/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
-  '/_app/mostruario/$taskFolder/$fileName/': typeof AppMostruarioTaskFolderFileNameIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -250,6 +249,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/configuracoes'
     | '/fontes'
+    | '/kw-terminal'
     | '/sistema'
     | '/agenda/'
     | '/agents/'
@@ -269,12 +269,12 @@ export interface FileRouteTypes {
     | '/tarefas/$taskId/'
     | '/vault/$fileName/'
     | '/projetos/$projetoId/docs/$'
-    | '/mostruario/$taskFolder/$fileName/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/configuracoes'
     | '/fontes'
+    | '/kw-terminal'
     | '/sistema'
     | '/'
     | '/agenda'
@@ -295,13 +295,13 @@ export interface FileRouteTypes {
     | '/tarefas/$taskId'
     | '/vault/$fileName'
     | '/projetos/$projetoId/docs/$'
-    | '/mostruario/$taskFolder/$fileName'
   id:
     | '__root__'
     | '/_app'
     | '/login'
     | '/_app/configuracoes'
     | '/_app/fontes'
+    | '/_app/kw-terminal'
     | '/_app/sistema'
     | '/_app/'
     | '/_app/agenda/'
@@ -322,7 +322,6 @@ export interface FileRouteTypes {
     | '/_app/tarefas/$taskId/'
     | '/_app/vault/$fileName/'
     | '/_app/projetos/$projetoId/docs/$'
-    | '/_app/mostruario/$taskFolder/$fileName/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -358,6 +357,13 @@ declare module '@tanstack/react-router' {
       path: '/sistema'
       fullPath: '/sistema'
       preLoaderRoute: typeof AppSistemaRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/kw-terminal': {
+      id: '/_app/kw-terminal'
+      path: '/kw-terminal'
+      fullPath: '/kw-terminal'
+      preLoaderRoute: typeof AppKwTerminalRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/fontes': {
@@ -493,13 +499,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTarefasTaskIdFileRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/mostruario/$taskFolder/$fileName/': {
-      id: '/_app/mostruario/$taskFolder/$fileName/'
-      path: '/mostruario/$taskFolder/$fileName'
-      fullPath: '/mostruario/$taskFolder/$fileName/'
-      preLoaderRoute: typeof AppMostruarioTaskFolderFileNameIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/projetos/$projetoId/docs/$': {
       id: '/_app/projetos/$projetoId/docs/$'
       path: '/projetos/$projetoId/docs/$'
@@ -513,6 +512,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppConfiguracoesRoute: typeof AppConfiguracoesRoute
   AppFontesRoute: typeof AppFontesRoute
+  AppKwTerminalRoute: typeof AppKwTerminalRoute
   AppSistemaRoute: typeof AppSistemaRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAgendaIndexRoute: typeof AppAgendaIndexRoute
@@ -533,12 +533,12 @@ interface AppRouteChildren {
   AppTarefasTaskIdIndexRoute: typeof AppTarefasTaskIdIndexRoute
   AppVaultFileNameIndexRoute: typeof AppVaultFileNameIndexRoute
   AppProjetosProjetoIdDocsSplatRoute: typeof AppProjetosProjetoIdDocsSplatRoute
-  AppMostruarioTaskFolderFileNameIndexRoute: typeof AppMostruarioTaskFolderFileNameIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppConfiguracoesRoute: AppConfiguracoesRoute,
   AppFontesRoute: AppFontesRoute,
+  AppKwTerminalRoute: AppKwTerminalRoute,
   AppSistemaRoute: AppSistemaRoute,
   AppIndexRoute: AppIndexRoute,
   AppAgendaIndexRoute: AppAgendaIndexRoute,
@@ -559,8 +559,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppTarefasTaskIdIndexRoute: AppTarefasTaskIdIndexRoute,
   AppVaultFileNameIndexRoute: AppVaultFileNameIndexRoute,
   AppProjetosProjetoIdDocsSplatRoute: AppProjetosProjetoIdDocsSplatRoute,
-  AppMostruarioTaskFolderFileNameIndexRoute:
-    AppMostruarioTaskFolderFileNameIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

@@ -22,6 +22,8 @@ async function ensureKoworkerGitignored(projectRoute: string): Promise<void> {
 export type TaskFile = {
 	name: string;
 	content: string;
+	// Tamanho em bytes do arquivo em disco.
+	size: number;
 	// birthtime do arquivo em disco: instante de criação, estável entre edições.
 	createdAt: number;
 	// mtime do arquivo em disco; base do ranking de recência dos arquivos na rota da task.
@@ -137,30 +139,36 @@ export async function listTaskMarkdownNames(params: {
 export async function readTaskFolderMeta(params: {
 	projectRoute: string;
 	folderPath: string;
-}): Promise<{ fileNames: string[]; lastEditedAt?: number }> {
+}): Promise<{ fileNames: string[]; artifactNames: string[]; lastEditedAt?: number }> {
 	const dir = join(params.projectRoute, params.folderPath);
 
-	let names: string[];
+	let entries: { isFile: () => boolean; name: string }[];
 	try {
-		names = (await readdir(dir, { withFileTypes: true }))
-			.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-			.map((entry) => entry.name);
+		entries = await readdir(dir, { withFileTypes: true });
 	} catch {
-		return { fileNames: [] };
+		return { fileNames: [], artifactNames: [] };
 	}
 
-	names.sort(compareMarkdownNames);
-	if (names.length === 0) return { fileNames: [] };
+	const fileNames = entries
+		.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+		.map((entry) => entry.name);
+	const artifactNames = entries
+		.filter((entry) => entry.isFile() && !entry.name.endsWith(".md"))
+		.map((entry) => entry.name);
+
+	fileNames.sort(compareMarkdownNames);
+	artifactNames.sort((a, b) => a.localeCompare(b, "pt-BR"));
+	if (fileNames.length === 0) return { fileNames, artifactNames };
 
 	const mtimes = await Promise.all(
-		names.map((name) =>
+		fileNames.map((name) =>
 			stat(join(dir, name))
 				.then((s) => s.mtimeMs)
 				.catch(() => 0),
 		),
 	);
 
-	return { fileNames: names, lastEditedAt: Math.max(...mtimes) };
+	return { fileNames, artifactNames, lastEditedAt: Math.max(...mtimes) };
 }
 
 // Etapas cujo artefato já existe na pasta, provadas por convenção de nome. O index.md não conta;
@@ -248,6 +256,7 @@ export async function readTaskFiles(params: {
 			return {
 				name,
 				content,
+				size: stats?.size ?? 0,
 				createdAt: stats?.birthtimeMs ?? 0,
 				editedAt: stats?.mtimeMs ?? 0,
 			};

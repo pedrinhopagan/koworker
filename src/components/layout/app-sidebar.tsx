@@ -1,7 +1,7 @@
 import { PanelLeft } from "lucide-react";
 
 import { SidebarNavContent } from "@/components/layout/sidebar-nav-content";
-import { Tooltip } from "@/components/ui/tooltip";
+import { SidebarTooltip } from "@/components/layout/sidebar-tooltip";
 import { cn } from "@/lib/utils";
 import { useSidebarNavStore } from "@/stores/sidebar-nav";
 
@@ -15,7 +15,7 @@ export function AppSidebar() {
 			type="button"
 			onClick={toggleMode}
 			className={cn(
-				"flex h-8 w-full items-center gap-2 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground",
+				"flex h-8 w-full items-center gap-2 border-t border-border px-3 text-xs text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground",
 				compact && "justify-center px-0",
 			)}
 			aria-label={compact ? "Expandir sidebar" : "Recolher sidebar"}
@@ -36,15 +36,13 @@ export function AppSidebar() {
 				<SidebarNavContent variant="sidebar" compact={compact} />
 			</div>
 
-			<div className="border-t border-border">
-				{compact ? (
-					<Tooltip label="Esconder" triggerClassName="flex w-full">
-						{collapseButton}
-					</Tooltip>
-				) : (
-					collapseButton
-				)}
-			</div>
+			{compact ? (
+				<SidebarTooltip label="Esconder" triggerClassName="flex w-full">
+					{collapseButton}
+				</SidebarTooltip>
+			) : (
+				collapseButton
+			)}
 		</aside>
 	);
 }

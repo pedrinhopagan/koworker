@@ -54,6 +54,7 @@ export function usePromptExecution(params: {
 	const invoke = usePromptBarStore((s) => s.invoke);
 	const structureTemplate = usePromptBarStore((s) => s.structureTemplate);
 	const structureValues = usePromptBarStore((s) => s.structureValues);
+	const images = usePromptBarStore((s) => s.images);
 	const interactWithKw = usePromptBarStore((s) => s.interactWithKw);
 	const interactWithRoute = usePromptBarStore((s) => s.interactWithRoute);
 	const interactWithInput = usePromptBarStore((s) => s.interactWithInput);
@@ -66,7 +67,7 @@ export function usePromptExecution(params: {
 
 	const effectiveRoute = interactWithRoute ? routePath : null;
 	const effectiveText = interactWithInput
-		? buildPromptBody({ templateSlug: structureTemplate, values: structureValues, text })
+		? buildPromptBody({ templateSlug: structureTemplate, values: structureValues, text, images })
 		: "";
 
 	const executionPlan = useMemo(() => {

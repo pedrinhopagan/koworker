@@ -187,6 +187,6 @@ bun cli update-task '{"taskId": "uuid", "status": "executed"}'
 ## Documentação
 
 - `docs/desktop/README.md` — Arquitetura e deploy desktop
-- `docs/TERMINAL.md` — Integração de terminal (xterm.js + tmux)
+- `docs/TERMINAL.md` — Integração de terminal (ORPC + tmux / kw-terminal / none)
 - `AGENTS.md` — Knowledge base para AI coding agents
 - `ROADMAP.md` — Roadmap de desenvolvimento

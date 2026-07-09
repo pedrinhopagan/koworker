@@ -99,7 +99,9 @@ const { ensureDbSchema } = await import("./api/db/migrate");
 ensureDbSchema();
 
 // Semeia settings de SO e roots default de agents/skills por plataforma (primeira execução).
-const { ensureDefaultSettings, ensureDefaultCategories } = await import("./api/db/seed-defaults");
+const { ensureDefaultSettings, ensureDefaultCategories, migrateTerminalMultiplexerRename } =
+	await import("./api/db/seed-defaults");
+await migrateTerminalMultiplexerRename();
 await ensureDefaultSettings();
 await ensureDefaultCategories();
 

@@ -132,6 +132,14 @@ const mdFileName = z
 	.trim()
 	.regex(/^[^/\\]+\.md$/, "File name must be a .md without path separators");
 
+// Nome de qualquer arquivo da pasta da tarefa (não só `.md`): um único segmento, sem separadores,
+// com extensão obrigatória. Boundary de rename/delete de anexos, que aceitam qualquer tipo.
+const safeFileName = z
+	.string()
+	.trim()
+	.min(1)
+	.regex(/^[^/\\]+\.[^/\\.]+$/, "File name must have an extension and no path separators");
+
 // Nome de uma pasta solta dentro de `.koworker/`: um único segmento, sem separadores nem
 // referência a pai. É boundary — vira parte de um path no FS, então rejeitamos travessia.
 const vaultFolderName = z
@@ -237,13 +245,13 @@ export const VaultMoveFolderFilesToTaskSchema = z.object({
 
 export const TaskRenameFileSchema = z.object({
 	id: z.string().trim().min(1),
-	oldName: mdFileName,
-	newName: mdFileName,
+	oldName: safeFileName,
+	newName: safeFileName,
 });
 
 export const TaskDeleteFileSchema = z.object({
 	id: z.string().trim().min(1),
-	name: mdFileName,
+	name: safeFileName,
 });
 
 // Sobrescreve a data de atualização (mtime) de um .md. editedAt em ms desde a epoch — instante

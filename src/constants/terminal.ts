@@ -35,14 +35,34 @@ export const TERMINAL_PRESETS = {
 
 export type TerminalPresetId = keyof typeof TERMINAL_PRESETS;
 
-export const TERMINAL_MULTIPLEXERS = ["tmux", "none"] as const;
+export const TERMINAL_MULTIPLEXERS = ["tmux", "none", "kw-terminal"] as const;
 
 export type TerminalMultiplexer = (typeof TERMINAL_MULTIPLEXERS)[number];
 
 export const TERMINAL_MULTIPLEXER_LABEL: Record<TerminalMultiplexer, string> = {
 	tmux: "tmux (sessões persistentes)",
 	none: "Nenhum (uma janela por abertura)",
+	"kw-terminal": "kw-terminal (workspace persistente)",
 };
+
+// Keybindings ativos do kw-terminal desta máquina, mostrados como referência estática na página.
+// `prefix` é o modo de prefixo estilo tmux (KW_TERMINAL_PREFIX); os itens marcados "(custom)" são
+// atalhos próprios, o resto são os defaults mais usados. Correspondência finita = dado.
+export const KW_TERMINAL_PREFIX = "ctrl+b";
+
+export const KW_TERMINAL_SHORTCUTS: { keys: string; label: string }[] = [
+	{ keys: "ctrl+alt+w", label: "Nova tab no space (custom)" },
+	{ keys: "prefix+m", label: "Renomear tab (custom)" },
+	{ keys: "prefix+c", label: "Nova tab" },
+	{ keys: "prefix+shift+t", label: "Renomear tab" },
+	{ keys: "prefix+p · prefix+n", label: "Tab anterior · próxima" },
+	{ keys: "prefix+1…9", label: "Trocar para a tab N" },
+	{ keys: "prefix+shift+x", label: "Fechar tab" },
+	{ keys: "prefix+w", label: "Seletor de workspace" },
+	{ keys: "prefix+shift+n", label: "Novo workspace" },
+	{ keys: "prefix+shift+w", label: "Renomear workspace" },
+	{ keys: "prefix+h · j · k · l", label: "Foco de panes (esq · baixo · cima · dir)" },
+];
 
 // A tela mostra qual preset está ativo comparando o template salvo com os presets conhecidos. Sem
 // correspondência = template personalizado.

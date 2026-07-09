@@ -1,4 +1,5 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, MouseEvent, ReactNode } from "react";
+import { AppContextMenu } from "@/components/layout/app-context-menu";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { DocSessionSwitcher } from "@/components/doc-session-switcher";
 import { NavActionDialogs } from "@/components/layout/nav-action-dialogs";
@@ -12,6 +13,15 @@ import { useProjectSelectDialog } from "@/hooks/use-project-select-dialog";
 type AppShellProps = {
 	children: ReactNode;
 };
+
+function shouldUseNativeContextMenu(target: EventTarget | null) {
+	return (
+		target instanceof HTMLElement &&
+		!!target.closest(
+			'input, textarea, select, [contenteditable="true"], [contenteditable=""], .cm-editor',
+		)
+	);
+}
 
 export function AppShell({ children }: AppShellProps) {
 	useUser();
@@ -37,28 +47,37 @@ export function AppShell({ children }: AppShellProps) {
 			} as CSSProperties)
 		: baseAccentStyle;
 
+	function handleContextMenuCapture(event: MouseEvent<HTMLElement>) {
+		if (shouldUseNativeContextMenu(event.target)) {
+			event.stopPropagation();
+		}
+	}
+
 	return (
-		<div
-			className="flex flex-1 flex-row overflow-hidden h-dvh bg-background text-foreground"
-			style={shellStyle}
-		>
-			<AppSidebar />
+		<AppContextMenu>
+			<div
+				className="flex flex-1 flex-row overflow-hidden h-dvh bg-background text-foreground"
+				style={shellStyle}
+				onContextMenuCapture={handleContextMenuCapture}
+			>
+				<AppSidebar />
 
-			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-				<TabBar />
+				<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+					<TabBar />
 
-				<main className="flex-1 flex flex-col overflow-hidden min-h-0 bg-background">
-					{children}
-				</main>
+					<main className="flex-1 flex flex-col overflow-hidden min-h-0 bg-background">
+						{children}
+					</main>
 
-				<GlobalPromptBar />
+					<GlobalPromptBar />
 
-				<StatusBar />
+					<StatusBar />
+				</div>
+
+				<DocSessionSwitcher />
+				<ProjectSelectDialog open={open} onClose={closeDialog} />
+				<NavActionDialogs />
 			</div>
-
-			<DocSessionSwitcher />
-			<ProjectSelectDialog open={open} onClose={closeDialog} />
-			<NavActionDialogs />
-		</div>
+		</AppContextMenu>
 	);
 }

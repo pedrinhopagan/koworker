@@ -10,7 +10,7 @@ import {
 	type SidebarNavItem,
 	type SidebarNavRouteItem,
 } from "@/components/layout/sidebar-nav-config";
-import { Tooltip } from "@/components/ui/tooltip";
+import { SidebarTooltip } from "@/components/layout/sidebar-tooltip";
 import { useProjectFocus } from "@/hooks";
 import { useNavActionDialogsStore } from "@/hooks/use-nav-action-dialogs";
 import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
@@ -30,7 +30,7 @@ const sidebarItem = tv({
 	base: "w-full transition-colors cursor-pointer",
 	variants: {
 		active: {
-			true: "text-foreground font-medium bg-muted/50",
+			true: "text-foreground font-medium bg-[var(--project-accent-soft)] shadow-[inset_2px_0_0_var(--project-accent,var(--primary))]",
 			false: "text-muted-foreground hover:text-foreground hover:bg-muted/30",
 		},
 		layout: {
@@ -141,7 +141,8 @@ export function SidebarNavContent({
 
 	function renderSelectProjectItem() {
 		const item = sidebarSelectProjectItem;
-		const className = sidebarItem({ active: false, layout });
+		const isCompact = layout === "compact";
+		const className = cn(sidebarItem({ active: false, layout }), isCompact && "h-10");
 		const Icon = item.icon;
 		const tooltip = getTooltipLabel(item);
 		const accentColor = accent?.color ?? null;
@@ -149,7 +150,10 @@ export function SidebarNavContent({
 		const content = (
 			<>
 				{accentColor ? (
-					<span className="size-2.5 shrink-0 rounded-sm" style={{ backgroundColor: accentColor }} />
+					<span
+						className={cn("shrink-0 rounded-sm", isCompact ? "size-3.5" : "size-2.5")}
+						style={{ backgroundColor: accentColor }}
+					/>
 				) : (
 					<Icon size={iconSize} />
 				)}
@@ -181,9 +185,9 @@ export function SidebarNavContent({
 		}
 
 		return (
-			<Tooltip label={tooltip} triggerClassName="flex w-full">
+			<SidebarTooltip label={tooltip} triggerClassName="flex w-full">
 				{button}
-			</Tooltip>
+			</SidebarTooltip>
 		);
 	}
 
@@ -227,9 +231,9 @@ export function SidebarNavContent({
 		}
 
 		return (
-			<Tooltip key={item.path} label={tooltip} triggerClassName="flex w-full">
+			<SidebarTooltip key={item.path} label={tooltip} triggerClassName="flex w-full">
 				{link}
-			</Tooltip>
+			</SidebarTooltip>
 		);
 	}
 
@@ -295,9 +299,9 @@ export function SidebarNavContent({
 		}
 
 		return (
-			<Tooltip key={item.id} label={tooltip} triggerClassName="flex w-full">
+			<SidebarTooltip key={item.id} label={tooltip} triggerClassName="flex w-full">
 				{button}
-			</Tooltip>
+			</SidebarTooltip>
 		);
 	}
 

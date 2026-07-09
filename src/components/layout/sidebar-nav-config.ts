@@ -16,6 +16,7 @@ import {
 	Settings,
 	Sparkles,
 	SquarePen,
+	SquareTerminal,
 	X,
 } from "lucide-react";
 
@@ -87,6 +88,7 @@ export const sidebarNavGroups: SidebarNavGroup[] = [
 			{ kind: "route", path: "/skills", label: "Skills", icon: Sparkles, altKey: "6" },
 			{ kind: "route", path: "/agents", label: "Agents", icon: Bot, altKey: "7" },
 			{ kind: "route", path: "/agenda", label: "Agenda", icon: CalendarDays, altKey: "5" },
+			{ kind: "route", path: "/kw-terminal", label: "kw-terminal", icon: SquareTerminal },
 		],
 	},
 	{

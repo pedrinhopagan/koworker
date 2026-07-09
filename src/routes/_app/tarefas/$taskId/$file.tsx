@@ -15,31 +15,33 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Loader2, MoreVertical, Plus, X } from "lucide-react";
+import { ArrowLeft, LayoutList, Loader2, MoreVertical, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
 import { DocMobileActionsDrawer, DocSheetDivider } from "@/components/doc-mobile-actions-drawer";
+import { DocShareControls } from "@/components/doc-share-controls";
 import { DocToolbar } from "@/components/doc-toolbar";
 import { FileContextMenu } from "@/components/file-context-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
 	TASK_SELECT_CONTENT_SELECTOR,
-	TaskMetaControls,
+	TaskEditControls,
+	TaskMetaSelects,
 	TaskTitleInput,
 	taskTitlePlaceholder,
 } from "@/components/tasks/task-meta-controls";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
 import { RECENCY_HIGHLIGHT_DEPTH, recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
-import { copyMarkdown, joinPath, openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { reflowMarkdown } from "@/lib/reflow-markdown";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
@@ -48,6 +50,7 @@ import { useReadingModeStore } from "@/stores/reading-mode";
 import { FileDatePopover } from "./-components/file-date-popover";
 import { FlowRunButton } from "./-components/flow-run-button";
 import { TaskAttachments } from "./-components/task-attachments";
+import { useTaskShare } from "./-components/use-task-share";
 
 export const Route = createFileRoute("/_app/tarefas/$taskId/$file")({
 	component: TaskFilePage,
@@ -117,8 +120,7 @@ function TaskFilePage() {
 			);
 			setDeletingFile(null);
 			toast.success("Arquivo deletado");
-			// Apagar o arquivo aberto deixa a URL órfã: volta pro index, que reescolhe o
-			// primário (ou mostra o empty-state se a tarefa ficou sem arquivos).
+			// Apagar o arquivo aberto deixa a URL órfã: volta pra overview da tarefa.
 			if (variables.name === activeFile) {
 				navigate({ to: "/tarefas/$taskId", params: { taskId }, replace: true });
 			}
@@ -170,6 +172,8 @@ function TaskFilePage() {
 		},
 	});
 
+	const share = useTaskShare(task);
+
 	const isMutating =
 		setDoneMutation.isPending || updateMutation.isPending || removeTaskMutation.isPending;
 
@@ -182,6 +186,7 @@ function TaskFilePage() {
 	const [creatingFile, setCreatingFile] = useState(false);
 	const [newFileValue, setNewFileValue] = useState("");
 	const [actionsOpen, setActionsOpen] = useState(false);
+	const [moreOpen, setMoreOpen] = useState(false);
 	const [dndEnabled, setDndEnabled] = useState(
 		() => typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches,
 	);
@@ -274,32 +279,16 @@ function TaskFilePage() {
 		openFile(name);
 	}
 
-	// Caminho absoluto da pasta da tarefa (raiz do projeto + folder_path) pros comandos do SO.
-	// Sem projeto (tarefa órfã) o menu Compartilhar não aparece.
-	const folderAbs = task.project ? joinPath(task.project.mainRoute, task.folderPath) : null;
-
-	// Copiar conteúdo = todos os .md da tarefa concatenados. Salva o pendente antes pra incluir a
-	// última edição do arquivo aberto, e busca fresco (a concatenação canônica vive no backend).
-	const copyTaskContent = async () => {
-		if (!task.project) return;
+	// Salva o editor pendente antes de compartilhar, pra incluir a última edição do arquivo aberto
+	// na exportação/zip (o `useTaskShare` é puro; o flush vive aqui, dono do painel).
+	const copyContent = async () => {
 		await paneRef.current?.flush();
-		try {
-			const result = await queryClient.fetchQuery({
-				...orpc.vault.exportContent.queryOptions({
-					input: { projectId: task.project.id, target: { kind: "task", taskId } },
-				}),
-				staleTime: 0,
-			});
-			await copyMarkdown(result.content);
-		} catch {
-			toast.error("Não foi possível exportar o conteúdo");
-		}
+		await share.copyContent();
 	};
 
-	const copyTaskZip = async () => {
-		if (!folderAbs) return;
+	const copyZip = async () => {
 		await paneRef.current?.flush();
-		await shareFolderAsZip(folderAbs);
+		await share.copyZip();
 	};
 
 	function startCreate() {
@@ -389,14 +378,61 @@ function TaskFilePage() {
 		onReading: () => setReading(true),
 		pinned,
 		onTogglePin: togglePin,
-		share: folderAbs
-			? {
-					onOpenInOs: () => void openFolderInOs(folderAbs),
-					onCopyContent: () => void copyTaskContent(),
-					onCopyZip: () => void copyTaskZip(),
-				}
-			: undefined,
 	};
+
+	// Conteúdo do menu de ações, seccionado Tarefa/Arquivo. Idêntico no popover desktop e no drawer
+	// mobile — só muda o `onAction` (fecha o popover ou o drawer). Selects de meta sempre interativos
+	// aqui; o lápis do header governa apenas o input de título.
+	function renderActions(task: NonNullable<typeof taskQuery.data>, onAction: () => void) {
+		return (
+			<>
+				<Text size="xs" tone="muted" className="px-5 pt-2 pb-1">
+					Tarefa
+				</Text>
+				<div className="flex flex-col gap-2 px-5 py-2">
+					<TaskMetaSelects
+						categoryId={task.categoryId ?? null}
+						priorityId={task.priorityId ?? null}
+						complexity={task.complexity}
+						interactive
+						layout="stacked"
+						onCategoryChange={(categoryId) => updateMutation.mutate({ id: task.id, categoryId })}
+						onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
+						onComplexityChange={(complexity) => updateMutation.mutate({ id: task.id, complexity })}
+					/>
+				</div>
+				<FlowRunButton taskId={taskId} layout="stacked" onAction={onAction} />
+				<TaskAttachments taskId={taskId} attachments={task.attachments} onAction={onAction} />
+				{share.folderAbs ? (
+					<DocShareControls
+						layout="stacked"
+						onOpenInOs={share.openInOs}
+						onCopyContent={() => void copyContent()}
+						onCopyZip={() => void copyZip()}
+						onAction={onAction}
+					/>
+				) : null}
+				<DocSheetDivider />
+				<Text size="xs" tone="muted" className="px-5 pb-1">
+					Arquivo
+				</Text>
+				<DocToolbar {...docToolbarProps} layout="stacked" onAction={onAction} />
+				{current ? (
+					<FileDatePopover
+						taskId={taskId}
+						file={current}
+						layout="stacked"
+						onAction={onAction}
+						onChanged={() =>
+							queryClient.invalidateQueries(
+								orpc.tasks.getFull.queryOptions({ input: { id: taskId } }),
+							)
+						}
+					/>
+				) : null}
+			</>
+		);
+	}
 
 	return (
 		<div className="relative flex h-full w-full flex-col">
@@ -441,88 +477,69 @@ function TaskFilePage() {
 								{task.displayTitle}
 							</Text>
 						)}
-						<div className="hidden md:contents">
-							<TaskMetaControls
-								categoryId={task.categoryId ?? null}
-								priorityId={task.priorityId ?? null}
-								complexity={task.complexity}
+						<div className="flex shrink-0 items-center gap-1">
+							<TaskEditControls
 								editing={editing}
 								disabled={isMutating}
 								onToggleEdit={() => setEditing((value) => !value)}
-								onCategoryChange={(categoryId) =>
-									updateMutation.mutate({ id: task.id, categoryId })
-								}
-								onPriorityChange={(priorityId) =>
-									updateMutation.mutate({ id: task.id, priorityId })
-								}
-								onComplexityChange={(complexity) =>
-									updateMutation.mutate({ id: task.id, complexity })
-								}
 								onDelete={() => removeTaskMutation.mutate({ id: task.id })}
 							/>
-							<FlowRunButton taskId={taskId} />
-							<TaskAttachments taskId={taskId} attachments={task.attachments} />
-							<div className="h-5 w-px bg-border" aria-hidden="true" />
-							<DocToolbar {...docToolbarProps} />
-							{current ? (
-								<FileDatePopover
-									taskId={taskId}
-									file={current}
-									onChanged={() =>
-										queryClient.invalidateQueries(
-											orpc.tasks.getFull.queryOptions({ input: { id: taskId } }),
-										)
-									}
-								/>
-							) : null}
+							<Tooltip label="Visão geral da tarefa">
+								<Button
+									asChild
+									variant="ghost"
+									size="icon-sm"
+									className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+								>
+									<Link
+										to="/tarefas/$taskId"
+										params={{ taskId }}
+										aria-label="Visão geral da tarefa"
+									>
+										<LayoutList className="h-3.5 w-3.5" />
+									</Link>
+								</Button>
+							</Tooltip>
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => setActionsOpen(true)}
+								aria-label="Ações do documento"
+								className="h-8 w-8 md:hidden"
+							>
+								<MoreVertical className="h-4 w-4" />
+							</Button>
+							<Popover open={moreOpen} onOpenChange={setMoreOpen}>
+								<PopoverAnchor asChild>
+									<div className="inline-flex">
+										<Tooltip label="Ações do documento" disabled={moreOpen}>
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon-sm"
+												onClick={() => setMoreOpen((value) => !value)}
+												aria-label="Ações do documento"
+												className="hidden h-8 w-8 md:flex"
+											>
+												<MoreVertical className="h-4 w-4" />
+											</Button>
+										</Tooltip>
+									</div>
+								</PopoverAnchor>
+								<PopoverContent align="end" className="w-80 p-0">
+									<div className="flex flex-col py-2">
+										{renderActions(task, () => setMoreOpen(false))}
+									</div>
+								</PopoverContent>
+							</Popover>
 						</div>
-						<Button
-							type="button"
-							variant="ghost"
-							size="icon-sm"
-							onClick={() => setActionsOpen(true)}
-							aria-label="Ações do documento"
-							className="h-8 w-8 shrink-0 md:hidden"
-						>
-							<MoreVertical className="h-4 w-4" />
-						</Button>
 					</div>
 				</div>
 			)}
 
 			<DocMobileActionsDrawer open={actionsOpen} onClose={closeActions}>
-				<div className="pointer-events-auto px-1 pb-2">
-					<TaskMetaControls
-						layout="stacked"
-						categoryId={task.categoryId ?? null}
-						priorityId={task.priorityId ?? null}
-						complexity={task.complexity}
-						editing
-						disabled={isMutating}
-						className="pointer-events-auto"
-						onToggleEdit={() => setEditing((value) => !value)}
-						onCategoryChange={(categoryId) => updateMutation.mutate({ id: task.id, categoryId })}
-						onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
-						onComplexityChange={(complexity) => updateMutation.mutate({ id: task.id, complexity })}
-						onDelete={() => removeTaskMutation.mutate({ id: task.id })}
-					/>
-				</div>
-				<DocSheetDivider />
-				<FlowRunButton taskId={taskId} layout="stacked" onAction={closeActions} />
-				<DocToolbar {...docToolbarProps} layout="stacked" onAction={closeActions} />
-				{current ? (
-					<FileDatePopover
-						taskId={taskId}
-						file={current}
-						layout="stacked"
-						onAction={closeActions}
-						onChanged={() =>
-							queryClient.invalidateQueries(
-								orpc.tasks.getFull.queryOptions({ input: { id: taskId } }),
-							)
-						}
-					/>
-				) : null}
+				{renderActions(task, closeActions)}
 			</DocMobileActionsDrawer>
 
 			{/* Na leitura este wrapper vira overlay em tela cheia (cobre a navegação do app, header

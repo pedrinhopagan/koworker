@@ -9,6 +9,16 @@ import {
 } from "@/constants/invoke";
 import type { PromptTemplateSlug } from "@/constants/prompt-templates";
 import type { PromptEngine, PromptEngineEffort } from "@/api/schemas/prompt";
+import { imagePlaceholder } from "@/lib/build-prompt";
+
+// Imagem colada no textarea, já gravada em `.koworker/medias/` do projeto de origem. O `index` é a
+// identidade do marcador `[Imagem N]` no texto: nasce na cola, nunca é renumerado (apagar a 1 não
+// transforma a 2 em 1), e é por ele que a composição do prompt resolve o path.
+export interface PromptImage {
+	index: number;
+	projectId: string;
+	name: string;
+}
 
 // Referência leve do alvo de invocação escolhido: só kind+slug. O painel resolve o agent/skill
 // completo pelas listas em cache. Vive no store (não persistido) pra que o autofill possa pré-marcar
@@ -97,6 +107,8 @@ interface PromptBarState {
 	interactWithKw: boolean;
 	interactWithRoute: boolean;
 	interactWithInput: boolean;
+	// Imagens coladas/anexadas ao rascunho — persiste junto com o texto (os marcadores continuam lá).
+	images: PromptImage[];
 	// Alvo de invocação corrente (agent/skill), compartilhado entre o painel e o autofill. Não persiste.
 	selection: InvokeSelection | null;
 	// Motor/esforço do autofill de estrutura — preferência do usuário, persiste.
@@ -139,6 +151,13 @@ interface PromptBarState {
 	patchInvoke: (patch: Partial<Pick<InvokeConfig, "forceNew" | "background">>) => void;
 	patchClaudeSession: (patch: Partial<ClaudeSessionConfig>) => void;
 	patchCodexSession: (patch: Partial<CodexSessionConfig>) => void;
+	// Registra uma imagem já salva em medias/ e devolve o índice do marcador que a referencia.
+	addImage: (image: { projectId: string; name: string }) => number;
+	// Solta a imagem do rascunho (o arquivo fica em medias/) e apaga os marcadores dela do texto.
+	removeImage: (index: number) => void;
+	// Descarta imagens cujo marcador não está mais no texto — o texto é o dono da presença do token,
+	// então recortar/selecionar-apagar/editar o marcador tira a imagem junto. O arquivo fica em medias/.
+	reconcileImages: (text: string) => void;
 	clear: () => void;
 	// Insere `text` em nova linha no fim do rascunho e abre o footer (mention de título do .md).
 	appendMention: (text: string) => void;
@@ -146,7 +165,7 @@ interface PromptBarState {
 
 export const usePromptBarStore = create<PromptBarState>()(
 	persist(
-		(set) => ({
+		(set, get) => ({
 			text: "",
 			expanded: false,
 			cli: "claude",
@@ -159,6 +178,7 @@ export const usePromptBarStore = create<PromptBarState>()(
 			interactWithKw: true,
 			interactWithRoute: true,
 			interactWithInput: true,
+			images: [],
 			selection: null,
 			autofillEngine: "opus",
 			autofillEffort: "medium",
@@ -229,7 +249,27 @@ export const usePromptBarStore = create<PromptBarState>()(
 				set((state) => ({
 					invoke: { ...state.invoke, codex: { ...state.invoke.codex, ...patch } },
 				})),
-			clear: () => set({ text: "" }),
+			addImage: (image) => {
+				const index = get().images.reduce((max, entry) => Math.max(max, entry.index), 0) + 1;
+				set((state) => ({ images: [...state.images, { ...image, index }] }));
+				return index;
+			},
+
+			removeImage: (index) =>
+				set((state) => ({
+					images: state.images.filter((image) => image.index !== index),
+					text: state.text.replaceAll(imagePlaceholder(index), "").trim(),
+				})),
+
+			reconcileImages: (text) =>
+				set((state) => {
+					const kept = state.images.filter((image) => text.includes(imagePlaceholder(image.index)));
+					return kept.length === state.images.length ? state : { images: kept };
+				}),
+
+			// A borracha limpa o rascunho inteiro: texto e imagens anexadas caem juntos (os marcadores
+			// morariam no texto apagado). Os arquivos ficam em medias/ — remover mídia é ação da /media.
+			clear: () => set({ text: "", images: [] }),
 
 			appendMention: (mention) =>
 				set((state) => {
@@ -255,6 +295,7 @@ export const usePromptBarStore = create<PromptBarState>()(
 				interactWithKw: state.interactWithKw,
 				interactWithRoute: state.interactWithRoute,
 				interactWithInput: state.interactWithInput,
+				images: state.images,
 				autofillEngine: state.autofillEngine,
 				autofillEffort: state.autofillEffort,
 				// model/effort do claude não persistem: são semeados do alvo a cada invocação. Salvos
@@ -288,7 +329,8 @@ export const usePromptBarStore = create<PromptBarState>()(
 					invoke.codex.approvalMode = DEFAULT_INVOKE.codex.approvalMode;
 				}
 				const cli: InvokeCli = saved.cli === "codex" ? "codex" : "claude";
-				return { ...current, ...saved, cli, invoke };
+				const images = Array.isArray(saved.images) ? saved.images : [];
+				return { ...current, ...saved, cli, invoke, images };
 			},
 		},
 	),

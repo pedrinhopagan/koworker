@@ -41,8 +41,7 @@ routes/
 │   │   ├── index.tsx
 │   │   └── $fileName/index.tsx
 │   ├── mostruario/
-│   │   ├── index.tsx
-│   │   └── $taskFolder/$fileName/index.tsx
+│   │   └── index.tsx
 │   ├── tarefas/
 │   │   ├── index.tsx
 │   │   ├── $taskId/index.tsx   (só redirect → $file)
@@ -79,7 +78,6 @@ routes/
 - `/media`
 - `/media/$fileName`
 - `/mostruario`
-- `/mostruario/$taskFolder/$fileName`
 - `/sistema`
 - `/configuracoes`
 

@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import { orpc } from "@/client";
 import type { TaskComplexity } from "@/constants/complexity";
@@ -48,6 +49,9 @@ export function useTasksData(filters: TasksSearchFilters) {
 				q: searchQuery && searchQuery.length > 0 ? searchQuery : undefined,
 			},
 		}),
+		// Cada tecla da busca muda a queryKey; sem isso a lista inteira desmonta pro "Carregando"
+		// e remonta a cada caractere digitado.
+		placeholderData: keepPreviousData,
 	});
 
 	const metricsQuery = useQuery(
@@ -57,19 +61,28 @@ export function useTasksData(filters: TasksSearchFilters) {
 	const categories = categoriesQuery.data ?? [];
 	const priorities = prioritiesQuery.data ?? [];
 	const groups = groupsQuery.data ?? [];
-	const rawTasks = tasksQuery.data ?? [];
 
-	const categoryMap = new Map(categories.map((category) => [category.id, category]));
-	const priorityMap = new Map(priorities.map((priority) => [priority.id, priority]));
+	// Memoizado com objetos novos (sem Object.assign no cache do react-query): mantém a referência
+	// de cada task estável entre renders, o que deixa o memo do TaskItem funcionar — sem isso, todo
+	// evento de tasks re-renderizava as dezenas de linhas da lista inteira.
+	const tasksWithMeta: TaskWithMeta[] = useMemo(() => {
+		const rawTasks = tasksQuery.data ?? [];
+		const categoryMap = new Map(categories.map((category) => [category.id, category]));
+		const priorityMap = new Map(priorities.map((priority) => [priority.id, priority]));
 
-	const tasksWithMeta: TaskWithMeta[] = rawTasks.map((task) => {
-		const category = task.categoryId ? categoryMap.get(task.categoryId) : undefined;
-		const priority = task.priorityId ? priorityMap.get(task.priorityId) : undefined;
-		return Object.assign(task, {
-			category: category ? { id: category.id, name: category.name, color: category.color } : null,
-			priority: priority ? { id: priority.id, name: priority.name, color: priority.color } : null,
+		// Mutar in-place (como a regra sugere) escreveria no cache do react-query; o spread garante
+		// objetos novos com referência estável só quando os dados mudam.
+		// oxlint-disable-next-line no-map-spread
+		return rawTasks.map((task) => {
+			const category = task.categoryId ? categoryMap.get(task.categoryId) : undefined;
+			const priority = task.priorityId ? priorityMap.get(task.priorityId) : undefined;
+			return {
+				...task,
+				category: category ? { id: category.id, name: category.name, color: category.color } : null,
+				priority: priority ? { id: priority.id, name: priority.name, color: priority.color } : null,
+			};
 		});
-	});
+	}, [tasksQuery.data, categories, priorities]);
 
 	const pendingCount = metricsQuery.data?.pending ?? 0;
 	const executedCount = metricsQuery.data?.done ?? 0;

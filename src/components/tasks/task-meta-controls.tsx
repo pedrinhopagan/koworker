@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, PencilLine } from "lucide-react";
+import { ChevronDown, Flag, Gauge, type LucideIcon, PencilLine, Tag } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { orpc } from "@/client";
@@ -22,12 +22,13 @@ export const TASK_SELECT_CONTENT_SELECTOR = "[data-slot='custom-select-content']
 type ColoredItem = { id: string; name: string; color: string };
 
 // Selo de cor + nome. Editável (CustomSelect com borda e chevron) quando `interactive`;
-// caso contrário um texto estático, sem moldura de select, que deixa o clique atravessar
-// para o link/area da task.
+// caso contrário um ícone colorido compacto com tooltip do nome, sem moldura de select nem
+// largura fixa, que deixa o clique atravessar para o link/area da task.
 function MetaSelect({
 	items,
 	value,
 	placeholder,
+	icon: Icon,
 	interactive,
 	layout = "inline",
 	onValueChange,
@@ -35,6 +36,7 @@ function MetaSelect({
 	items: ColoredItem[];
 	value: string;
 	placeholder: string;
+	icon: LucideIcon;
 	interactive: boolean;
 	layout?: "inline" | "stacked";
 	onValueChange: (value: string) => void;
@@ -44,18 +46,14 @@ function MetaSelect({
 
 	if (!interactive) {
 		return (
-			<div
-				className={cn(
-					"pointer-events-none flex shrink-0 items-center gap-1.5 px-2 text-muted-foreground",
-					widthClass,
-				)}
-			>
+			<Tooltip label={selected?.name ?? placeholder}>
 				<span
-					className="size-2 shrink-0 rounded-full"
-					style={{ backgroundColor: selected?.color ?? "#6b7280" }}
-				/>
-				<span className="truncate text-xs">{selected?.name ?? placeholder}</span>
-			</div>
+					className="pointer-events-auto inline-flex shrink-0 items-center"
+					aria-label={selected?.name ?? placeholder}
+				>
+					<Icon className="size-4 shrink-0" style={{ color: selected?.color ?? "#6b7280" }} />
+				</span>
+			</Tooltip>
 		);
 	}
 
@@ -143,15 +141,116 @@ export function TaskTitleInput({
 	);
 }
 
-// Cluster da direita compartilhado entre o item da lista e o header da rota dedicada:
-// selects de categoria/prioridade (clicáveis só em edição), lápis (toggle do modo) e
-// excluir. Apresentacional: o parent é dono das mutations e do que fazer ao excluir.
 const COMPLEXITY_ITEMS: ColoredItem[] = TASK_COMPLEXITIES.map((c) => ({
 	id: c,
 	name: COMPLEXITY_LABELS[c],
 	color: COMPLEXITY_COLORS[c],
 }));
 
+// Os três selects de meta (complexidade/categoria/prioridade) com as queries de categorias e
+// prioridades. Sem wrapper próprio: o caller posiciona (linha do header, coluna do drawer). Só é
+// editável quando `interactive` — fora disso, ícones coloridos compactos que deixam o clique passar.
+export function TaskMetaSelects({
+	categoryId,
+	priorityId,
+	complexity,
+	interactive,
+	layout = "inline",
+	onCategoryChange,
+	onPriorityChange,
+	onComplexityChange,
+}: {
+	categoryId: string | null;
+	priorityId: string | null;
+	complexity: TaskComplexity;
+	interactive: boolean;
+	layout?: "inline" | "stacked";
+	onCategoryChange: (categoryId: string) => void;
+	onPriorityChange: (priorityId: string) => void;
+	onComplexityChange: (complexity: TaskComplexity) => void;
+}) {
+	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
+	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
+
+	return (
+		<>
+			<MetaSelect
+				items={COMPLEXITY_ITEMS}
+				value={complexity}
+				placeholder="Complexidade"
+				icon={Gauge}
+				interactive={interactive}
+				layout={layout}
+				onValueChange={(value) => onComplexityChange(value as TaskComplexity)}
+			/>
+			<MetaSelect
+				items={categoriesQuery.data ?? []}
+				value={categoryId ?? ""}
+				placeholder="Categoria"
+				icon={Tag}
+				interactive={interactive}
+				layout={layout}
+				onValueChange={onCategoryChange}
+			/>
+			<MetaSelect
+				items={prioritiesQuery.data ?? []}
+				value={priorityId ?? ""}
+				placeholder="Prioridade"
+				icon={Flag}
+				interactive={interactive}
+				layout={layout}
+				onValueChange={onPriorityChange}
+			/>
+		</>
+	);
+}
+
+// Lápis (toggle do modo edição) + excluir. Apresentacional: o parent é dono das mutations e do que
+// fazer ao excluir. Sem wrapper próprio, para o caller alinhar na sua barra.
+export function TaskEditControls({
+	editing,
+	disabled,
+	onToggleEdit,
+	onDelete,
+}: {
+	editing: boolean;
+	disabled: boolean;
+	onToggleEdit: () => void;
+	onDelete: () => void;
+}) {
+	return (
+		<>
+			<Tooltip label={editing ? "Concluir edição" : "Editar tarefa"}>
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon-sm"
+					onClick={onToggleEdit}
+					disabled={disabled}
+					aria-label={editing ? "Concluir edição" : "Editar tarefa"}
+					aria-pressed={editing}
+					className={cn(
+						"pointer-events-auto h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground",
+						editing && "text-foreground",
+					)}
+				>
+					<PencilLine className="h-3 w-3" />
+				</Button>
+			</Tooltip>
+			<DeleteConfirmButton
+				className="pointer-events-auto"
+				onDelete={onDelete}
+				disabled={disabled}
+				sizeVariant="xs"
+				title="Excluir tarefa"
+				confirmTitle="Clique de novo para excluir"
+			/>
+		</>
+	);
+}
+
+// Cluster da direita compartilhado entre o item da lista e o drawer mobile: selects de meta
+// (clicáveis só em edição) + lápis/excluir (só inline). O parent é dono das mutations.
 export function TaskMetaControls({
 	categoryId,
 	priorityId,
@@ -179,8 +278,6 @@ export function TaskMetaControls({
 	onComplexityChange: (complexity: TaskComplexity) => void;
 	onDelete: () => void;
 }) {
-	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
-	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 	const stacked = layout === "stacked";
 
 	return (
@@ -191,58 +288,23 @@ export function TaskMetaControls({
 				className,
 			)}
 		>
-			<MetaSelect
-				items={COMPLEXITY_ITEMS}
-				value={complexity}
-				placeholder="Complexidade"
+			<TaskMetaSelects
+				categoryId={categoryId}
+				priorityId={priorityId}
+				complexity={complexity}
 				interactive={editing}
 				layout={layout}
-				onValueChange={(value) => onComplexityChange(value as TaskComplexity)}
-			/>
-			<MetaSelect
-				items={categoriesQuery.data ?? []}
-				value={categoryId ?? ""}
-				placeholder="Categoria"
-				interactive={editing}
-				layout={layout}
-				onValueChange={onCategoryChange}
-			/>
-			<MetaSelect
-				items={prioritiesQuery.data ?? []}
-				value={priorityId ?? ""}
-				placeholder="Prioridade"
-				interactive={editing}
-				layout={layout}
-				onValueChange={onPriorityChange}
+				onCategoryChange={onCategoryChange}
+				onPriorityChange={onPriorityChange}
+				onComplexityChange={onComplexityChange}
 			/>
 			{!stacked && (
-				<>
-					<Tooltip label={editing ? "Concluir edição" : "Editar tarefa"}>
-						<Button
-							type="button"
-							variant="ghost"
-							size="icon-sm"
-							onClick={onToggleEdit}
-							disabled={disabled}
-							aria-label={editing ? "Concluir edição" : "Editar tarefa"}
-							aria-pressed={editing}
-							className={cn(
-								"pointer-events-auto h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground",
-								editing && "text-foreground",
-							)}
-						>
-							<PencilLine className="h-3 w-3" />
-						</Button>
-					</Tooltip>
-					<DeleteConfirmButton
-						className="pointer-events-auto"
-						onDelete={onDelete}
-						disabled={disabled}
-						sizeVariant="xs"
-						title="Excluir tarefa"
-						confirmTitle="Clique de novo para excluir"
-					/>
-				</>
+				<TaskEditControls
+					editing={editing}
+					disabled={disabled}
+					onToggleEdit={onToggleEdit}
+					onDelete={onDelete}
+				/>
 			)}
 		</div>
 	);

@@ -1,39 +1,25 @@
 import { ArrowLeft, ExternalLink, Loader2, Pencil, Trash2 } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tooltip } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { useObjectUrl } from "@/hooks/use-object-url";
 
 type AssetViewerProps = {
 	blob: Blob | undefined;
 	name: string;
 	isLoading: boolean;
 	isError: boolean;
-	// Fallback pra quando o webview não renderiza o formato inline (ex.: WebKitGTK antigo com PDF):
-	// abre o arquivo no app padrão do SO.
+	// Fallback pra quando o webview não renderiza a imagem inline: abre o arquivo no app padrão do SO.
 	onOpenInOs?: () => void;
 };
 
-// Renderiza um asset (imagem, HTML autocontido ou PDF) a partir de um Blob, via object URL revogado
-// no unmount/troca. Imagem vai em <img> contido e centrado sobre xadrez. HTML de artefato roda em
-// iframe com `sandbox="allow-scripts"` SEM allow-same-origin: origem opaca, o deck navega seus
-// slides mas não alcança DOM/cookies do app. PDF vai sem sandbox, pro viewer nativo do browser.
+// Renderiza uma imagem a partir de um Blob, via object URL revogado no unmount/troca. Vai em <img>
+// contido e centrado sobre xadrez.
 export function AssetViewer({ blob, name, isLoading, isError, onOpenInOs }: AssetViewerProps) {
-	const [url, setUrl] = useState<string | null>(null);
-
-	useEffect(() => {
-		if (!blob) {
-			setUrl(null);
-			return;
-		}
-
-		const objectUrl = URL.createObjectURL(blob);
-		setUrl(objectUrl);
-		return () => URL.revokeObjectURL(objectUrl);
-	}, [blob]);
+	const url = useObjectUrl(blob);
 
 	if (isLoading) {
 		return (
@@ -64,23 +50,10 @@ export function AssetViewer({ blob, name, isLoading, isError, onOpenInOs }: Asse
 		);
 	}
 
-	if (blob.type.startsWith("image/")) {
-		return (
-			<div className="flex h-full w-full items-center justify-center overflow-auto bg-muted/40 p-4">
-				<img src={url} alt={name} className="max-h-full max-w-full object-contain" />
-			</div>
-		);
-	}
-
-	const isPdf = blob.type === "application/pdf";
-
 	return (
-		<iframe
-			src={url}
-			title={name}
-			className={cn("h-full w-full border-0", isPdf ? "bg-muted" : "bg-white")}
-			sandbox={isPdf ? undefined : "allow-scripts allow-popups"}
-		/>
+		<div className="flex h-full w-full items-center justify-center overflow-auto bg-muted/40 p-4">
+			<img src={url} alt={name} className="max-h-full max-w-full object-contain" />
+		</div>
 	);
 }
 
@@ -96,12 +69,10 @@ type AssetViewerPageProps = {
 	onRename?: (newName: string) => void;
 	onDelete?: () => void;
 	deleting?: boolean;
-	// Conteúdo extra no header, ex.: link de volta pra tarefa de origem no mostruário.
-	headerExtra?: ReactNode;
 };
 
-// Página completa de visualização de um asset: header (voltar, nome/renomear, ações) + o iframe.
-// Compartilhada por /media e /mostruario — cada rota injeta a query e as mutations.
+// Página completa de visualização de uma imagem: header (voltar, nome/renomear, ações) + a imagem.
+// Usada por /media — a rota injeta a query e as mutations.
 export function AssetViewerPage({
 	name,
 	blob,
@@ -112,7 +83,6 @@ export function AssetViewerPage({
 	onRename,
 	onDelete,
 	deleting,
-	headerExtra,
 }: AssetViewerPageProps) {
 	const [renameValue, setRenameValue] = useState<string | null>(null);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -159,8 +129,6 @@ export function AssetViewerPage({
 							className="min-w-0 flex-1 bg-transparent px-1 text-sm outline-none"
 						/>
 					)}
-
-					{headerExtra}
 
 					<div className="flex items-center gap-1">
 						{onRename ? (

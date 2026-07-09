@@ -8,6 +8,7 @@ import { agentsRouter } from "./routers/agents";
 import { categoriesRouter } from "./routers/categories";
 import { eventsRouter } from "./routers/events";
 import { flowRouter } from "./routers/flow";
+import { kwTerminalRouter } from "./routers/kw-terminal";
 import { mediaRouter } from "./routers/media";
 import { mostruarioRouter } from "./routers/mostruario";
 import { prioritiesRouter } from "./routers/priorities";
@@ -52,6 +53,7 @@ export const router = {
 	prompt: promptRouter,
 	promptHistory: promptHistoryRouter,
 	terminal: terminalRouter,
+	kwTerminal: kwTerminalRouter,
 	vault: vaultRouter,
 	media: mediaRouter,
 	mostruario: mostruarioRouter,

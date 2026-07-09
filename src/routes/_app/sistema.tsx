@@ -161,8 +161,9 @@ function SistemaPage() {
 								</SelectContent>
 							</Select>
 							<Text size="xs" tone="muted">
-								tmux mantém as sessões vivas entre reinícios; nenhum abre uma janela nova a cada
-								invocação.
+								tmux mantém as sessões vivas entre reinícios; kw-terminal usa workspaces
+								persistentes do cliente kw-terminal (sem abrir emulador); nenhum abre uma janela
+								nova a cada invocação.
 							</Text>
 						</section>
 

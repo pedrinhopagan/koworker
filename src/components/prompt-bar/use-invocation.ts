@@ -48,6 +48,7 @@ export function useInvocation(params: {
 	const cli = usePromptBarStore((s) => s.cli);
 	const structureTemplate = usePromptBarStore((s) => s.structureTemplate);
 	const structureValues = usePromptBarStore((s) => s.structureValues);
+	const images = usePromptBarStore((s) => s.images);
 	const interactWithKw = usePromptBarStore((s) => s.interactWithKw);
 	const interactWithRoute = usePromptBarStore((s) => s.interactWithRoute);
 	const interactWithInput = usePromptBarStore((s) => s.interactWithInput);
@@ -100,7 +101,7 @@ export function useInvocation(params: {
 	// O corpo compõe a estrutura (template ativo do painel de anexos) antes do texto livre — o mesmo
 	// que o "Copiar prompt" produz.
 	const effectiveText = interactWithInput
-		? buildPromptBody({ templateSlug: structureTemplate, values: structureValues, text })
+		? buildPromptBody({ templateSlug: structureTemplate, values: structureValues, text, images })
 		: "";
 
 	// Escolher um alvo fixa a seleção e puxa o model/effort padrão dele pros selects da sessão claude —

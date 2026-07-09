@@ -7,8 +7,8 @@ import {
 	windowNameForTask,
 } from "./names";
 
-// Paridade com os nomes que o Rust do terminal gerava: sessões tmux criadas por versões anteriores
-// precisam continuar sendo encontradas pelo mesmo nome após o restart.
+// Labels estáveis entre reinícios: sessões criadas por versões anteriores precisam continuar
+// sendo encontradas pelo mesmo nome após restart do backend.
 test("sessionNameForProject: primeira palavra, minúscula, prefixo kw_", () => {
 	expect(sessionNameForProject("My Project")).toBe("kw_my");
 	expect(sessionNameForProject("koworker-app extra")).toBe("kw_koworker-app");

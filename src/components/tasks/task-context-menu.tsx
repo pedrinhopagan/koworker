@@ -8,6 +8,7 @@ import {
 	FolderOpen,
 	FolderSymlink,
 	LayoutGrid,
+	Link as LinkIcon,
 	Pencil,
 	Share2,
 	SquareArrowOutUpRight,
@@ -44,6 +45,7 @@ export type TaskMenuTarget = {
 	id: string;
 	label: string;
 	done: boolean;
+	folderPath?: string;
 	priorityId?: string | null;
 	categoryId?: string | null;
 };
@@ -51,6 +53,7 @@ export type TaskMenuTarget = {
 // Actions presentational: o caller liga cada uma na mutation/navegação certa. Recebem o target
 // pra resolver id/projeto sem o menu carregar contexto.
 export type TaskMenuActions = {
+	onCopyPath?: (target: TaskMenuTarget) => void;
 	onOpen: (target: TaskMenuTarget) => void;
 	onShareContent: (target: TaskMenuTarget) => void;
 	onShareZip: (target: TaskMenuTarget) => void;
@@ -114,8 +117,8 @@ function PickSub({
 	);
 }
 
-// Itens do menu de uma tarefa: abrir, compartilhar, renomear, prioridade/categoria, concluir,
-// migrar de projeto e excluir. Puro — o wrapper (ou o vault) decide onde renderiza.
+// Itens do menu de uma tarefa: copiar caminho, abrir, compartilhar, renomear, prioridade/categoria,
+// concluir, migrar de projeto e excluir. Puro — o wrapper (ou o vault) decide onde renderiza.
 export function taskMenuItems(
 	target: TaskMenuTarget,
 	data: TaskMenuData,
@@ -123,6 +126,12 @@ export function taskMenuItems(
 ): ReactNode {
 	return (
 		<>
+			{target.folderPath && actions.onCopyPath ? (
+				<ContextMenuItem onSelect={() => actions.onCopyPath?.(target)} className="px-3 py-2">
+					<LinkIcon className="mr-2 size-4" />
+					Copiar caminho para a tarefa
+				</ContextMenuItem>
+			) : null}
 			<ContextMenuItem onSelect={() => actions.onOpen(target)} className="px-3 py-2">
 				<SquareArrowOutUpRight className="mr-2 size-4" />
 				Abrir tarefa

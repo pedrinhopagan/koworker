@@ -1,6 +1,7 @@
 // Foco de janela: best-effort. Traz o terminal do projeto (título "<projeto> - Kowork") pra frente
 // via xdotool (X11) ou kdotool (Wayland). Qualquer falha — sem display gráfico, binário ausente,
-// emulador que não é o Alacritty — é ignorada: o terminal só não ganha foco, não quebra a abertura.
+// emulador que não casa a classe — é ignorada: o terminal só não ganha foco, não quebra a abertura.
+// `windowClass` é genérico (default Alacritty, o preset do modo tmux); outros modos passam a sua.
 
 async function toolOutput(cmd: string[]): Promise<string> {
 	try {
@@ -25,15 +26,18 @@ function toLines(output: string): string[] {
 		.filter((line) => line.length > 0);
 }
 
-export async function focusTerminalWindow(projectName: string): Promise<void> {
+export async function focusTerminalWindow(
+	projectName: string,
+	windowClass = "Alacritty",
+): Promise<void> {
 	const title = `${projectName} - Kowork`;
 	const wayland = isWayland();
 	const tool = wayland ? "kdotool" : "xdotool";
 
-	// Interseção: a janela que casa o título do projeto E é da classe Alacritty (o foco só faz sentido
-	// pro preset padrão; outros emuladores simplesmente não focam).
+	// Interseção: a janela que casa o título do projeto E é da classe informada (o foco só faz sentido
+	// pro emulador do preset; outros emuladores simplesmente não focam).
 	const titleIds = new Set(toLines(await toolOutput([tool, "search", "--name", title])));
-	const classIds = toLines(await toolOutput([tool, "search", "--class", "Alacritty"]));
+	const classIds = toLines(await toolOutput([tool, "search", "--class", windowClass]));
 	const match = classIds.find((id) => titleIds.has(id));
 	if (!match) {
 		return;

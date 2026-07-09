@@ -6,12 +6,9 @@ export {
 	MediaListSchema,
 	MediaReadFileSchema,
 	MediaRenameSchema,
-	MostruarioDeleteSchema,
+	MediaUploadSchema,
 	MostruarioListSchema,
-	MostruarioMoveFromTaskSchema,
-	MostruarioReadFileSchema,
-	MostruarioRenameSchema,
-	TaskReadArtifactSchema,
+	TaskOpenArtifactSchema,
 } from "./assets";
 export {
 	EventCreateSchema,

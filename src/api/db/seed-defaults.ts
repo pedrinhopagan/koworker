@@ -5,9 +5,22 @@ import { DEFAULT_CATEGORIES } from "@/constants/categories";
 import { defaultSystemSettings, setSystemSettings } from "../helpers/system-settings";
 import { dbAgentSourcePaths } from "./agent-source-paths";
 import { dbCategories } from "./categories";
+import { db } from "./connection";
 import { normalizeEntityName } from "./entity-name";
 import { dbSettings } from "./settings";
 import { dbSkillSourcePaths } from "./skill-source-paths";
+
+// O multiplexador de terminal `herdr` foi renomeado para `kw-terminal` (o binário externo mudou de
+// nome). Bancos existentes ainda podem ter o valor antigo gravado em `terminal_multiplexer`. UPDATE
+// único no boot; naturalmente idempotente — sem linha "herdr", roda como no-op.
+export async function migrateTerminalMultiplexerRename() {
+	await db
+		.updateTable("settings")
+		.set({ value: "kw-terminal", updated_at: Date.now() })
+		.where("key", "=", "terminal_multiplexer")
+		.where("value", "=", "herdr")
+		.execute();
+}
 
 // Marca que os defaults de SO já foram semeados. Sem isso, semear a cada boot recriaria roots que o
 // usuário removeu de propósito.

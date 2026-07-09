@@ -42,7 +42,11 @@ const iconButton = tv({
 export function TabBar() {
 	const location = useLocation();
 	const navigate = useNavigate();
-	const routerState = useRouterState();
+	// Selector em vez do estado inteiro do router: sem ele, a TabBar re-renderizava em toda
+	// transição interna (pending/loading) de qualquer navegação.
+	const currentRoutePath = useRouterState({
+		select: (state) => state.matches.at(-1)?.fullPath ?? "/",
+	});
 	const currentPath = location.pathname;
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
 	const openActionDialog = useNavActionDialogsStore((s) => s.open);
@@ -73,8 +77,6 @@ export function TabBar() {
 	const handleMouseDown = useCallback((e: React.MouseEvent) => {
 		startWindowDrag(e);
 	}, []);
-
-	const currentRoutePath = routerState.matches.at(-1)?.fullPath ?? "/";
 
 	async function handleCopyRoutePath() {
 		const ok = await copyToClipboard(currentRoutePath);

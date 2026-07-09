@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { type TaskComplexity } from "@/constants/complexity";
 import { protectedProcedure } from "../auth/context";
 import { dbCategories } from "../db/categories";
@@ -5,7 +7,8 @@ import type { tasks } from "../db/connection";
 import { dbPriorities } from "../db/priorities";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
-import { listTaskArtifacts, readTaskArtifact } from "../helpers/koworker-assets";
+import { listTaskAttachments } from "../helpers/koworker-assets";
+import { openInFileManager } from "../helpers/os-actions";
 import {
 	buildFolderPath,
 	createTaskFolder,
@@ -33,7 +36,7 @@ import {
 	TaskListByProjectSchema,
 	TaskMetricsSchema,
 	TaskMoveToProjectSchema,
-	TaskReadArtifactSchema,
+	TaskOpenArtifactSchema,
 	TaskRenameFileSchema,
 	TaskReorderFilesSchema,
 	TaskReorderSchema,
@@ -46,7 +49,7 @@ import {
 const mapTask = (
 	row: tasks,
 	display: { title: string; fromContent: boolean },
-	meta: { fileNames?: string[]; lastEditedAt?: number } = {},
+	meta: { fileNames?: string[]; artifactNames?: string[]; lastEditedAt?: number } = {},
 ) => ({
 	id: row.id,
 	projectId: row.project_id,
@@ -72,6 +75,7 @@ const mapTask = (
 	// cai no created_at (não no updated_at: mexer em metadados não é "editar o arquivo").
 	lastEditedAt: meta.lastEditedAt ?? row.created_at,
 	fileNames: meta.fileNames ?? [],
+	artifactNames: meta.artifactNames ?? [],
 });
 
 // Resolve o displayTitle e os nomes dos .md de uma única row.
@@ -98,7 +102,7 @@ async function mapTaskWithDisplay(row: tasks) {
 
 // Resolve o displayTitle de várias rows de uma vez: carrega os projetos das tasks sem título
 // uma vez e lê o 1º .md de cada. Rows com título não tocam o disco.
-async function mapTasks(rows: tasks[]) {
+export async function mapTasks(rows: tasks[]) {
 	const projectIds = [...new Set(rows.map((row) => row.project_id))];
 	const projects = new Map(
 		(await Promise.all(projectIds.map((id) => dbProjects.getById(id))))
@@ -222,13 +226,13 @@ export const tasksRouter = {
 			dbProjects.getById(row.project_id),
 		]);
 
-		const { files, primaryFile } = project
+		const { files } = project
 			? await readTaskFiles({
 					projectRoute: project.main_route,
 					folderPath: row.folder_path,
 					order: parseTaskFileOrder(row.file_order),
 				})
-			: { files: [], primaryFile: null };
+			: { files: [] };
 
 		const display = resolveDisplayTitle({
 			title: row.title ?? undefined,
@@ -236,14 +240,13 @@ export const tasksRouter = {
 		});
 
 		const fileNames = files.map((file) => file.name);
-		const base = mapTask(row, display, { fileNames });
-
-		// Artefatos não-texto (.html/.pdf) soltos na pasta da tarefa — invisíveis nas abas de `.md`.
-		// Campo à parte de `files`/`fileNames` de propósito: alargá-los corromperia inferTaskStage e a
-		// ordem das abas, ambos contratados em `.md`. A página da tarefa os mostra pra visualizar/mover.
 		const attachments = project
-			? await listTaskArtifacts({ projectRoute: project.main_route, folderPath: row.folder_path })
+			? await listTaskAttachments({ projectRoute: project.main_route, folderPath: row.folder_path })
 			: [];
+		const base = mapTask(row, display, {
+			fileNames,
+			artifactNames: attachments.map((attachment) => attachment.name),
+		});
 
 		return {
 			...base,
@@ -252,7 +255,6 @@ export const tasksRouter = {
 			nextStage: inferTaskStage({ fileNames, complexity: base.complexity }),
 			files,
 			attachments,
-			primaryFile,
 			category: category
 				? {
 						id: category.id,
@@ -275,23 +277,26 @@ export const tasksRouter = {
 		};
 	}),
 
-	// Bytes de um artefato (.html/.pdf) ainda dentro da pasta da tarefa — pra visualizar antes de
-	// mover pro mostruário. Devolve File (Blob no front), como media/mostruario readFile.
-	readArtifact: protectedProcedure.input(TaskReadArtifactSchema).handler(async ({ input }) => {
+	// Abre um anexo da pasta da tarefa no app padrão do SO. O path absoluto nasce e morre aqui; o
+	// front só manda id + nome. Valida que o nome está entre os anexos detectados.
+	openArtifact: protectedProcedure.input(TaskOpenArtifactSchema).handler(async ({ input }) => {
 		const row = await dbTasks.getById(input.id);
 		if (!row) throw new Error("Tarefa não encontrada");
 
 		const project = await dbProjects.getById(row.project_id);
 		if (!project) throw new Error("Projeto não encontrado");
 
-		const file = await readTaskArtifact({
+		const attachments = await listTaskAttachments({
 			projectRoute: project.main_route,
 			folderPath: row.folder_path,
-			name: input.name,
 		});
-		if (!file) throw new Error("Arquivo não encontrado");
+		if (!attachments.some((attachment) => attachment.name === input.name)) {
+			throw new Error("Arquivo não encontrado");
+		}
 
-		return file;
+		openInFileManager(join(project.main_route, row.folder_path, input.name));
+
+		return { ok: true };
 	}),
 
 	create: protectedProcedure.input(TaskCreateSchema).handler(async ({ input }) => {
@@ -467,6 +472,12 @@ export const tasksRouter = {
 
 		const project = await dbProjects.getById(row.project_id);
 		if (!project) throw new Error("Projeto não encontrado");
+
+		// Renomear não muda o tipo do arquivo: a extensão de newName tem de casar com a de oldName.
+		const extOf = (name: string) => name.slice(name.lastIndexOf(".")).toLowerCase();
+		if (extOf(input.oldName) !== extOf(input.newName)) {
+			throw new Error("O novo nome deve manter a mesma extensão do arquivo");
+		}
 
 		await renameTaskFile({
 			projectRoute: project.main_route,

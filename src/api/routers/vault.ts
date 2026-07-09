@@ -356,8 +356,8 @@ async function readProjectVault(project: { id: string; main_route: string }): Pr
 }> {
 	const route = project.main_route;
 	const tasks = await dbTasks.listByProject({ projectId: project.id });
-	// Pastas de task + as pastas reservadas (medias/mostruario) ficam de fora das "pastas soltas":
-	// medias/mostruario têm dono próprio e não podem ser adotadas como tarefa por engano.
+	// Pastas de task + as pastas reservadas (medias) ficam de fora das "pastas soltas":
+	// medias tem dono próprio e não pode ser adotada como tarefa por engano.
 	const knownFolderNames = new Set([
 		...tasks.map((task) => basename(task.folder_path)),
 		...RESERVED_KOWORKER_FOLDERS,

@@ -1,6 +1,5 @@
-// Nomes de sessão/window espelham 1:1 o que o Rust do terminal gerava, pra que sessões tmux criadas
-// por versões anteriores (ou por outra execução do backend) sobrevivam ao restart e continuem sendo
-// encontradas pelo mesmo nome.
+// Labels estáveis entre reinícios: sessões criadas por versões anteriores (ou por outra execução
+// do backend) sobrevivem ao restart e continuam sendo encontradas pelo mesmo nome.
 
 // Alfanumérico Unicode, como o `char::is_alphanumeric` do Rust (letras + números de qualquer script).
 const WORD_CHAR = /[\p{L}\p{N}]/u;

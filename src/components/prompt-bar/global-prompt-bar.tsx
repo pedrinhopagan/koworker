@@ -1,4 +1,4 @@
-import { ChevronRight, ChevronUp, Copy, Eraser, MessageSquarePlus } from "lucide-react";
+import { ChevronRight, ChevronUp, Copy, Eraser, Loader2, MessageSquarePlus } from "lucide-react";
 import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -7,6 +7,11 @@ import { AttachmentsPanel } from "@/components/prompt-bar/attachments-panel";
 import { ExecutePanel } from "@/components/prompt-bar/execute-panel";
 import { GroupLabel, ToggleBox } from "@/components/prompt-bar/controls";
 import { InvokePanel } from "@/components/prompt-bar/invoke-panel";
+import {
+	PromptImageChips,
+	PromptInputBackdrop,
+	usePromptImagePaste,
+} from "@/components/prompt-bar/prompt-images";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useSkillsQuery } from "@/hooks/use-skills";
@@ -16,6 +21,7 @@ import {
 	buildPromptBody,
 	convertSkillCallsForCli,
 	copyToClipboard,
+	imagePlaceholder,
 } from "@/lib/build-prompt";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { recordPromptHistory } from "@/lib/prompt-history";
@@ -71,10 +77,12 @@ export function GlobalPromptBar() {
 	const structureOpen = usePromptBarStore((s) => s.structureOpen);
 	const structureTemplate = usePromptBarStore((s) => s.structureTemplate);
 	const structureValues = usePromptBarStore((s) => s.structureValues);
+	const images = usePromptBarStore((s) => s.images);
 	const interactWithKw = usePromptBarStore((s) => s.interactWithKw);
 	const interactWithRoute = usePromptBarStore((s) => s.interactWithRoute);
 	const interactWithInput = usePromptBarStore((s) => s.interactWithInput);
 	const setText = usePromptBarStore((s) => s.setText);
+	const reconcileImages = usePromptBarStore((s) => s.reconcileImages);
 	const setExpanded = usePromptBarStore((s) => s.setExpanded);
 	const toggleExpanded = usePromptBarStore((s) => s.toggleExpanded);
 	const toggleInvokeOpen = usePromptBarStore((s) => s.toggleInvokeOpen);
@@ -95,19 +103,32 @@ export function GlobalPromptBar() {
 	const lastPathname = useRef(pathname);
 
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const backdropRef = useRef<HTMLDivElement>(null);
 	const rootRef = useRef<HTMLDivElement>(null);
 
+	const { handlePaste, uploading } = usePromptImagePaste({
+		projectName: routeTarget.projectName,
+		textareaRef,
+	});
+
 	// O footer se mede e publica --prompt-bar-h no :root: na leitura ele é fixo e o conteúdo precisa
-	// desse respiro inferior pra não ficar escondido atrás do drawer. ResizeObserver acompanha o textarea crescendo.
+	// desse respiro inferior pra não ficar escondido atrás do drawer. ResizeObserver acompanha o
+	// textarea crescendo. Só observa em modo leitura (único consumidor da variável): fora dele, cada
+	// frame da animação de abrir/fechar escreveria no :root e forçaria recálculo de estilo da página
+	// inteira — era isso que deixava o abrir/fechar do prompt lento nas rotas pesadas.
 	useEffect(() => {
+		if (!reading) return;
 		const node = rootRef.current;
 		if (!node) return;
 		const observer = new ResizeObserver(([entry]) => {
 			document.documentElement.style.setProperty("--prompt-bar-h", `${entry.contentRect.height}px`);
 		});
 		observer.observe(node);
-		return () => observer.disconnect();
-	}, []);
+		return () => {
+			observer.disconnect();
+			document.documentElement.style.removeProperty("--prompt-bar-h");
+		};
+	}, [reading]);
 
 	const [trigger, setTrigger] = useState<SlashTrigger | null>(null);
 	const [activeIndex, setActiveIndex] = useState(0);
@@ -161,7 +182,42 @@ export function GlobalPromptBar() {
 	function handleChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
 		const next = event.target.value;
 		setText(next);
+		// Recortar, selecionar-e-apagar ou editar um marcador é o texto perdendo o token: a imagem cai
+		// junto (o Backspace/Delete de um token inteiro é tratado antes, no keydown, sem passar por aqui).
+		reconcileImages(next);
 		syncTrigger(next, event.target.selectionStart);
+	}
+
+	// Um `[Imagem N]` encostado no caret sai como uma unidade: um Backspace (token antes) ou Delete
+	// (token depois) apaga o marcador inteiro e solta a imagem — nada de comer caractere por caractere.
+	function deleteAdjacentImageToken(event: React.KeyboardEvent<HTMLTextAreaElement>): boolean {
+		if (event.key !== "Backspace" && event.key !== "Delete") return false;
+		if (event.metaKey || event.ctrlKey || event.altKey) return false;
+
+		const node = textareaRef.current;
+		if (!node || node.selectionStart !== node.selectionEnd) return false;
+
+		const caret = node.selectionStart;
+		const before = event.key === "Backspace";
+
+		for (const image of images) {
+			const token = imagePlaceholder(image.index);
+			const start = before ? caret - token.length : caret;
+			const end = before ? caret : caret + token.length;
+			if (start < 0 || text.slice(start, end) !== token) continue;
+
+			event.preventDefault();
+			const next = text.slice(0, start) + text.slice(end);
+			setText(next);
+			reconcileImages(next);
+			requestAnimationFrame(() => {
+				node.focus();
+				node.setSelectionRange(start, start);
+			});
+			return true;
+		}
+
+		return false;
 	}
 
 	function applySkill(skill: TaskSkill) {
@@ -181,6 +237,7 @@ export function GlobalPromptBar() {
 	}
 
 	function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+		if (deleteAdjacentImageToken(event)) return;
 		if (!menuOpen) return;
 		if (event.key === "ArrowDown") {
 			event.preventDefault();
@@ -208,7 +265,7 @@ export function GlobalPromptBar() {
 		// mostra exatamente esta string, então copiar não tem surpresa. O corpo compõe a estrutura
 		// (template ativo) antes do texto livre; o CLI ativo decide a grafia das skills (`/` vs `$`).
 		const copyText = interactWithInput
-			? buildPromptBody({ templateSlug: structureTemplate, values: structureValues, text })
+			? buildPromptBody({ templateSlug: structureTemplate, values: structureValues, text, images })
 			: "";
 		const prompt = convertSkillCallsForCli(
 			buildKoworkerPrompt({ kw: interactWithKw, target: appendTarget, text: copyText }),
@@ -340,6 +397,8 @@ export function GlobalPromptBar() {
 										</div>
 									)}
 
+									<PromptInputBackdrop text={text} scrollRef={backdropRef} />
+
 									<textarea
 										ref={textareaRef}
 										value={text}
@@ -348,13 +407,29 @@ export function GlobalPromptBar() {
 										onSelect={(event) =>
 											syncTrigger(event.currentTarget.value, event.currentTarget.selectionStart)
 										}
+										onPaste={(event) => void handlePaste(event)}
+										onScroll={(event) => {
+											if (backdropRef.current)
+												backdropRef.current.scrollTop = event.currentTarget.scrollTop;
+										}}
+										disabled={uploading}
 										placeholder="Instrução para o agente — digite / para inserir uma skill"
 										className={cn(
-											"flex max-h-64 min-h-20 w-full resize-none rounded-none border border-input bg-transparent px-3 py-2 pr-9 text-base shadow-xs transition-colors field-sizing-content",
+											"relative flex max-h-64 min-h-20 w-full resize-none rounded-none border border-input bg-transparent px-3 py-2 pr-9 text-base shadow-xs transition-colors field-sizing-content",
 											"placeholder:text-muted-foreground/20",
 											"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring",
+											"disabled:cursor-not-allowed",
 										)}
 									/>
+
+									{/* Enquanto a imagem sobe, o input trava: colar de novo no meio da gravação bagunçaria a
+									    ordem dos marcadores. O overlay cobre o textarea com um respiro e o spinner. */}
+									{uploading && (
+										<div className="absolute inset-0 z-10 flex items-center justify-center gap-2 border border-input bg-card/70 text-sm text-muted-foreground backdrop-blur-[1px]">
+											<Loader2 className="size-4 animate-spin" />
+											Colando imagem…
+										</div>
+									)}
 
 									{/* Borracha no canto do textarea: limpa exatamente o que está ali. */}
 									{hasText && (
@@ -370,6 +445,8 @@ export function GlobalPromptBar() {
 										</Tooltip>
 									)}
 								</div>
+
+								<PromptImageChips />
 
 								{/* Triggers das três seções à esquerda; o Copiar sozinho à direita. Cada trigger
 								    revela sua seção logo abaixo. O Invocar mora dentro da seção "Invocação". */}

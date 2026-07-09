@@ -87,6 +87,38 @@ export async function startWindowDrag(e: React.MouseEvent): Promise<void> {
 	}
 }
 
+// Imagem colada na webview do Tauri (WebKitGTK no Linux) não chega ao evento `paste` do DOM — o blob
+// só existe no clipboard do OS. Lemos de lá os bytes RGBA crus e reencodamos em PNG pelo canvas, que é
+// o formato que o `.koworker/medias/` guarda. Sem imagem no clipboard, `readImage` rejeita → null.
+export async function readClipboardImageFile(): Promise<File | null> {
+	if (!isTauri()) {
+		return null;
+	}
+
+	const { readImage } = await import("@tauri-apps/plugin-clipboard-manager");
+	const image = await readImage().catch(() => null);
+	if (!image) {
+		return null;
+	}
+
+	const { width, height } = await image.size();
+	const rgba = await image.rgba();
+
+	const canvas = document.createElement("canvas");
+	canvas.width = width;
+	canvas.height = height;
+	const ctx = canvas.getContext("2d");
+	if (!ctx) {
+		return null;
+	}
+	ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0);
+
+	const blob = await new Promise<Blob | null>((resolve) => {
+		canvas.toBlob(resolve, "image/png");
+	});
+	return blob ? new File([blob], "clipboard.png", { type: "image/png" }) : null;
+}
+
 export async function pickProjectFolder(startIn?: string): Promise<string | null> {
 	if (!isTauri()) {
 		return null;

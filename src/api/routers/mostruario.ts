@@ -1,174 +1,46 @@
-import { basename } from "node:path";
-
 import { protectedProcedure } from "../auth/context";
-import type { tasks } from "../db/connection";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
-import {
-	type AssetFileMeta,
-	deleteMostruarioFile,
-	listMostruarioFolders,
-	moveTaskArtifactsToMostruario,
-	readMostruarioFile,
-	renameMostruarioFile,
-} from "../helpers/koworker-assets";
-import { readFirstMarkdownContent, resolveDisplayTitle } from "../helpers/task-folder";
-import { restartTasksWatcher } from "../helpers/tasks-watcher";
-import { PubSub } from "../pubsub";
-import {
-	MostruarioDeleteSchema,
-	MostruarioListSchema,
-	MostruarioMoveFromTaskSchema,
-	MostruarioReadFileSchema,
-	MostruarioRenameSchema,
-} from "../schemas";
+import { type AssetFileMeta, listTaskArtifacts } from "../helpers/koworker-assets";
+import { MostruarioListSchema } from "../schemas";
+import { mapTasks } from "./tasks";
 
-// Uma tarefa do mostruário: os artefatos de `mostruario/<taskFolder>/`, com o título e o id da
-// tarefa resolvidos pelo id curto (taskFolder) — é isso que liga o mostruário de volta à tarefa.
-// taskId é null quando a tarefa foi apagada mas os artefatos ficaram; aí o título cai no id curto.
-type MostruarioEntry = {
-	projectId: string;
-	projectName: string;
-	taskFolder: string;
-	taskId: string | null;
-	title: string;
-	lastEditedAt: number;
-	files: AssetFileMeta[];
-};
-
-async function resolveTaskTitle(
-	projectRoute: string,
-	task: tasks | null,
-	fallback: string,
-): Promise<string> {
-	if (!task) return fallback;
-
-	const title = task.title?.trim();
-	if (title) return title;
-
-	const firstContent = await readFirstMarkdownContent({
-		projectRoute,
-		folderPath: task.folder_path,
-	});
-	return resolveDisplayTitle({ firstContent }).title;
+function latestArtifact(artifacts: AssetFileMeta[]): number {
+	return artifacts.reduce((max, artifact) => Math.max(max, artifact.mtime), 0);
 }
 
-async function readProjectMostruario(project: {
-	id: string;
-	name: string;
-	main_route: string;
-}): Promise<MostruarioEntry[]> {
-	const folders = await listMostruarioFolders(project.main_route);
-	if (folders.length === 0) return [];
+// Tarefas de um projeto que têm .html/.pdf soltos na própria pasta — inclui as concluídas (o
+// mostruário é vitrine). Cada tarefa sai com o mesmo shape de tasks.getAll mais os artefatos.
+async function listProjectShowcase(project: { id: string; main_route: string }) {
+	const rows = await dbTasks.listByProject({ projectId: project.id });
 
-	const projectTasks = await dbTasks.listByProject({ projectId: project.id });
-	const taskByFolder = new Map(projectTasks.map((task) => [basename(task.folder_path), task]));
+	const withArtifacts = (
+		await Promise.all(
+			rows.map(async (row) => ({
+				row,
+				artifacts: await listTaskArtifacts({
+					projectRoute: project.main_route,
+					folderPath: row.folder_path,
+				}),
+			})),
+		)
+	).filter(({ artifacts }) => artifacts.length > 0);
 
-	return Promise.all(
-		folders.map(async (folder) => {
-			const task = taskByFolder.get(folder.taskFolder) ?? null;
-			return {
-				projectId: project.id,
-				projectName: project.name,
-				taskFolder: folder.taskFolder,
-				taskId: task?.id ?? null,
-				title: await resolveTaskTitle(project.main_route, task, folder.taskFolder),
-				lastEditedAt: folder.files.reduce((max, file) => Math.max(max, file.mtime), 0),
-				files: folder.files,
-			};
-		}),
+	const mapped = await mapTasks(withArtifacts.map(({ row }) => row));
+
+	return mapped.map((task, index) =>
+		Object.assign(task, { artifacts: withArtifacts[index].artifacts }),
 	);
 }
 
 export const mostruarioRouter = {
 	list: protectedProcedure.input(MostruarioListSchema).handler(async ({ input }) => {
-		if (input.projectId) {
-			const project = await dbProjects.getById(input.projectId);
-			if (!project) return { entries: [] as MostruarioEntry[] };
+		const projects = input.projectId
+			? [await dbProjects.getById(input.projectId)].filter((project) => project !== null)
+			: await dbProjects.getAll();
 
-			return { entries: await readProjectMostruario(project) };
-		}
+		const parts = await Promise.all(projects.map(listProjectShowcase));
 
-		const projects = await dbProjects.getAll();
-		const parts = await Promise.all(projects.map(readProjectMostruario));
-
-		return { entries: parts.flat() };
-	}),
-
-	readFile: protectedProcedure.input(MostruarioReadFileSchema).handler(async ({ input }) => {
-		const project = await dbProjects.getById(input.projectId);
-		if (!project) throw new Error("Projeto não encontrado");
-
-		const file = await readMostruarioFile({
-			projectRoute: project.main_route,
-			taskFolder: input.taskFolder,
-			name: input.name,
-		});
-		if (!file) throw new Error("Arquivo não encontrado");
-
-		return file;
-	}),
-
-	// Move os artefatos de uma tarefa pra `mostruario/<id>/`. Resolve o projeto pela própria tarefa,
-	// então o chamador (a página da tarefa) só precisa do taskId.
-	moveFromTask: protectedProcedure
-		.input(MostruarioMoveFromTaskSchema)
-		.handler(async ({ input }) => {
-			const task = await dbTasks.getById(input.taskId);
-			if (!task) throw new Error("Tarefa não encontrada");
-
-			const project = await dbProjects.getById(task.project_id);
-			if (!project) throw new Error("Projeto não encontrado");
-
-			const { moved } = await moveTaskArtifactsToMostruario({
-				projectRoute: project.main_route,
-				taskFolderPath: task.folder_path,
-				names: input.names,
-			});
-
-			if (moved.length > 0) {
-				await PubSub.publish("tasks", project.id, {
-					taskId: task.id,
-					projectId: project.id,
-					action: "updated",
-					source: "api",
-				});
-				await PubSub.publish("tasks", "global", {
-					taskId: task.id,
-					projectId: project.id,
-					action: "updated",
-					source: "api",
-				});
-				restartTasksWatcher();
-			}
-
-			return { taskId: task.id, taskFolder: basename(task.folder_path), moved };
-		}),
-
-	deleteFile: protectedProcedure.input(MostruarioDeleteSchema).handler(async ({ input }) => {
-		const project = await dbProjects.getById(input.projectId);
-		if (!project) throw new Error("Projeto não encontrado");
-
-		await deleteMostruarioFile({
-			projectRoute: project.main_route,
-			taskFolder: input.taskFolder,
-			name: input.name,
-		});
-
-		return { taskFolder: input.taskFolder, name: input.name };
-	}),
-
-	renameFile: protectedProcedure.input(MostruarioRenameSchema).handler(async ({ input }) => {
-		const project = await dbProjects.getById(input.projectId);
-		if (!project) throw new Error("Projeto não encontrado");
-
-		await renameMostruarioFile({
-			projectRoute: project.main_route,
-			taskFolder: input.taskFolder,
-			oldName: input.oldName,
-			newName: input.newName,
-		});
-
-		return { taskFolder: input.taskFolder, oldName: input.oldName, newName: input.newName };
+		return parts.flat().sort((a, b) => latestArtifact(b.artifacts) - latestArtifact(a.artifacts));
 	}),
 };
