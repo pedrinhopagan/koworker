@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { ConfigCard } from "@/components/settings/config-card";
+import { PushNotificationsCard } from "@/components/settings/push-notifications-card";
 import { CategoryManagerDrawer } from "@/components/tasks/CategoryManagerDrawer";
 import { PriorityManagerDrawer } from "@/components/tasks/PriorityManagerDrawer";
 import { Text, Title } from "@/components/typography";
@@ -65,6 +66,15 @@ function ConfiguracoesPage() {
 			contentClassName="min-h-0 flex-1 overflow-y-auto px-4 pb-8"
 		>
 			<div className="space-y-6">
+				<section className="space-y-3">
+					<Title as="h2" size="xs" className="text-muted-foreground uppercase tracking-wide">
+						Execução
+					</Title>
+					<PushNotificationsCard />
+				</section>
+
+				<div className="border-t border-border" />
+
 				<section className="space-y-3">
 					<Title as="h2" size="xs" className="text-muted-foreground uppercase tracking-wide">
 						Aparência

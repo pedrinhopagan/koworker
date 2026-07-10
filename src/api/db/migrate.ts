@@ -90,6 +90,7 @@ export function ensureDbSchema() {
 	const sqlite = new Database(dbPath);
 	sqlite.run("PRAGMA journal_mode = WAL");
 	sqlite.run("PRAGMA busy_timeout = 5000");
+	sqlite.run("PRAGMA synchronous = NORMAL");
 
 	// projects
 	{
@@ -391,6 +392,33 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 			ensureColumn(sqlite, table, "scope TEXT NOT NULL DEFAULT 'custom'");
 		}
 	}
+
+	sqlite.exec(
+		"CREATE UNIQUE INDEX IF NOT EXISTS push_subscriptions_endpoint_idx ON push_subscriptions (endpoint)",
+	);
+	sqlite.exec(
+		"CREATE INDEX IF NOT EXISTS execution_runs_user_started_idx ON execution_runs (user_id, started_at DESC)",
+	);
+	sqlite.exec("CREATE INDEX IF NOT EXISTS tasks_project_id_idx ON tasks (project_id)");
+	sqlite.exec("CREATE INDEX IF NOT EXISTS tasks_deleted_at_idx ON tasks (deleted_at)");
+	sqlite.exec(
+		"CREATE INDEX IF NOT EXISTS project_routes_project_id_idx ON project_routes (project_id)",
+	);
+	sqlite.exec("CREATE INDEX IF NOT EXISTS events_task_id_idx ON events (task_id)");
+	sqlite.exec("CREATE INDEX IF NOT EXISTS events_start_end_idx ON events (start_at, end_at)");
+	sqlite.exec("CREATE INDEX IF NOT EXISTS execution_runs_task_id_idx ON execution_runs (task_id)");
+	sqlite.exec(
+		"CREATE INDEX IF NOT EXISTS prompt_history_project_created_idx ON prompt_history (project_id, created_at)",
+	);
+	sqlite.exec(
+		"CREATE INDEX IF NOT EXISTS prompt_history_created_idx ON prompt_history (created_at)",
+	);
+	sqlite.exec("CREATE INDEX IF NOT EXISTS task_groups_project_id_idx ON task_groups (project_id)");
+	sqlite
+		.query(
+			"UPDATE execution_runs SET status = 'failed', error = ?, finished_at = ?, updated_at = ? WHERE status = 'running'",
+		)
+		.run("A execução foi interrompida pelo reinício do executor.", Date.now(), Date.now());
 
 	sqlite.close();
 }

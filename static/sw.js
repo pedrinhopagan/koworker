@@ -71,6 +71,57 @@ self.addEventListener("fetch", function onFetch(event) {
 	}
 });
 
+self.addEventListener("push", function onPush(event) {
+	let payload = {};
+	try {
+		payload = event.data ? event.data.json() : {};
+	} catch {
+		payload = { body: event.data?.text() || "Uma execução do Kowork foi atualizada." };
+	}
+
+	const title = typeof payload.title === "string" ? payload.title : "Kowork";
+	const body =
+		typeof payload.body === "string" ? payload.body : "Uma execução do Kowork foi atualizada.";
+	const url = typeof payload.url === "string" ? payload.url : "/";
+	const tag = typeof payload.tag === "string" ? payload.tag : "kowork-execution";
+
+	event.waitUntil(
+		self.registration.showNotification(title, {
+			body,
+			tag,
+			icon: "/static/icons/pwa-192.png",
+			badge: "/static/icons/pwa-192.png",
+			data: { url },
+		}),
+	);
+});
+
+self.addEventListener("notificationclick", function onNotificationClick(event) {
+	event.notification.close();
+	const target = new URL(event.notification.data?.url || "/", self.location.origin);
+	if (target.origin !== self.location.origin) {
+		target.pathname = "/";
+		target.search = "";
+		target.hash = "";
+	}
+
+	event.waitUntil(
+		self.clients
+			.matchAll({ type: "window", includeUncontrolled: true })
+			.then(function openClient(items) {
+				const existing = items.find(function sameOrigin(client) {
+					return new URL(client.url).origin === self.location.origin;
+				});
+				if (existing) {
+					return existing.navigate(target.href).then(function focusClient() {
+						return existing.focus();
+					});
+				}
+				return self.clients.openWindow(target.href);
+			}),
+	);
+});
+
 function networkFirst(request) {
 	return fetch(request)
 		.then(function useNetwork(response) {

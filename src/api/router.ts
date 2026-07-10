@@ -11,6 +11,7 @@ import { flowRouter } from "./routers/flow";
 import { kwTerminalRouter } from "./routers/kw-terminal";
 import { mediaRouter } from "./routers/media";
 import { mostruarioRouter } from "./routers/mostruario";
+import { notificationsRouter } from "./routers/notifications";
 import { prioritiesRouter } from "./routers/priorities";
 import { promptRouter } from "./routers/prompt";
 import { promptHistoryRouter } from "./routers/prompt-history";
@@ -57,6 +58,7 @@ export const router = {
 	vault: vaultRouter,
 	media: mediaRouter,
 	mostruario: mostruarioRouter,
+	notifications: notificationsRouter,
 	settings: settingsRouter,
 	system: systemRouter,
 
@@ -90,12 +92,32 @@ export const wsRouter = {
 		.input(FlowTaskSchema)
 		.handler(({ input, signal }) => PubSub.subscribe("flow", input.taskId, signal)),
 
-	promptRun: protectedProcedure.input(PromptRunIdSchema).handler(({ input, context, signal }) => {
-		const record = getPromptRun(input.runId, String(context.user.id));
+	promptRun: protectedProcedure.input(PromptRunIdSchema).handler(async function* ({
+		input,
+		context,
+		signal,
+	}) {
+		// Assina antes de ler o registro: um run curto pode terminar entre a leitura e a assinatura,
+		// e o evento terminal se perderia — o cliente ficaria em "executando" pra sempre. Com a ordem
+		// invertida, ou o snapshot já é terminal, ou o evento chega pela assinatura.
+		const events = PubSub.subscribe("promptRun", input.runId, signal);
+
+		const record = await getPromptRun(input.runId, context.user.id);
 		if (!record) {
 			throw new ORPCError("NOT_FOUND", { message: "Execução não encontrada" });
 		}
-		return PubSub.subscribe("promptRun", input.runId, signal);
+
+		if (record.status !== "running") {
+			yield {
+				runId: record.runId,
+				status: record.status,
+				...(record.output ? { output: record.output } : {}),
+				...(record.error ? { error: record.error } : {}),
+			};
+			return;
+		}
+
+		yield* events;
 	}),
 
 	terminal: terminalWsRouter,

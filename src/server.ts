@@ -120,6 +120,7 @@ Bun.serve<WsData>({
 				},
 			}),
 	routes: {
+		"/healthz": () => Response.json({ ok: true }),
 		"/rpc/*": async (request: Request) => {
 			const { response } = await rpcHandler.handle(request, {
 				prefix: "/rpc",

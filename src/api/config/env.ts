@@ -4,9 +4,6 @@ export const envSchema = type({
 	DATABASE_URL: "string",
 	JWT_SECRET: "string",
 	"NODE_ENV?": "'development' | 'production'",
-	// O backend desktop recebe estes do `backend.rs` em runtime. Precisam estar no schema:
-	// arktype roda com `onUndeclaredKey: "delete"` + `clone: false`, então validar
-	// `process.env` apaga in-place qualquer chave fora daqui antes do server.ts lê-las.
 	"KOWORK_PORT?": "string",
 	"KOWORK_DIST_DIR?": "string",
 	"KOWORK_ADMIN_USER?": "string",
@@ -14,9 +11,15 @@ export const envSchema = type({
 	"KOWORK_ALLOWED_ORIGINS?": "string",
 	"KOWORK_NOTIFY_TOKEN?": "string",
 	"KOWORK_REPO_DIR?": "string",
+	"KOWORK_VAPID_PUBLIC_KEY?": "string",
+	"KOWORK_VAPID_PRIVATE_KEY?": "string",
+	"KOWORK_VAPID_SUBJECT?": "string",
 });
 
-const result = envSchema(process.env);
+// Valida uma CÓPIA: o arktype global roda com `onUndeclaredKey: "delete"` + `clone: false`, e
+// validar `process.env` direto apagava in-place PATH, HOME e SHELL do processo inteiro — os spawns
+// de claude/codex e o terminal herdavam um ambiente vazio e quebravam.
+const result = envSchema({ ...process.env });
 
 if (result instanceof type.errors) {
 	console.error("Invalid environment variables:");
