@@ -7,13 +7,7 @@ import { SourcePathsSection } from "@/components/settings/source-paths-section";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Textarea } from "@/components/ui/textarea";
 import { AGENT_TOOL_LABEL, AGENT_TOOLS } from "@/constants/agents";
 import { SKILL_TOOL_LABEL, SKILL_TOOLS } from "@/constants/skills";
@@ -99,24 +93,21 @@ function SistemaPage() {
 							<Title as="div" size="sm">
 								Emulador de terminal
 							</Title>
-							<Select
+							<CustomSelect
+								items={[
+									...(Object.keys(TERMINAL_PRESETS) as TerminalPresetId[]).map((id) => ({
+										id,
+										label: TERMINAL_PRESETS[id].label,
+									})),
+									{ id: "custom", label: "Personalizado" },
+								]}
 								value={presetValue}
 								onValueChange={(value) => {
 									if (value !== "custom") selectPreset(value as TerminalPresetId);
 								}}
-							>
-								<SelectTrigger className="h-9 w-full">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{(Object.keys(TERMINAL_PRESETS) as TerminalPresetId[]).map((id) => (
-										<SelectItem key={id} value={id}>
-											{TERMINAL_PRESETS[id].label}
-										</SelectItem>
-									))}
-									<SelectItem value="custom">Personalizado</SelectItem>
-								</SelectContent>
-							</Select>
+								renderItem={(item) => item.label}
+								triggerClassName="h-9 w-full"
+							/>
 							<Textarea
 								value={template}
 								onChange={(event) => setTemplate(event.target.value)}
@@ -143,23 +134,18 @@ function SistemaPage() {
 							<Title as="div" size="sm">
 								Multiplexador
 							</Title>
-							<Select
+							<CustomSelect
+								items={TERMINAL_MULTIPLEXERS.map((entry) => ({
+									id: entry,
+									label: TERMINAL_MULTIPLEXER_LABEL[entry],
+								}))}
 								value={settings.terminalMultiplexer}
 								onValueChange={(value) =>
 									save({ terminalMultiplexer: value as (typeof TERMINAL_MULTIPLEXERS)[number] })
 								}
-							>
-								<SelectTrigger className="h-9 w-full">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{TERMINAL_MULTIPLEXERS.map((entry) => (
-										<SelectItem key={entry} value={entry}>
-											{TERMINAL_MULTIPLEXER_LABEL[entry]}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+								renderItem={(item) => item.label}
+								triggerClassName="h-9 w-full"
+							/>
 							<Text size="xs" tone="muted">
 								tmux mantém as sessões vivas entre reinícios; kw-terminal usa workspaces
 								persistentes do cliente kw-terminal (sem abrir emulador); nenhum abre uma janela

@@ -16,7 +16,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, LayoutList, Loader2, MoreVertical, Plus, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
@@ -263,6 +263,11 @@ function TaskFilePage() {
 	// o arquivo aberto e a URL acompanhar): cai no render normal com as abas e o painel vazio —
 	// recuperável, como antes — em vez de uma tela "não encontrado" que piscaria no meio da operação.
 	const current = task.files.find((f) => f.name === activeFile) ?? null;
+
+	const editorContent = useMemo(
+		() => (creatingFile ? "" : reflowMarkdown(current?.content ?? "")),
+		[creatingFile, current?.content],
+	);
 
 	// Ranking de recência dos .md por mtime (1 = editado por último, mais forte), mesmo idioma
 	// visual da lista de tarefas. Sem corte de janela: o tempo relativo no tooltip é o que mantém
@@ -630,7 +635,7 @@ function TaskFilePage() {
 					ref={paneRef}
 					fileName={creatingFile ? null : activeFile}
 					sessionKey={docSessionKey({ kind: "task", taskId, file: activeFile })}
-					content={creatingFile ? "" : reflowMarkdown(current?.content ?? "")}
+					content={editorContent}
 					folderPath={task.folderPath}
 					writeFile={(payload) => writeFileMutation.mutateAsync({ id: taskId, ...payload })}
 					emptyState={

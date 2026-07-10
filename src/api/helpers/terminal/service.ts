@@ -691,12 +691,14 @@ export const Terminal = {
 				? buildCodexCommand({
 						prompt: params.prompt,
 						approvalMode: params.permissionMode ?? "bypass",
+						headless: params.background ?? false,
 						...(params.model ? { model: params.model } : {}),
 						...(params.effort ? { effort: params.effort } : {}),
 					})
 				: buildClaudeCommand({
 						prompt: params.prompt,
 						permissionMode: params.permissionMode ?? "bypass",
+						headless: params.background ?? false,
 						...(params.agent ? { agent: params.agent } : {}),
 						...(params.model ? { model: params.model } : {}),
 						...(params.effort ? { effort: params.effort } : {}),

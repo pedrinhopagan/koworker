@@ -3,8 +3,9 @@ import { useEffect } from "react";
 
 import { orpcWs } from "@/client";
 
-// Consome o canal `tasks` via WS (eventos da API, CLI ou watcher de FS) e invalida
-// todas as queries de tasks pra refazer o fetch. Montado uma vez no layout `_app`.
+// Consome o canal `tasks` via WS (eventos da API, CLI ou watcher de FS) e invalida as queries de
+// tasks/vault do projeto afetado — as agregadas ("Todos", sem projectId) sempre entram. Um evento de
+// outro projeto não refaz o fetch da visão ativa. Montado uma vez no layout `_app`.
 export function useTasksRealtime() {
 	const queryClient = useQueryClient();
 
@@ -15,11 +16,16 @@ export function useTasksRealtime() {
 			try {
 				const events = await orpcWs.tasks.call(undefined, { signal: controller.signal });
 
-				for await (const _event of events) {
+				for await (const event of events) {
 					queryClient.invalidateQueries({
 						predicate: (query) => {
 							const root = Array.isArray(query.queryKey[0]) ? query.queryKey[0][0] : null;
-							return root === "tasks" || root === "vault";
+							if (root !== "tasks" && root !== "vault") return false;
+							const input = (
+								query.queryKey[1] as { input?: { projectId?: string | null } } | undefined
+							)?.input;
+							const queryProjectId = input?.projectId || null;
+							return queryProjectId === null || queryProjectId === event.projectId;
 						},
 					});
 				}

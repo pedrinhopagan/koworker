@@ -30,7 +30,11 @@ export function useProjectFocus(options: UseProjectFocusOptions = {}) {
 	const setSelectedProjectId = useSelectedProjectStore((s) => s.setSelectedProjectId);
 
 	const resolvedProjectId = useMemo(() => {
-		if (preferredProjectId && projects.some((project) => project.id === preferredProjectId)) {
+		if (
+			preferredProjectId &&
+			(projectsQuery.data === undefined ||
+				projects.some((project) => project.id === preferredProjectId))
+		) {
 			return preferredProjectId;
 		}
 
@@ -43,7 +47,7 @@ export function useProjectFocus(options: UseProjectFocusOptions = {}) {
 		}
 
 		return projects[0]?.id ?? null;
-	}, [preferredProjectId, projects, selectedProjectId]);
+	}, [preferredProjectId, projects, selectedProjectId, projectsQuery.data]);
 
 	useEffect(() => {
 		if (!syncToStore) return;

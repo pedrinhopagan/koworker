@@ -13,11 +13,16 @@ export function useAgendaRealtime() {
 	useEffect(() => {
 		const controller = new AbortController();
 
-		function invalidate() {
+		function invalidate(projectId?: string) {
 			queryClient.invalidateQueries({
 				predicate: (query) => {
 					const root = Array.isArray(query.queryKey[0]) ? query.queryKey[0][0] : null;
-					return root === "events" || root === "tasks";
+					if (root === "events") return true;
+					if (root !== "tasks") return false;
+					const input = (query.queryKey[1] as { input?: { projectId?: string | null } } | undefined)
+						?.input;
+					const queryProjectId = input?.projectId || null;
+					return queryProjectId === null || projectId === undefined || queryProjectId === projectId;
 				},
 			});
 		}
@@ -25,8 +30,8 @@ export function useAgendaRealtime() {
 		async function subscribe(streamPromise: Promise<AsyncIterable<unknown>>) {
 			try {
 				const stream = await streamPromise;
-				for await (const _event of stream) {
-					invalidate();
+				for await (const event of stream) {
+					invalidate((event as { projectId?: string }).projectId);
 				}
 			} catch (error) {
 				if (error instanceof Error && error.name === "AbortError") return;

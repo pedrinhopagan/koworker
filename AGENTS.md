@@ -48,6 +48,7 @@ src/
 - **UI**: usar `<Title>` e `<Text>` ao invés de `<h1>`/`<p>`
 - **Condição**: usar `&&` em vez de ternário para render condicional
 - **Ícones**: somente `lucide-react`
+- **Selects**: SEMPRE `CustomSelect` (`@/components/ui/custom-select`). Nunca recriar o Select do shadcn nem usar `<select>` nativo. Motivo: as vars de tema (`--popover`, `--card`...) vivem em `.light`/`.dark` aplicados no `[data-theme-root]` (div interna em `__root.tsx`), não no `:root` — qualquer overlay Radix portado para o `document.body` fica fora do tema e renderiza transparente/preto. Todo primitivo com Portal (popover, dropdown, sheet, context-menu, custom-select) porta para `document.querySelector("[data-theme-root]")`; novos overlays devem fazer o mesmo.
 
 ## VALIDAÇÃO
 
