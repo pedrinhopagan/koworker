@@ -5,13 +5,7 @@ import { FolderPathInput } from "@/components/settings/folder-path-input";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Tooltip } from "@/components/ui/tooltip";
 
 type PathRow = { id: string; tool: string; path: string };
@@ -62,18 +56,14 @@ export function SourcePathsSection<T extends string>({
 			</Title>
 			<div className="flex flex-col gap-2 border border-border bg-card/50 p-3">
 				<div className="flex items-center gap-2">
-					<Select value={tool} onValueChange={(value) => setTool(value as T)}>
-						<SelectTrigger className="h-9 w-44 shrink-0">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{tools.map((entry) => (
-								<SelectItem key={entry} value={entry}>
-									{toolLabel[entry]}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					<CustomSelect
+						items={tools.map((entry) => ({ id: entry, label: toolLabel[entry] }))}
+						value={tool}
+						onValueChange={(value) => setTool(value as T)}
+						renderItem={(item) => item.label}
+						fitContent
+						triggerClassName="h-9 w-44 shrink-0"
+					/>
 					<FolderPathInput
 						value={path}
 						onChange={setPath}

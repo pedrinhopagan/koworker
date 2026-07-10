@@ -6,15 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Textarea } from "@/components/ui/textarea";
 import { PROMPT_HISTORY_KIND_LABEL, type PromptHistoryKind } from "./prompt-history-kind";
+
+const kindItems = Object.entries(PROMPT_HISTORY_KIND_LABEL).map(([id, label]) => ({ id, label }));
 
 type PromptHistoryItem = RouterOutputs["promptHistory"]["list"]["items"][number];
 
@@ -120,22 +116,14 @@ export function PromptHistoryFormDialog({
 			<form id="prompt-history-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
 				<div className="grid gap-4 sm:grid-cols-[180px_minmax(0,1fr)]">
 					<div className="flex flex-col gap-2">
-						<Label htmlFor="prompt-kind">Tipo</Label>
-						<Select
+						<Label>Tipo</Label>
+						<CustomSelect
+							items={kindItems}
 							value={values.kind}
 							onValueChange={(value) => update("kind", value as PromptHistoryKind)}
-						>
-							<SelectTrigger id="prompt-kind" className="h-11 text-base md:h-9 md:text-sm">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{Object.entries(PROMPT_HISTORY_KIND_LABEL).map(([value, label]) => (
-									<SelectItem key={value} value={value}>
-										{label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							renderItem={(item) => item.label}
+							triggerClassName="h-11 w-full text-base md:h-9 md:text-sm"
+						/>
 					</div>
 
 					<div className="flex flex-col gap-2">
