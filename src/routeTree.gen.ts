@@ -24,7 +24,6 @@ import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/ind
 import { Route as AppMostruarioIndexRouteImport } from './routes/_app/mostruario/index'
 import { Route as AppMediaIndexRouteImport } from './routes/_app/media/index'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents/index'
-import { Route as AppAgendaIndexRouteImport } from './routes/_app/agenda/index'
 import { Route as AppVaultFileNameIndexRouteImport } from './routes/_app/vault/$fileName/index'
 import { Route as AppTarefasTaskIdIndexRouteImport } from './routes/_app/tarefas/$taskId/index'
 import { Route as AppSkillsSlugIndexRouteImport } from './routes/_app/skills/$slug/index'
@@ -109,11 +108,6 @@ const AppAgentsIndexRoute = AppAgentsIndexRouteImport.update({
   path: '/agents/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAgendaIndexRoute = AppAgendaIndexRouteImport.update({
-  id: '/agenda/',
-  path: '/agenda/',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppVaultFileNameIndexRoute = AppVaultFileNameIndexRouteImport.update({
   id: '/vault/$fileName/',
   path: '/vault/$fileName/',
@@ -169,7 +163,6 @@ export interface FileRoutesByFullPath {
   '/fontes': typeof AppFontesRoute
   '/kw-terminal': typeof AppKwTerminalRoute
   '/sistema': typeof AppSistemaRoute
-  '/agenda/': typeof AppAgendaIndexRoute
   '/agents/': typeof AppAgentsIndexRoute
   '/media/': typeof AppMediaIndexRoute
   '/mostruario/': typeof AppMostruarioIndexRoute
@@ -195,7 +188,6 @@ export interface FileRoutesByTo {
   '/kw-terminal': typeof AppKwTerminalRoute
   '/sistema': typeof AppSistemaRoute
   '/': typeof AppIndexRoute
-  '/agenda': typeof AppAgendaIndexRoute
   '/agents': typeof AppAgentsIndexRoute
   '/media': typeof AppMediaIndexRoute
   '/mostruario': typeof AppMostruarioIndexRoute
@@ -223,7 +215,6 @@ export interface FileRoutesById {
   '/_app/kw-terminal': typeof AppKwTerminalRoute
   '/_app/sistema': typeof AppSistemaRoute
   '/_app/': typeof AppIndexRoute
-  '/_app/agenda/': typeof AppAgendaIndexRoute
   '/_app/agents/': typeof AppAgentsIndexRoute
   '/_app/media/': typeof AppMediaIndexRoute
   '/_app/mostruario/': typeof AppMostruarioIndexRoute
@@ -251,7 +242,6 @@ export interface FileRouteTypes {
     | '/fontes'
     | '/kw-terminal'
     | '/sistema'
-    | '/agenda/'
     | '/agents/'
     | '/media/'
     | '/mostruario/'
@@ -277,7 +267,6 @@ export interface FileRouteTypes {
     | '/kw-terminal'
     | '/sistema'
     | '/'
-    | '/agenda'
     | '/agents'
     | '/media'
     | '/mostruario'
@@ -304,7 +293,6 @@ export interface FileRouteTypes {
     | '/_app/kw-terminal'
     | '/_app/sistema'
     | '/_app/'
-    | '/_app/agenda/'
     | '/_app/agents/'
     | '/_app/media/'
     | '/_app/mostruario/'
@@ -436,13 +424,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAgentsIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/agenda/': {
-      id: '/_app/agenda/'
-      path: '/agenda'
-      fullPath: '/agenda/'
-      preLoaderRoute: typeof AppAgendaIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/vault/$fileName/': {
       id: '/_app/vault/$fileName/'
       path: '/vault/$fileName'
@@ -515,7 +496,6 @@ interface AppRouteChildren {
   AppKwTerminalRoute: typeof AppKwTerminalRoute
   AppSistemaRoute: typeof AppSistemaRoute
   AppIndexRoute: typeof AppIndexRoute
-  AppAgendaIndexRoute: typeof AppAgendaIndexRoute
   AppAgentsIndexRoute: typeof AppAgentsIndexRoute
   AppMediaIndexRoute: typeof AppMediaIndexRoute
   AppMostruarioIndexRoute: typeof AppMostruarioIndexRoute
@@ -541,7 +521,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppKwTerminalRoute: AppKwTerminalRoute,
   AppSistemaRoute: AppSistemaRoute,
   AppIndexRoute: AppIndexRoute,
-  AppAgendaIndexRoute: AppAgendaIndexRoute,
   AppAgentsIndexRoute: AppAgentsIndexRoute,
   AppMediaIndexRoute: AppMediaIndexRoute,
   AppMostruarioIndexRoute: AppMostruarioIndexRoute,

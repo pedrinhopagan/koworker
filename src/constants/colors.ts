@@ -1,4 +1,4 @@
-// Paleta de cores de domínio: usada por projetos e eventos da agenda. value = hex #rrggbb.
+// Paleta de cores de domínio: usada por projetos. value = hex #rrggbb.
 // Tons soft/jewel harmonizados (Tokyo Night + Catppuccin + Nord), espaçados pelo círculo cromático
 // pra dar variedade real em vez de vários degraus da mesma cor. Inclui o dourado #e0af68.
 export const projectColorOptions = [

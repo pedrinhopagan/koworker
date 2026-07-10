@@ -6,7 +6,6 @@ import { getPromptRun } from "./helpers/prompt-run";
 import { PubSub } from "./pubsub";
 import { agentsRouter } from "./routers/agents";
 import { categoriesRouter } from "./routers/categories";
-import { eventsRouter } from "./routers/events";
 import { flowRouter } from "./routers/flow";
 import { kwTerminalRouter } from "./routers/kw-terminal";
 import { mediaRouter } from "./routers/media";
@@ -44,7 +43,6 @@ export const router = {
 	projectRoutes: projectRoutesRouter,
 	tasks: tasksRouter,
 	taskGroups: taskGroupsRouter,
-	events: eventsRouter,
 	categories: categoriesRouter,
 	priorities: prioritiesRouter,
 	flow: flowRouter,
@@ -85,8 +83,6 @@ export const wsRouter = {
 	),
 
 	tasks: protectedProcedure.handler(({ signal }) => PubSub.subscribe("tasks", "global", signal)),
-
-	events: protectedProcedure.handler(({ signal }) => PubSub.subscribe("events", "global", signal)),
 
 	flow: protectedProcedure
 		.input(FlowTaskSchema)

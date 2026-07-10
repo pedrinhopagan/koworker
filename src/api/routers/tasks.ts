@@ -192,20 +192,6 @@ export const tasksRouter = {
 		return mapTasks(rows);
 	}),
 
-	// Backlog da agenda: tarefas pendentes ainda não ligadas a um event. Fonte do DnD para agendar.
-	backlog: protectedProcedure.input(TaskGetAllSchema).handler(async ({ input }) => {
-		const rows = await dbTasks.listBacklog({
-			projectId: input.projectId ?? null,
-			taskTypeId: input.taskTypeId,
-			priorityId: input.priorityId,
-			priority: input.priority,
-			complexity: input.complexity,
-			q: input.q,
-		});
-
-		return mapTasks(rows);
-	}),
-
 	listByProject: protectedProcedure.input(TaskListByProjectSchema).handler(async ({ input }) => {
 		const rows = await dbTasks.listByProject(input);
 		return mapTasks(rows);

@@ -156,31 +156,6 @@ export const dbTasks = {
 		return query.orderBy("p.display_order", "asc").orderBy("t.display_order", "asc").execute();
 	},
 
-	// Backlog da agenda: tarefas pendentes ainda NÃO ligadas a um event. Fonte do DnD para
-	// agendar. "Sem agendamento" agora = sem event de ligação (a tabela events é dona do tempo).
-	listBacklog: (input: { projectId?: string | null } & TaskListFiltersInput) => {
-		let query = db
-			.selectFrom("tasks")
-			.selectAll()
-			.where("deleted_at", "is", null)
-			.where("done", "=", 0)
-			.where((eb) =>
-				eb(
-					"id",
-					"not in",
-					eb
-						.selectFrom("events")
-						.select("task_id")
-						.where("task_id", "is not", null)
-						.$castTo<string>(),
-				),
-			);
-
-		query = applyTaskListFilters(query, input);
-		query = query.orderBy("display_order", "asc").orderBy("created_at", "desc");
-		return query.execute();
-	},
-
 	create: (input: TaskDbCreateInput) => {
 		const parsed = TaskDbCreateSchema.parse(input);
 		return db
@@ -224,23 +199,16 @@ export const dbTasks = {
 		});
 	},
 
-	// Soft delete da task + hard delete dos events ligados. O ON DELETE cascade da FK só dispara
-	// em hard delete (que tasks nunca fazem), então sem isto os events ficariam órfãos de uma task
-	// invisível. Uma transação para a remoção chegar atômica.
-	softDelete: async (id: string) => {
-		await db.transaction().execute(async (trx) => {
-			await trx.deleteFrom("events").where("task_id", "=", id).execute();
-			await trx
-				.updateTable("tasks")
-				.set({
-					deleted_at: Date.now(),
-					updated_at: Date.now(),
-				})
-				.where("id", "=", id)
-				.where("deleted_at", "is", null)
-				.executeTakeFirst();
-		});
-	},
+	softDelete: (id: string) =>
+		db
+			.updateTable("tasks")
+			.set({
+				deleted_at: Date.now(),
+				updated_at: Date.now(),
+			})
+			.where("id", "=", id)
+			.where("deleted_at", "is", null)
+			.executeTakeFirst(),
 
 	getStatsByProject: () =>
 		db

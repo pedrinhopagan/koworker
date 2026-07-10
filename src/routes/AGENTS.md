@@ -13,10 +13,6 @@ routes/
 ├── login.tsx
 ├── _app/
 │   ├── index.tsx
-│   ├── agenda/
-│   │   ├── index.tsx
-│   │   ├── -components/
-│   │   └── -utils/
 │   ├── configuracoes.tsx
 │   ├── sistema.tsx
 │   ├── agents/
@@ -67,7 +63,6 @@ routes/
 - `/projetos`
 - `/projetos/novo`
 - `/projetos/$projetoId`
-- `/agenda`
 - `/skills`
 - `/skills/$slug`
 - `/agents`

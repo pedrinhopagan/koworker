@@ -3,7 +3,6 @@ import { join } from "node:path";
 import Database from "bun:sqlite";
 
 import { envVariables } from "@/api/config/env";
-import { normalizeEndAt } from "../helpers/event-time";
 import { normalizeEntityName } from "./entity-name";
 
 const KOWORKER_DIR = ".koworker";
@@ -292,70 +291,16 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		}
 	}
 
-	// events: o agendamento sai das tasks (scheduled_date/scheduled_time) e passa para a tabela
-	// `events`, fonte única do tempo. A tabela `events` já foi criada pelo constructor do
-	// @lobomfz/db (CREATE TABLE IF NOT EXISTS) no boot. Três passos em ordem NÃO-negociável:
-	// (1) migrar linhas, (2) verificar por contagem, (3) só então dropar as colunas. Gated em
-	// hasColumn — só roda enquanto as colunas existirem; idempotente.
+	// Agenda removida: a feature será reconstruída do zero. Limpa os resíduos das duas gerações
+	// anteriores — as colunas scheduled_* nas tasks e a tabela events inteira (com os dados).
 	{
 		const taskCols = tableInfo(sqlite, "tasks");
 		if (hasColumn(taskCols, "scheduled_date")) {
-			// 1. Migrar: cada task agendada vira 1 event ligado. Com horário → timed (+30min de
-			//    duração default, nunca duração zero). Sem horário → all-day (end exclusivo no dia
-			//    seguinte). Idempotente: pula tasks que já têm event.
-			const scheduled = sqlite
-				.query<{ id: string; scheduled_date: string; scheduled_time: string | null }, []>(
-					"SELECT id, scheduled_date, scheduled_time FROM tasks WHERE scheduled_date IS NOT NULL AND deleted_at IS NULL",
-				)
-				.all();
-
-			const hasEventForTask = sqlite.query<{ c: number }, [string]>(
-				"SELECT COUNT(*) c FROM events WHERE task_id = ?",
-			);
-			const insertEvent = sqlite.query(
-				"INSERT INTO events (id, start_at, end_at, all_day, task_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-			);
-
-			for (const task of scheduled) {
-				if ((hasEventForTask.get(task.id)?.c ?? 0) > 0) continue;
-
-				const id = crypto.randomUUID();
-				const now = Date.now();
-				const allDay = !task.scheduled_time;
-				const startAt = allDay
-					? `${task.scheduled_date}T00:00`
-					: `${task.scheduled_date}T${task.scheduled_time}`;
-				const endAt = normalizeEndAt({ startAt, endAt: null, allDay });
-
-				insertEvent.run(id, startAt, endAt, allDay ? 1 : 0, task.id, now);
-			}
-
-			// 2. Verificar por contagem (read-back). Se algo ficou para trás, ABORTAR antes do drop.
-			const expected =
-				sqlite
-					.query<{ c: number }, []>(
-						"SELECT COUNT(*) c FROM tasks WHERE scheduled_date IS NOT NULL AND deleted_at IS NULL",
-					)
-					.get()?.c ?? 0;
-			const got =
-				sqlite
-					.query<{ c: number }, []>(
-						"SELECT COUNT(DISTINCT task_id) c FROM events WHERE task_id IS NOT NULL",
-					)
-					.get()?.c ?? 0;
-
-			if (got < expected) {
-				throw new Error(
-					`Migração agenda→events incompleta: esperado ${expected}, obtido ${got}. Abortando antes de dropar colunas.`,
-				);
-			}
-
-			// 3. Drop das colunas (só após verificação). SQLite 3.35+ tem ALTER TABLE DROP COLUMN;
-			//    scheduled_date/scheduled_time não são chave nem FK, então DROP é seguro e direto —
-			//    sem o rebuild-via-sqlite_master que o title exigia (lá era para tirar um NOT NULL).
 			sqlite.exec("ALTER TABLE tasks DROP COLUMN scheduled_date");
 			sqlite.exec("ALTER TABLE tasks DROP COLUMN scheduled_time");
 		}
+
+		sqlite.exec("DROP TABLE IF EXISTS events");
 	}
 
 	// skill_settings.category_id: a tabela skill_categories é criada pelo constructor do
@@ -404,8 +349,6 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 	sqlite.exec(
 		"CREATE INDEX IF NOT EXISTS project_routes_project_id_idx ON project_routes (project_id)",
 	);
-	sqlite.exec("CREATE INDEX IF NOT EXISTS events_task_id_idx ON events (task_id)");
-	sqlite.exec("CREATE INDEX IF NOT EXISTS events_start_end_idx ON events (start_at, end_at)");
 	sqlite.exec("CREATE INDEX IF NOT EXISTS execution_runs_task_id_idx ON execution_runs (task_id)");
 	sqlite.exec(
 		"CREATE INDEX IF NOT EXISTS prompt_history_project_created_idx ON prompt_history (project_id, created_at)",

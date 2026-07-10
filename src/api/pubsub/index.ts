@@ -36,13 +36,6 @@ type PubSubChannels = {
 		action: "created" | "updated" | "deleted";
 		source: "api" | "cli" | "fs";
 	};
-	events: {
-		eventId?: string;
-		// Ausente em evento pessoal (sem task → sem projeto). Presente quando deriva da task linkada.
-		projectId?: string;
-		action: "created" | "updated" | "deleted";
-		source: "api";
-	};
 };
 
 export type TerminalEventType =

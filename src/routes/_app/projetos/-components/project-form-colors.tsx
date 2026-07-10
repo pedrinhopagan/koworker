@@ -46,7 +46,7 @@ export function ProjectFormColors() {
 					))}
 				</div>
 				<Text size="xs" tone="muted">
-					Essa cor aparece nos cards, tarefas e agenda.
+					Essa cor aparece nos cards e tarefas.
 				</Text>
 			</div>
 		</section>

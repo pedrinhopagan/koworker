@@ -11,12 +11,6 @@ export {
 	TaskOpenArtifactSchema,
 } from "./assets";
 export {
-	EventCreateSchema,
-	EventIdSchema,
-	EventListByRangeSchema,
-	EventUpdateSchema,
-} from "./events";
-export {
 	CategoryCreateSchema,
 	CategoryIdSchema,
 	CategoryMigrateAndDeleteSchema,

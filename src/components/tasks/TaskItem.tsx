@@ -50,7 +50,7 @@ type TaskItemProps = {
 	highlight?: number;
 	// Features do projeto. Quando presentes, concluir uma tarefa "Sem feature" abre o dialog de
 	// vínculo em vez de concluir direto — o incentivo a classificar. A lista de Tarefas passa isto;
-	// agenda e listas genéricas não, mantendo a conclusão imediata.
+	// listas genéricas não, mantendo a conclusão imediata.
 	features?: TaskGroup[];
 };
 
