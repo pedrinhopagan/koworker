@@ -128,14 +128,14 @@ function skillContentHash(file: SkillFile): string {
 async function listSlugs(root: SkillRoot): Promise<string[]> {
 	try {
 		const entries = await readdir(root.path, { withFileTypes: true });
-		const slugs: string[] = [];
-		for (const entry of entries) {
-			if (!entry.isDirectory()) continue;
-			if (await Bun.file(join(root.path, entry.name, "SKILL.md")).exists()) {
-				slugs.push(entry.name);
-			}
-		}
-		return slugs;
+		const checked = await Promise.all(
+			entries.map(async (entry) => {
+				if (!entry.isDirectory()) return null;
+				const exists = await Bun.file(join(root.path, entry.name, "SKILL.md")).exists();
+				return exists ? entry.name : null;
+			}),
+		);
+		return checked.filter((slug): slug is string => slug !== null);
 	} catch {
 		return [];
 	}
@@ -159,15 +159,16 @@ type LoadedSource = {
 
 // Lê o SKILL.md de cada root (na ordem de prioridade) que tenha o slug e consiga ser parseado.
 async function loadSourcesForSlug(slug: string, roots: SkillRoot[]): Promise<LoadedSource[]> {
-	const loaded: LoadedSource[] = [];
-	for (const root of roots) {
-		const dir = join(root.path, slug);
-		const path = join(dir, "SKILL.md");
-		const file = await readSkillFile(path);
-		if (!file) continue;
-		loaded.push({ root, dir, path, file, hash: skillContentHash(file) });
-	}
-	return loaded;
+	const loaded = await Promise.all(
+		roots.map(async (root) => {
+			const dir = join(root.path, slug);
+			const path = join(dir, "SKILL.md");
+			const file = await readSkillFile(path);
+			if (!file) return null;
+			return { root, dir, path, file, hash: skillContentHash(file) };
+		}),
+	);
+	return loaded.filter((source): source is LoadedSource => source !== null);
 }
 
 function buildRecord(slug: string, loaded: LoadedSource[]): SkillFsRecord {
@@ -196,9 +197,11 @@ function buildRecord(slug: string, loaded: LoadedSource[]): SkillFsRecord {
 export async function listSkillsFromFs(projectName?: string): Promise<SkillFsRecord[]> {
 	const roots = await buildRoots(projectName);
 
+	const slugsPerRoot = await Promise.all(roots.map((root) => listSlugs(root)));
+
 	const rootsBySlug = new Map<string, SkillRoot[]>();
-	for (const root of roots) {
-		for (const slug of await listSlugs(root)) {
+	for (const [index, root] of roots.entries()) {
+		for (const slug of slugsPerRoot[index]) {
 			const existing = rootsBySlug.get(slug);
 			if (existing) {
 				existing.push(root);
@@ -208,14 +211,16 @@ export async function listSkillsFromFs(projectName?: string): Promise<SkillFsRec
 		}
 	}
 
-	const records: SkillFsRecord[] = [];
-	for (const [slug, slugRoots] of rootsBySlug) {
-		const loaded = await loadSourcesForSlug(slug, slugRoots);
-		if (loaded.length === 0) continue;
-		records.push(buildRecord(slug, loaded));
-	}
+	const records = await Promise.all(
+		[...rootsBySlug].map(async ([slug, slugRoots]) => {
+			const loaded = await loadSourcesForSlug(slug, slugRoots);
+			return loaded.length === 0 ? null : buildRecord(slug, loaded);
+		}),
+	);
 
-	return records.sort((a, b) => a.slug.localeCompare(b.slug));
+	return records
+		.filter((record): record is SkillFsRecord => record !== null)
+		.sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
 export async function getSkillFromFs(

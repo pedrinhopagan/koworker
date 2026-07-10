@@ -37,6 +37,7 @@ export {
 	PromptExecuteSchema,
 	PromptRunIdSchema,
 } from "./prompt";
+export { PushSubscriptionSchema, PushUnsubscribeSchema } from "./notifications";
 export {
 	PromptHistoryCreateSchema,
 	PromptHistoryListSchema,

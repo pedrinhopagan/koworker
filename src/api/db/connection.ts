@@ -198,8 +198,9 @@ const settingsSchema = type({
 
 const prompt_kind = type.enumerated("copy", "agent", "skill");
 
-// Log append-only de TODO prompt despachado pela barra de prompt: copiar para o clipboard, invocar
-// agent e invocar skill. Existe para análise futura, então é deliberadamente durável e abrangente.
+// Registro de TODO prompt despachado pela barra de prompt: copiar para o clipboard, invocar
+// agent e invocar skill. Deduplicado na entrada (dbPromptHistory): redisparar um prompt idêntico
+// só rebumpa o created_at da linha existente em vez de acumular duplicatas.
 // SEM FK para projects: o histórico sobrevive à exclusão do projeto — por isso project_id/name são
 // texto solto, capturando o estado no momento do disparo. `text` é a instrução crua do usuário;
 // `prompt` é o texto final efetivamente despachado (já com `/kw <target>` ou `/<slug>`).
@@ -219,6 +220,38 @@ const promptHistorySchema = type({
 	created_at: type("number.integer").configure({ default: "now" }),
 });
 
+const execution_kind = type.enumerated("prompt", "flow");
+const execution_status = type.enumerated("running", "done", "failed", "timeout", "waiting_user");
+
+const executionRunsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	user_id: type("number.integer").configure({ references: "users.id", onDelete: "cascade" }),
+	project_id: type("string").configure({ references: "projects.id", onDelete: "restrict" }),
+	"task_id?": type("string").configure({ references: "tasks.id", onDelete: "set null" }),
+	kind: execution_kind,
+	title: "string",
+	status: execution_status,
+	"prompt?": "string",
+	"stage?": "string",
+	"agent?": "string",
+	"output?": "string",
+	"error?": "string",
+	started_at: "number.integer",
+	updated_at: "number.integer",
+	"finished_at?": "number.integer",
+});
+
+const pushSubscriptionsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	user_id: type("number.integer").configure({ references: "users.id", onDelete: "cascade" }),
+	endpoint: "string",
+	p256dh: "string",
+	auth: "string",
+	"expiration_time?": "number.integer",
+	created_at: "number.integer",
+	updated_at: "number.integer",
+});
+
 const database = new Database({
 	path: envVariables.DATABASE_URL,
 	tables: {
@@ -236,6 +269,8 @@ const database = new Database({
 		agent_settings: agentSettingsSchema,
 		agent_source_paths: agentSourcePathsSchema,
 		prompt_history: promptHistorySchema,
+		execution_runs: executionRunsSchema,
+		push_subscriptions: pushSubscriptionsSchema,
 		settings: settingsSchema,
 	},
 });
@@ -244,6 +279,7 @@ import { sql } from "kysely";
 
 sql`PRAGMA journal_mode = WAL`.execute(database.kysely);
 sql`PRAGMA busy_timeout = 5000`.execute(database.kysely);
+sql`PRAGMA synchronous = NORMAL`.execute(database.kysely);
 
 export const db = database.kysely;
 
@@ -263,6 +299,8 @@ export type skill_source_paths = DB["skill_source_paths"];
 export type agent_settings = DB["agent_settings"];
 export type agent_source_paths = DB["agent_source_paths"];
 export type prompt_history = DB["prompt_history"];
+export type execution_runs = DB["execution_runs"];
+export type push_subscriptions = DB["push_subscriptions"];
 export type settings = DB["settings"];
 
 export {
@@ -281,5 +319,7 @@ export {
 	agentSettingsSchema,
 	agentSourcePathsSchema,
 	promptHistorySchema,
+	executionRunsSchema,
+	pushSubscriptionsSchema,
 	settingsSchema,
 };

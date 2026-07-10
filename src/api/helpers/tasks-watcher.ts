@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
-import { join, sep } from "node:path";
+import { dirname, join, sep } from "node:path";
 import chokidar from "chokidar";
 import { dbProjects } from "../db/projects";
 import { PubSub } from "../pubsub";
+import { invalidateFolderPrefix } from "./folder-cache";
 
 const KOWORKER_DIR = ".koworker";
 const DEBOUNCE_MS = 300;
@@ -33,6 +34,10 @@ function flushPending() {
 function handleFsEvent(path: string) {
 	const projectId = projectIdForPath(path);
 	if (!projectId) return;
+
+	// A pasta do arquivo alterado é a chave dos caches de metadados (task e vault). Invalidar por
+	// esse prefixo derruba só as entradas afetadas, mantendo o resto do projeto em cache.
+	invalidateFolderPrefix(dirname(path));
 
 	pendingProjects.add(projectId);
 	if (debounceTimer) clearTimeout(debounceTimer);

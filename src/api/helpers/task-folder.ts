@@ -2,6 +2,17 @@ import { cp, mkdir, readdir, rename, rm, stat, utimes } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { COMPLEXITY_FLOWS, type TaskComplexity, type TaskStage } from "@/constants/complexity";
+import { createFolderCache, invalidateFolderPrefix } from "./folder-cache";
+
+const TASK_FOLDER_META_TTL_MS = 30_000;
+
+const taskFolderMetaCache = createFolderCache<{
+	fileNames: string[];
+	artifactNames: string[];
+	lastEditedAt?: number;
+}>(TASK_FOLDER_META_TTL_MS);
+
+const taskFirstContentCache = createFolderCache<string | undefined>(TASK_FOLDER_META_TTL_MS);
 
 // Garante que `.koworker/` está no `.gitignore` do projeto. O conteúdo das tasks é
 // canônico no FS mas nunca deve ir pro git. Idempotente: só faz append se faltar.
@@ -108,6 +119,7 @@ export async function createTaskFolder(params: {
 
 	const dir = join(params.projectRoute, params.folderPath);
 	await mkdir(dir, { recursive: true });
+	invalidateFolderPrefix(dir);
 
 	if (params.seed === false) return;
 
@@ -136,12 +148,17 @@ export async function listTaskMarkdownNames(params: {
 // Nomes dos .md + o instante da última edição (maior mtime entre eles), numa só leitura de
 // pasta. lastEditedAt fica undefined quando a pasta não tem .md. Pega edições feitas direto no
 // disco (ex.: pelo agente), não só pela UI.
-export async function readTaskFolderMeta(params: {
+export function readTaskFolderMeta(params: {
 	projectRoute: string;
 	folderPath: string;
 }): Promise<{ fileNames: string[]; artifactNames: string[]; lastEditedAt?: number }> {
 	const dir = join(params.projectRoute, params.folderPath);
+	return taskFolderMetaCache.get(dir, () => loadTaskFolderMeta(dir));
+}
 
+async function loadTaskFolderMeta(
+	dir: string,
+): Promise<{ fileNames: string[]; artifactNames: string[]; lastEditedAt?: number }> {
 	let entries: { isFile: () => boolean; name: string }[];
 	try {
 		entries = await readdir(dir, { withFileTypes: true });
@@ -207,12 +224,15 @@ export function inferTaskStage(params: {
 
 // Conteúdo do primeiro .md da pasta (mesma ordem de readTaskFiles), para o fallback de
 // exibição das tasks sem título. Lê só um arquivo, não a pasta inteira.
-export async function readFirstMarkdownContent(params: {
+export function readFirstMarkdownContent(params: {
 	projectRoute: string;
 	folderPath: string;
 }): Promise<string | undefined> {
 	const dir = join(params.projectRoute, params.folderPath);
+	return taskFirstContentCache.get(dir, () => loadFirstMarkdownContent(dir));
+}
 
+async function loadFirstMarkdownContent(dir: string): Promise<string | undefined> {
 	let entries: string[];
 	try {
 		entries = (await readdir(dir, { withFileTypes: true }))
@@ -316,6 +336,7 @@ export async function writeTaskFile(params: {
 	const dir = join(params.projectRoute, params.folderPath);
 	await mkdir(dir, { recursive: true });
 	await Bun.write(join(dir, params.name), params.content);
+	invalidateFolderPrefix(dir);
 }
 
 // Sobrescreve o mtime de um .md — a "data de atualização" que baseia toda a recência (lista,
@@ -329,6 +350,7 @@ export async function setTaskFileEditedAt(params: {
 }): Promise<void> {
 	const when = new Date(params.editedAt);
 	await utimes(join(params.projectRoute, params.folderPath, params.name), when, when);
+	invalidateFolderPrefix(join(params.projectRoute, params.folderPath));
 }
 
 export async function renameTaskFile(params: {
@@ -346,6 +368,7 @@ export async function renameTaskFile(params: {
 	if (exists) throw new Error(`Arquivo "${params.newName}" já existe nesta tarefa`);
 
 	await rename(join(dir, params.oldName), destPath);
+	invalidateFolderPrefix(dir);
 }
 
 // Apaga um `.md` da pasta da task. `force` evita estourar se o arquivo já não existir.
@@ -355,6 +378,7 @@ export async function deleteTaskFile(params: {
 	name: string;
 }): Promise<void> {
 	await rm(join(params.projectRoute, params.folderPath, params.name), { force: true });
+	invalidateFolderPrefix(join(params.projectRoute, params.folderPath));
 }
 
 // Move a pasta da task de um projeto para outro: o folder_path (relativo) é o mesmo, muda só a raiz.
@@ -384,6 +408,9 @@ export async function moveTaskFolderToProject(params: {
 		await cp(from, to, { recursive: true });
 		await rm(from, { recursive: true, force: true });
 	}
+
+	invalidateFolderPrefix(from);
+	invalidateFolderPrefix(to);
 }
 
 export async function removeTaskFolder(params: {
@@ -391,4 +418,5 @@ export async function removeTaskFolder(params: {
 	folderPath: string;
 }): Promise<void> {
 	await rm(join(params.projectRoute, params.folderPath), { recursive: true, force: true });
+	invalidateFolderPrefix(join(params.projectRoute, params.folderPath));
 }

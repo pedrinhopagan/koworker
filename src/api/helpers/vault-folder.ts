@@ -1,9 +1,20 @@
 import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { createFolderCache, invalidateFolderPrefix } from "./folder-cache";
 import { buildFolderPath } from "./task-folder";
 
 const KOWORKER_DIR = ".koworker";
 const PRIMARY_FILE = "index.md";
+
+// Pastas soltas do vault podem viver fora do alcance do watcher (não são pastas de task), então
+// aqui o TTL é curto: a invalidação por evento cobre o comum e o TTL garante que nada obsoleto
+// sobreviva além de poucos segundos.
+const VAULT_TTL_MS = 5_000;
+
+const vaultFilesCache = createFolderCache<VaultFileMeta[]>(VAULT_TTL_MS);
+const vaultFoldersCache =
+	createFolderCache<{ name: string; files: VaultFileMeta[] }[]>(VAULT_TTL_MS);
+const vaultMdMetaCache = createFolderCache<VaultFileMeta[]>(VAULT_TTL_MS);
 
 // Metadados por arquivo do vault: nome, título (H1) e mtime. Sem conteúdo — quem abre um
 // arquivo carrega só ele via getVaultFile.
@@ -42,9 +53,12 @@ async function readMdMeta(path: string, name: string): Promise<VaultFileMeta> {
 
 // Vault = `.md` soltos direto em `.koworker/`, fora de pasta de task. Pastas de task
 // (e seus `.md`) ficam de fora porque só listamos arquivos no nível raiz. Metadata-only.
-export async function listVaultFiles(projectRoute: string): Promise<VaultFileMeta[]> {
+export function listVaultFiles(projectRoute: string): Promise<VaultFileMeta[]> {
 	const dir = join(projectRoute, KOWORKER_DIR);
+	return vaultFilesCache.get(dir, () => loadVaultFiles(dir));
+}
 
+async function loadVaultFiles(dir: string): Promise<VaultFileMeta[]> {
 	let names: string[];
 	try {
 		names = (await readdir(dir, { withFileTypes: true }))
@@ -61,11 +75,15 @@ export async function listVaultFiles(projectRoute: string): Promise<VaultFileMet
 
 // Metadados (nome, título, mtime) dos `.md` de uma pasta qualquer relativa ao projeto — usado
 // pelo vault pra montar as entries dos arquivos dentro das pastas das tasks, sem ler conteúdo.
-export async function listMdMeta(params: {
+export function listMdMeta(params: {
 	projectRoute: string;
 	folderPath: string;
 }): Promise<VaultFileMeta[]> {
 	const dir = join(params.projectRoute, params.folderPath);
+	return vaultMdMetaCache.get(dir, () => loadMdMeta(dir));
+}
+
+async function loadMdMeta(dir: string): Promise<VaultFileMeta[]> {
 	const names = [...(await listMdNames(dir))].sort((a, b) => a.localeCompare(b));
 	return Promise.all(names.map((name) => readMdMeta(join(dir, name), name)));
 }
@@ -135,16 +153,26 @@ export function vaultFolderExists(params: {
 // `knownFolderNames` são as pastas das tasks vivas). Cada uma traz os metadados dos seus `.md`
 // (nome, título, mtime); pastas sem `.md` ficam de fora, como na seção "Em tarefas". Devolve
 // ordenado por nome.
-export async function listVaultFolders(params: {
+export function listVaultFolders(params: {
 	projectRoute: string;
 	knownFolderNames: Set<string>;
 }): Promise<{ name: string; files: VaultFileMeta[] }[]> {
 	const dir = join(params.projectRoute, KOWORKER_DIR);
+	const knownFolders = params.knownFolderNames;
+	// A chave carrega o conjunto de pastas de task (elas mudam quando uma task nasce/some), pra não
+	// servir uma pasta de task como "pasta solta". O prefixo da invalidação é `dir`, que casa aqui.
+	const key = `${dir}::${[...knownFolders].sort().join("|")}`;
+	return vaultFoldersCache.get(key, () => loadVaultFolders(dir, knownFolders));
+}
 
+async function loadVaultFolders(
+	dir: string,
+	knownFolderNames: Set<string>,
+): Promise<{ name: string; files: VaultFileMeta[] }[]> {
 	let dirNames: string[];
 	try {
 		dirNames = (await readdir(dir, { withFileTypes: true }))
-			.filter((entry) => entry.isDirectory() && !params.knownFolderNames.has(entry.name))
+			.filter((entry) => entry.isDirectory() && !knownFolderNames.has(entry.name))
 			.map((entry) => entry.name);
 	} catch {
 		return [];
@@ -182,6 +210,7 @@ export async function renameVaultFile(params: {
 	if (exists) throw new Error(`Arquivo "${params.newName}" já existe no vault`);
 
 	await rename(join(dir, params.oldName), destPath);
+	invalidateFolderPrefix(dir);
 }
 
 // Apaga um `.md` solto da raiz do vault. `force` evita estourar se a nota já não existir.
@@ -190,6 +219,7 @@ export async function deleteVaultFile(params: {
 	name: string;
 }): Promise<void> {
 	await rm(join(params.projectRoute, KOWORKER_DIR, params.name), { force: true });
+	invalidateFolderPrefix(join(params.projectRoute, KOWORKER_DIR));
 }
 
 export async function writeVaultFile(params: {
@@ -200,6 +230,7 @@ export async function writeVaultFile(params: {
 	const dir = join(params.projectRoute, KOWORKER_DIR);
 	await mkdir(dir, { recursive: true });
 	await Bun.write(join(dir, params.name), params.content);
+	invalidateFolderPrefix(dir);
 }
 
 // Move um `.md` solto do vault para uma pasta de task nova como `index.md`. O arquivo
@@ -218,6 +249,9 @@ export async function promoteVaultFile(params: {
 
 	await mkdir(join(params.projectRoute, folderPath), { recursive: true });
 	await rename(sourcePath, join(params.projectRoute, folderPath, PRIMARY_FILE));
+
+	invalidateFolderPrefix(dir);
+	invalidateFolderPrefix(join(params.projectRoute, folderPath));
 
 	return { folderPath, title };
 }
@@ -243,6 +277,9 @@ export async function linkVaultFilesToTask(params: {
 		await rename(join(params.projectRoute, KOWORKER_DIR, name), join(taskDir, finalName));
 		results.push({ name: targetName, finalName });
 	}
+
+	invalidateFolderPrefix(join(params.projectRoute, KOWORKER_DIR));
+	invalidateFolderPrefix(taskDir);
 
 	return results;
 }
@@ -272,6 +309,8 @@ export async function moveFilesToTask(params: {
 	for (const { sourceFolderPath, name } of params.files) {
 		await rename(join(params.projectRoute, sourceFolderPath, name), join(targetDir, name));
 	}
+
+	invalidateFolderPrefix(join(params.projectRoute, KOWORKER_DIR));
 }
 
 // Nomes dos `.md` direto numa pasta (não recursivo). Pasta inexistente vira conjunto vazio.
@@ -314,6 +353,8 @@ export async function unlinkFilesToVault(params: {
 		await rename(join(params.projectRoute, sourceFolderPath, name), join(rootDir, finalName));
 		results.push({ name, finalName });
 	}
+
+	invalidateFolderPrefix(rootDir);
 
 	return results;
 }

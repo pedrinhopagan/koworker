@@ -15,20 +15,32 @@ export const dbProjects = {
 			.orderBy("display_order", "asc")
 			.execute();
 
-		const projectsWithRoutes = await Promise.all(
-			projects.map(async (project) => {
-				const routes = await db
-					.selectFrom("project_routes")
-					.selectAll()
-					.where("project_id", "=", project.id)
-					.orderBy("display_order", "asc")
-					.execute();
+		if (projects.length === 0) return [];
 
-				return Object.assign({}, project, { routes });
-			}),
+		const routes = await db
+			.selectFrom("project_routes")
+			.selectAll()
+			.where(
+				"project_id",
+				"in",
+				projects.map((project) => project.id),
+			)
+			.orderBy("display_order", "asc")
+			.execute();
+
+		const routesByProject = new Map<string, typeof routes>();
+		for (const route of routes) {
+			const existing = routesByProject.get(route.project_id);
+			if (existing) {
+				existing.push(route);
+			} else {
+				routesByProject.set(route.project_id, [route]);
+			}
+		}
+
+		return projects.map((project) =>
+			Object.assign({}, project, { routes: routesByProject.get(project.id) ?? [] }),
 		);
-
-		return projectsWithRoutes;
 	},
 
 	// Nome → diretório real de cada projeto ativo. O projeto é dono de onde mora (`main_route`);

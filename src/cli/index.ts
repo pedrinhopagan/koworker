@@ -17,6 +17,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 	project: async (a) => (await import("./commands/project")).runProject(a),
 	route: async (a) => (await import("./commands/route")).runRoute(a),
 	skill: async (a) => (await import("./commands/skill")).runSkill(a),
+	backup: async (a) => (await import("./commands/backup")).runBackup(a),
 };
 
 const handler = command ? commands[command] : undefined;
@@ -66,6 +67,14 @@ Skills:
   skill style <slug> [--label ...] [--icon ...] [--color #rrggbb]
                           Define a aparência de uma skill
   skill list              Lista as skills globais e sua aparência atual
+
+Backup:
+  backup init [--repo <caminho|rclone:...>]
+                          Cria o repositório restic (default ~/Backups/kowork) e a senha
+  backup [run]            Snapshot do DB (VACUUM INTO) + .koworker/ de todos os projetos + skills
+  backup install [--calendar <expr>]
+                          Instala timer systemd (default 09h, 15h e 21h, todo dia)
+  backup snapshots        Lista os snapshots existentes
 `);
 	process.exit(command ? 1 : 0);
 }

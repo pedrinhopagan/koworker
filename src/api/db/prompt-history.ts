@@ -57,6 +57,51 @@ function promptHistoryValues(input: PromptHistoryRecordInput) {
 	};
 }
 
+const DEDUPE_NULLABLE_COLUMNS = ["target", "agent_slug", "skill_slug", "project_id"] as const;
+
+function findDuplicate(values: ReturnType<typeof promptHistoryValues>) {
+	let query = db
+		.selectFrom("prompt_history as ph")
+		.select("ph.id")
+		.where("ph.kind", "=", values.kind)
+		.where("ph.text", "=", values.text)
+		.where("ph.prompt", "=", values.prompt);
+
+	for (const column of DEDUPE_NULLABLE_COLUMNS) {
+		const value = values[column] ?? null;
+		query =
+			value === null
+				? query.where(`ph.${column}`, "is", null)
+				: query.where(`ph.${column}`, "=", value);
+	}
+
+	return query.executeTakeFirst();
+}
+
+async function upsertDeduped(input: PromptHistoryRecordInput) {
+	const values = promptHistoryValues(input);
+	const existing = await findDuplicate(values);
+
+	if (existing) {
+		await db
+			.updateTable("prompt_history")
+			.set({ ...values, created_at: Date.now() })
+			.where("id", "=", existing.id)
+			.execute();
+
+		return existing.id;
+	}
+
+	const id = crypto.randomUUID();
+
+	await db
+		.insertInto("prompt_history")
+		.values({ id, ...values, created_at: Date.now() } as prompt_history)
+		.execute();
+
+	return id;
+}
+
 export const dbPromptHistory = {
 	getById: (id: string) =>
 		db.selectFrom("prompt_history").selectAll().where("id", "=", id).executeTakeFirst(),
@@ -77,27 +122,12 @@ export const dbPromptHistory = {
 		};
 	},
 
-	record: (input: PromptHistoryRecordInput) =>
-		db
-			.insertInto("prompt_history")
-			.values({
-				id: crypto.randomUUID(),
-				...promptHistoryValues(input),
-				created_at: Date.now(),
-			} as prompt_history)
-			.executeTakeFirst(),
+	record: async (input: PromptHistoryRecordInput) => {
+		await upsertDeduped(input);
+	},
 
 	create: async (input: PromptHistoryCreateInput) => {
-		const id = crypto.randomUUID();
-
-		await db
-			.insertInto("prompt_history")
-			.values({
-				id,
-				...promptHistoryValues(input),
-				created_at: Date.now(),
-			} as prompt_history)
-			.executeTakeFirst();
+		const id = await upsertDeduped(input);
 
 		return dbPromptHistory.getById(id);
 	},
