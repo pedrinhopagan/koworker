@@ -82,6 +82,21 @@ O atalho fica registrado no KDE (atalhos personalizados), apontando para
 - Desenvolvimento: `Alt+L` (só age se o socket de dev existir)
 - Produção: `Alt+K`
 
+Se o atalho parar de responder, o componente pode estar desativado no kglobalaccel (acontece
+quando o `kglobalshortcutsrc` é editado à mão com a sessão aberta — no Plasma 6.4+ o daemon vive
+dentro do `kwin_wayland` e só relê o arquivo no login). Verifique e reative via D-Bus:
+
+```bash
+qdbus6 org.kde.kglobalaccel /component/toggle_kowork_dev_desktop org.kde.kglobalaccel.Component.isActive
+gdbus call --session --dest org.kde.kglobalaccel --object-path /kglobalaccel \
+  --method org.kde.KGlobalAccel.doRegister "['toggle-kowork-dev.desktop','_launch','Toggle Kowork Dev','Toggle Kowork Dev']"
+gdbus call --session --dest org.kde.kglobalaccel --object-path /kglobalaccel \
+  --method org.kde.KGlobalAccel.setShortcut "['toggle-kowork-dev.desktop','_launch','Toggle Kowork Dev','Toggle Kowork Dev']" "[134217804]" 6
+```
+
+Para produção, troque pelo componente `toggle_kowork_desktop`, id `toggle-kowork.desktop` e a
+tecla `134217803` (`Alt+K`; `134217804` é `Alt+L`).
+
 ## Inicialização com o desktop
 
 No Linux (apenas build de produção), o app cria/atualiza automaticamente:
