@@ -1,8 +1,11 @@
 import { type InvokeCli, INVOKE_INHERIT } from "@/constants/invoke";
+import { toast } from "sonner";
+import { orpc } from "@/client";
 import { buildKoworkerPrompt, convertSkillCallsForCli, flattenPrompt } from "@/lib/build-prompt";
 import { buildClaudeCommand } from "@/lib/claude-command";
 import { buildCodexCommand } from "@/lib/codex-command";
 import { recordPromptHistory } from "@/lib/prompt-history";
+import { isTauri } from "@/lib/tauri";
 import { executeInTerminal, type ProjectInfo } from "@/lib/terminal";
 import type { InvokeConfig } from "@/stores/prompt-bar";
 
@@ -68,6 +71,7 @@ export function planInvocation(request: InvokeRequest): InvokePlan {
 		const command = buildCodexCommand({
 			prompt,
 			approvalMode: config.codex.approvalMode,
+			headless: config.background || !isTauri(),
 			...(model ? { model } : {}),
 			...(effort ? { effort } : {}),
 		});
@@ -79,6 +83,7 @@ export function planInvocation(request: InvokeRequest): InvokePlan {
 	const command = buildClaudeCommand({
 		prompt,
 		permissionMode: config.claude.permissionMode,
+		headless: config.background || !isTauri(),
 		...(target.kind === "agent" ? { agent: target.slug } : {}),
 		...(model ? { model } : {}),
 		...(effort ? { effort } : {}),
@@ -87,30 +92,47 @@ export function planInvocation(request: InvokeRequest): InvokePlan {
 	return { prompt, model, effort, command };
 }
 
-// Dispara a invocação numa aba do terminal do projeto e registra no histórico. Ponto único de
-// verdade pra agent e skill: ambos passam por aqui.
 export function runInvocation(params: { project: ProjectInfo; request: InvokeRequest }) {
 	const { project, request } = params;
 	const { target, cli, routePath, text, config } = request;
 	const { prompt, model, effort } = planInvocation(request);
-	// O backend rebuilda o comando com os mesmos params do preview; no codex, o campo `permissionMode`
-	// carrega o approvalMode (é o "modo de permissão" daquele cli).
 	const permissionMode = cli === "codex" ? config.codex.approvalMode : config.claude.permissionMode;
+	const background = config.background || !isTauri();
 
-	void executeInTerminal(
-		project,
-		{ id: `${target.kind}_${target.slug}`, title: target.label },
-		prompt,
-		{
-			cli,
-			...(cli === "claude" && target.kind === "agent" ? { agent: target.slug } : {}),
-			...(model ? { model } : {}),
-			...(effort ? { effort } : {}),
-			permissionMode,
-			forceNew: config.forceNew,
-			background: config.background,
-		},
-	);
+	if (isTauri()) {
+		void executeInTerminal(
+			project,
+			{ id: `${target.kind}_${target.slug}`, title: target.label },
+			prompt,
+			{
+				cli,
+				...(cli === "claude" && target.kind === "agent" ? { agent: target.slug } : {}),
+				...(model ? { model } : {}),
+				...(effort ? { effort } : {}),
+				permissionMode,
+				forceNew: config.forceNew,
+				background,
+			},
+		);
+	} else {
+		void orpc.prompt.execute
+			.call({
+				projectId: project.id,
+				prompt,
+				cli,
+				...(cli === "claude" ? { permissionMode } : { approvalMode: permissionMode }),
+				...(cli === "claude" && target.kind === "agent" ? { agent: target.slug } : {}),
+				...(model ? { model } : {}),
+				...(effort ? { effort } : {}),
+			})
+			.then(({ runId }) => {
+				localStorage.setItem("kowork-active-run", runId);
+				toast.success(`Executando em background: ${target.label}`);
+			})
+			.catch((error) => {
+				toast.error(error instanceof Error ? error.message : "Não foi possível iniciar a execução");
+			});
+	}
 
 	recordPromptHistory({
 		kind: target.kind,

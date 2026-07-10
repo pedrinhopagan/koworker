@@ -134,13 +134,38 @@ const tableDecorationsField = StateField.define<DecorationSet>({
 	},
 	update(value, tr) {
 		const activeChanged = tr.startState.field(activeCellField) !== tr.state.field(activeCellField);
-		const treeChanged = syntaxTree(tr.startState) !== syntaxTree(tr.state);
 		const collapsedChanged =
 			tr.startState.field(collapsedHeadingsField) !== tr.state.field(collapsedHeadingsField);
-		if (tr.docChanged || activeChanged || treeChanged || collapsedChanged) {
-			return buildTableDecorations(tr.state);
+		if (activeChanged || collapsedChanged) return buildTableDecorations(tr.state);
+
+		if (!tr.docChanged) {
+			const treeChanged = syntaxTree(tr.startState) !== syntaxTree(tr.state);
+			return treeChanged ? buildTableDecorations(tr.state) : value;
 		}
-		return value;
+
+		let maxTableEnd = -1;
+		let tableCount = 0;
+		value.between(0, tr.startState.doc.length, (_from, to) => {
+			if (to > maxTableEnd) maxTableEnd = to;
+			tableCount++;
+		});
+		let rebuild = false;
+		tr.changes.iterChanges((fromA, _toA, fromB, toB) => {
+			if (rebuild) return;
+			if (tableCount > 0 && fromA <= maxTableEnd) {
+				rebuild = true;
+				return;
+			}
+			const firstLine = tr.state.doc.lineAt(fromB).number;
+			const lastLine = tr.state.doc.lineAt(toB).number;
+			for (let n = firstLine; n <= lastLine; n++) {
+				if (tr.state.doc.line(n).text.includes("|")) {
+					rebuild = true;
+					return;
+				}
+			}
+		});
+		return rebuild ? buildTableDecorations(tr.state) : value.map(tr.changes);
 	},
 	provide: (f) => EditorView.decorations.from(f),
 });
@@ -656,10 +681,16 @@ type HeadingInfo = {
 	text: string;
 };
 
+const headingsCache = new WeakMap<ReturnType<typeof syntaxTree>, HeadingInfo[]>();
+
 function collectHeadings(state: EditorState): HeadingInfo[] {
+	const tree = syntaxTree(state);
+	const cached = headingsCache.get(tree);
+	if (cached) return cached;
+
 	const { doc } = state;
 	const out: HeadingInfo[] = [];
-	syntaxTree(state).iterate({
+	tree.iterate({
 		enter: (node) => {
 			const match = /^ATXHeading([1-6])$/.exec(node.name);
 			if (!match) return;
@@ -675,6 +706,7 @@ function collectHeadings(state: EditorState): HeadingInfo[] {
 			});
 		},
 	});
+	headingsCache.set(tree, out);
 	return out;
 }
 
@@ -682,11 +714,10 @@ function collectHeadings(state: EditorState): HeadingInfo[] {
 // esconde da linha seguinte até o próximo heading de nível igual ou superior. Compartilhado
 // pelo plugin de view (que aplica `hiddenLine`) e pelo field de tabelas (que pula o block
 // widget quando a tabela cai dentro de um trecho colapsado).
-function collapsedHiddenLines(state: EditorState): Set<number> {
+function collapsedHiddenLines(state: EditorState, headings = collectHeadings(state)): Set<number> {
 	const collapsed = state.field(collapsedHeadingsField);
 	const hidden = new Set<number>();
 	if (collapsed.size === 0) return hidden;
-	const headings = collectHeadings(state);
 	const { doc } = state;
 	for (let i = 0; i < headings.length; i++) {
 		const h = headings[i];
@@ -756,7 +787,7 @@ function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet
 	// Linhas escondidas pelos collapses viram line decorations linha-a-linha. Os intervalos
 	// nunca se sobrepõem (cada heading collapsed para no próximo de nível ≤), então um único
 	// cursor de linha basta.
-	const hiddenLines = collapsedHiddenLines(view.state);
+	const hiddenLines = collapsedHiddenLines(view.state, headings);
 	for (const n of [...hiddenLines].sort((a, b) => a - b)) {
 		ranges.push(hiddenLine.range(doc.line(n).from));
 	}

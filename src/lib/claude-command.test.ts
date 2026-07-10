@@ -31,3 +31,9 @@ test("o prompt é escapado pra caber entre aspas sem expandir $/crase", () => {
 		buildClaudeCommand({ prompt: 'diga "$HOME" e `date` com \\', permissionMode: "bypass" }),
 	).toBe('claude --dangerously-skip-permissions "diga \\"\\$HOME\\" e \\`date\\` com \\\\"');
 });
+
+test("background usa modo print sem sessão interativa", () => {
+	expect(
+		buildClaudeCommand({ prompt: "/mobile faça", permissionMode: "bypass", headless: true }),
+	).toBe('claude -p --dangerously-skip-permissions "/mobile faça"');
+});

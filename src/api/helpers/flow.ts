@@ -2,10 +2,12 @@ import { ORPCError } from "@orpc/server";
 
 import { STAGE_AGENT, type TaskComplexity, type TaskStage } from "@/constants/complexity";
 import { buildKoworkerPrompt } from "@/lib/build-prompt";
-import type { projects, tasks } from "../db/connection";
+import type { execution_runs, projects, tasks } from "../db/connection";
+import { dbExecutionRuns } from "../db/execution-runs";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
 import { type FlowEvent, PubSub } from "../pubsub";
+import { PushNotifications } from "./push-notifications";
 import { spawnCapture } from "./spawn";
 import { inferTaskStage, readTaskFolderMeta } from "./task-folder";
 
@@ -18,18 +20,65 @@ const STAGE_TIMEOUT_MS = 45 * 60_000;
 // koworker, fora de COMPLEXITY_FLOWS (que só descreve as etapas internas).
 const FINAL_AGENT = "revisor-tarefa";
 
-// Runs em andamento por taskId: um disparo para um taskId já rodando é ignorado. Vive só em memória
-// (o runner é um processo único e longo); reiniciar o backend zera, o que é correto — o processo
-// headless morreria junto.
 const running = new Set<string>();
 
-// Último evento publicado por tarefa, pra `status` hidratar a tela reaberta no meio de um run (ou
-// mostrar o desfecho terminal depois que ele saiu de `running`).
-const lastEvent = new Map<string, FlowEvent>();
+function flowEventFromRun(run: execution_runs): FlowEvent {
+	const status =
+		run.status === "done"
+			? "completed"
+			: run.status === "waiting_user"
+				? "waiting-user"
+				: run.status === "timeout"
+					? "failed"
+					: run.status;
 
-async function emit(event: FlowEvent): Promise<void> {
-	lastEvent.set(event.taskId, event);
+	return {
+		taskId: run.task_id ?? "",
+		status,
+		stage: (run.stage as TaskStage | null | undefined) ?? null,
+		agent: run.agent ?? null,
+		message: run.error ?? null,
+	};
+}
+
+async function emit(params: {
+	executionId: string;
+	userId: number;
+	taskTitle: string;
+	event: FlowEvent;
+}): Promise<void> {
+	const status =
+		params.event.status === "completed"
+			? "done"
+			: params.event.status === "waiting-user"
+				? "waiting_user"
+				: params.event.status;
+	const terminal = params.event.status !== "running";
+
+	await dbExecutionRuns.update(params.executionId, {
+		status,
+		stage: params.event.stage,
+		agent: params.event.agent,
+		error: params.event.message,
+		...(terminal ? { finished_at: Date.now() } : {}),
+	});
+
+	const { event } = params;
 	await PubSub.publish("flow", event.taskId, event);
+
+	if (terminal) {
+		void PushNotifications.send(params.userId, {
+			title:
+				params.event.status === "completed"
+					? "Fluxo concluído"
+					: params.event.status === "waiting-user"
+						? "Fluxo aguardando você"
+						: "Fluxo precisa de atenção",
+			body: params.event.message ?? params.taskTitle,
+			url: `/tarefas/${params.event.taskId}`,
+			tag: `flow-${params.executionId}`,
+		}).catch(() => {});
+	}
 }
 
 // Spawna uma etapa headless: `/kw <pasta> [complexidade: X]` forçando o agente da etapa, com
@@ -67,10 +116,22 @@ async function runAgent(params: {
 // Loop determinístico: re-infere a etapa pelos artefatos em disco a cada volta, roda o agente dela,
 // e segue até o fluxo esvaziar — então fecha com o revisor da tarefa. Para no grill (interativo) e
 // em qualquer falha. `lastRan` corta o loop infinito se uma etapa terminar sem gravar seu artefato.
-async function execute(params: { row: tasks; project: projects }): Promise<void> {
+async function execute(params: {
+	row: tasks;
+	project: projects;
+	executionId: string;
+	userId: number;
+}): Promise<void> {
 	const { row, project } = params;
 	const complexity = row.complexity as TaskComplexity;
 	const cwd = project.main_route;
+	const publish = (event: FlowEvent) =>
+		emit({
+			executionId: params.executionId,
+			userId: params.userId,
+			taskTitle: row.title ?? row.folder_path,
+			event,
+		});
 
 	let lastRan: TaskStage | null = null;
 	while (true) {
@@ -83,7 +144,7 @@ async function execute(params: { row: tasks; project: projects }): Promise<void>
 		const agent = STAGE_AGENT[stage];
 
 		if (stage === "grill") {
-			await emit({
+			await publish({
 				taskId: row.id,
 				status: "waiting-user",
 				stage,
@@ -94,7 +155,7 @@ async function execute(params: { row: tasks; project: projects }): Promise<void>
 		}
 
 		if (stage === lastRan) {
-			await emit({
+			await publish({
 				taskId: row.id,
 				status: "failed",
 				stage,
@@ -104,18 +165,24 @@ async function execute(params: { row: tasks; project: projects }): Promise<void>
 			return;
 		}
 
-		await emit({ taskId: row.id, status: "running", stage, agent, message: null });
+		await publish({ taskId: row.id, status: "running", stage, agent, message: null });
 
 		const result = await runAgent({ agent, folderPath: row.folder_path, complexity, cwd });
 		if (!result.success) {
-			await emit({ taskId: row.id, status: "failed", stage, agent, message: result.message });
+			await publish({ taskId: row.id, status: "failed", stage, agent, message: result.message });
 			return;
 		}
 
 		lastRan = stage;
 	}
 
-	await emit({ taskId: row.id, status: "running", stage: null, agent: FINAL_AGENT, message: null });
+	await publish({
+		taskId: row.id,
+		status: "running",
+		stage: null,
+		agent: FINAL_AGENT,
+		message: null,
+	});
 
 	const review = await runAgent({
 		agent: FINAL_AGENT,
@@ -124,7 +191,7 @@ async function execute(params: { row: tasks; project: projects }): Promise<void>
 		cwd,
 	});
 	if (!review.success) {
-		await emit({
+		await publish({
 			taskId: row.id,
 			status: "failed",
 			stage: null,
@@ -134,15 +201,16 @@ async function execute(params: { row: tasks; project: projects }): Promise<void>
 		return;
 	}
 
-	await emit({ taskId: row.id, status: "completed", stage: null, agent: null, message: null });
+	await publish({ taskId: row.id, status: "completed", stage: null, agent: null, message: null });
 }
 
 export const TaskFlow = {
 	// Dispara o fluxo em segundo plano e volta na hora. Um segundo disparo pro mesmo taskId é ignorado
 	// (`started: false`). Erros inesperados do loop viram um evento de falha em vez de rejeição solta.
-	async run(taskId: string) {
+	async run(taskId: string, userId: number) {
 		if (running.has(taskId)) {
-			return { started: false, event: lastEvent.get(taskId) ?? null };
+			const current = await dbExecutionRuns.getLatestFlowForTask(taskId, userId);
+			return { started: false, event: current ? flowEventFromRun(current) : null };
 		}
 
 		const row = await dbTasks.getById(taskId);
@@ -155,6 +223,19 @@ export const TaskFlow = {
 			throw new ORPCError("NOT_FOUND", { message: "Projeto não encontrado" });
 		}
 
+		const executionId = crypto.randomUUID();
+		const startedAt = Date.now();
+		await dbExecutionRuns.create({
+			id: executionId,
+			user_id: userId,
+			project_id: project.id,
+			task_id: row.id,
+			kind: "flow",
+			title: row.title ?? row.folder_path,
+			status: "running",
+			started_at: startedAt,
+			updated_at: startedAt,
+		});
 		running.add(taskId);
 		const initial: FlowEvent = {
 			taskId,
@@ -163,16 +244,21 @@ export const TaskFlow = {
 			agent: null,
 			message: null,
 		};
-		await emit(initial);
+		await PubSub.publish("flow", taskId, initial);
 
-		void execute({ row, project })
+		void execute({ row, project, executionId, userId })
 			.catch((err) =>
 				emit({
-					taskId,
-					status: "failed",
-					stage: null,
-					agent: null,
-					message: err instanceof Error ? err.message : "Erro inesperado no fluxo",
+					executionId,
+					userId,
+					taskTitle: row.title ?? row.folder_path,
+					event: {
+						taskId,
+						status: "failed",
+						stage: null,
+						agent: null,
+						message: err instanceof Error ? err.message : "Erro inesperado no fluxo",
+					},
 				}),
 			)
 			.finally(() => {
@@ -182,7 +268,11 @@ export const TaskFlow = {
 		return { started: true, event: initial };
 	},
 
-	status(taskId: string) {
-		return { running: running.has(taskId), event: lastEvent.get(taskId) ?? null };
+	async status(taskId: string, userId: number) {
+		const current = await dbExecutionRuns.getLatestFlowForTask(taskId, userId);
+		return {
+			running: running.has(taskId) || current?.status === "running",
+			event: current ? flowEventFromRun(current) : null,
+		};
 	},
 };

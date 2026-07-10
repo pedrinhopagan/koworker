@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { type Selection, useInvocation } from "@/components/prompt-bar/use-invocation";
@@ -45,11 +45,15 @@ function formatElapsed(ms: number): string {
 export function usePromptExecution(params: {
 	projectName?: string;
 	routePath: string | null;
+	taskId?: string;
 	nextStage?: TaskStage | null;
+	active: boolean;
 }) {
-	const { projectName, routePath } = params;
+	const { projectName, routePath, active } = params;
 
-	const text = usePromptBarStore((s) => s.text);
+	// Com o painel fechado o preview não aparece: assinar "" mantém o seletor estável e nenhuma tecla
+	// re-renderiza o painel. Aberto, o deferred deixa o React priorizar a digitação sobre o preview.
+	const text = useDeferredValue(usePromptBarStore((s) => (active ? s.text : "")));
 	const cli = usePromptBarStore((s) => s.cli);
 	const invoke = usePromptBarStore((s) => s.invoke);
 	const structureTemplate = usePromptBarStore((s) => s.structureTemplate);
@@ -97,7 +101,9 @@ export function usePromptExecution(params: {
 	const promptPreview = executionPlan.prompt.trim() || null;
 	const canExecute = !!project && !!promptPreview;
 
-	const [runId, setRunId] = useState<string | null>(null);
+	const [runId, setRunId] = useState<string | null>(() =>
+		typeof window === "undefined" ? null : localStorage.getItem("kowork-active-run"),
+	);
 	const [live, setLive] = useState<LiveEvent | null>(null);
 	const [elapsedMs, setElapsedMs] = useState(0);
 	const startedAtRef = useRef<number | null>(null);
@@ -118,6 +124,7 @@ export function usePromptExecution(params: {
 		...orpc.prompt.execute.mutationOptions(),
 		onSuccess: (result) => {
 			setRunId(result.runId);
+			localStorage.setItem("kowork-active-run", result.runId);
 			setLive({ runId: result.runId, status: "started" });
 			startedAtRef.current = Date.now();
 			setElapsedMs(0);
@@ -156,16 +163,16 @@ export function usePromptExecution(params: {
 	}, [runId]);
 
 	const record = statusQuery.data;
-	// O registro do run vive num Map em memória do backend; um restart (redeploy remoto) ou o teto de
-	// MAX_RUNS o apaga e o codex filho morre junto. Sem isso o status ficaria preso em "running" pra
-	// sempre — o React Query mantém o último `data` ("running") e nenhum evento terminal chega. Um run
-	// que o backend não reconhece mais é uma execução interrompida, não uma execução viva.
+	// Um run que o backend não reconhece mais é uma execução interrompida, não uma execução viva.
 	const runLost = !!runId && statusQuery.isError;
+	// O evento terminal do WebSocket pode se perder (run que falha em milissegundos termina antes da
+	// assinatura), deixando `live` preso em "started". O status terminal vindo do polling do banco
+	// precisa vencer esse "started" antigo — senão o spinner nunca fecha.
+	const liveTerminal = live && live.status !== "started" ? live.status : null;
+	const recordTerminal = record && record.status !== "running" ? record.status : null;
 	const resolvedStatus = runLost
 		? "failed"
-		: live?.status === "started"
-			? "running"
-			: (live?.status ?? record?.status ?? null);
+		: (liveTerminal ?? recordTerminal ?? (live || record ? "running" : null));
 	const isTerminal =
 		resolvedStatus === "done" || resolvedStatus === "failed" || resolvedStatus === "timeout";
 	const isRunning = executeMutation.isPending || (!!runId && !isTerminal);
@@ -203,6 +210,7 @@ export function usePromptExecution(params: {
 			return;
 		}
 		lastNotified.current = resolvedStatus;
+		localStorage.removeItem("kowork-active-run");
 		if (resolvedStatus === "done") {
 			toast.success("Execução concluída");
 		} else {
@@ -222,6 +230,7 @@ export function usePromptExecution(params: {
 
 		executeMutation.mutate({
 			projectId: project.id,
+			...(params.taskId ? { taskId: params.taskId } : {}),
 			prompt: promptPreview,
 			cli,
 			...(permissionMode ? { permissionMode } : {}),

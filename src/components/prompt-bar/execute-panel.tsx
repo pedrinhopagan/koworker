@@ -25,22 +25,25 @@ import { usePromptBarStore } from "@/stores/prompt-bar";
 export function ExecutePanel({
 	projectName,
 	routePath,
+	taskId,
 	nextStage,
 }: {
 	projectName?: string;
 	routePath: string | null;
+	taskId?: string;
 	nextStage?: TaskStage | null;
 }) {
 	const cli = usePromptBarStore((s) => s.cli);
 	const invoke = usePromptBarStore((s) => s.invoke);
+	const executeOpen = usePromptBarStore((s) => s.executeOpen);
 	const patchClaudeSession = usePromptBarStore((s) => s.patchClaudeSession);
 	const patchCodexSession = usePromptBarStore((s) => s.patchCodexSession);
 
 	const { promptPreview, canExecute, isRunning, elapsedLabel, output, error, handleExecute } =
-		usePromptExecution({ projectName, routePath, nextStage });
+		usePromptExecution({ projectName, routePath, taskId, nextStage, active: executeOpen });
 
 	return (
-		<div className="mt-2 flex flex-col gap-2 border-t border-border pt-2">
+		<div className="flex flex-col gap-2">
 			<div className="flex flex-wrap items-center gap-2">
 				<GroupLabel>{cli === "codex" ? "Sessão codex" : "Sessão claude"}</GroupLabel>
 				{cli === "codex" ? (

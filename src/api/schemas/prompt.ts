@@ -42,6 +42,7 @@ export type PromptAutofillResult = z.infer<typeof PromptAutofillResultSchema>;
 
 export const PromptExecuteSchema = z.object({
 	projectId: z.string().trim().min(1),
+	taskId: z.string().trim().min(1).optional(),
 	prompt: z.string().trim().min(1),
 	cli: z.enum(["claude", "codex"]),
 	permissionMode: z.string().trim().min(1).optional(),

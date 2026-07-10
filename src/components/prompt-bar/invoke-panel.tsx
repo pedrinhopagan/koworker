@@ -64,6 +64,7 @@ export function InvokePanel({
 }) {
 	const cli = usePromptBarStore((s) => s.cli);
 	const invoke = usePromptBarStore((s) => s.invoke);
+	const invokeOpen = usePromptBarStore((s) => s.invokeOpen);
 	const patchInvoke = usePromptBarStore((s) => s.patchInvoke);
 	const patchClaudeSession = usePromptBarStore((s) => s.patchClaudeSession);
 	const patchCodexSession = usePromptBarStore((s) => s.patchCodexSession);
@@ -80,10 +81,10 @@ export function InvokePanel({
 		preview,
 		canInvoke,
 		handleInvoke,
-	} = useInvocation({ projectName, routePath, nextStage });
+	} = useInvocation({ projectName, routePath, nextStage, active: invokeOpen });
 
 	return (
-		<div className="mt-2 flex flex-col gap-2 border-t border-border pt-2">
+		<div className="flex flex-col gap-2">
 			{/* Alvo: Skills | Agent + chip do alvo/sugestão do fluxo. Agents são do claude. O Invocar
 			    fica no fim da linha, à direita. */}
 			<div className="flex flex-wrap items-center gap-2">

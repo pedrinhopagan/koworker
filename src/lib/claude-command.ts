@@ -9,31 +9,53 @@ export type ClaudeCommandParams = {
 	agent?: string;
 	model?: string;
 	effort?: string;
+	headless?: boolean;
 };
 
-export function buildClaudeCommand({
-	prompt,
-	permissionMode,
-	agent,
-	model,
-	effort,
-}: ClaudeCommandParams): string {
+function permissionArgs(permissionMode: string) {
+	return permissionMode === "bypass"
+		? ["--dangerously-skip-permissions"]
+		: ["--permission-mode", permissionMode];
+}
+
+export function buildClaudePrintArgs(params: ClaudeCommandParams) {
+	const args = ["claude", "-p", ...permissionArgs(params.permissionMode)];
+	if (params.agent) {
+		args.push("--agent", params.agent);
+	}
+	if (params.model) {
+		args.push("--model", params.model);
+	}
+	if (params.effort) {
+		args.push("--effort", params.effort);
+	}
+	args.push(params.prompt);
+	return args;
+}
+
+export function buildClaudeCommand(params: ClaudeCommandParams): string {
+	if (params.headless) {
+		const args = buildClaudePrintArgs(params);
+		const prompt = args.pop() ?? "";
+		return [...args, `"${shellEscape(prompt)}"`].join(" ");
+	}
+
 	const flags =
-		permissionMode === "bypass"
+		params.permissionMode === "bypass"
 			? ["--dangerously-skip-permissions"]
-			: [`--permission-mode ${permissionMode}`];
+			: [`--permission-mode ${params.permissionMode}`];
 
-	if (agent) {
-		flags.push(`--agent ${agent}`);
+	if (params.agent) {
+		flags.push(`--agent ${params.agent}`);
 	}
-	if (model) {
-		flags.push(`--model ${model}`);
+	if (params.model) {
+		flags.push(`--model ${params.model}`);
 	}
-	if (effort) {
-		flags.push(`--effort ${effort}`);
+	if (params.effort) {
+		flags.push(`--effort ${params.effort}`);
 	}
 
-	return `claude ${flags.join(" ")} "${shellEscape(prompt)}"`;
+	return `claude ${flags.join(" ")} "${shellEscape(params.prompt)}"`;
 }
 
 // Escapa o prompt pra caber entre aspas duplas num comando de shell sem expandir `$`/crase — o mesmo

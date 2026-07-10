@@ -1,11 +1,21 @@
-import { ChevronRight, ChevronUp, Copy, Eraser, Loader2, MessageSquarePlus } from "lucide-react";
+import {
+	ChevronRight,
+	ChevronsDownUp,
+	ChevronsUpDown,
+	ChevronUp,
+	Copy,
+	Eraser,
+	Loader2,
+	MessageSquarePlus,
+	type LucideIcon as LucideIconType,
+} from "lucide-react";
 import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AttachmentsPanel } from "@/components/prompt-bar/attachments-panel";
 import { ExecutePanel } from "@/components/prompt-bar/execute-panel";
-import { GroupLabel, ToggleBox } from "@/components/prompt-bar/controls";
+import { Collapse, GroupLabel, ToggleBox } from "@/components/prompt-bar/controls";
 import { InvokePanel } from "@/components/prompt-bar/invoke-panel";
 import {
 	PromptImageChips,
@@ -24,6 +34,7 @@ import {
 	imagePlaceholder,
 } from "@/lib/build-prompt";
 import { LucideIcon } from "@/lib/lucide-icon";
+import { PromptUndoHistory, type PromptSnapshot } from "@/lib/prompt-undo";
 import { recordPromptHistory } from "@/lib/prompt-history";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
@@ -68,31 +79,30 @@ function filterSkills(skills: TaskSkill[], query: string): TaskSkill[] {
 // trigger revela sua seção. O CLI de trabalho vive na StatusBar (é global); o Invocar mora na
 // seção "Invocação", junto do Alvo.
 export function GlobalPromptBar() {
-	const text = usePromptBarStore((s) => s.text);
+	// A barra inteira (triggers, painéis, tooltips) não pode re-renderizar a cada tecla — o texto vivo
+	// mora no PromptInputArea. Aqui só entram derivações estáveis durante a digitação: o booleano de
+	// "tem texto" e o preview do cabeçalho, que só existe recolhido (digitar exige a barra aberta).
+	const hasText = usePromptBarStore((s) => s.text.trim().length > 0);
+	const collapsedText = usePromptBarStore((s) => (s.expanded ? null : s.text.trim()));
 	const expanded = usePromptBarStore((s) => s.expanded);
 	const cli = usePromptBarStore((s) => s.cli);
 	const invokeOpen = usePromptBarStore((s) => s.invokeOpen);
 	const executeOpen = usePromptBarStore((s) => s.executeOpen);
 	const attachOpen = usePromptBarStore((s) => s.attachOpen);
 	const structureOpen = usePromptBarStore((s) => s.structureOpen);
-	const structureTemplate = usePromptBarStore((s) => s.structureTemplate);
-	const structureValues = usePromptBarStore((s) => s.structureValues);
-	const images = usePromptBarStore((s) => s.images);
 	const interactWithKw = usePromptBarStore((s) => s.interactWithKw);
 	const interactWithRoute = usePromptBarStore((s) => s.interactWithRoute);
 	const interactWithInput = usePromptBarStore((s) => s.interactWithInput);
-	const setText = usePromptBarStore((s) => s.setText);
-	const reconcileImages = usePromptBarStore((s) => s.reconcileImages);
 	const setExpanded = usePromptBarStore((s) => s.setExpanded);
 	const toggleExpanded = usePromptBarStore((s) => s.toggleExpanded);
 	const toggleInvokeOpen = usePromptBarStore((s) => s.toggleInvokeOpen);
 	const toggleExecuteOpen = usePromptBarStore((s) => s.toggleExecuteOpen);
 	const toggleAttachOpen = usePromptBarStore((s) => s.toggleAttachOpen);
 	const toggleStructureOpen = usePromptBarStore((s) => s.toggleStructureOpen);
+	const setAllSectionsOpen = usePromptBarStore((s) => s.setAllSectionsOpen);
 	const setInteractWithKw = usePromptBarStore((s) => s.setInteractWithKw);
 	const setInteractWithRoute = usePromptBarStore((s) => s.setInteractWithRoute);
 	const setInteractWithInput = usePromptBarStore((s) => s.setInteractWithInput);
-	const clear = usePromptBarStore((s) => s.clear);
 	const setStructureTemplate = usePromptBarStore((s) => s.setStructureTemplate);
 
 	const reading = useReadingModeStore((s) => s.reading);
@@ -102,14 +112,7 @@ export function GlobalPromptBar() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const lastPathname = useRef(pathname);
 
-	const textareaRef = useRef<HTMLTextAreaElement>(null);
-	const backdropRef = useRef<HTMLDivElement>(null);
 	const rootRef = useRef<HTMLDivElement>(null);
-
-	const { handlePaste, uploading } = usePromptImagePaste({
-		projectName: routeTarget.projectName,
-		textareaRef,
-	});
 
 	// O footer se mede e publica --prompt-bar-h no :root: na leitura ele é fixo e o conteúdo precisa
 	// desse respiro inferior pra não ficar escondido atrás do drawer. ResizeObserver acompanha o
@@ -130,8 +133,6 @@ export function GlobalPromptBar() {
 		};
 	}, [reading]);
 
-	const [trigger, setTrigger] = useState<SlashTrigger | null>(null);
-	const [activeIndex, setActiveIndex] = useState(0);
 	// `overflow-hidden` faz a animação de grid-rows clipar a altura; mas o menu de skill abre pra
 	// cima e seria cortado. Então só liberamos `overflow-visible` quando a animação de abrir termina.
 	const [revealed, setRevealed] = useState(expanded);
@@ -163,6 +164,264 @@ export function GlobalPromptBar() {
 		}
 	}, [routeTarget.taskId, routeTarget.categoryStructureSlug, setStructureTemplate]);
 
+	const appendTarget = interactWithRoute ? routeTarget.path : null;
+
+	async function handleCopy() {
+		// Os mesmos toggles de Anexar governam o que entra aqui — o preview do painel de invocação
+		// mostra exatamente esta string, então copiar não tem surpresa. O corpo compõe a estrutura
+		// (template ativo) antes do texto livre; o CLI ativo decide a grafia das skills (`/` vs `$`).
+		const { text, structureTemplate, structureValues, images } = usePromptBarStore.getState();
+		const copyText = interactWithInput
+			? buildPromptBody({ templateSlug: structureTemplate, values: structureValues, text, images })
+			: "";
+		const prompt = convertSkillCallsForCli(
+			buildKoworkerPrompt({ kw: interactWithKw, target: appendTarget, text: copyText }),
+			cli,
+		);
+		if (!prompt.trim()) {
+			toast.info("Nada para copiar");
+			return;
+		}
+		const ok = await copyToClipboard(prompt);
+		if (ok) {
+			recordPromptHistory({
+				kind: "copy",
+				text,
+				prompt,
+				...(appendTarget ? { target: appendTarget } : {}),
+				...(routeTarget.projectName ? { projectName: routeTarget.projectName } : {}),
+				...(pathname ? { routePath: pathname } : {}),
+			});
+			toast.success("Prompt copiado");
+		} else {
+			toast.error("Não foi possível copiar o prompt");
+		}
+	}
+
+	return (
+		<div
+			ref={rootRef}
+			className={cn(
+				"border-t border-border bg-chrome",
+				// Na leitura a rota vira um overlay `fixed inset-0 z-50`; o footer precisa sair do fluxo
+				// e encostar no fim da janela (sobre o lugar da StatusBar), com z acima do overlay.
+				reading && "fixed inset-x-0 bottom-0 z-[60]",
+			)}
+		>
+			<div
+				className={cn(
+					"relative transition-opacity",
+					// Na leitura o footer fica sutil sobre o overlay, igual às tabs do topo.
+					reading && "opacity-40 hover:opacity-100 focus-within:opacity-100",
+				)}
+			>
+				{/* Header sempre presente: o chevron fica fixo à direita e só rotaciona ao abrir/fechar. */}
+				<button
+					type="button"
+					onClick={toggleExpanded}
+					className={cn(
+						"flex h-9 w-full cursor-pointer items-center gap-2 px-4 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+						expanded && "bg-muted/40 text-foreground",
+					)}
+				>
+					<MessageSquarePlus className="h-4 w-4 shrink-0" />
+					<span className="shrink-0">Prompt</span>
+					<span className="min-w-0 flex-1">
+						{!expanded &&
+							(hasText ? (
+								<span className="flex min-w-0 items-center gap-2">
+									<span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
+									<span className="min-w-0 flex-1 truncate text-muted-foreground/80">
+										{collapsedText}
+									</span>
+								</span>
+							) : (
+								<span className="block truncate text-muted-foreground/50">
+									Escreva uma instrução para o agente
+								</span>
+							))}
+					</span>
+					<ChevronUp
+						className={cn(
+							"h-4 w-4 shrink-0 transition-transform duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]",
+							expanded && "rotate-180",
+						)}
+					/>
+				</button>
+
+				<div
+					className={cn(
+						"grid transition-[grid-template-rows,visibility] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
+						expanded ? "visible grid-rows-[1fr]" : "invisible grid-rows-[0fr]",
+					)}
+					onTransitionEnd={(event) => {
+						if (event.propertyName === "grid-template-rows" && expanded) setRevealed(true);
+					}}
+				>
+					<div
+						className={cn(
+							"flex min-h-0 flex-col justify-end",
+							revealed ? "overflow-visible" : "overflow-hidden",
+						)}
+					>
+						<div className={cn(!reading && "border-t border-border bg-chrome pt-3")}>
+							<div className="mx-auto w-full max-w-3xl px-4 pb-3 xl:max-w-4xl">
+								<PromptInputArea projectName={routeTarget.projectName} taskSkills={taskSkills} />
+
+								<PromptImageChips />
+
+								{/* Triggers das três seções à esquerda; o Copiar sozinho à direita. Cada trigger
+								    revela sua seção logo abaixo. O Invocar mora dentro da seção "Invocação". */}
+								<div className="mt-2 flex flex-wrap items-center gap-2">
+									<SectionTrigger
+										label="Anexos"
+										hint="o que anexar ao prompt: /kw, caminho da rota e o texto digitado"
+										open={attachOpen}
+										onToggle={toggleAttachOpen}
+									/>
+									<SectionTrigger
+										label="Estruturação"
+										hint="estrutura do prompt (Goal, Contexto...) e preenchimento por IA"
+										open={structureOpen}
+										onToggle={toggleStructureOpen}
+									/>
+									<SectionTrigger
+										label="Invocação"
+										hint="alvo (agent/skill), knobs da sessão do CLI e o botão Invocar"
+										open={invokeOpen}
+										onToggle={toggleInvokeOpen}
+									/>
+									<SectionTrigger
+										label="Execução"
+										hint="roda o prompt no projeto sem abrir terminal (headless)"
+										open={executeOpen}
+										onToggle={toggleExecuteOpen}
+									/>
+
+									<div className="flex items-center">
+										<SectionBulkButton
+											label="Abrir todas as seções"
+											icon={ChevronsUpDown}
+											disabled={attachOpen && structureOpen && invokeOpen && executeOpen}
+											onClick={() => setAllSectionsOpen(true)}
+										/>
+										<SectionBulkButton
+											label="Fechar todas as seções"
+											icon={ChevronsDownUp}
+											disabled={!attachOpen && !structureOpen && !invokeOpen && !executeOpen}
+											onClick={() => setAllSectionsOpen(false)}
+										/>
+									</div>
+
+									<div className="ml-auto shrink-0">
+										<Button size="sm" variant="outline" onClick={() => void handleCopy()}>
+											<Copy size={14} />
+											Copiar
+										</Button>
+									</div>
+								</div>
+
+								{/* Seção "Anexos": os toggles que governam tanto o Copiar quanto o Invocar. */}
+								<CollapsibleSection open={attachOpen}>
+									<div className="flex flex-wrap items-center gap-2">
+										<GroupLabel>Anexar</GroupLabel>
+										<ToggleBox
+											label="kw"
+											hint="prefixa a skill /kw na cabeça do prompt"
+											checked={interactWithKw}
+											onChange={setInteractWithKw}
+										/>
+										<ToggleBox
+											label="rota"
+											hint={
+												routeTarget.path
+													? `caminho ${routeTarget.path}`
+													: "esta rota não anexa caminho"
+											}
+											checked={interactWithRoute}
+											disabled={!routeTarget.path}
+											onChange={setInteractWithRoute}
+										/>
+										<ToggleBox
+											label="input"
+											hint="anexa o texto digitado (e a estrutura ativa) ao prompt"
+											checked={interactWithInput}
+											onChange={setInteractWithInput}
+										/>
+									</div>
+								</CollapsibleSection>
+
+								{/* Seção "Estruturação": revelada pelo trigger homônimo. Fica montada pra preservar
+								    o template ativo e os campos entre aberturas. */}
+								<CollapsibleSection open={structureOpen}>
+									<AttachmentsPanel taskId={routeTarget.taskId} />
+								</CollapsibleSection>
+
+								{/* Seção "Invocação": revelada pelo trigger homônimo. grid-rows 0fr→1fr anima a
+								    altura e o conteúdo desliza/desvanece junto. Fica montada pra preservar o alvo
+								    escolhido; os popovers do alvo são portalados, então o overflow-hidden não os clipa. */}
+								<CollapsibleSection open={invokeOpen}>
+									<InvokePanel
+										projectName={routeTarget.projectName}
+										routePath={routeTarget.path}
+										nextStage={routeTarget.nextStage}
+									/>
+								</CollapsibleSection>
+
+								<CollapsibleSection open={executeOpen}>
+									<ExecutePanel
+										projectName={routeTarget.projectName}
+										routePath={routeTarget.path}
+										taskId={routeTarget.taskId}
+										nextStage={routeTarget.nextStage}
+									/>
+								</CollapsibleSection>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+// Dono do texto vivo: só esta subárvore re-renderiza a cada tecla. Concentra o textarea, o backdrop
+// de chips, o menu de skills do "/", o overlay de upload e a borracha — tudo que precisa do texto
+// caractere a caractere fica aqui, isolado do resto da barra.
+function PromptInputArea({
+	projectName,
+	taskSkills,
+}: {
+	projectName?: string;
+	taskSkills: TaskSkill[];
+}) {
+	const text = usePromptBarStore((s) => s.text);
+	const images = usePromptBarStore((s) => s.images);
+	const setText = usePromptBarStore((s) => s.setText);
+	const reconcileImages = usePromptBarStore((s) => s.reconcileImages);
+	const restoreDraft = usePromptBarStore((s) => s.restoreDraft);
+	const clear = usePromptBarStore((s) => s.clear);
+
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const backdropRef = useRef<HTMLDivElement>(null);
+
+	const [undoHistory] = useState(() => new PromptUndoHistory());
+	const snapshotRef = useRef<PromptSnapshot>({ text, caret: text.length, images });
+
+	useEffect(() => {
+		if (snapshotRef.current.text === text) {
+			snapshotRef.current.images = images;
+			return;
+		}
+		undoHistory.record(snapshotRef.current, text);
+		snapshotRef.current = { text, caret: text.length, images };
+	}, [text, images, undoHistory]);
+
+	const { handlePaste, uploading } = usePromptImagePaste({ projectName, textareaRef });
+
+	const [trigger, setTrigger] = useState<SlashTrigger | null>(null);
+	const [activeIndex, setActiveIndex] = useState(0);
+
 	const matches = useMemo(
 		() => (trigger ? filterSkills(taskSkills, trigger.query) : []),
 		[trigger, taskSkills],
@@ -173,14 +432,14 @@ export function GlobalPromptBar() {
 		setActiveIndex(0);
 	}, [trigger?.query]);
 
-	const appendTarget = interactWithRoute ? routeTarget.path : null;
-
 	function syncTrigger(value: string, caret: number) {
 		setTrigger(detectSlashTrigger(value, caret));
 	}
 
 	function handleChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
 		const next = event.target.value;
+		undoHistory.record(snapshotRef.current, next);
+		snapshotRef.current = { text: next, caret: event.target.selectionStart, images };
 		setText(next);
 		// Recortar, selecionar-e-apagar ou editar um marcador é o texto perdendo o token: a imagem cai
 		// junto (o Backspace/Delete de um token inteiro é tratado antes, no keydown, sem passar por aqui).
@@ -236,7 +495,33 @@ export function GlobalPromptBar() {
 		});
 	}
 
+	function handleUndoRedo(event: React.KeyboardEvent<HTMLTextAreaElement>): boolean {
+		if (!(event.ctrlKey || event.metaKey) || event.altKey) return false;
+
+		const key = event.key.toLowerCase();
+		if (key !== "z" && key !== "y") return false;
+
+		event.preventDefault();
+		const isRedo = key === "y" || event.shiftKey;
+		const snapshot = isRedo
+			? undoHistory.redo(snapshotRef.current)
+			: undoHistory.undo(snapshotRef.current);
+		if (!snapshot) return true;
+
+		snapshotRef.current = snapshot;
+		restoreDraft({ text: snapshot.text, images: snapshot.images });
+		setTrigger(null);
+		requestAnimationFrame(() => {
+			const node = textareaRef.current;
+			if (!node) return;
+			node.focus();
+			node.setSelectionRange(snapshot.caret, snapshot.caret);
+		});
+		return true;
+	}
+
 	function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+		if (handleUndoRedo(event)) return;
 		if (deleteAdjacentImageToken(event)) return;
 		if (!menuOpen) return;
 		if (event.key === "ArrowDown") {
@@ -260,289 +545,88 @@ export function GlobalPromptBar() {
 		}
 	}
 
-	async function handleCopy() {
-		// Os mesmos toggles de Anexar governam o que entra aqui — o preview do painel de invocação
-		// mostra exatamente esta string, então copiar não tem surpresa. O corpo compõe a estrutura
-		// (template ativo) antes do texto livre; o CLI ativo decide a grafia das skills (`/` vs `$`).
-		const copyText = interactWithInput
-			? buildPromptBody({ templateSlug: structureTemplate, values: structureValues, text, images })
-			: "";
-		const prompt = convertSkillCallsForCli(
-			buildKoworkerPrompt({ kw: interactWithKw, target: appendTarget, text: copyText }),
-			cli,
-		);
-		if (!prompt.trim()) {
-			toast.info("Nada para copiar");
-			return;
-		}
-		const ok = await copyToClipboard(prompt);
-		if (ok) {
-			recordPromptHistory({
-				kind: "copy",
-				text,
-				prompt,
-				...(appendTarget ? { target: appendTarget } : {}),
-				...(routeTarget.projectName ? { projectName: routeTarget.projectName } : {}),
-				...(pathname ? { routePath: pathname } : {}),
-			});
-			toast.success("Prompt copiado");
-		} else {
-			toast.error("Não foi possível copiar o prompt");
-		}
-	}
-
-	const hasText = text.trim().length > 0;
-
 	return (
-		<div
-			ref={rootRef}
-			className={cn(
-				"border-t border-border bg-chrome",
-				// Na leitura a rota vira um overlay `fixed inset-0 z-50`; o footer precisa sair do fluxo
-				// e encostar no fim da janela (sobre o lugar da StatusBar), com z acima do overlay.
-				reading && "fixed inset-x-0 bottom-0 z-[60]",
-			)}
-		>
-			<div
-				className={cn(
-					"relative transition-opacity",
-					// Na leitura o footer fica sutil sobre o overlay, igual às tabs do topo.
-					reading && "opacity-40 hover:opacity-100 focus-within:opacity-100",
-				)}
-			>
-				{/* Header sempre presente: o chevron fica fixo à direita e só rotaciona ao abrir/fechar. */}
-				<button
-					type="button"
-					onClick={toggleExpanded}
-					className={cn(
-						"flex h-9 w-full cursor-pointer items-center gap-2 px-4 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-						expanded && "bg-muted/40 text-foreground",
-					)}
-				>
-					<MessageSquarePlus className="h-4 w-4 shrink-0" />
-					<span className="shrink-0">Prompt</span>
-					<span className="min-w-0 flex-1">
-						{!expanded &&
-							(hasText ? (
-								<span className="flex min-w-0 items-center gap-2">
-									<span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
-									<span className="min-w-0 flex-1 truncate text-muted-foreground/80">
-										{text.trim()}
-									</span>
-								</span>
-							) : (
-								<span className="block truncate text-muted-foreground/50">
-									Escreva uma instrução para o agente
-								</span>
-							))}
-					</span>
-					<ChevronUp
-						className={cn(
-							"h-4 w-4 shrink-0 transition-transform duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]",
-							expanded && "rotate-180",
-						)}
-					/>
-				</button>
-
-				<div
-					className={cn(
-						"grid transition-[grid-template-rows] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
-						expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-					)}
-					onTransitionEnd={(event) => {
-						if (event.propertyName === "grid-template-rows" && expanded) setRevealed(true);
-					}}
-				>
-					<div
-						className={cn(
-							"flex min-h-0 flex-col justify-end",
-							revealed ? "overflow-visible" : "overflow-hidden",
-						)}
-					>
-						<div className={cn(!reading && "border-t border-border bg-chrome pt-3")}>
-							<div className="mx-auto w-full max-w-3xl px-4 pb-3 xl:max-w-4xl">
-								<div className="relative">
-									{menuOpen && (
-										<div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-full overflow-y-auto border border-border bg-popover shadow-md animate-in fade-in-0 slide-in-from-bottom-1 duration-150">
-											{matches.map((skill, index) => (
-												<button
-													key={skill.slug}
-													type="button"
-													onMouseDown={(event) => {
-														event.preventDefault();
-														applySkill(skill);
-													}}
-													onMouseEnter={() => setActiveIndex(index)}
-													className={cn(
-														"flex w-full items-center gap-3 px-3 py-2 text-left transition-colors",
-														index === activeIndex ? "bg-secondary" : "hover:bg-secondary/50",
-													)}
-												>
-													<div
-														className="flex h-7 w-7 shrink-0 items-center justify-center border bg-muted/30"
-														style={{ borderColor: skill.color, color: skill.color }}
-													>
-														<LucideIcon name={skill.icon} className="size-4" />
-													</div>
-													<div className="min-w-0 flex-1">
-														<div className="truncate font-mono text-sm text-foreground">
-															/{skill.slug}
-														</div>
-														<div className="truncate text-xs text-muted-foreground">
-															{skill.description}
-														</div>
-													</div>
-												</button>
-											))}
-										</div>
-									)}
-
-									<PromptInputBackdrop text={text} scrollRef={backdropRef} />
-
-									<textarea
-										ref={textareaRef}
-										value={text}
-										onChange={handleChange}
-										onKeyDown={handleKeyDown}
-										onSelect={(event) =>
-											syncTrigger(event.currentTarget.value, event.currentTarget.selectionStart)
-										}
-										onPaste={(event) => void handlePaste(event)}
-										onScroll={(event) => {
-											if (backdropRef.current)
-												backdropRef.current.scrollTop = event.currentTarget.scrollTop;
-										}}
-										disabled={uploading}
-										placeholder="Instrução para o agente — digite / para inserir uma skill"
-										className={cn(
-											"relative flex max-h-64 min-h-20 w-full resize-none rounded-none border border-input bg-transparent px-3 py-2 pr-9 text-base shadow-xs transition-colors field-sizing-content",
-											"placeholder:text-muted-foreground/20",
-											"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring",
-											"disabled:cursor-not-allowed",
-										)}
-									/>
-
-									{/* Enquanto a imagem sobe, o input trava: colar de novo no meio da gravação bagunçaria a
-									    ordem dos marcadores. O overlay cobre o textarea com um respiro e o spinner. */}
-									{uploading && (
-										<div className="absolute inset-0 z-10 flex items-center justify-center gap-2 border border-input bg-card/70 text-sm text-muted-foreground backdrop-blur-[1px]">
-											<Loader2 className="size-4 animate-spin" />
-											Colando imagem…
-										</div>
-									)}
-
-									{/* Borracha no canto do textarea: limpa exatamente o que está ali. */}
-									{hasText && (
-										<Tooltip label="Limpar texto" triggerClassName="absolute right-2 top-2">
-											<button
-												type="button"
-												onClick={clear}
-												aria-label="Limpar texto"
-												className="flex size-6 items-center justify-center text-muted-foreground/60 transition-colors hover:text-foreground"
-											>
-												<Eraser className="size-3.5" />
-											</button>
-										</Tooltip>
-									)}
-								</div>
-
-								<PromptImageChips />
-
-								{/* Triggers das três seções à esquerda; o Copiar sozinho à direita. Cada trigger
-								    revela sua seção logo abaixo. O Invocar mora dentro da seção "Invocação". */}
-								<div className="mt-2 flex flex-wrap items-center gap-2">
-									<SectionTrigger
-										label="Anexos"
-										hint="o que anexar ao prompt: /kw, caminho da rota e o texto digitado"
-										open={attachOpen}
-										onToggle={toggleAttachOpen}
-									/>
-									<SectionTrigger
-										label="Estruturação"
-										hint="estrutura do prompt (Goal, Contexto...) e preenchimento por IA"
-										open={structureOpen}
-										onToggle={toggleStructureOpen}
-									/>
-									<SectionTrigger
-										label="Invocação"
-										hint="alvo (agent/skill), knobs da sessão do CLI e o botão Invocar"
-										open={invokeOpen}
-										onToggle={toggleInvokeOpen}
-									/>
-									<SectionTrigger
-										label="Execução"
-										hint="roda o prompt no projeto sem abrir terminal (headless)"
-										open={executeOpen}
-										onToggle={toggleExecuteOpen}
-									/>
-
-									<div className="ml-auto shrink-0">
-										<Button size="sm" variant="outline" onClick={() => void handleCopy()}>
-											<Copy size={14} />
-											Copiar
-										</Button>
-									</div>
-								</div>
-
-								{/* Seção "Anexos": os toggles que governam tanto o Copiar quanto o Invocar. */}
-								<CollapsibleSection open={attachOpen}>
-									<div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2">
-										<GroupLabel>Anexar</GroupLabel>
-										<ToggleBox
-											label="kw"
-											hint="prefixa a skill /kw na cabeça do prompt"
-											checked={interactWithKw}
-											onChange={setInteractWithKw}
-										/>
-										<ToggleBox
-											label="rota"
-											hint={
-												routeTarget.path
-													? `caminho ${routeTarget.path}`
-													: "esta rota não anexa caminho"
-											}
-											checked={interactWithRoute}
-											disabled={!routeTarget.path}
-											onChange={setInteractWithRoute}
-										/>
-										<ToggleBox
-											label="input"
-											hint="anexa o texto digitado (e a estrutura ativa) ao prompt"
-											checked={interactWithInput}
-											onChange={setInteractWithInput}
-										/>
-									</div>
-								</CollapsibleSection>
-
-								{/* Seção "Estruturação": revelada pelo trigger homônimo. Fica montada pra preservar
-								    o template ativo e os campos entre aberturas. */}
-								<CollapsibleSection open={structureOpen}>
-									<AttachmentsPanel taskId={routeTarget.taskId} />
-								</CollapsibleSection>
-
-								{/* Seção "Invocação": revelada pelo trigger homônimo. grid-rows 0fr→1fr anima a
-								    altura e o conteúdo desliza/desvanece junto. Fica montada pra preservar o alvo
-								    escolhido; os popovers do alvo são portalados, então o overflow-hidden não os clipa. */}
-								<CollapsibleSection open={invokeOpen}>
-									<InvokePanel
-										projectName={routeTarget.projectName}
-										routePath={routeTarget.path}
-										nextStage={routeTarget.nextStage}
-									/>
-								</CollapsibleSection>
-
-								<CollapsibleSection open={executeOpen}>
-									<ExecutePanel
-										projectName={routeTarget.projectName}
-										routePath={routeTarget.path}
-										nextStage={routeTarget.nextStage}
-									/>
-								</CollapsibleSection>
+		<div className="relative">
+			{menuOpen && (
+				<div className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-full overflow-y-auto border border-border bg-popover shadow-md animate-in fade-in-0 slide-in-from-bottom-1 duration-150">
+					{matches.map((skill, index) => (
+						<button
+							key={skill.slug}
+							type="button"
+							onMouseDown={(event) => {
+								event.preventDefault();
+								applySkill(skill);
+							}}
+							onMouseEnter={() => setActiveIndex(index)}
+							className={cn(
+								"flex w-full items-center gap-3 px-3 py-2 text-left transition-colors",
+								index === activeIndex ? "bg-secondary" : "hover:bg-secondary/50",
+							)}
+						>
+							<div
+								className="flex h-7 w-7 shrink-0 items-center justify-center border bg-muted/30"
+								style={{ borderColor: skill.color, color: skill.color }}
+							>
+								<LucideIcon name={skill.icon} className="size-4" />
 							</div>
-						</div>
-					</div>
+							<div className="min-w-0 flex-1">
+								<div className="truncate font-mono text-sm text-foreground">/{skill.slug}</div>
+								<div className="truncate text-xs text-muted-foreground">{skill.description}</div>
+							</div>
+						</button>
+					))}
 				</div>
-			</div>
+			)}
+
+			<PromptInputBackdrop text={text} scrollRef={backdropRef} />
+
+			<textarea
+				ref={textareaRef}
+				value={text}
+				onChange={handleChange}
+				onKeyDown={handleKeyDown}
+				onSelect={(event) => {
+					if (snapshotRef.current.text === event.currentTarget.value) {
+						snapshotRef.current.caret = event.currentTarget.selectionStart;
+					}
+					syncTrigger(event.currentTarget.value, event.currentTarget.selectionStart);
+				}}
+				onPaste={(event) => void handlePaste(event)}
+				onScroll={(event) => {
+					if (backdropRef.current) backdropRef.current.scrollTop = event.currentTarget.scrollTop;
+				}}
+				disabled={uploading}
+				placeholder="Instrução para o agente — digite / para inserir uma skill"
+				className={cn(
+					"relative flex max-h-64 min-h-20 w-full resize-none rounded-none border border-input bg-transparent px-3 py-2 pr-9 text-base shadow-xs transition-colors field-sizing-content",
+					"placeholder:text-muted-foreground/20",
+					"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring",
+					"disabled:cursor-not-allowed",
+				)}
+			/>
+
+			{/* Enquanto a imagem sobe, o input trava: colar de novo no meio da gravação bagunçaria a
+			    ordem dos marcadores. O overlay cobre o textarea com um respiro e o spinner. */}
+			{uploading && (
+				<div className="absolute inset-0 z-10 flex items-center justify-center gap-2 border border-input bg-card/70 text-sm text-muted-foreground backdrop-blur-[1px]">
+					<Loader2 className="size-4 animate-spin" />
+					Colando imagem…
+				</div>
+			)}
+
+			{/* Borracha no canto do textarea: limpa exatamente o que está ali. */}
+			{text.trim().length > 0 && (
+				<Tooltip label="Limpar texto" triggerClassName="absolute right-2 top-2">
+					<button
+						type="button"
+						onClick={clear}
+						aria-label="Limpar texto"
+						className="flex size-6 items-center justify-center text-muted-foreground/60 transition-colors hover:text-foreground"
+					>
+						<Eraser className="size-3.5" />
+					</button>
+				</Tooltip>
+			)}
 		</div>
 	);
 }
@@ -582,25 +666,38 @@ function SectionTrigger({
 	);
 }
 
-// Colapso animado padrão dos painéis: grid-rows 0fr→1fr anima a altura, conteúdo desliza junto.
+function SectionBulkButton({
+	label,
+	icon: Icon,
+	disabled,
+	onClick,
+}: {
+	label: string;
+	icon: LucideIconType;
+	disabled: boolean;
+	onClick: () => void;
+}) {
+	return (
+		<Tooltip label={label}>
+			<button
+				type="button"
+				aria-label={label}
+				disabled={disabled}
+				onClick={onClick}
+				className="flex size-6 items-center justify-center text-muted-foreground/60 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40 disabled:hover:text-muted-foreground/60"
+			>
+				<Icon className="size-3.5" />
+			</button>
+		</Tooltip>
+	);
+}
+
+// Seção colapsável do footer: o Collapse anima; o cartão bordado delimita cada seção aberta, então
+// várias abertas ao mesmo tempo aparecem como blocos distintos em vez de linhas coladas.
 function CollapsibleSection({ open, children }: { open: boolean; children: React.ReactNode }) {
 	return (
-		<div
-			className={cn(
-				"grid transition-[grid-template-rows] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
-				open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
-			)}
-		>
-			<div className="min-h-0 overflow-hidden">
-				<div
-					className={cn(
-						"transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
-						open ? "opacity-100 translate-y-0" : "-translate-y-1 opacity-0",
-					)}
-				>
-					{children}
-				</div>
-			</div>
-		</div>
+		<Collapse open={open}>
+			<div className="mt-2 border border-border/60 bg-muted/20 px-3 py-2.5">{children}</div>
+		</Collapse>
 	);
 }

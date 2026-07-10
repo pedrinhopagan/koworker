@@ -1,10 +1,14 @@
 import { type InvokeCli } from "@/constants/invoke";
+import { buildClaudePrintArgs } from "@/lib/claude-command";
+import { buildCodexExecArgs } from "@/lib/codex-command";
+import type { execution_runs } from "../db/connection";
+import { dbExecutionRuns } from "../db/execution-runs";
 import { PubSub, type PromptRunEvent } from "../pubsub";
+import { PushNotifications } from "./push-notifications";
 import { spawnCapture } from "./spawn";
 
 const RUN_TIMEOUT_MS = 45 * 60_000;
 const MAX_OUTPUT_CHARS = 20_000;
-const MAX_RUNS = 20;
 
 // A execução roda sem TTY e sem ninguém pra responder um prompt: qualquer subprocesso que o agente
 // dispare (git, editor, pager) precisa falhar rápido em vez de bloquear esperando entrada que nunca
@@ -25,7 +29,7 @@ export type PromptRunStatus = "running" | "done" | "failed" | "timeout";
 
 export type PromptRunRecord = {
 	runId: string;
-	userId: string;
+	userId: number;
 	status: PromptRunStatus;
 	startedAt: number;
 	finishedAt?: number;
@@ -35,9 +39,6 @@ export type PromptRunRecord = {
 	prompt: string;
 };
 
-const runs = new Map<string, PromptRunRecord>();
-const runOrder: string[] = [];
-
 function truncateOutput(value: string): string {
 	if (value.length <= MAX_OUTPUT_CHARS) {
 		return value;
@@ -45,74 +46,60 @@ function truncateOutput(value: string): string {
 	return `${value.slice(0, MAX_OUTPUT_CHARS)}\n… (truncado)`;
 }
 
-function trimRuns(): void {
-	while (runOrder.length > MAX_RUNS) {
-		const oldest = runOrder.shift();
-		if (oldest) {
-			runs.delete(oldest);
-		}
-	}
-}
-
 async function emit(event: PromptRunEvent): Promise<void> {
 	await PubSub.publish("promptRun", event.runId, event);
 }
 
-function buildClaudeCmd(params: {
-	prompt: string;
-	permissionMode?: string;
-	agent?: string;
-	model?: string;
-	effort?: string;
-}): string[] {
-	const permissionFlags =
-		params.permissionMode === "bypass"
-			? ["--dangerously-skip-permissions"]
-			: ["--permission-mode", params.permissionMode ?? "acceptEdits"];
-
-	return [
-		"claude",
-		"-p",
-		params.prompt,
-		...(params.agent ? ["--agent", params.agent] : []),
-		...(params.model ? ["--model", params.model] : []),
-		...(params.effort ? ["--effort", params.effort] : []),
-		...permissionFlags,
-	];
+function toPromptRunRecord(row: execution_runs): PromptRunRecord {
+	return {
+		runId: row.id,
+		userId: row.user_id,
+		status: row.status === "waiting_user" ? "failed" : row.status,
+		startedAt: row.started_at,
+		...(row.finished_at ? { finishedAt: row.finished_at } : {}),
+		...(row.output ? { output: row.output } : {}),
+		...(row.error ? { error: row.error } : {}),
+		projectId: row.project_id,
+		prompt: row.prompt ?? "",
+	};
 }
 
-function buildCodexCmd(params: {
-	prompt: string;
-	cwd: string;
-	model?: string;
-	effort?: string;
-	approvalMode?: string;
-}): string[] {
-	const cmd = ["codex", "exec"];
+async function finishRun(params: {
+	runId: string;
+	userId: number;
+	status: "done" | "failed" | "timeout";
+	title: string;
+	taskId?: string;
+	output?: string;
+	error?: string;
+}) {
+	await dbExecutionRuns.update(params.runId, {
+		status: params.status,
+		finished_at: Date.now(),
+		...(params.output ? { output: params.output } : {}),
+		...(params.error ? { error: params.error } : {}),
+	});
 
-	if (params.model) {
-		cmd.push("-m", params.model);
-	}
-	if (params.effort) {
-		cmd.push("-c", `model_reasoning_effort=${params.effort}`);
-	}
+	await emit({
+		runId: params.runId,
+		status: params.status,
+		...(params.output ? { output: params.output } : {}),
+		...(params.error ? { error: params.error } : {}),
+	});
 
-	cmd.push("--ephemeral", "--skip-git-repo-check", "-C", params.cwd);
-
-	if (params.approvalMode === "bypass") {
-		cmd.push("--dangerously-bypass-approvals-and-sandbox");
-	} else if (params.approvalMode === "fullAuto") {
-		cmd.push("--full-auto");
-	} else if (params.approvalMode === "readOnly") {
-		cmd.push("--sandbox", "read-only");
-	}
-
-	cmd.push(params.prompt);
-	return cmd;
+	void PushNotifications.send(params.userId, {
+		title: params.status === "done" ? "Execução concluída" : "Execução precisa de atenção",
+		body: params.status === "done" ? params.title : (params.error ?? params.title),
+		url: params.taskId ? `/tarefas/${params.taskId}` : "/",
+		tag: `execution-${params.runId}`,
+	}).catch(() => {});
 }
 
 async function runInBackground(params: {
 	runId: string;
+	userId: number;
+	title: string;
+	taskId?: string;
 	cwd: string;
 	cmd: string[];
 }): Promise<void> {
@@ -126,64 +113,56 @@ async function runInBackground(params: {
 			env: HEADLESS_ENV,
 		});
 
-		const record = runs.get(runId);
-		if (!record) {
-			return;
-		}
-
 		if (timedOut) {
-			record.status = "timeout";
-			record.error = "A execução excedeu o tempo limite de 45 minutos.";
-			record.finishedAt = Date.now();
-			await emit({
+			await finishRun({
 				runId,
+				userId: params.userId,
+				title: params.title,
+				taskId: params.taskId,
 				status: "timeout",
-				error: record.error,
+				error: "A execução excedeu o tempo limite de 45 minutos.",
 			});
 			return;
 		}
 
 		if (exitCode !== 0) {
-			record.status = "failed";
-			record.error = `A execução falhou (código ${exitCode}).`;
-			record.output = truncateOutput(stdout);
-			record.finishedAt = Date.now();
-			await emit({
+			await finishRun({
 				runId,
+				userId: params.userId,
+				title: params.title,
+				taskId: params.taskId,
 				status: "failed",
-				error: record.error,
-				output: record.output,
+				error: `A execução falhou (código ${exitCode}).`,
+				output: truncateOutput(stdout),
 			});
 			return;
 		}
 
-		record.status = "done";
-		record.output = truncateOutput(stdout);
-		record.finishedAt = Date.now();
-		await emit({
+		await finishRun({
 			runId,
+			userId: params.userId,
+			title: params.title,
+			taskId: params.taskId,
 			status: "done",
-			output: record.output,
+			output: truncateOutput(stdout),
 		});
 	} catch (err) {
-		const record = runs.get(runId);
-		if (!record) {
-			return;
-		}
-		record.status = "failed";
-		record.error = err instanceof Error ? err.message : "Erro inesperado na execução";
-		record.finishedAt = Date.now();
-		await emit({
+		await finishRun({
 			runId,
+			userId: params.userId,
+			title: params.title,
+			taskId: params.taskId,
 			status: "failed",
-			error: record.error,
+			error: err instanceof Error ? err.message : "Erro inesperado na execução",
 		});
 	}
 }
 
-export function startPromptRun(params: {
-	userId: string;
+export async function startPromptRun(params: {
+	userId: number;
 	projectId: string;
+	taskId?: string;
+	title: string;
 	cwd: string;
 	prompt: string;
 	cli: InvokeCli;
@@ -192,51 +171,55 @@ export function startPromptRun(params: {
 	model?: string;
 	effort?: string;
 	approvalMode?: string;
-}): { runId: string } {
+}) {
 	const runId = crypto.randomUUID();
 	const startedAt = Date.now();
 
-	const record: PromptRunRecord = {
-		runId,
-		userId: params.userId,
+	await dbExecutionRuns.create({
+		id: runId,
+		user_id: params.userId,
+		project_id: params.projectId,
+		...(params.taskId ? { task_id: params.taskId } : {}),
+		kind: "prompt",
+		title: params.title,
 		status: "running",
-		startedAt,
-		projectId: params.projectId,
 		prompt: params.prompt,
-	};
-
-	runs.set(runId, record);
-	runOrder.push(runId);
-	trimRuns();
+		started_at: startedAt,
+		updated_at: startedAt,
+	});
 
 	void emit({ runId, status: "started" });
 
 	const cmd =
 		params.cli === "codex"
-			? buildCodexCmd({
+			? buildCodexExecArgs({
 					prompt: params.prompt,
 					cwd: params.cwd,
 					model: params.model,
 					effort: params.effort,
-					approvalMode: params.approvalMode,
+					approvalMode: params.approvalMode ?? "bypass",
 				})
-			: buildClaudeCmd({
+			: buildClaudePrintArgs({
 					prompt: params.prompt,
-					permissionMode: params.permissionMode,
+					permissionMode: params.permissionMode ?? "acceptEdits",
 					agent: params.agent,
 					model: params.model,
 					effort: params.effort,
 				});
 
-	void runInBackground({ runId, cwd: params.cwd, cmd });
+	void runInBackground({
+		runId,
+		userId: params.userId,
+		title: params.title,
+		taskId: params.taskId,
+		cwd: params.cwd,
+		cmd,
+	});
 
 	return { runId };
 }
 
-export function getPromptRun(runId: string, userId: string): PromptRunRecord | null {
-	const record = runs.get(runId);
-	if (!record || record.userId !== userId) {
-		return null;
-	}
-	return record;
+export async function getPromptRun(runId: string, userId: number) {
+	const record = await dbExecutionRuns.getByIdForUser(runId, userId);
+	return record ? toPromptRunRecord(record) : null;
 }

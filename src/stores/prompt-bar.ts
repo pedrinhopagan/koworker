@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 import {
 	type CodexApprovalMode,
@@ -128,6 +128,7 @@ interface PromptBarState {
 	toggleExecuteOpen: () => void;
 	toggleAttachOpen: () => void;
 	toggleStructureOpen: () => void;
+	setAllSectionsOpen: (open: boolean) => void;
 	setStructureTemplate: (slug: string | null) => void;
 	// Escreve um campo do template ativo; sem template ativo, não faz nada.
 	setStructureField: (field: string, value: string) => void;
@@ -158,10 +159,42 @@ interface PromptBarState {
 	// Descarta imagens cujo marcador não está mais no texto — o texto é o dono da presença do token,
 	// então recortar/selecionar-apagar/editar o marcador tira a imagem junto. O arquivo fica em medias/.
 	reconcileImages: (text: string) => void;
+	restoreDraft: (draft: { text: string; images: PromptImage[] }) => void;
 	clear: () => void;
 	// Insere `text` em nova linha no fim do rascunho e abre o footer (mention de título do .md).
 	appendMention: (text: string) => void;
 }
+
+// O persist grava síncrono a cada `set` — na digitação isso serializava e escrevia o rascunho
+// inteiro no localStorage a cada tecla, no meio do frame. O debounce adia a escrita pro repouso;
+// `pagehide` descarrega o pendente pra fechar a aba não perder o fim do rascunho.
+const DRAFT_FLUSH_MS = 300;
+
+let pendingDraft: { name: string; value: string } | null = null;
+let draftTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushDraft() {
+	if (!pendingDraft) return;
+	localStorage.setItem(pendingDraft.name, pendingDraft.value);
+	pendingDraft = null;
+}
+
+if (typeof window !== "undefined") {
+	window.addEventListener("pagehide", flushDraft);
+}
+
+const draftStorage = {
+	getItem: (name: string) => localStorage.getItem(name),
+	setItem: (name: string, value: string) => {
+		pendingDraft = { name, value };
+		if (draftTimer) clearTimeout(draftTimer);
+		draftTimer = setTimeout(flushDraft, DRAFT_FLUSH_MS);
+	},
+	removeItem: (name: string) => {
+		pendingDraft = null;
+		localStorage.removeItem(name);
+	},
+};
 
 export const usePromptBarStore = create<PromptBarState>()(
 	persist(
@@ -195,6 +228,8 @@ export const usePromptBarStore = create<PromptBarState>()(
 			toggleExecuteOpen: () => set((state) => ({ executeOpen: !state.executeOpen })),
 			toggleAttachOpen: () => set((state) => ({ attachOpen: !state.attachOpen })),
 			toggleStructureOpen: () => set((state) => ({ structureOpen: !state.structureOpen })),
+			setAllSectionsOpen: (open) =>
+				set({ attachOpen: open, structureOpen: open, invokeOpen: open, executeOpen: open }),
 			setStructureTemplate: (structureTemplate) => set({ structureTemplate }),
 
 			setStructureField: (field, value) =>
@@ -267,6 +302,8 @@ export const usePromptBarStore = create<PromptBarState>()(
 					return kept.length === state.images.length ? state : { images: kept };
 				}),
 
+			restoreDraft: ({ text, images }) => set({ text, images }),
+
 			// A borracha limpa o rascunho inteiro: texto e imagens anexadas caem juntos (os marcadores
 			// morariam no texto apagado). Os arquivos ficam em medias/ — remover mídia é ação da /media.
 			clear: () => set({ text: "", images: [] }),
@@ -282,6 +319,7 @@ export const usePromptBarStore = create<PromptBarState>()(
 		}),
 		{
 			name: "kowork-prompt-bar",
+			storage: createJSONStorage(() => draftStorage),
 			partialize: (state) => ({
 				text: state.text,
 				expanded: state.expanded,

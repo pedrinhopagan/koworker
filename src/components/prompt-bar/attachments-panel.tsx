@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { Cpu, Eraser, Gauge, Loader2, Sparkles } from "lucide-react";
+import { useRef } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
@@ -9,7 +10,7 @@ import {
 	type PromptEngine,
 	type PromptEngineEffort,
 } from "@/api/schemas/prompt";
-import { GroupLabel, MiniSelect } from "@/components/prompt-bar/controls";
+import { Collapse, GroupLabel, MiniSelect } from "@/components/prompt-bar/controls";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { InvokeOption } from "@/constants/invoke";
@@ -56,11 +57,18 @@ export function AttachmentsPanel({ taskId }: { taskId?: string }) {
 	const clearStructureFields = usePromptBarStore((s) => s.clearStructureFields);
 
 	const active = PROMPT_TEMPLATES.find((template) => template.slug === structureTemplate);
-	const activeValues = active ? (structureValues[active.slug] ?? {}) : {};
-	const hasValues = Object.values(activeValues).some((value) => value.trim());
+
+	const lastActiveRef = useRef(active);
+	if (active) {
+		lastActiveRef.current = active;
+	}
+	const rendered = active ?? lastActiveRef.current;
+
+	const renderedValues = rendered ? (structureValues[rendered.slug] ?? {}) : {};
+	const hasValues = Object.values(renderedValues).some((value) => value.trim());
 
 	return (
-		<div className="mt-2 flex flex-col gap-2 border-t border-border pt-2">
+		<div className="flex flex-col">
 			<div className="flex flex-wrap items-center gap-2">
 				<GroupLabel>Estrutura</GroupLabel>
 				{PROMPT_TEMPLATES.map((template) => (
@@ -72,7 +80,7 @@ export function AttachmentsPanel({ taskId }: { taskId?: string }) {
 								setStructureTemplate(template.slug === structureTemplate ? null : template.slug)
 							}
 							className={cn(
-								"flex h-7 shrink-0 cursor-pointer select-none items-center border px-2 text-xs transition-colors",
+								"flex h-7 shrink-0 cursor-pointer select-none items-center border px-2 text-xs transition-[border-color,background-color,color,transform] active:scale-95",
 								"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 								template.slug === structureTemplate
 									? "border-primary/40 bg-primary/10 text-foreground"
@@ -102,35 +110,40 @@ export function AttachmentsPanel({ taskId }: { taskId?: string }) {
 				</div>
 			</div>
 
-			{active && (
-				<div className="flex flex-col gap-1.5">
-					{active.fields.map((field) => (
-						<label key={field.key} className="flex items-start gap-2">
-							<span className="w-24 shrink-0 pt-1.5 text-right text-[11px] font-medium uppercase tracking-wide text-muted-foreground/60">
-								{field.label}
-							</span>
-							{autofillPending ? (
-								<div
-									className="h-7 w-full animate-pulse rounded-none border border-input bg-muted/40"
-									aria-hidden
-								/>
-							) : (
-								<textarea
-									value={activeValues[field.key] ?? ""}
-									onChange={(event) => setStructureField(field.key, event.target.value)}
-									placeholder={field.placeholder}
-									rows={1}
-									className={cn(
-										"max-h-32 w-full resize-none rounded-none border border-input bg-transparent px-2 py-1 text-sm shadow-xs transition-colors field-sizing-content",
-										"placeholder:text-muted-foreground/20",
-										"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring",
-									)}
-								/>
-							)}
-						</label>
-					))}
-				</div>
-			)}
+			<Collapse open={!!active}>
+				{rendered && (
+					<div
+						key={rendered.slug}
+						className="flex flex-col gap-1.5 pt-2 animate-in fade-in slide-in-from-top-1 duration-200"
+					>
+						{rendered.fields.map((field) => (
+							<label key={field.key} className="flex items-start gap-2">
+								<span className="w-24 shrink-0 pt-1.5 text-right text-[11px] font-medium uppercase tracking-wide text-muted-foreground/60">
+									{field.label}
+								</span>
+								{autofillPending ? (
+									<div
+										className="h-7 w-full animate-pulse rounded-none border border-input bg-muted/40"
+										aria-hidden
+									/>
+								) : (
+									<textarea
+										value={renderedValues[field.key] ?? ""}
+										onChange={(event) => setStructureField(field.key, event.target.value)}
+										placeholder={field.placeholder}
+										rows={1}
+										className={cn(
+											"max-h-32 w-full resize-none rounded-none border border-input bg-transparent px-2 py-1 text-sm shadow-xs transition-colors field-sizing-content",
+											"placeholder:text-muted-foreground/20",
+											"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring",
+										)}
+									/>
+								)}
+							</label>
+						))}
+					</div>
+				)}
+			</Collapse>
 		</div>
 	);
 }
@@ -140,7 +153,7 @@ export function AttachmentsPanel({ taskId }: { taskId?: string }) {
 // repreenche tudo. As invocações sugeridas viram a seleção e abrem o painel de invocação. O pending
 // viaja pro store pra os campos mostrarem skeletons.
 function AutofillControls({ taskId }: { taskId?: string }) {
-	const text = usePromptBarStore((s) => s.text);
+	const hasText = usePromptBarStore((s) => s.text.trim().length > 0);
 	const engine = usePromptBarStore((s) => s.autofillEngine);
 	const effort = usePromptBarStore((s) => s.autofillEffort);
 	const setAutofillEngine = usePromptBarStore((s) => s.setAutofillEngine);
@@ -149,8 +162,6 @@ function AutofillControls({ taskId }: { taskId?: string }) {
 	const setSelection = usePromptBarStore((s) => s.setSelection);
 	const setInvokeOpen = usePromptBarStore((s) => s.setInvokeOpen);
 	const setAutofillPending = usePromptBarStore((s) => s.setAutofillPending);
-
-	const hasText = text.trim().length > 0;
 
 	const autofill = useMutation(
 		orpc.prompt.autofill.mutationOptions({
@@ -163,7 +174,7 @@ function AutofillControls({ taskId }: { taskId?: string }) {
 	function run(force: boolean) {
 		if (!hasText || autofill.isPending) return;
 		autofill.mutate(
-			{ text, engine, effort, ...(taskId ? { taskId } : {}) },
+			{ text: usePromptBarStore.getState().text, engine, effort, ...(taskId ? { taskId } : {}) },
 			{
 				onSuccess: (data) => {
 					applyStructureAutofill({ structure: data.structure, fields: data.fields, force });

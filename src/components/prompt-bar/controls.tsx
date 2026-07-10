@@ -6,8 +6,30 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { type InvokeOption, reflectValue } from "@/constants/invoke";
 import { cn } from "@/lib/utils";
 
-// Peças compartilhadas do prompt-bar: rótulo de grupo, chip de toggle e select compacto — usadas pela
-// linha de anexar sempre visível, pelo painel de anexos e pelo painel de invocação.
+// Peças compartilhadas do prompt-bar: colapso animado, rótulo de grupo, chip de toggle e select
+// compacto — usadas pelas seções do footer, pelo painel de anexos e pelo painel de invocação.
+
+export function Collapse({ open, children }: { open: boolean; children: React.ReactNode }) {
+	return (
+		<div
+			className={cn(
+				"grid transition-[grid-template-rows,visibility] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
+				open ? "visible grid-rows-[1fr]" : "invisible grid-rows-[0fr]",
+			)}
+		>
+			<div className="min-h-0 overflow-hidden">
+				<div
+					className={cn(
+						"transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
+						open ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0",
+					)}
+				>
+					{children}
+				</div>
+			</div>
+		</div>
+	);
+}
 
 export function GroupLabel({ children }: { children: React.ReactNode }) {
 	return (

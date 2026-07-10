@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useDeferredValue, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
@@ -41,10 +41,13 @@ export function useInvocation(params: {
 	projectName?: string;
 	routePath: string | null;
 	nextStage?: TaskStage | null;
+	active: boolean;
 }) {
 	const { projectName, routePath, nextStage } = params;
 
-	const text = usePromptBarStore((s) => s.text);
+	// Painel fechado assina "" (nenhuma tecla re-renderiza); aberto, o deferred prioriza a digitação
+	// sobre o preview do comando.
+	const text = useDeferredValue(usePromptBarStore((s) => (params.active ? s.text : "")));
 	const cli = usePromptBarStore((s) => s.cli);
 	const structureTemplate = usePromptBarStore((s) => s.structureTemplate);
 	const structureValues = usePromptBarStore((s) => s.structureValues);
