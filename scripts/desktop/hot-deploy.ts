@@ -88,12 +88,18 @@ function waitForBackendHealth(timeoutMs: number, stepMs: number): Promise<boolea
 	);
 }
 
-// KOWORK_SHOW_ON_START faz a GUI abrir a janela ja visivel (ela sobe oculta na tray por padrao).
+// --show faz a GUI abrir a janela ja visivel (ela sobe oculta na tray por padrao).
 function launchGui() {
-	Bun.spawnSync(["setsid", "-f", guiTarget], {
-		env: { ...process.env, KOWORK_SHOW_ON_START: "1" },
+	Bun.spawnSync(["setsid", "-f", guiTarget, "--show"], {
 		stdio: ["ignore", "ignore", "ignore"],
 	});
+}
+
+async function guiGone() {
+	const proc = Bun.spawn(["pgrep", "-f", `^${guiTarget}`], {
+		stdio: ["ignore", "ignore", "ignore"],
+	});
+	return (await proc.exited) !== 0;
 }
 
 async function waitFor(check: () => Promise<boolean>, timeoutMs: number, stepMs: number) {
@@ -158,6 +164,12 @@ const backendManagedBySystemd = systemdBackendUnitExists();
 
 try {
 	kill(guiTarget);
+
+	const guiDead = await waitFor(guiGone, 5000, 100);
+	if (!guiDead) {
+		kill(guiTarget, "-KILL");
+		await waitFor(guiGone, 3000, 100);
+	}
 
 	if (backendManagedBySystemd) {
 		// Nao usar pkill no backend: systemd ressuscitaria o processo antigo (inode velho) no meio do deploy.

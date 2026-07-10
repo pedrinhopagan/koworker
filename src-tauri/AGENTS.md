@@ -2,7 +2,7 @@
 
 ## OBJETIVO
 
-Wrapper desktop leve para o app React. Responsável por: janela, shortcut global e tray.
+Wrapper desktop leve para o app React. Responsável por: janela, instância única (socket de controle) e tray.
 
 ## ESTRUTURA
 
@@ -24,10 +24,13 @@ src-tauri/
 
 ## JANELA
 
-- Inicia oculta (`visible: false`)
+- Inicia oculta (`visible: false`); `--show` ou `--toggle` na argv abre visível
 - Sem decorações nativas (`decorations: false`)
-- Shortcut global (Alt+K prod / Alt+L e Alt+O dev) toggle visibilidade
-- Skip taskbar quando minimizada
+- Janela normal na taskbar (`skipTaskbar: false`); fechar esconde pra tray
+- Toggle NÃO usa shortcut global do Tauri (grab X11 não funciona em sessão Wayland): o atalho é
+  registrado no KDE (Alt+K prod / Alt+L dev) e executa `kowork --toggle`
+- `ipc.rs`: socket Unix em `$XDG_RUNTIME_DIR/kowork{-dev}.sock`; segunda instância encaminha
+  `show|hide|toggle` pra instância viva e sai
 
 ## BUILD
 

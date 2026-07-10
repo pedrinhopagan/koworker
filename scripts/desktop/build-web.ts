@@ -39,7 +39,10 @@ await cp(join(rootDir, "static"), join(distDir, "static"), { recursive: true });
 
 const sourceSwPath = join(rootDir, "static/sw.js");
 const sourceSw = await readFile(sourceSwPath, "utf8");
-const builtSw = buildProductionServiceWorker(sourceSw, appVersion);
+const cacheVersion = Bun.hash(
+	`${sourceSw}\n${await readFile(join(distDir, "main.js"), "utf8")}\n${await readFile(join(distDir, "index.css"), "utf8")}`,
+).toString(36);
+const builtSw = buildProductionServiceWorker(sourceSw, `${appVersion}-${cacheVersion}`);
 await writeFile(join(distDir, "sw.js"), builtSw);
 
 console.log(`Build web concluido em ${distDir}`);

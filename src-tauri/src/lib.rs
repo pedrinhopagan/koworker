@@ -1,6 +1,6 @@
 mod backend;
 mod commands;
-mod shortcut;
+mod ipc;
 mod tray;
 mod window;
 
@@ -14,9 +14,12 @@ pub fn run() {
         std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
     }
 
+    if ipc::forward_to_running_instance() {
+        return;
+    }
+
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             None,
@@ -41,17 +44,14 @@ pub fn run() {
                     );
                 }
             }
-            shortcut::register(app.handle())?;
+            ipc::listen(app.handle().clone());
             tray::setup(app)?;
-            // O app sobe oculto na tray (visible:false) tanto no autostart quanto no launch normal.
-            // O hot-deploy seta esta env ao relancar pra que, apos um build, a janela ja apareca
-            // com a versao nova em vez de ficar escondida.
-            if std::env::var_os("KOWORK_SHOW_ON_START").is_some() {
+            if ipc::should_show_on_start() {
                 window::show(app.handle());
             }
             eprintln!(
-                "[KOWORK] Setup completo. Atalho: {}",
-                shortcut::toggle_shortcut_label()
+                "[KOWORK] Setup completo. Toggle: {} (atalho global do KDE)",
+                tray::toggle_shortcut_label()
             );
             Ok(())
         })

@@ -71,7 +71,15 @@ Esse comando:
 
 ## Atalho global de abrir app
 
-- Desenvolvimento: `Alt+L` (primário) e `Alt+O` (legado)
+O binário não registra shortcut global (grab X11 do plugin do Tauri não funciona em sessão
+Wayland). O toggle é feito por CLI: `kowork --toggle` (também `--show` e `--hide`). Se já existe
+uma instância viva, o comando é encaminhado a ela pelo socket `$XDG_RUNTIME_DIR/kowork.sock`
+(`kowork-dev.sock` em dev); senão o app sobe com a janela visível.
+
+O atalho fica registrado no KDE (atalhos personalizados), apontando para
+`~/.local/bin/toggle-kowork.sh`:
+
+- Desenvolvimento: `Alt+L` (só age se o socket de dev existir)
 - Produção: `Alt+K`
 
 ## Inicialização com o desktop

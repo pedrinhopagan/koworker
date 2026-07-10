@@ -5,7 +5,15 @@ use tauri::{
     App, RunEvent, WindowEvent,
 };
 
-use crate::{backend, shortcut, window};
+use crate::{backend, window};
+
+pub fn toggle_shortcut_label() -> &'static str {
+    if cfg!(debug_assertions) {
+        "Alt+L"
+    } else {
+        "Alt+K"
+    }
+}
 
 pub fn setup(app: &App) -> Result<TrayIcon, Box<dyn std::error::Error>> {
     let icon = app.default_window_icon().cloned().unwrap_or_else(|| {
@@ -20,7 +28,7 @@ pub fn setup(app: &App) -> Result<TrayIcon, Box<dyn std::error::Error>> {
         .icon(icon)
         .tooltip(format!(
             "Kowork - {} para abrir",
-            shortcut::toggle_shortcut_label()
+            toggle_shortcut_label()
         ))
         .icon_as_template(false)
         .menu(&menu)
