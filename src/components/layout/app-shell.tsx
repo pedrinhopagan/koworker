@@ -7,6 +7,7 @@ import { ProjectSelectDialog } from "@/components/layout/project-select-dialog";
 import { StatusBar } from "@/components/layout/status-bar";
 import { TabBar } from "@/components/layout/tab-bar";
 import { GlobalPromptBar } from "@/components/prompt-bar/global-prompt-bar";
+import { MobileExecutionShortcut } from "@/components/layout/mobile-execution-shortcut";
 import { usePrimaryColor, useProjectFocus, useUser } from "@/hooks";
 import { useProjectSelectDialog } from "@/hooks/use-project-select-dialog";
 
@@ -69,7 +70,10 @@ export function AppShell({ children }: AppShellProps) {
 						{children}
 					</main>
 
-					<GlobalPromptBar />
+					<div className="hidden md:block">
+						<GlobalPromptBar />
+					</div>
+					<MobileExecutionShortcut />
 
 					<StatusBar />
 				</div>

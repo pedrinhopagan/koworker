@@ -344,6 +344,27 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 	sqlite.exec(
 		"CREATE INDEX IF NOT EXISTS execution_runs_user_started_idx ON execution_runs (user_id, started_at DESC)",
 	);
+	for (const [name, definition] of [
+		["client_request_id", "TEXT"],
+		["request_fingerprint", "TEXT"],
+		["create_task_title", "TEXT"],
+		["original_prompt", "TEXT"],
+		["source", "TEXT"],
+		["interaction_mode", "TEXT"],
+		["input_kind", "TEXT"],
+		["cli", "TEXT"],
+		["permission_mode", "TEXT"],
+		["model", "TEXT"],
+		["effort", "TEXT"],
+		["approval_mode", "TEXT"],
+	] as const) {
+		if (!hasColumn(tableInfo(sqlite, "execution_runs"), name)) {
+			ensureColumn(sqlite, "execution_runs", `${name} ${definition}`);
+		}
+	}
+	sqlite.exec(
+		"CREATE UNIQUE INDEX IF NOT EXISTS execution_runs_user_request_idx ON execution_runs (user_id, client_request_id) WHERE client_request_id IS NOT NULL",
+	);
 	sqlite.exec("CREATE INDEX IF NOT EXISTS tasks_project_id_idx ON tasks (project_id)");
 	sqlite.exec("CREATE INDEX IF NOT EXISTS tasks_deleted_at_idx ON tasks (deleted_at)");
 	sqlite.exec(

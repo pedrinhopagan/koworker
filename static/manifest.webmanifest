@@ -5,6 +5,13 @@
 	"display": "standalone",
 	"background_color": "#1a1916",
 	"theme_color": "#1a1916",
+	"shortcuts": [
+		{
+			"name": "Executar agora",
+			"short_name": "Executar",
+			"url": "/executar"
+		}
+	],
 	"icons": [
 		{
 			"src": "/static/icons/pwa-192.png",

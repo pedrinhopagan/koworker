@@ -26,10 +26,13 @@ export {
 } from "./priorities";
 export { FlowTaskSchema } from "./flow";
 export {
+	AudioTranscriptionSchema,
 	PromptAutofillResultSchema,
 	PromptAutofillSchema,
 	PromptExecuteSchema,
 	PromptRunIdSchema,
+	PromptRunListSchema,
+	PromptRunRetrySchema,
 } from "./prompt";
 export { PushSubscriptionSchema, PushUnsubscribeSchema } from "./notifications";
 export {

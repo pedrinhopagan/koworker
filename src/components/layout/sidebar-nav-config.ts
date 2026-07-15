@@ -12,6 +12,7 @@ import {
 	MessageSquareText,
 	Presentation,
 	RefreshCw,
+	Rocket,
 	Settings,
 	Sparkles,
 	SquarePen,
@@ -75,6 +76,7 @@ export const sidebarNavGroups: SidebarNavGroup[] = [
 		// (Mostruário/Mídia), sempre visíveis na sidebar e no drawer.
 		items: [
 			{ kind: "route", path: "/", label: "Home", icon: Home, altKey: "1" },
+			{ kind: "route", path: "/executar", label: "Executar", icon: Rocket },
 			{ kind: "route", path: "/projetos", label: "Projetos", icon: FolderKanban, altKey: "2" },
 			{ kind: "route", path: "/tarefas", label: "Tarefas", icon: ListChecks, altKey: "3" },
 			{ kind: "route", path: "/mostruario", label: "Mostruário", icon: Presentation, altKey: "9" },

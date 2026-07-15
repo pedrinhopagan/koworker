@@ -14,6 +14,7 @@ export const envSchema = type({
 	"KOWORK_VAPID_PUBLIC_KEY?": "string",
 	"KOWORK_VAPID_PRIVATE_KEY?": "string",
 	"KOWORK_VAPID_SUBJECT?": "string",
+	"GROQ_API_KEY?": "string",
 });
 
 // Valida uma CÓPIA: o arktype global roda com `onUndeclaredKey: "delete"` + `clone: false`, e

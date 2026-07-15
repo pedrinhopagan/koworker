@@ -4,11 +4,33 @@ type ExecutionRunCreate = Pick<
 	execution_runs,
 	"id" | "user_id" | "project_id" | "kind" | "title" | "status" | "started_at" | "updated_at"
 > &
-	Partial<Pick<execution_runs, "task_id" | "prompt">>;
+	Partial<
+		Pick<
+			execution_runs,
+			| "task_id"
+			| "client_request_id"
+			| "request_fingerprint"
+			| "create_task_title"
+			| "prompt"
+			| "original_prompt"
+			| "source"
+			| "interaction_mode"
+			| "input_kind"
+			| "cli"
+			| "permission_mode"
+			| "agent"
+			| "model"
+			| "effort"
+			| "approval_mode"
+		>
+	>;
 
 type ExecutionRunUpdate = Partial<
-	Pick<execution_runs, "status" | "stage" | "agent" | "output" | "error" | "finished_at">
->;
+	Pick<
+		execution_runs,
+		"status" | "title" | "prompt" | "stage" | "agent" | "output" | "error" | "finished_at"
+	>
+> & { task_id?: string | null };
 
 export const dbExecutionRuns = {
 	async create(input: ExecutionRunCreate) {
@@ -28,6 +50,29 @@ export const dbExecutionRuns = {
 			.where("er.id", "=", id)
 			.where("er.user_id", "=", userId)
 			.executeTakeFirst();
+	},
+
+	getByRequestIdForUser(clientRequestId: string, userId: number) {
+		return db
+			.selectFrom("execution_runs as er")
+			.selectAll("er")
+			.where("er.client_request_id", "=", clientRequestId)
+			.where("er.user_id", "=", userId)
+			.executeTakeFirst();
+	},
+
+	listForUser(userId: number, limit: number) {
+		return db
+			.selectFrom("execution_runs as er")
+			.leftJoin("projects as p", "p.id", "er.project_id")
+			.leftJoin("tasks as t", "t.id", "er.task_id")
+			.selectAll("er")
+			.select(["p.name as project_name", "t.title as task_title"])
+			.where("er.user_id", "=", userId)
+			.where("er.kind", "=", "prompt")
+			.orderBy("er.started_at", "desc")
+			.limit(limit)
+			.execute();
 	},
 
 	getLatestFlowForTask(taskId: string, userId: number) {

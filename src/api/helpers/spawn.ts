@@ -15,6 +15,16 @@ function spawnEnv(extra?: Record<string, string>): Record<string, string | undef
 	return { ...process.env, ...extra, PATH: parts.join(":") };
 }
 
+function killProcessTree(proc: ReturnType<typeof Bun.spawn>) {
+	if (process.platform !== "win32") {
+		try {
+			process.kill(-proc.pid);
+			return;
+		} catch {}
+	}
+	proc.kill();
+}
+
 // Roda um processo capturando stdout com teto de tempo: o timer mata o processo e sinaliza o
 // estouro por `timedOut`. Neutro de propósito — o chamador decide como tratar (o autofill vira
 // ORPCError; o runner de fluxo vira um evento de falha). Padrão de `terminal/tmux.ts`: stdout em
@@ -24,7 +34,8 @@ export async function spawnCapture(params: {
 	cwd: string;
 	timeoutMs: number;
 	env?: Record<string, string>;
-}): Promise<{ stdout: string; exitCode: number; timedOut: boolean }> {
+	signal?: AbortSignal;
+}): Promise<{ stdout: string; exitCode: number; timedOut: boolean; cancelled: boolean }> {
 	const env = spawnEnv(params.env);
 
 	if (!Bun.which(params.cmd[0], { PATH: env.PATH })) {
@@ -39,18 +50,26 @@ export async function spawnCapture(params: {
 		stderr: "ignore",
 		stdin: "ignore",
 		env,
+		detached: process.platform !== "win32",
 	});
 
 	let timedOut = false;
+	let cancelled = false;
 	const timer = setTimeout(() => {
 		timedOut = true;
-		proc.kill();
+		killProcessTree(proc);
 	}, params.timeoutMs);
+	const handleAbort = () => {
+		cancelled = true;
+		killProcessTree(proc);
+	};
+	params.signal?.addEventListener("abort", handleAbort, { once: true });
 
 	const stdoutPromise = new Response(proc.stdout).text();
 	const exitCode = await proc.exited;
 	clearTimeout(timer);
+	params.signal?.removeEventListener("abort", handleAbort);
 	const stdout = await stdoutPromise;
 
-	return { stdout, exitCode, timedOut };
+	return { stdout, exitCode, timedOut, cancelled };
 }

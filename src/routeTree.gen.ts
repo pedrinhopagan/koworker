@@ -23,6 +23,7 @@ import { Route as AppPromptsIndexRouteImport } from './routes/_app/prompts/index
 import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/index'
 import { Route as AppMostruarioIndexRouteImport } from './routes/_app/mostruario/index'
 import { Route as AppMediaIndexRouteImport } from './routes/_app/media/index'
+import { Route as AppExecutarIndexRouteImport } from './routes/_app/executar/index'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents/index'
 import { Route as AppVaultFileNameIndexRouteImport } from './routes/_app/vault/$fileName/index'
 import { Route as AppTarefasTaskIdIndexRouteImport } from './routes/_app/tarefas/$taskId/index'
@@ -103,6 +104,11 @@ const AppMediaIndexRoute = AppMediaIndexRouteImport.update({
   path: '/media/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppExecutarIndexRoute = AppExecutarIndexRouteImport.update({
+  id: '/executar/',
+  path: '/executar/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAgentsIndexRoute = AppAgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/kw-terminal': typeof AppKwTerminalRoute
   '/sistema': typeof AppSistemaRoute
   '/agents/': typeof AppAgentsIndexRoute
+  '/executar/': typeof AppExecutarIndexRoute
   '/media/': typeof AppMediaIndexRoute
   '/mostruario/': typeof AppMostruarioIndexRoute
   '/projetos/': typeof AppProjetosIndexRoute
@@ -189,6 +196,7 @@ export interface FileRoutesByTo {
   '/sistema': typeof AppSistemaRoute
   '/': typeof AppIndexRoute
   '/agents': typeof AppAgentsIndexRoute
+  '/executar': typeof AppExecutarIndexRoute
   '/media': typeof AppMediaIndexRoute
   '/mostruario': typeof AppMostruarioIndexRoute
   '/projetos': typeof AppProjetosIndexRoute
@@ -216,6 +224,7 @@ export interface FileRoutesById {
   '/_app/sistema': typeof AppSistemaRoute
   '/_app/': typeof AppIndexRoute
   '/_app/agents/': typeof AppAgentsIndexRoute
+  '/_app/executar/': typeof AppExecutarIndexRoute
   '/_app/media/': typeof AppMediaIndexRoute
   '/_app/mostruario/': typeof AppMostruarioIndexRoute
   '/_app/projetos/': typeof AppProjetosIndexRoute
@@ -243,6 +252,7 @@ export interface FileRouteTypes {
     | '/kw-terminal'
     | '/sistema'
     | '/agents/'
+    | '/executar/'
     | '/media/'
     | '/mostruario/'
     | '/projetos/'
@@ -268,6 +278,7 @@ export interface FileRouteTypes {
     | '/sistema'
     | '/'
     | '/agents'
+    | '/executar'
     | '/media'
     | '/mostruario'
     | '/projetos'
@@ -294,6 +305,7 @@ export interface FileRouteTypes {
     | '/_app/sistema'
     | '/_app/'
     | '/_app/agents/'
+    | '/_app/executar/'
     | '/_app/media/'
     | '/_app/mostruario/'
     | '/_app/projetos/'
@@ -417,6 +429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMediaIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/executar/': {
+      id: '/_app/executar/'
+      path: '/executar'
+      fullPath: '/executar/'
+      preLoaderRoute: typeof AppExecutarIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/agents/': {
       id: '/_app/agents/'
       path: '/agents'
@@ -497,6 +516,7 @@ interface AppRouteChildren {
   AppSistemaRoute: typeof AppSistemaRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAgentsIndexRoute: typeof AppAgentsIndexRoute
+  AppExecutarIndexRoute: typeof AppExecutarIndexRoute
   AppMediaIndexRoute: typeof AppMediaIndexRoute
   AppMostruarioIndexRoute: typeof AppMostruarioIndexRoute
   AppProjetosIndexRoute: typeof AppProjetosIndexRoute
@@ -522,6 +542,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSistemaRoute: AppSistemaRoute,
   AppIndexRoute: AppIndexRoute,
   AppAgentsIndexRoute: AppAgentsIndexRoute,
+  AppExecutarIndexRoute: AppExecutarIndexRoute,
   AppMediaIndexRoute: AppMediaIndexRoute,
   AppMostruarioIndexRoute: AppMostruarioIndexRoute,
   AppProjetosIndexRoute: AppProjetosIndexRoute,

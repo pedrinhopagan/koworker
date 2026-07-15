@@ -26,6 +26,7 @@ export type InvokeRequest = {
 	cli: InvokeCli;
 	kw: boolean;
 	routePath: string | null;
+	taskId?: string;
 	text: string;
 	config: InvokeConfig;
 };
@@ -117,8 +118,14 @@ export function runInvocation(params: { project: ProjectInfo; request: InvokeReq
 	} else {
 		void orpc.prompt.execute
 			.call({
+				clientRequestId: crypto.randomUUID(),
 				projectId: project.id,
+				...(request.taskId ? { taskId: request.taskId } : {}),
 				prompt,
+				originalPrompt: text || prompt,
+				source: "global_bar",
+				interactionMode: "unattended",
+				inputKind: "text",
 				cli,
 				...(cli === "claude" ? { permissionMode } : { approvalMode: permissionMode }),
 				...(cli === "claude" && target.kind === "agent" ? { agent: target.slug } : {}),

@@ -40,6 +40,7 @@ function metaDefault(value: unknown): string {
 export function useInvocation(params: {
 	projectName?: string;
 	routePath: string | null;
+	taskId?: string;
 	nextStage?: TaskStage | null;
 	active: boolean;
 }) {
@@ -160,6 +161,7 @@ export function useInvocation(params: {
 				cli,
 				kw: interactWithKw,
 				routePath: effectiveRoute,
+				...(params.taskId ? { taskId: params.taskId } : {}),
 				text: effectiveText,
 				config: invoke,
 			},

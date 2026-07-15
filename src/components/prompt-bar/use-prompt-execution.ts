@@ -19,7 +19,7 @@ import type { TaskStage } from "@/constants/complexity";
 
 type LiveEvent = {
 	runId: string;
-	status: "started" | "done" | "failed" | "timeout";
+	status: "started" | "done" | "failed" | "timeout" | "cancelled";
 	output?: string;
 	error?: string;
 };
@@ -174,7 +174,10 @@ export function usePromptExecution(params: {
 		? "failed"
 		: (liveTerminal ?? recordTerminal ?? (live || record ? "running" : null));
 	const isTerminal =
-		resolvedStatus === "done" || resolvedStatus === "failed" || resolvedStatus === "timeout";
+		resolvedStatus === "done" ||
+		resolvedStatus === "failed" ||
+		resolvedStatus === "timeout" ||
+		resolvedStatus === "cancelled";
 	const isRunning = executeMutation.isPending || (!!runId && !isTerminal);
 
 	useEffect(() => {
@@ -229,9 +232,14 @@ export function usePromptExecution(params: {
 		const permissionMode = cli === "claude" ? invoke.claude.permissionMode : undefined;
 
 		executeMutation.mutate({
+			clientRequestId: crypto.randomUUID(),
 			projectId: project.id,
 			...(params.taskId ? { taskId: params.taskId } : {}),
 			prompt: promptPreview,
+			originalPrompt: effectiveText || text || promptPreview,
+			source: "global_bar",
+			interactionMode: "unattended",
+			inputKind: "text",
 			cli,
 			...(permissionMode ? { permissionMode } : {}),
 			...(agent ? { agent } : {}),

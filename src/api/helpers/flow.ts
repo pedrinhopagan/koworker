@@ -28,7 +28,7 @@ function flowEventFromRun(run: execution_runs): FlowEvent {
 			? "completed"
 			: run.status === "waiting_user"
 				? "waiting-user"
-				: run.status === "timeout"
+				: run.status === "timeout" || run.status === "cancelled"
 					? "failed"
 					: run.status;
 
@@ -89,11 +89,15 @@ async function runAgent(params: {
 	folderPath: string;
 	complexity: TaskComplexity;
 	cwd: string;
+	interactionMode: "unattended" | "interactive";
 }): Promise<{ success: true } | { success: false; message: string }> {
 	const prompt = buildKoworkerPrompt({
 		kw: true,
 		target: params.folderPath,
-		text: "",
+		text:
+			params.interactionMode === "unattended"
+				? "Trabalhe de forma não assistida até um desfecho. Não faça perguntas nem espere respostas; registre decisões razoáveis no artefato da etapa."
+				: "",
 		complexity: params.complexity,
 	});
 
@@ -121,6 +125,7 @@ async function execute(params: {
 	project: projects;
 	executionId: string;
 	userId: number;
+	interactionMode: "unattended" | "interactive";
 }): Promise<void> {
 	const { row, project } = params;
 	const complexity = row.complexity as TaskComplexity;
@@ -143,7 +148,7 @@ async function execute(params: {
 
 		const agent = STAGE_AGENT[stage];
 
-		if (stage === "grill") {
+		if (stage === "grill" && params.interactionMode === "interactive") {
 			await publish({
 				taskId: row.id,
 				status: "waiting-user",
@@ -167,7 +172,13 @@ async function execute(params: {
 
 		await publish({ taskId: row.id, status: "running", stage, agent, message: null });
 
-		const result = await runAgent({ agent, folderPath: row.folder_path, complexity, cwd });
+		const result = await runAgent({
+			agent,
+			folderPath: row.folder_path,
+			complexity,
+			cwd,
+			interactionMode: params.interactionMode,
+		});
 		if (!result.success) {
 			await publish({ taskId: row.id, status: "failed", stage, agent, message: result.message });
 			return;
@@ -189,6 +200,7 @@ async function execute(params: {
 		folderPath: row.folder_path,
 		complexity,
 		cwd,
+		interactionMode: params.interactionMode,
 	});
 	if (!review.success) {
 		await publish({
@@ -207,7 +219,7 @@ async function execute(params: {
 export const TaskFlow = {
 	// Dispara o fluxo em segundo plano e volta na hora. Um segundo disparo pro mesmo taskId é ignorado
 	// (`started: false`). Erros inesperados do loop viram um evento de falha em vez de rejeição solta.
-	async run(taskId: string, userId: number) {
+	async run(taskId: string, userId: number, interactionMode: "unattended" | "interactive") {
 		if (running.has(taskId)) {
 			const current = await dbExecutionRuns.getLatestFlowForTask(taskId, userId);
 			return { started: false, event: current ? flowEventFromRun(current) : null };
@@ -233,6 +245,7 @@ export const TaskFlow = {
 			kind: "flow",
 			title: row.title ?? row.folder_path,
 			status: "running",
+			interaction_mode: interactionMode,
 			started_at: startedAt,
 			updated_at: startedAt,
 		});
@@ -246,7 +259,7 @@ export const TaskFlow = {
 		};
 		await PubSub.publish("flow", taskId, initial);
 
-		void execute({ row, project, executionId, userId })
+		void execute({ row, project, executionId, userId, interactionMode })
 			.catch((err) =>
 				emit({
 					executionId,

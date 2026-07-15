@@ -5,7 +5,9 @@ import { FlowTaskSchema } from "../schemas";
 export const flowRouter = {
 	run: protectedProcedure
 		.input(FlowTaskSchema)
-		.handler(({ input, context }) => TaskFlow.run(input.taskId, context.user.id)),
+		.handler(({ input, context }) =>
+			TaskFlow.run(input.taskId, context.user.id, input.interactionMode),
+		),
 
 	status: protectedProcedure
 		.input(FlowTaskSchema)

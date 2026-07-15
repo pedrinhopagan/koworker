@@ -10,8 +10,6 @@ import { dbTasks } from "../db/tasks";
 import { listTaskAttachments } from "../helpers/koworker-assets";
 import { openInFileManager } from "../helpers/os-actions";
 import {
-	buildFolderPath,
-	createTaskFolder,
 	deleteTaskFile,
 	inferTaskStage,
 	moveTaskFolderToProject,
@@ -25,6 +23,7 @@ import {
 	setTaskFileEditedAt,
 	writeTaskFile,
 } from "../helpers/task-folder";
+import { createTask } from "../helpers/task-creation";
 import { restartTasksWatcher } from "../helpers/tasks-watcher";
 import { PubSub } from "../pubsub";
 import {
@@ -286,35 +285,7 @@ export const tasksRouter = {
 	}),
 
 	create: protectedProcedure.input(TaskCreateSchema).handler(async ({ input }) => {
-		const project = await dbProjects.getById(input.projectId);
-		if (!project) throw new Error("Projeto não encontrado");
-
-		const id = crypto.randomUUID();
-		const folderPath = buildFolderPath(id);
-
-		await createTaskFolder({
-			projectRoute: project.main_route,
-			folderPath,
-			title: input.title,
-			seed: input.seed,
-		});
-
-		await dbTasks.create({
-			id,
-			project_id: input.projectId,
-			folder_path: folderPath,
-			title: input.title,
-			priority_id: input.priorityId,
-			category_id: input.categoryId,
-			complexity: input.complexity,
-			group_id: input.groupId,
-		});
-
-		await publishTaskEvent(id, input.projectId, "created");
-		// A pasta `.koworker/` do projeto pode ter acabado de nascer; ressintoniza o watcher.
-		restartTasksWatcher();
-
-		const row = await dbTasks.getById(id);
+		const row = await createTask(input);
 		return row ? mapTaskWithDisplay(row) : null;
 	}),
 

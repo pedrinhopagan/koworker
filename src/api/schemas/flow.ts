@@ -4,6 +4,7 @@ import { z } from "zod";
 // projeto a partir daqui.
 export const FlowTaskSchema = z.object({
 	taskId: z.string().trim().min(1),
+	interactionMode: z.enum(["unattended", "interactive"]).default("unattended"),
 });
 
 export type FlowTaskInput = z.infer<typeof FlowTaskSchema>;

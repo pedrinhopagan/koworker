@@ -196,17 +196,36 @@ const promptHistorySchema = type({
 });
 
 const execution_kind = type.enumerated("prompt", "flow");
-const execution_status = type.enumerated("running", "done", "failed", "timeout", "waiting_user");
+const execution_status = type.enumerated(
+	"running",
+	"done",
+	"failed",
+	"timeout",
+	"waiting_user",
+	"cancelled",
+);
 
 const executionRunsSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	user_id: type("number.integer").configure({ references: "users.id", onDelete: "cascade" }),
 	project_id: type("string").configure({ references: "projects.id", onDelete: "restrict" }),
 	"task_id?": type("string").configure({ references: "tasks.id", onDelete: "set null" }),
+	"client_request_id?": "string",
+	"request_fingerprint?": "string",
+	"create_task_title?": "string",
 	kind: execution_kind,
 	title: "string",
 	status: execution_status,
 	"prompt?": "string",
+	"original_prompt?": "string",
+	"source?": "string",
+	"interaction_mode?": "string",
+	"input_kind?": "string",
+	"cli?": "string",
+	"permission_mode?": "string",
+	"model?": "string",
+	"effort?": "string",
+	"approval_mode?": "string",
 	"stage?": "string",
 	"agent?": "string",
 	"output?": "string",

@@ -17,7 +17,7 @@ export type FlowEvent = {
 
 export type PromptRunEvent = {
 	runId: string;
-	status: "started" | "done" | "failed" | "timeout";
+	status: "started" | "done" | "failed" | "timeout" | "cancelled";
 	output?: string;
 	error?: string;
 };
