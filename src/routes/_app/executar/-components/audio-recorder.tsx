@@ -1,11 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
-import { CircleStop, Loader2, Mic, Play, RotateCcw } from "lucide-react";
+import { CircleHelp, CircleStop, Loader2, Mic, Play, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/typography";
+import { GroqSetupGuide } from "./groq-setup-guide";
 
 const AUDIO_TYPES = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"];
 
@@ -16,12 +17,18 @@ export function AudioRecorder({ onTranscribed }: { onTranscribed: (text: string)
 	const chunksRef = useRef<Blob[]>([]);
 	const [recording, setRecording] = useState(false);
 	const [audio, setAudio] = useState<{ blob: Blob; url: string } | null>(null);
+	const [guideOpen, setGuideOpen] = useState(false);
 	const supported = typeof MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
 
 	const transcription = useMutation({
 		...orpc.prompt.transcribe.mutationOptions(),
 		onSuccess: ({ text }) => onTranscribed(text),
-		onError: (error: Error) => toast.error(error.message),
+		onError: (error: Error) => {
+			toast.error(error.message);
+			if (error.message.includes("GROQ_API_KEY")) {
+				setGuideOpen(true);
+			}
+		},
 	});
 
 	useEffect(() => {
@@ -160,6 +167,17 @@ export function AudioRecorder({ onTranscribed }: { onTranscribed: (text: string)
 					O áudio só é enviado quando você pedir a transcrição.
 				</Text>
 			)}
+			<Button
+				type="button"
+				variant="ghost"
+				size="sm"
+				onClick={() => setGuideOpen(true)}
+				className="ml-auto"
+			>
+				<CircleHelp className="size-4" />
+				Como ativar a Groq
+			</Button>
+			<GroqSetupGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
 		</div>
 	);
 }
