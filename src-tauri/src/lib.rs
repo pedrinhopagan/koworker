@@ -14,6 +14,9 @@ pub fn run() {
         std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
     }
 
+    #[cfg(all(target_os = "linux", debug_assertions))]
+    glib::set_prgname(Some("kowork-dev"));
+
     if ipc::forward_to_running_instance() {
         return;
     }
@@ -32,6 +35,15 @@ pub fn run() {
             commands::open_devtools
         ])
         .setup(|app| {
+            #[cfg(debug_assertions)]
+            {
+                use tauri::Manager;
+
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_title("Kowork Dev");
+                }
+            }
+
             backend::start(app.handle());
             // Autostart cross-platform pelo plugin (grava .desktop no Linux, chave de registro no
             // Windows, LaunchAgent no macOS). Só em release: em dev o executavel é o binario de

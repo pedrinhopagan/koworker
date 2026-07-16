@@ -37,6 +37,12 @@ src-tauri/
 - Dev: `frontendDist` aponta para localhost
 - Prod: `frontendDist` aponta para `../dist`
 
+## DEV VS PROD (ÍCONE E IDENTIDADE)
+
+- `tauri.dev.conf.json` (merge via `--config` nos scripts `dev`/`tauri:dev`) troca `bundle.icon` pelos ícones âmbar de `icons/dev/` (janela + tray)
+- Builds debug setam prgname/WM_CLASS `kowork-dev` e título `Kowork Dev` em `lib.rs`; o KDE casa a janela com `~/.local/share/applications/kowork-dev.desktop` (Icon=kowork-dev no hicolor) na taskbar/alt-tab
+- Ícones dev gerados de `icons/dev/logo.svg` (recolor do `icons/logo.svg`) com `rsvg-convert`
+
 ## COMANDOS RUST
 
 Adicionar novos comandos em `lib.rs`:

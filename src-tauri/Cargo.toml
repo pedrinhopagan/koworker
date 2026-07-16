@@ -14,6 +14,13 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "image-png", "devtools"] }
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[target.'cfg(target_os = "linux")'.dependencies]
+glib = "0.18"
 tauri-plugin-autostart = "2"
 tauri-plugin-clipboard-manager = "2"
 rfd = "0.16"
