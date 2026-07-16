@@ -7,13 +7,11 @@ type LucideIconProps = {
 };
 
 export function LucideIcon({ name, className, ...props }: LucideIconProps) {
-	const IconComponent =
-		name && name in LucideIcons
-			? (LucideIcons[name as keyof typeof LucideIcons] as React.ComponentType<{
-					className?: string;
-					style?: React.CSSProperties;
-				}>)
-			: LucideIcons.FolderOpen;
+	const IconComponent = name
+		? LucideIcons.icons[name as keyof typeof LucideIcons.icons]
+		: LucideIcons.FolderOpen;
 
-	return <IconComponent className={className} {...props} />;
+	const ResolvedIcon = IconComponent ?? LucideIcons.FolderOpen;
+
+	return <ResolvedIcon className={className} {...props} />;
 }
