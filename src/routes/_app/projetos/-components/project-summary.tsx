@@ -28,6 +28,9 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 			queryKey: orpc.projects.list.queryOptions().queryKey,
 		});
 		queryClient.invalidateQueries({
+			queryKey: orpc.projects.overview.queryOptions().queryKey,
+		});
+		queryClient.invalidateQueries({
 			queryKey: orpc.projects.getById.queryOptions({ input: { id: projectId } }).queryKey,
 		});
 	};

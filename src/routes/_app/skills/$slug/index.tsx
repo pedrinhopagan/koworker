@@ -2,7 +2,11 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
 	ArrowLeft,
 	Check,
+	ChevronDown,
+	ClipboardCopy,
+	CopyPlus,
 	Loader2,
+	MoreVertical,
 	PencilLine,
 	SlidersHorizontal,
 	Trash2,
@@ -12,17 +16,21 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import {
+	DocMobileActionsDrawer,
+	DocSheetActionButton,
+	DocSheetDivider,
+} from "@/components/doc-mobile-actions-drawer";
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
 import { DocToolbar } from "@/components/doc-toolbar";
-import { InvokeDefaultsControl } from "@/components/invoke-defaults-control";
 import { TaskTitleInput } from "@/components/tasks/task-meta-controls";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Dialog } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Tooltip } from "@/components/ui/tooltip";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useRecordDocSession } from "@/hooks/use-record-doc-session";
@@ -33,10 +41,9 @@ import { openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
-import type { SkillVariant, TaskSkill } from "@/types/skills";
+import type { SkillCategory, SkillVariant, TaskSkill } from "@/types/skills";
 import { SkillAppearanceDialog } from "../-components/skill-appearance-dialog";
-import { SkillMetadataControls } from "../-components/skill-metadata-controls";
-import { SkillSettingsMenu } from "../-components/skill-settings-menu";
+import { SkillHeaderActions } from "../-components/skill-header-actions";
 import { useSkillMutations } from "../-utils/use-skill-mutations";
 import { useSkillSettingsMutation } from "../-utils/use-skill-settings";
 
@@ -102,6 +109,68 @@ function scopeSuffix(scope: SkillVariant["scope"]): string {
 	return "";
 }
 
+const CATEGORY_NONE = "__none__";
+
+// Select inline de categoria (padrão do MetaSelect de tarefas): trocar aqui grava
+// `skill_settings.categoryId` na hora e, sem cor explícita, a cor da skill passa a herdar o tom da
+// categoria. Usado no cabeçalho (compacto) e no drawer mobile (full width).
+function SkillCategorySelect({
+	categories,
+	categoryId,
+	onChange,
+	className,
+}: {
+	categories: SkillCategory[];
+	categoryId: string | null;
+	onChange: (categoryId: string | null) => void;
+	className?: string;
+}) {
+	const items = [
+		{ id: CATEGORY_NONE, name: "Sem categoria", color: "#6b7280" },
+		...categories.map((category) => ({
+			id: category.id,
+			name: category.name,
+			color: category.color,
+		})),
+	];
+	const value = categoryId ?? CATEGORY_NONE;
+	const selected = items.find((item) => item.id === value) ?? items[0];
+
+	return (
+		<div className={cn("shrink-0", className)}>
+			<CustomSelect
+				items={items}
+				value={value}
+				onValueChange={(next) => onChange(next === CATEGORY_NONE ? null : next)}
+				variant="minimal"
+				size="sm"
+				triggerClassName="gap-1 border border-border bg-muted/40 px-2 text-muted-foreground hover:border-muted-foreground hover:bg-muted hover:text-foreground"
+				renderTrigger={() => (
+					<>
+						<span className="flex min-w-0 items-center gap-1.5">
+							<span
+								className="size-2 shrink-0 rounded-full"
+								style={{ backgroundColor: selected.color }}
+							/>
+							<span className="truncate text-xs">{selected.name}</span>
+						</span>
+						<ChevronDown className="size-3.5 shrink-0 opacity-50" />
+					</>
+				)}
+				renderItem={(item, isSelected) => (
+					<div className={cn("flex w-full items-center gap-2", isSelected && "font-medium")}>
+						<span
+							className="size-2 shrink-0 rounded-full"
+							style={{ backgroundColor: item.color }}
+						/>
+						<span className="truncate">{item.name}</span>
+					</div>
+				)}
+			/>
+		</div>
+	);
+}
+
 // Remonta por slug (`key` no parent): navegar skill→skill troca o param sem remontar a rota, e o
 // editor markdown só lê `initialContent` no mount — sem o remount o corpo da skill anterior vazaria.
 function SkillEditor({
@@ -121,7 +190,9 @@ function SkillEditor({
 	const [editingLabel, setEditingLabel] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [confirmingStandardize, setConfirmingStandardize] = useState(false);
+	const [confirmingReplicate, setConfirmingReplicate] = useState(false);
 	const [appearanceOpen, setAppearanceOpen] = useState(false);
+	const [actionsOpen, setActionsOpen] = useState(false);
 	const [activeVariantPath, setActiveVariantPath] = useState(skill.primaryPath);
 
 	// Skill é global: a sessão não carrega projeto (não troca o projeto selecionado ao abrir pelo switcher)
@@ -138,8 +209,16 @@ function SkillEditor({
 
 	const settingsMutation = useSkillSettingsMutation();
 	const categoriesQuery = useSkillCategoriesQuery();
-	const { updateContent, standardize, standardizing, removeSkill, removeAllSkill, removing } =
-		useSkillMutations();
+	const {
+		updateContent,
+		standardize,
+		standardizing,
+		replicate,
+		replicating,
+		removeSkill,
+		removeAllSkill,
+		removing,
+	} = useSkillMutations();
 
 	useEffect(() => () => setReading(false), [setReading]);
 
@@ -254,6 +333,18 @@ function SkillEditor({
 		setConfirmingStandardize(false);
 	}
 
+	function changeCategory(categoryId: string | null) {
+		if (categoryId === skill.categoryId) return;
+		settingsMutation.mutate({ slug: skill.slug, categoryId });
+	}
+
+	function confirmReplicate() {
+		replicate({ slug: skill.slug, projectName });
+		setConfirmingReplicate(false);
+	}
+
+	const closeActions = () => setActionsOpen(false);
+
 	return (
 		<div className="relative flex h-full w-full flex-col">
 			{reading ? null : (
@@ -311,54 +402,121 @@ function SkillEditor({
 								)}
 							</div>
 
-							<InvokeDefaultsControl metadata={metadata} onChange={changeMetadata} />
-							<SkillMetadataControls metadata={metadata} onChange={changeMetadata} />
-							<SkillSettingsMenu
-								skill={skill}
-								categories={categoriesQuery.data ?? []}
-								onAppearance={() => setAppearanceOpen(true)}
-								trigger={
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										title="Aparência e categoria"
-										aria-label="Aparência e categoria"
-									>
-										<SlidersHorizontal className="size-3.5" />
-									</Button>
-								}
-							/>
-							<div className="h-5 w-px bg-border" aria-hidden="true" />
-							<DocToolbar
-								onCollapse={() => paneRef.current?.collapseAll()}
-								onExpand={() => paneRef.current?.expandAll()}
-								onCopyContent={() => void paneRef.current?.copyContent()}
-								onCopyPath={() => void paneRef.current?.copyPath()}
-								onReading={() => setReading(true)}
-								pinned={pinned}
-								onTogglePin={togglePin}
-								share={{
-									// Sem "Copiar conteúdo": a skill é um único SKILL.md por variante, então o botão de
-									// copiar da toolbar já faz isso. O zip exporta a pasta inteira (eventuais irmãos).
-									onOpenInOs: () => void openFolderInOs(skillDir),
-									onCopyZip: () => void copySkillZip(),
-								}}
-							/>
-							<Tooltip label="Remover skill">
+							{/* Principais inline (desktop): categoria, copiar e replicar. O resto vive no menu
+							    de ações. No mobile a linha inteira degrada para o drawer (padrão do vault). */}
+							<div className="hidden items-center gap-2 md:flex">
+								<SkillCategorySelect
+									categories={categoriesQuery.data ?? []}
+									categoryId={skill.categoryId}
+									onChange={changeCategory}
+									className="w-40"
+								/>
 								<Button
 									type="button"
-									variant="ghost"
-									size="icon-sm"
-									onClick={() => setConfirmingDelete(true)}
-									aria-label="Remover skill"
-									className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-destructive"
+									variant="outline"
+									size="sm"
+									onClick={() => void paneRef.current?.copyContent()}
+									title="Copiar conteúdo"
 								>
-									<Trash2 className="size-3.5" />
+									<ClipboardCopy className="size-3.5" />
+									Copiar
 								</Button>
-							</Tooltip>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => setConfirmingReplicate(true)}
+									disabled={replicating}
+									title="Replicar em todos os ambientes"
+								>
+									<CopyPlus className="size-3.5" />
+									Replicar
+								</Button>
+								<SkillHeaderActions
+									metadata={metadata}
+									pinned={pinned}
+									onMetadataChange={changeMetadata}
+									onAppearance={() => setAppearanceOpen(true)}
+									onTogglePin={togglePin}
+									onReading={() => setReading(true)}
+									onCollapse={() => paneRef.current?.collapseAll()}
+									onExpand={() => paneRef.current?.expandAll()}
+									onCopyPath={() => void paneRef.current?.copyPath()}
+									onOpenInOs={() => void openFolderInOs(skillDir)}
+									onShareZip={() => void copySkillZip()}
+									onDelete={() => setConfirmingDelete(true)}
+								/>
+							</div>
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => setActionsOpen(true)}
+								aria-label="Ações da skill"
+								className="h-8 w-8 shrink-0 md:hidden"
+							>
+								<MoreVertical className="h-4 w-4" />
+							</Button>
 						</div>
 					</div>
+
+					<DocMobileActionsDrawer open={actionsOpen} onClose={closeActions} title="Ações da skill">
+						<div className="px-5 py-2">
+							<Text size="xs" tone="muted" className="mb-1.5">
+								Categoria
+							</Text>
+							<SkillCategorySelect
+								categories={categoriesQuery.data ?? []}
+								categoryId={skill.categoryId}
+								onChange={changeCategory}
+								className="w-full"
+							/>
+						</div>
+						<DocSheetDivider />
+						<DocSheetActionButton
+							icon={<CopyPlus className="size-[18px]" />}
+							label="Replicar em todos os ambientes"
+							onClick={() => {
+								setConfirmingReplicate(true);
+								closeActions();
+							}}
+							disabled={replicating}
+						/>
+						<DocSheetActionButton
+							icon={<SlidersHorizontal className="size-[18px]" />}
+							label="Aparência"
+							onClick={() => {
+								setAppearanceOpen(true);
+								closeActions();
+							}}
+						/>
+						<DocSheetDivider />
+						<DocToolbar
+							onCollapse={() => paneRef.current?.collapseAll()}
+							onExpand={() => paneRef.current?.expandAll()}
+							onCopyContent={() => void paneRef.current?.copyContent()}
+							onCopyPath={() => void paneRef.current?.copyPath()}
+							onReading={() => setReading(true)}
+							pinned={pinned}
+							onTogglePin={togglePin}
+							share={{
+								onOpenInOs: () => void openFolderInOs(skillDir),
+								onCopyZip: () => void copySkillZip(),
+							}}
+							layout="stacked"
+							onAction={closeActions}
+						/>
+						<DocSheetDivider />
+						<DocSheetActionButton
+							icon={<Trash2 className="size-[18px]" />}
+							label="Excluir skill"
+							onClick={() => {
+								setConfirmingDelete(true);
+								closeActions();
+							}}
+							className="text-destructive"
+						/>
+					</DocMobileActionsDrawer>
 
 					<div className="w-full border-b border-border">
 						<div className="mx-auto w-full max-w-6xl px-2 py-1.5">
@@ -525,6 +683,16 @@ function SkillEditor({
 				confirmLabel="Padronizar"
 				variant="danger"
 				loading={standardizing}
+			/>
+
+			<ConfirmDialog
+				open={confirmingReplicate}
+				onClose={() => setConfirmingReplicate(false)}
+				onConfirm={confirmReplicate}
+				title="Replicar em todos os ambientes"
+				description={`“${skill.label}” será copiada para opencode, Claude Code, Codex e Agents, sobrescrevendo cópias divergentes com a versão principal.`}
+				confirmLabel="Replicar"
+				loading={replicating}
 			/>
 		</div>
 	);

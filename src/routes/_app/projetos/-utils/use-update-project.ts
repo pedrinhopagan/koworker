@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import type { ProjectCreateInput } from "@/api/schemas/projects";
 import { orpc } from "@/client";
@@ -13,7 +14,8 @@ export function useUpdateProject({ projectId }: UseUpdateProjectProps) {
 	const mutation = useMutation({
 		...orpc.projects.update.mutationOptions(),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["projects"] });
+			queryClient.invalidateQueries({ queryKey: orpc.projects.key() });
+			toast.success("Projeto atualizado.");
 		},
 	});
 
@@ -28,6 +30,5 @@ export function useUpdateProject({ projectId }: UseUpdateProjectProps) {
 			}),
 		loading: mutation.isPending,
 		error: mutation.isError,
-		success: mutation.isSuccess,
 	};
 }

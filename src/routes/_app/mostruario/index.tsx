@@ -1,10 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check, Loader2, Presentation } from "lucide-react";
-import { useEffect } from "react";
+import { useMemo } from "react";
 import { toast } from "sonner";
 
-import { orpc, orpcWs } from "@/client";
+import { orpc } from "@/client";
 import { PageShell } from "@/components/layout/page-shell";
 import { Text, Title } from "@/components/typography";
 import { useProjectFocus } from "@/hooks/use-project-focus";
@@ -29,10 +29,10 @@ function MetaChip({ color, label }: { color: string; label: string }) {
 
 function MostruarioPage() {
 	const { selectedProjectId } = useProjectFocus();
-	const queryClient = useQueryClient();
+	const projectInput = selectedProjectId ? { projectId: selectedProjectId } : {};
 
 	const mostruarioQuery = useQuery({
-		...orpc.mostruario.list.queryOptions({ input: { projectId: selectedProjectId } }),
+		...orpc.mostruario.list.queryOptions({ input: projectInput }),
 		enabled: selectedProjectId !== null,
 	});
 
@@ -42,38 +42,22 @@ function MostruarioPage() {
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 	const featuresQuery = useQuery({
-		...orpc.taskGroups.list.queryOptions({ input: { projectId: selectedProjectId ?? "" } }),
+		...orpc.taskGroups.list.queryOptions({ input: projectInput }),
 		enabled: selectedProjectId !== null,
 	});
 
-	const categoriesById = new Map((categoriesQuery.data ?? []).map((c) => [c.id, c]));
-	const prioritiesById = new Map((prioritiesQuery.data ?? []).map((p) => [p.id, p]));
-	const featuresById = new Map((featuresQuery.data ?? []).map((f) => [f.id, f]));
-
-	// Eventos de tasks (API, CLI ou watcher de FS) mudam quais tarefas têm artefatos e como aparecem;
-	// o canal global só invalida `tasks`/`vault`, então a página cuida da própria key.
-	useEffect(() => {
-		const controller = new AbortController();
-
-		async function subscribe() {
-			try {
-				const events = await orpcWs.tasks.call(undefined, { signal: controller.signal });
-				for await (const _event of events) {
-					queryClient.invalidateQueries({
-						predicate: (query) =>
-							Array.isArray(query.queryKey[0]) && query.queryKey[0][0] === "mostruario",
-					});
-				}
-			} catch (error) {
-				if (error instanceof Error && error.name === "AbortError") return;
-				console.error("[Mostruário Realtime] Erro na subscription:", error);
-			}
-		}
-
-		subscribe();
-
-		return () => controller.abort();
-	}, [queryClient]);
+	const categoriesById = useMemo(
+		() => new Map((categoriesQuery.data ?? []).map((category) => [category.id, category])),
+		[categoriesQuery.data],
+	);
+	const prioritiesById = useMemo(
+		() => new Map((prioritiesQuery.data ?? []).map((priority) => [priority.id, priority])),
+		[prioritiesQuery.data],
+	);
+	const featuresById = useMemo(
+		() => new Map((featuresQuery.data ?? []).map((feature) => [feature.id, feature])),
+		[featuresQuery.data],
+	);
 
 	const openMutation = useMutation({
 		...orpc.tasks.openArtifact.mutationOptions(),
@@ -87,7 +71,7 @@ function MostruarioPage() {
 			icon={Presentation}
 			title="Mostruário"
 			description="Tarefas com apresentações e documentos (.html/.pdf) na pasta"
-			contentClassName="min-h-0 flex-1 overflow-y-auto px-4 pb-10"
+			contentClassName="min-h-0 flex-1 overflow-y-auto px-4 pb-12"
 		>
 			{mostruarioQuery.isLoading ? (
 				<div className="flex h-full items-center justify-center">
@@ -103,16 +87,14 @@ function MostruarioPage() {
 					</Text>
 				</div>
 			) : (
-				<div className="flex flex-col gap-10">
+				<div className="mx-auto flex w-full max-w-7xl flex-col gap-12">
 					{tasks.map((task) => {
 						const category = task.categoryId ? categoriesById.get(task.categoryId) : undefined;
 						const priority = task.priorityId ? prioritiesById.get(task.priorityId) : undefined;
 						const feature = task.groupId ? featuresById.get(task.groupId) : undefined;
-						const artifacts = [...task.artifacts].sort((a, b) => b.mtime - a.mtime);
-
 						return (
-							<section key={task.id} className="flex flex-col gap-4">
-								<header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+							<section key={task.id} className="flex flex-col gap-5">
+								<header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 border-b border-border pb-3">
 									<div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
 										{task.done && (
 											<span className="flex size-4 shrink-0 items-center justify-center border border-border bg-secondary/40 text-muted-foreground">
@@ -144,10 +126,8 @@ function MostruarioPage() {
 									</Text>
 								</header>
 
-								<div className="h-px w-full bg-border" />
-
-								<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-									{artifacts.map((artifact) => (
+								<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+									{task.artifacts.map((artifact) => (
 										<ArtifactCard
 											key={artifact.name}
 											artifact={artifact}

@@ -4,6 +4,7 @@ import {
 	CircleDot,
 	ClipboardCopy,
 	FileArchive,
+	EyeOff,
 	Flame,
 	FolderOpen,
 	FolderSymlink,
@@ -14,7 +15,7 @@ import {
 	SquareArrowOutUpRight,
 	Trash2,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import {
 	ContextMenu,
@@ -62,6 +63,7 @@ export type TaskMenuActions = {
 	onSetPriority: (target: TaskMenuTarget, priorityId: string) => void;
 	onSetCategory: (target: TaskMenuTarget, categoryId: string) => void;
 	onToggleDone: (target: TaskMenuTarget) => void;
+	onIgnoreRecency?: (target: TaskMenuTarget) => void;
 	onMoveToProject: (target: TaskMenuTarget, projectId: string) => void;
 	onDelete: (target: TaskMenuTarget) => void;
 };
@@ -185,6 +187,12 @@ export function taskMenuItems(
 				)}
 				{target.done ? "Reabrir tarefa" : "Marcar como concluída"}
 			</ContextMenuItem>
+			{actions.onIgnoreRecency && (
+				<ContextMenuItem onSelect={() => actions.onIgnoreRecency?.(target)} className="px-3 py-2">
+					<EyeOff className="mr-2 size-4" />
+					Ignorar nas recentes
+				</ContextMenuItem>
+			)}
 			<ContextMenuSub>
 				<ContextMenuSubTrigger className="px-3 py-2">
 					<FolderSymlink className="mr-2 size-4" />
@@ -228,24 +236,26 @@ export function taskMenuItems(
 // (ex.: lista de /tarefas). No vault os mesmos itens entram no Content da árvore via taskMenuItems.
 export function TaskContextMenu({
 	target,
-	data,
-	actions,
+	content,
 	children,
 }: {
 	target: TaskMenuTarget;
-	data: TaskMenuData;
-	actions: TaskMenuActions;
+	content: ReactNode;
 	children: ReactNode;
 }) {
+	const [open, setOpen] = useState(false);
+
 	return (
-		<ContextMenu>
+		<ContextMenu onOpenChange={setOpen}>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-			<ContextMenuContent className="w-[220px] rounded-none">
-				<ContextMenuLabel className="truncate px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
-					{target.label}
-				</ContextMenuLabel>
-				{taskMenuItems(target, data, actions)}
-			</ContextMenuContent>
+			{open && (
+				<ContextMenuContent className="w-[220px] rounded-none">
+					<ContextMenuLabel className="truncate px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
+						{target.label}
+					</ContextMenuLabel>
+					{content}
+				</ContextMenuContent>
+			)}
 		</ContextMenu>
 	);
 }

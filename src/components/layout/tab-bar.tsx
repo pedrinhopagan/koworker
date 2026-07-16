@@ -15,10 +15,12 @@ import { NewVaultNoteButton } from "@/components/layout/sidebar-nav-actions";
 import { isTabActive, tabs, topTabs } from "@/components/layout/tab-nav-config";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useNavActionDialogsStore } from "@/hooks/use-nav-action-dialogs";
+import { useProjectFocus } from "@/hooks/use-project-focus";
 import { copyToClipboard } from "@/lib/build-prompt";
 import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { getWindowToggleShortcutTooltip } from "@/lib/window-shortcut";
+import { useSidebarNavStore } from "@/stores/sidebar-nav";
 
 const tabItem = tv({
 	base: "px-4 py-2.5 text-sm transition-colors cursor-pointer shadow-[inset_0_-2px_0_transparent]",
@@ -50,6 +52,12 @@ export function TabBar() {
 	const currentPath = location.pathname;
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
 	const openActionDialog = useNavActionDialogsStore((s) => s.open);
+	const sidebarMode = useSidebarNavStore((s) => s.mode);
+	const { selectedProjectId, selectedProject, loading } = useProjectFocus();
+	const projectLabel =
+		selectedProjectId === undefined
+			? "Todos os projetos"
+			: (selectedProject?.name ?? (loading ? "Carregando..." : "Selecionar projeto"));
 
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
@@ -58,11 +66,6 @@ export function TabBar() {
 			}
 
 			e.preventDefault();
-
-			if (e.key === "0") {
-				navigate({ to: "/configuracoes" as string });
-				return;
-			}
 
 			const tab = tabs.find((t) => t.altKey === e.key);
 			if (tab) {
@@ -107,6 +110,14 @@ export function TabBar() {
 				<div className="min-w-0 flex-1 truncate text-sm font-medium text-foreground md:hidden">
 					{getActiveTabLabel(currentPath)}
 				</div>
+
+				{sidebarMode === "compact" ? (
+					<div className="hidden min-w-0 self-stretch items-center border-r border-border md:flex">
+						<span className="max-w-44 truncate px-4 text-sm font-medium text-foreground">
+							{projectLabel}
+						</span>
+					</div>
+				) : null}
 
 				<div className="hidden md:flex">
 					{topTabs.map((tab) => (

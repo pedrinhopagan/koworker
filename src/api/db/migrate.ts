@@ -303,6 +303,18 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		sqlite.exec("DROP TABLE IF EXISTS events");
 	}
 
+	for (const [name, definition] of [
+		["merge_ready_at", "INTEGER"],
+		["worktree_branch", "TEXT"],
+		["merge_target_branch", "TEXT"],
+		["worktree_path", "TEXT"],
+		["worktree_pr_url", "TEXT"],
+	] as const) {
+		if (!hasColumn(tableInfo(sqlite, "tasks"), name)) {
+			ensureColumn(sqlite, "tasks", `${name} ${definition}`);
+		}
+	}
+
 	// skill_settings.category_id: a tabela skill_categories é criada pelo constructor do
 	// @lobomfz/db (CREATE TABLE IF NOT EXISTS) no boot; aqui só garantimos a coluna nova em
 	// skill_settings nos bancos já existentes. ALTER do SQLite não anexa a FK, mas a referência
@@ -357,6 +369,7 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		["model", "TEXT"],
 		["effort", "TEXT"],
 		["approval_mode", "TEXT"],
+		["deleted_at", "INTEGER"],
 	] as const) {
 		if (!hasColumn(tableInfo(sqlite, "execution_runs"), name)) {
 			ensureColumn(sqlite, "execution_runs", `${name} ${definition}`);
@@ -371,6 +384,9 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		"CREATE INDEX IF NOT EXISTS project_routes_project_id_idx ON project_routes (project_id)",
 	);
 	sqlite.exec("CREATE INDEX IF NOT EXISTS execution_runs_task_id_idx ON execution_runs (task_id)");
+	sqlite.exec(
+		"CREATE INDEX IF NOT EXISTS execution_runs_deleted_at_idx ON execution_runs (deleted_at)",
+	);
 	sqlite.exec(
 		"CREATE INDEX IF NOT EXISTS prompt_history_project_created_idx ON prompt_history (project_id, created_at)",
 	);

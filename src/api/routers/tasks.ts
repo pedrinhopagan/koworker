@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { type TaskComplexity } from "@/constants/complexity";
+import { RECENCY_IGNORE_OFFSET_MS } from "@/constants/tasks";
 import { protectedProcedure } from "../auth/context";
 import { dbCategories } from "../db/categories";
 import type { tasks } from "../db/connection";
@@ -21,9 +22,11 @@ import {
 	renameTaskFile,
 	resolveDisplayTitle,
 	setTaskFileEditedAt,
+	shiftTaskFolderEditedAt,
 	writeTaskFile,
 } from "../helpers/task-folder";
 import { createTask } from "../helpers/task-creation";
+import { createDiscoveredTasks, discoverTaskFolders } from "../helpers/task-sync";
 import { restartTasksWatcher } from "../helpers/tasks-watcher";
 import { PubSub } from "../pubsub";
 import {
@@ -32,6 +35,7 @@ import {
 	TaskFocusSchema,
 	TaskGetAllSchema,
 	TaskIdSchema,
+	TaskIgnoreRecencySchema,
 	TaskListByProjectSchema,
 	TaskMetricsSchema,
 	TaskMoveToProjectSchema,
@@ -41,6 +45,8 @@ import {
 	TaskReorderSchema,
 	TaskSetDoneSchema,
 	TaskSetFileDateSchema,
+	TaskSyncCreateSchema,
+	TaskSyncDiscoverSchema,
 	TaskUpdateSchema,
 	TaskWriteFileSchema,
 } from "../schemas";
@@ -75,7 +81,30 @@ const mapTask = (
 	lastEditedAt: meta.lastEditedAt ?? row.created_at,
 	fileNames: meta.fileNames ?? [],
 	artifactNames: meta.artifactNames ?? [],
+	worktree: mapWorktree(row),
 });
+
+function mapWorktree(row: tasks) {
+	if (!row.merge_ready_at) {
+		return null;
+	}
+	if (
+		!row.worktree_branch ||
+		!row.merge_target_branch ||
+		!row.worktree_path ||
+		!row.worktree_pr_url
+	) {
+		throw new Error("Metadados de worktree incompletos");
+	}
+
+	return {
+		readyAt: row.merge_ready_at,
+		branch: row.worktree_branch,
+		targetBranch: row.merge_target_branch,
+		path: row.worktree_path,
+		prUrl: row.worktree_pr_url,
+	};
+}
 
 // Resolve o displayTitle e os nomes dos .md de uma única row.
 async function mapTaskWithDisplay(row: tasks) {
@@ -102,11 +131,10 @@ async function mapTaskWithDisplay(row: tasks) {
 // Resolve o displayTitle de várias rows de uma vez: carrega os projetos das tasks sem título
 // uma vez e lê o 1º .md de cada. Rows com título não tocam o disco.
 export async function mapTasks(rows: tasks[]) {
+	if (rows.length === 0) return [];
 	const projectIds = [...new Set(rows.map((row) => row.project_id))];
 	const projects = new Map(
-		(await Promise.all(projectIds.map((id) => dbProjects.getById(id))))
-			.filter((project) => project !== null)
-			.map((project) => [project.id, project] as const),
+		(await dbProjects.listRootsByIds(projectIds)).map((project) => [project.id, project] as const),
 	);
 
 	const metaByTask = new Map(
@@ -162,6 +190,14 @@ async function publishTaskEvent(
 }
 
 export const tasksRouter = {
+	discoverSync: protectedProcedure
+		.input(TaskSyncDiscoverSchema)
+		.handler(({ input }) => discoverTaskFolders(input.projectId)),
+
+	createSync: protectedProcedure
+		.input(TaskSyncCreateSchema)
+		.handler(({ input }) => createDiscoveredTasks(input)),
+
 	metrics: protectedProcedure.input(TaskMetricsSchema).handler(async ({ input }) => {
 		const result = await dbTasks.getMetrics(input.projectId);
 		return {
@@ -186,6 +222,8 @@ export const tasksRouter = {
 			priority: input.priority,
 			complexity: input.complexity,
 			q: input.q,
+			limit: input.limit,
+			offset: input.offset,
 		});
 
 		return mapTasks(rows);
@@ -298,6 +336,11 @@ export const tasksRouter = {
 			complexity: input.complexity,
 			done: input.done === undefined ? undefined : input.done ? 1 : 0,
 			completed_at: input.done === undefined ? undefined : input.done ? Date.now() : null,
+			merge_ready_at: input.done ? null : undefined,
+			worktree_branch: input.done ? null : undefined,
+			merge_target_branch: input.done ? null : undefined,
+			worktree_path: input.done ? null : undefined,
+			worktree_pr_url: input.done ? null : undefined,
 		});
 
 		const row = await dbTasks.getById(input.id);
@@ -314,6 +357,11 @@ export const tasksRouter = {
 			completed_at: input.done ? Date.now() : null,
 			// undefined cai fora do cleanUpdate e preserva o group_id atual.
 			group_id: input.groupId,
+			merge_ready_at: input.done ? null : undefined,
+			worktree_branch: input.done ? null : undefined,
+			merge_target_branch: input.done ? null : undefined,
+			worktree_path: input.done ? null : undefined,
+			worktree_pr_url: input.done ? null : undefined,
 		});
 
 		const row = await dbTasks.getById(input.id);
@@ -321,6 +369,29 @@ export const tasksRouter = {
 			await publishTaskEvent(row.id, row.project_id, "updated");
 		}
 		return row ? mapTaskWithDisplay(row) : null;
+	}),
+
+	ignoreRecency: protectedProcedure.input(TaskIgnoreRecencySchema).handler(async ({ input }) => {
+		const row = await dbTasks.getById(input.id);
+		if (!row) throw new Error("Tarefa não encontrada");
+
+		const project = await dbProjects.getById(row.project_id);
+		if (!project) throw new Error("Projeto não encontrado");
+
+		await shiftTaskFolderEditedAt({
+			projectRoute: project.main_route,
+			folderPath: row.folder_path,
+			offsetMs: RECENCY_IGNORE_OFFSET_MS,
+		});
+		await dbTasks.ignoreRecency({
+			id: row.id,
+			createdAt: row.created_at - RECENCY_IGNORE_OFFSET_MS,
+			updatedAt: (row.updated_at ?? row.created_at) - RECENCY_IGNORE_OFFSET_MS,
+		});
+		await publishTaskEvent(row.id, row.project_id, "updated");
+
+		const updated = await dbTasks.getById(row.id);
+		return updated ? mapTaskWithDisplay(updated) : null;
 	}),
 
 	moveToProject: protectedProcedure.input(TaskMoveToProjectSchema).handler(async ({ input }) => {

@@ -3,13 +3,12 @@ import { AppContextMenu } from "@/components/layout/app-context-menu";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { DocSessionSwitcher } from "@/components/doc-session-switcher";
 import { NavActionDialogs } from "@/components/layout/nav-action-dialogs";
-import { ProjectSelectDialog } from "@/components/layout/project-select-dialog";
+import { GlobalProjectSelectDialog } from "@/components/layout/project-select-dialog";
 import { StatusBar } from "@/components/layout/status-bar";
 import { TabBar } from "@/components/layout/tab-bar";
 import { GlobalPromptBar } from "@/components/prompt-bar/global-prompt-bar";
 import { MobileExecutionShortcut } from "@/components/layout/mobile-execution-shortcut";
 import { usePrimaryColor, useProjectFocus, useUser } from "@/hooks";
-import { useProjectSelectDialog } from "@/hooks/use-project-select-dialog";
 
 type AppShellProps = {
 	children: ReactNode;
@@ -28,7 +27,6 @@ export function AppShell({ children }: AppShellProps) {
 	useUser();
 	usePrimaryColor();
 	const { accent } = useProjectFocus();
-	const { open, closeDialog } = useProjectSelectDialog();
 
 	const baseAccentStyle = {
 		"--project-accent-soft": "color-mix(in oklab, var(--primary) 12%, transparent)",
@@ -79,7 +77,7 @@ export function AppShell({ children }: AppShellProps) {
 				</div>
 
 				<DocSessionSwitcher />
-				<ProjectSelectDialog open={open} onClose={closeDialog} />
+				<GlobalProjectSelectDialog />
 				<NavActionDialogs />
 			</div>
 		</AppContextMenu>

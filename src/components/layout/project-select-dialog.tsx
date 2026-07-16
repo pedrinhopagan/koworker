@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { Text } from "@/components/typography";
 import { useProjectFocus } from "@/hooks";
+import { useProjectSelectDialog } from "@/hooks/use-project-select-dialog";
 import { ALL_PROJECTS_ID, DISABLED_PATHS } from "@/lib/project-focus";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,11 @@ type ProjectSelectDialogProps = {
 	open: boolean;
 	onClose: () => void;
 };
+
+export function GlobalProjectSelectDialog() {
+	const { open, closeDialog } = useProjectSelectDialog();
+	return <ProjectSelectDialog open={open} onClose={closeDialog} />;
+}
 
 export function ProjectSelectDialog({ open, onClose }: ProjectSelectDialogProps) {
 	const routerState = useRouterState();
@@ -59,6 +65,7 @@ export function ProjectSelectDialog({ open, onClose }: ProjectSelectDialogProps)
 	return (
 		<Dialog
 			open={open}
+			keepMounted
 			onClose={onClose}
 			title="Selecionar projeto"
 			description={

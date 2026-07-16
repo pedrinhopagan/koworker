@@ -59,16 +59,14 @@ const COMPLEXITY_ALL_ID = "__all_complexity__";
 type Category = RouterOutputs["categories"]["list"][number];
 type Priority = RouterOutputs["priorities"]["list"][number];
 
-// Modo de ordenação dentro dos grupos. "categoria" clusteriza por categoria (padrão); os demais
-// achatam o grupo e ordenam pela chave. É preferência de UI — vive no localStorage, não no banco.
 export type SortMode = "categoria" | "prioridade" | "complexidade" | "recente" | "alfabetica";
 
 const SORT_MODE_KEY = "tarefas:sortMode";
 const SORT_MODES: { mode: SortMode; label: string; icon: typeof LayoutGrid }[] = [
+	{ mode: "recente", label: "Recente", icon: Clock },
 	{ mode: "categoria", label: "Categoria", icon: LayoutGrid },
 	{ mode: "prioridade", label: "Prioridade", icon: Flame },
 	{ mode: "complexidade", label: "Complexidade", icon: Gauge },
-	{ mode: "recente", label: "Recente", icon: Clock },
 	{ mode: "alfabetica", label: "A-Z", icon: ArrowDownAZ },
 ];
 
@@ -86,7 +84,7 @@ export function useSortMode(): [SortMode, (mode: SortMode) => void] {
 		() => localStorage.getItem(SORT_MODE_KEY),
 		() => null,
 	);
-	const mode: SortMode = isSortMode(stored) ? stored : "categoria";
+	const mode: SortMode = isSortMode(stored) ? stored : "recente";
 
 	const setMode = useCallback((next: SortMode) => {
 		localStorage.setItem(SORT_MODE_KEY, next);
@@ -398,7 +396,7 @@ export function TaskListControls({
 		search.value.includeCompleted ? "done" : undefined,
 	].filter(Boolean).length;
 
-	const mobileControlsActive = activeFilters > 0 || sortMode !== "categoria";
+	const mobileControlsActive = activeFilters > 0 || sortMode !== "recente";
 
 	function searchInput(className?: string) {
 		return (
@@ -472,7 +470,7 @@ export function TaskListControls({
 					Filtros e ordenação
 					{mobileControlsActive && (
 						<span className="ml-auto flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-							{activeFilters + (sortMode === "categoria" ? 0 : 1)}
+							{activeFilters + (sortMode === "recente" ? 0 : 1)}
 						</span>
 					)}
 				</Button>

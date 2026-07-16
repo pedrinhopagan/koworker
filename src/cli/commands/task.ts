@@ -2,7 +2,7 @@ import { dbCategories } from "@/api/db/categories";
 import { dbPriorities } from "@/api/db/priorities";
 import { dbProjects } from "@/api/db/projects";
 import { dbTasks } from "@/api/db/tasks";
-import type { TaskDbUpdateInput } from "@/api/schemas/tasks";
+import { TaskMergeReadySchema, type TaskDbUpdateInput } from "@/api/schemas/tasks";
 import { parseTaskFileOrder, readTaskFiles, removeTaskFolder } from "@/api/helpers/task-folder";
 import { COMPLEXITY_LABELS, TASK_COMPLEXITIES } from "@/constants/complexity";
 import { hasFlag, parseArgs } from "../args";
@@ -40,6 +40,12 @@ export function runTask(args: string[]): Promise<void> {
 	if (sub === "reopen" || sub === "open") {
 		return setTaskDone(rest[0], false);
 	}
+	if (sub === "merge-ready") {
+		return setTaskMergeReady(rest);
+	}
+	if (sub === "merge-completed") {
+		return setTaskMergeCompleted(rest[0]);
+	}
 	if (sub === "rm" || sub === "delete") {
 		return runTaskRm(rest);
 	}
@@ -51,7 +57,7 @@ export function runTask(args: string[]): Promise<void> {
 	}
 
 	throw new Error(
-		`Subcomando desconhecido: task ${sub ?? ""}. Use: create | list | show | set | done | reopen | rm | file | options`,
+		`Subcomando desconhecido: task ${sub ?? ""}. Use: create | list | show | set | done | reopen | merge-ready | merge-completed | rm | file | options`,
 	);
 }
 
@@ -133,6 +139,11 @@ async function runTaskShow(args: string[]): Promise<void> {
 	console.log(`criada: ${formatInstant(row.created_at)}`);
 	console.log(`atualizada: ${formatInstant(row.updated_at)}`);
 	console.log(`concluída: ${formatInstant(row.completed_at)}`);
+	console.log(`merge pronta: ${formatInstant(row.merge_ready_at)}`);
+	console.log(`branch da worktree: ${formatOptional(row.worktree_branch)}`);
+	console.log(`branch de destino: ${formatOptional(row.merge_target_branch)}`);
+	console.log(`caminho da worktree: ${formatOptional(row.worktree_path)}`);
+	console.log(`PR da worktree: ${formatOptional(row.worktree_pr_url)}`);
 	console.log(`arquivo primário: ${primaryFile ?? "-"}`);
 
 	if (files.length === 0) {
@@ -181,6 +192,11 @@ async function runTaskSet(args: string[]): Promise<void> {
 	if (hasFlag(flags, "done")) {
 		update.done = 1;
 		update.completed_at = Date.now();
+		update.merge_ready_at = null;
+		update.worktree_branch = null;
+		update.merge_target_branch = null;
+		update.worktree_path = null;
+		update.worktree_pr_url = null;
 	}
 	if (hasFlag(flags, "pending")) {
 		update.done = 0;
@@ -208,7 +224,16 @@ export async function setTaskDone(raw: string | undefined, done: boolean): Promi
 		throw new Error(`Nenhuma tarefa encontrada para ${raw}`);
 	}
 
-	await dbTasks.update({ id: row.id, done: done ? 1 : 0, completed_at: done ? Date.now() : null });
+	await dbTasks.update({
+		id: row.id,
+		done: done ? 1 : 0,
+		completed_at: done ? Date.now() : null,
+		merge_ready_at: done ? null : undefined,
+		worktree_branch: done ? null : undefined,
+		merge_target_branch: done ? null : undefined,
+		worktree_path: done ? null : undefined,
+		worktree_pr_url: done ? null : undefined,
+	});
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
 
 	console.log(
@@ -216,6 +241,65 @@ export async function setTaskDone(raw: string | undefined, done: boolean): Promi
 			? `✅ Tarefa "${row.title ?? row.folder_path}" marcada como concluída.`
 			: `✅ Tarefa "${row.title ?? row.folder_path}" reaberta.`,
 	);
+}
+
+async function setTaskMergeReady(args: string[]): Promise<void> {
+	const { positionals, flags } = parseArgs(args);
+	const parsed = TaskMergeReadySchema.safeParse({
+		id: positionals[0],
+		branch: flags.branch,
+		targetBranch: flags.target,
+		worktreePath: flags.worktree,
+		prUrl: flags.pr,
+	});
+	if (!parsed.success) {
+		throw new Error(
+			"Uso: kw-cli task merge-ready <taskId|caminho> --branch <origem> --target <destino> --worktree <caminho> --pr <url>",
+		);
+	}
+	const input = parsed.data;
+	const row = await resolveTask(input.id);
+	if (!row) {
+		throw new Error(`Nenhuma tarefa encontrada para ${input.id}`);
+	}
+
+	await dbTasks.update({
+		id: row.id,
+		merge_ready_at: Date.now(),
+		worktree_branch: input.branch,
+		merge_target_branch: input.targetBranch,
+		worktree_path: input.worktreePath,
+		worktree_pr_url: input.prUrl,
+		done: 0,
+		completed_at: null,
+	});
+	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
+
+	console.log(`✅ Tarefa "${row.title ?? row.folder_path}" pronta para merge.`);
+}
+
+async function setTaskMergeCompleted(raw: string | undefined): Promise<void> {
+	if (!raw) {
+		throw new Error("Uso: kw-cli task merge-completed <taskId|caminho>");
+	}
+	const row = await resolveTask(raw);
+	if (!row) {
+		throw new Error(`Nenhuma tarefa encontrada para ${raw}`);
+	}
+
+	await dbTasks.update({
+		id: row.id,
+		done: 1,
+		completed_at: Date.now(),
+		merge_ready_at: null,
+		worktree_branch: null,
+		merge_target_branch: null,
+		worktree_path: null,
+		worktree_pr_url: null,
+	});
+	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
+
+	console.log(`✅ Merge concluído e tarefa "${row.title ?? row.folder_path}" finalizada.`);
 }
 
 async function runTaskRm(args: string[]): Promise<void> {

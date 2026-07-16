@@ -74,6 +74,10 @@ export const PromptRunListSchema = z.object({
 	limit: z.number().int().min(1).max(50).default(20),
 });
 
+export const PromptRunClearSchema = z.object({
+	runIds: z.array(z.string().trim().min(1)).min(1).max(50),
+});
+
 export const PromptRunRetrySchema = z.object({
 	runId: z.string().trim().min(1),
 	clientRequestId: z.string().uuid(),

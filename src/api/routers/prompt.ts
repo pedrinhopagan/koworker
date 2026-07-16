@@ -16,6 +16,7 @@ import {
 	PromptAutofillSchema,
 	AudioTranscriptionSchema,
 	PromptExecuteSchema,
+	PromptRunClearSchema,
 	PromptRunIdSchema,
 	PromptRunListSchema,
 	PromptRunRetrySchema,
@@ -65,6 +66,10 @@ export const promptRouter = {
 	listRuns: protectedProcedure
 		.input(PromptRunListSchema)
 		.handler(({ input, context }) => listPromptRuns(context.user.id, input.limit)),
+
+	clearRuns: protectedProcedure.input(PromptRunClearSchema).handler(async ({ input, context }) => ({
+		cleared: await dbExecutionRuns.softDeleteFinishedForUser(input.runIds, context.user.id),
+	})),
 
 	retry: protectedProcedure.input(PromptRunRetrySchema).handler(async ({ input, context }) => {
 		const run = await dbExecutionRuns.getByIdForUser(input.runId, context.user.id);

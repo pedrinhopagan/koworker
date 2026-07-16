@@ -60,6 +60,11 @@ const tasksSchema = type({
 	// Ordem manual das abas (.md) na rota da task, como array JSON de nomes. Arquivos fora
 	// dessa lista (novos, criados no disco pelo agente) entram à direita por birthtime.
 	"file_order?": "string",
+	"merge_ready_at?": "number.integer",
+	"worktree_branch?": "string",
+	"merge_target_branch?": "string",
+	"worktree_path?": "string",
+	"worktree_pr_url?": "string",
 	done: type("number.integer").configure({ default: 0 }),
 	"completed_at?": "number.integer",
 	created_at: type("number.integer").configure({ default: "now" }),
@@ -233,6 +238,7 @@ const executionRunsSchema = type({
 	started_at: "number.integer",
 	updated_at: "number.integer",
 	"finished_at?": "number.integer",
+	"deleted_at?": "number.integer",
 });
 
 const pushSubscriptionsSchema = type({

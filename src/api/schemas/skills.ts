@@ -32,6 +32,11 @@ export const SkillStandardizeSchema = z.object({
 	sourcePath: z.string().min(1),
 });
 
+export const SkillReplicateSchema = z.object({
+	slug: z.string().min(1),
+	projectName: z.string().optional(),
+});
+
 export const SkillDeleteSchema = z.object({
 	path: z.string().min(1),
 });

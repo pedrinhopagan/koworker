@@ -290,3 +290,24 @@ export async function closeInvocationTerminals(
 		return 0;
 	}
 }
+
+// Atalho de um clique: fecha as abas de invocação de todos os projetos e mata os Chromes/daemons
+// órfãos do agent-browser que sobraram no host. Retorna quantas abas foram encerradas.
+export async function sweepAllActiveTerminals(options: OpenTerminalOptions = {}): Promise<number> {
+	const { showToast = true } = options;
+
+	try {
+		const { closed } = await orpc.terminal.sweepAllActive.call();
+		if (showToast) {
+			toast.success(
+				closed > 0
+					? `${closed} terminal(is) encerrado(s) e processos órfãos limpos`
+					: "Processos órfãos limpos",
+			);
+		}
+		return closed;
+	} catch {
+		if (showToast) toast.error("Erro ao limpar tudo ativo");
+		return 0;
+	}
+}

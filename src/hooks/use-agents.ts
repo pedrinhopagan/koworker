@@ -31,8 +31,11 @@ function toTaskAgent(agent: AgentRecord): TaskAgent {
 	};
 }
 
-export function useAgentsQuery() {
-	const query = useQuery(orpc.agents.list.queryOptions());
+export function useAgentsQuery(options?: { enabled?: boolean }) {
+	const query = useQuery({
+		...orpc.agents.list.queryOptions(),
+		enabled: options?.enabled ?? true,
+	});
 	const taskAgents = useMemo(() => (query.data ?? []).map(toTaskAgent), [query.data]);
 
 	return {

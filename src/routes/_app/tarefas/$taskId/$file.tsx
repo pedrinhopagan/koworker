@@ -44,6 +44,7 @@ import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { reflowMarkdown } from "@/lib/reflow-markdown";
 import { relativeTimeFrom } from "@/lib/relative-time";
+import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
@@ -80,8 +81,9 @@ function TaskFilePage() {
 	);
 
 	function invalidateTasks() {
-		queryClient.invalidateQueries({
-			predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "tasks",
+		void invalidateTaskQueries(queryClient, {
+			taskId,
+			projectId: task?.projectId,
 		});
 	}
 
@@ -157,7 +159,7 @@ function TaskFilePage() {
 		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
 	);
 
-	const setDoneMutation = useSetDoneMutation();
+	const setDoneMutation = useSetDoneMutation(task?.projectId);
 
 	const updateMutation = useMutation({
 		...orpc.tasks.update.mutationOptions(),
@@ -448,9 +450,10 @@ function TaskFilePage() {
 						className="mx-auto flex h-10 w-full max-w-6xl items-center gap-2 px-2"
 					>
 						<Link
-							to="/tarefas"
+							to="/tarefas/$taskId"
+							params={{ taskId }}
 							className="flex items-center px-2 text-muted-foreground transition-colors hover:text-foreground"
-							aria-label="Voltar para tarefas"
+							aria-label="Voltar para a tarefa"
 						>
 							<ArrowLeft size={16} />
 						</Link>

@@ -1,7 +1,7 @@
 // O serviço roda sob systemd --user, cujo PATH depende do ambiente importado no login e pode não
 // conter os diretórios onde os CLIs dos agentes moram (`claude` em ~/.local/bin, `codex` em
 // ~/.bun/bin). Garante os dois no PATH do filho pra execução não depender de como o serviço subiu.
-function spawnEnv(extra?: Record<string, string>): Record<string, string | undefined> {
+export function spawnEnv(extra?: Record<string, string>): Record<string, string | undefined> {
 	const parts = (process.env.PATH ?? "").split(":").filter(Boolean);
 	const home = process.env.HOME;
 	if (home) {

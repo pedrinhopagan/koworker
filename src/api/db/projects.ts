@@ -43,6 +43,28 @@ export const dbProjects = {
 		);
 	},
 
+	getOverview: () => {
+		const taskStats = db
+			.selectFrom("tasks as t")
+			.select("t.project_id")
+			.select((eb) => [
+				eb.fn.count<number>("t.id").as("tasks_total"),
+				eb.fn.sum<number>("t.done").as("tasks_done"),
+			])
+			.where("t.deleted_at", "is", null)
+			.groupBy("t.project_id")
+			.as("task_stats");
+
+		return db
+			.selectFrom("projects as p")
+			.leftJoin(taskStats, "task_stats.project_id", "p.id")
+			.selectAll("p")
+			.select(["task_stats.tasks_total", "task_stats.tasks_done"])
+			.where("p.deleted_at", "is", null)
+			.orderBy("p.display_order", "asc")
+			.execute();
+	},
+
 	// Nome → diretório real de cada projeto ativo. O projeto é dono de onde mora (`main_route`);
 	// quem precisa achar arquivos do projeto pergunta aqui em vez de adivinhar a partir do nome.
 	listRoots: () =>
@@ -51,6 +73,14 @@ export const dbProjects = {
 			.select(["name", "main_route"])
 			.where("deleted_at", "is", null)
 			.orderBy("display_order", "asc")
+			.execute(),
+
+	listRootsByIds: (ids: string[]) =>
+		db
+			.selectFrom("projects as p")
+			.select(["p.id", "p.main_route"])
+			.where("p.id", "in", ids)
+			.where("p.deleted_at", "is", null)
 			.execute(),
 
 	getById: async (id: string) => {

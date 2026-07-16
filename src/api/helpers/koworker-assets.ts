@@ -20,6 +20,24 @@ export type AssetFileMeta = {
 	mime: string;
 };
 
+export type TaskArtifactMeta = AssetFileMeta & {
+	metadata: {
+		title: string | null;
+		subtitle: string | null;
+		headings: string[];
+	} | null;
+};
+
+const ARTIFACT_METADATA_CACHE_MAX = 512;
+const artifactMetadataCache = new Map<
+	string,
+	{
+		mtime: number;
+		size: number;
+		metadata: Promise<TaskArtifactMeta["metadata"]>;
+	}
+>();
+
 // MIME de um nome de arquivo pela extensão dentro da whitelist do destino, ou null quando a extensão
 // não pertence a ele — o que também serve de filtro: `medias/` passa IMAGE_MIME_BY_EXT (só imagens)
 // e a pasta da tarefa passa DOC_MIME_BY_EXT (só HTML/PDF), então cada pasta só lista e só lê o seu
@@ -140,11 +158,106 @@ export async function renameMediaFile(params: {
 
 // Artefatos "robustos" da pasta da tarefa: só HTML/PDF. É o que o mostruário considera artefato,
 // então a whitelist DOC_MIME_BY_EXT filtra tudo o mais.
-export function listTaskArtifacts(params: {
+function decodeHtmlText(value: string): string {
+	const named = { amp: "&", apos: "'", gt: ">", lt: "<", quot: '"' } as const;
+
+	return value
+		.replaceAll(/&#(?:x([\da-f]+)|(\d+));/gi, (entity, hex, decimal) => {
+			const code = hex ? Number.parseInt(hex, 16) : Number(decimal);
+			return code <= 0x10ffff ? String.fromCodePoint(code) : entity;
+		})
+		.replaceAll(
+			/&(amp|apos|gt|lt|quot);/gi,
+			(_entity, name) => named[name.toLowerCase() as keyof typeof named],
+		)
+		.replaceAll(/\s+/g, " ")
+		.trim();
+}
+
+async function readArtifactMetadata(path: string) {
+	const source = await Bun.file(path)
+		.slice(0, 64 * 1024)
+		.text();
+	const metadata = { title: "", subtitle: "", headings: [] as string[] };
+
+	const rewriter = new HTMLRewriter()
+		.on("title", {
+			text(chunk) {
+				metadata.title += chunk.text;
+			},
+		})
+		.on('meta[name="description"]', {
+			element(element) {
+				metadata.subtitle = element.getAttribute("content") ?? "";
+			},
+		})
+		.on('meta[name="koworker:heading"]', {
+			element(element) {
+				const value = element.getAttribute("content");
+				if (value && metadata.headings.length < 6) {
+					metadata.headings.push(value);
+				}
+			},
+		});
+
+	await rewriter.transform(new Response(source)).text();
+
+	const parsed = {
+		title: decodeHtmlText(metadata.title) || null,
+		subtitle: decodeHtmlText(metadata.subtitle) || null,
+		headings: metadata.headings.map(decodeHtmlText).filter((heading) => heading !== ""),
+	};
+
+	if (!parsed.title && !parsed.subtitle && parsed.headings.length === 0) {
+		return null;
+	}
+
+	return parsed;
+}
+
+function readCachedArtifactMetadata(path: string, artifact: AssetFileMeta) {
+	const cached = artifactMetadataCache.get(path);
+	if (cached && cached.mtime === artifact.mtime && cached.size === artifact.size) {
+		return cached.metadata;
+	}
+
+	const metadata = readArtifactMetadata(path);
+	artifactMetadataCache.set(path, {
+		mtime: artifact.mtime,
+		size: artifact.size,
+		metadata,
+	});
+	void metadata.catch(() => {
+		if (artifactMetadataCache.get(path)?.metadata === metadata) {
+			artifactMetadataCache.delete(path);
+		}
+	});
+	if (artifactMetadataCache.size > ARTIFACT_METADATA_CACHE_MAX) {
+		const oldestPath = artifactMetadataCache.keys().next().value;
+		if (oldestPath) {
+			artifactMetadataCache.delete(oldestPath);
+		}
+	}
+	return metadata;
+}
+
+export async function listTaskArtifacts(params: {
 	projectRoute: string;
 	folderPath: string;
-}): Promise<AssetFileMeta[]> {
-	return listAssetsIn(join(params.projectRoute, params.folderPath), DOC_MIME_BY_EXT);
+}): Promise<TaskArtifactMeta[]> {
+	const dir = join(params.projectRoute, params.folderPath);
+	const artifacts = await listAssetsIn(dir, DOC_MIME_BY_EXT);
+
+	return Promise.all(
+		artifacts.map(async (artifact) =>
+			Object.assign(artifact, {
+				metadata:
+					artifact.mime === "text/html"
+						? await readCachedArtifactMetadata(join(dir, artifact.name), artifact)
+						: null,
+			}),
+		),
+	);
 }
 
 // Anexos da tarefa: qualquer arquivo da pasta que não seja `.md` (os `.md` são as abas de texto,

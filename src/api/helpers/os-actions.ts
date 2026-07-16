@@ -20,7 +20,7 @@ function fileManagerOpener(): string {
 	}
 }
 
-function expandTilde(raw: string): string {
+export function expandTilde(raw: string): string {
 	if (raw === "~") {
 		return HOME;
 	}

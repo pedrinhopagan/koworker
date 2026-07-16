@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Ban, Clock3, Loader2, RotateCcw, TerminalSquare } from "lucide-react";
+import { Ban, ChevronRight, Clock3, Loader2, RotateCcw, TerminalSquare } from "lucide-react";
 
 import type { RouterOutputs } from "@/client";
 import { Text, Title } from "@/components/typography";
@@ -21,17 +21,24 @@ export function ExecutionRunCard({
 	onRetry,
 	onCancel,
 	pending,
+	active = false,
 }: {
 	run: Run;
-	onRetry: (runId: string) => void;
-	onCancel: (runId: string) => void;
+	onRetry?: (runId: string) => void;
+	onCancel?: (runId: string) => void;
 	pending: boolean;
+	active?: boolean;
 }) {
 	const running = run.status === "running";
 
 	return (
-		<article className="border border-border bg-card shadow-[3px_3px_0_var(--border)]">
-			<div className="flex items-start gap-3 border-b border-border p-3">
+		<article
+			className={cn(
+				"border border-border bg-card",
+				active ? "shadow-[4px_4px_0_var(--primary)]" : "shadow-[2px_2px_0_var(--border)]",
+			)}
+		>
+			<div className="flex items-start gap-3 border-b border-border p-3.5">
 				<div
 					className={cn(
 						"mt-0.5 flex size-8 items-center justify-center border border-border",
@@ -46,7 +53,7 @@ export function ExecutionRunCard({
 				</div>
 				<div className="min-w-0 flex-1">
 					<div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-						<Title as="h3" size="sm" className="truncate">
+						<Title as="h3" size="sm" className="max-w-full truncate">
 							{run.taskTitle ?? run.title}
 						</Title>
 						<span
@@ -62,17 +69,18 @@ export function ExecutionRunCard({
 						{run.projectName} · {new Date(run.startedAt).toLocaleString("pt-BR")}
 					</Text>
 				</div>
-				{running ? (
+				{running && onCancel ? (
 					<Button
-						size="icon"
+						size="sm"
 						variant="outline"
 						onClick={() => onCancel(run.runId)}
 						disabled={pending}
 						aria-label="Cancelar execução"
 					>
 						<Ban className="size-4" />
+						<span className="hidden sm:inline">Cancelar</span>
 					</Button>
-				) : (
+				) : onRetry ? (
 					<Button
 						size="icon"
 						variant="outline"
@@ -82,14 +90,25 @@ export function ExecutionRunCard({
 					>
 						<RotateCcw className="size-4" />
 					</Button>
-				)}
+				) : null}
 			</div>
-			<div className="p-3">
+			<div className="p-3.5">
 				<Text className="line-clamp-2 text-sm">{run.originalPrompt ?? run.prompt}</Text>
-				{run.output && (
+				{run.output && active && (
 					<pre className="mt-3 max-h-52 overflow-auto border-l-2 border-primary bg-muted/40 p-3 font-mono text-xs whitespace-pre-wrap">
 						{run.output}
 					</pre>
+				)}
+				{run.output && !active && (
+					<details className="group mt-3 border-l-2 border-border bg-muted/30">
+						<summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 px-3 text-xs font-bold focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+							Ver resultado
+							<ChevronRight className="size-4 transition-transform group-open:rotate-90" />
+						</summary>
+						<pre className="max-h-52 overflow-auto border-t border-border p-3 font-mono text-xs whitespace-pre-wrap">
+							{run.output}
+						</pre>
+					</details>
 				)}
 				{run.error && <Text className="mt-3 text-sm text-destructive">{run.error}</Text>}
 				<div className="mt-3 flex items-center justify-between gap-3">

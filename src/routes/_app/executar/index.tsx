@@ -10,7 +10,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 import { ExecutionComposer } from "./-components/execution-composer";
-import { ExecutionHistory } from "./-components/execution-history";
+import { ActiveExecutions, RecentExecutions } from "./-components/execution-history";
 
 const executionSearchSchema = z.object({
 	projectId: z.string().optional(),
@@ -52,7 +52,7 @@ function ExecutePage() {
 		enabled: !!projectId,
 	});
 	const runsQuery = useQuery({
-		...orpc.prompt.listRuns.queryOptions({ input: { limit: 20 } }),
+		...orpc.prompt.listRuns.queryOptions({ input: { limit: 50 } }),
 		refetchInterval: (query) =>
 			query.state.data?.some((run) => run.status === "running") ? 2500 : false,
 	});
@@ -92,6 +92,18 @@ function ExecutePage() {
 		onSuccess: () => void refreshRuns(),
 		onError: (error: Error) => toast.error(error.message),
 	});
+	const clearMutation = useMutation({
+		...orpc.prompt.clearRuns.mutationOptions(),
+		onSuccess: ({ cleared }) => {
+			void refreshRuns();
+			toast.success(
+				cleared === 1
+					? "Execução removida do histórico"
+					: `${cleared} execuções removidas do histórico`,
+			);
+		},
+		onError: (error: Error) => toast.error(error.message),
+	});
 
 	function handleProjectChange(value: string) {
 		setProjectId(value);
@@ -129,6 +141,10 @@ function ExecutePage() {
 			(a, b) => Number(b.runId === search.runId) - Number(a.runId === search.runId),
 		);
 	}, [runsQuery.data, search.runId]);
+	const activeRuns = orderedRuns.filter((run) => run.status === "running");
+	const recentRuns = orderedRuns.filter((run) => run.status !== "running");
+	const historyPending =
+		retryMutation.isPending || cancelMutation.isPending || clearMutation.isPending;
 
 	return (
 		<PageShell
@@ -137,51 +153,64 @@ function ExecutePage() {
 			icon={Smartphone}
 			contentClassName="overflow-y-auto pb-24"
 		>
-			<div className="grid gap-6 pb-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
-				<ExecutionComposer
-					projects={projects}
-					projectId={projectId}
-					tasks={tasksQuery.data ?? []}
-					taskId={taskId}
-					createTask={createTask}
-					taskTitle={taskTitle}
-					text={text}
-					cli={cli}
-					selectedTask={selectedTask}
-					canSubmit={canSubmit}
-					pending={executeMutation.isPending}
-					executorStatus={
-						runsQuery.isError ? "unavailable" : runsQuery.isSuccess ? "available" : "checking"
-					}
-					onProjectChange={handleProjectChange}
-					onTaskChange={(value) => {
-						setTaskId(value);
-						setCreateTask(false);
-					}}
-					onTaskClear={() => setTaskId("")}
-					onCreateTaskChange={() => {
-						setCreateTask((value) => !value);
-						setTaskId("");
-					}}
-					onTaskTitleChange={setTaskTitle}
-					onTextChange={(value) => {
-						setText(value);
-						setInputKind("text");
-					}}
-					onTranscribed={(value) => {
-						setText(value);
-						setInputKind("audio_transcript");
-					}}
-					onSubmit={handleSubmit}
-				/>
+			<div className="grid gap-7 pb-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)] lg:items-start">
+				<div className="order-2 lg:order-1 lg:row-span-2">
+					<ExecutionComposer
+						projects={projects}
+						projectId={projectId}
+						tasks={tasksQuery.data ?? []}
+						taskId={taskId}
+						createTask={createTask}
+						taskTitle={taskTitle}
+						text={text}
+						cli={cli}
+						selectedTask={selectedTask}
+						canSubmit={canSubmit}
+						pending={executeMutation.isPending}
+						executorStatus={
+							runsQuery.isError ? "unavailable" : runsQuery.isSuccess ? "available" : "checking"
+						}
+						onProjectChange={handleProjectChange}
+						onTaskChange={(value) => {
+							setTaskId(value);
+							setCreateTask(false);
+						}}
+						onTaskClear={() => setTaskId("")}
+						onCreateTaskChange={() => {
+							setCreateTask((value) => !value);
+							setTaskId("");
+						}}
+						onTaskTitleChange={setTaskTitle}
+						onTextChange={(value) => {
+							setText(value);
+							setInputKind("text");
+						}}
+						onTranscribed={(value) => {
+							setText(value);
+							setInputKind("audio_transcript");
+						}}
+						onSubmit={handleSubmit}
+					/>
+				</div>
 
-				<ExecutionHistory
-					runs={orderedRuns}
-					loading={runsQuery.isLoading}
-					pending={retryMutation.isPending || cancelMutation.isPending}
-					onRetry={(runId) => retryMutation.mutate({ runId, clientRequestId: crypto.randomUUID() })}
-					onCancel={(runId) => cancelMutation.mutate({ runId })}
-				/>
+				<div className="order-1 lg:order-2">
+					<ActiveExecutions
+						runs={activeRuns}
+						loading={runsQuery.isLoading}
+						pending={historyPending}
+						onCancel={(runId) => cancelMutation.mutate({ runId })}
+					/>
+				</div>
+				<div className="order-3 lg:order-3">
+					<RecentExecutions
+						runs={recentRuns}
+						pending={historyPending}
+						onRetry={(runId) =>
+							retryMutation.mutate({ runId, clientRequestId: crypto.randomUUID() })
+						}
+						onClear={(runIds) => clearMutation.mutate({ runIds })}
+					/>
+				</div>
 			</div>
 		</PageShell>
 	);

@@ -105,7 +105,3 @@ export function ProjectForm({
 		</FormProvider>
 	);
 }
-
-export function getDefaultProjectColor() {
-	return defaultProjectColor;
-}

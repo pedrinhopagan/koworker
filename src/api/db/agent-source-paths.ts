@@ -17,8 +17,9 @@ export const dbAgentSourcePaths = {
 			} as agent_source_paths)
 			.executeTakeFirst(),
 
-	// Roots default por plataforma, semeados na primeira execução com scope 'global'. O created_at
-	// incremental preserva a prioridade de conteúdo (o primeiro root que tem o slug é o dono).
+	// Insere roots default por plataforma com scope 'global'. Chamado a cada boot só com os que ainda
+	// faltam. O created_at incremental preserva a prioridade de conteúdo (o primeiro root que tem o
+	// slug é o dono).
 	seedGlobals: (roots: { tool: AgentTool; path: string }[]) => {
 		const base = Date.now();
 

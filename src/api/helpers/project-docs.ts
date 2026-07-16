@@ -1,9 +1,6 @@
-import { readdir } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { readdir, realpath, stat } from "node:fs/promises";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
-// Arquivos de agente/contexto reconhecidos em qualquer pasta do projeto. São os `.md` "principais"
-// que a rota /projetos lista abaixo dos atalhos — distintos dos `.md` soltos do vault, que vivem em
-// `.koworker/`. Conjunto fechado: define tanto o que se lista quanto o que se pode sobrescrever.
 export const PROJECT_DOC_NAMES = [
 	"CLAUDE.md",
 	"AGENTS.md",
@@ -12,39 +9,62 @@ export const PROJECT_DOC_NAMES = [
 	"CONTRIBUTING.md",
 ] as const;
 
-// Pastas que a busca recursiva nunca desce: dependências e artefatos onde esses nomes aparecem
-// copiados, sem relação com a documentação do projeto. Pastas ocultas (`.git`, `.next`, `.koworker`,
-// `.venv`…) também ficam de fora pelo prefixo ".".
 const SKIP_DIRS = new Set(["node_modules", "dist", "build", "out", "target", "vendor", "coverage"]);
 
-export type ProjectDoc = {
-	// Caminho relativo à raiz do projeto, com separadores `/`, ex: "apps/front/CLAUDE.md".
+export type ProjectDocMeta = {
 	path: string;
 	name: string;
-	// Pasta do arquivo como rótulo de rota, ex: "/apps/front/" — "/" quando está na raiz.
 	dirLabel: string;
-	content: string;
 };
 
-// Varre o projeto atrás dos docs principais em qualquer profundidade, pulando dependências e
-// pastas ocultas. Devolve ordenado por caminho.
-export async function listProjectDocs(projectRoute: string): Promise<ProjectDoc[]> {
-	const matches: string[] = [];
-	await collectDocs(projectRoute, matches);
+export interface ProjectDoc extends ProjectDocMeta {
+	content: string;
+}
 
-	const docs = await Promise.all(
-		matches.map(async (fullPath) => {
-			const path = relative(projectRoute, fullPath).split(sep).join("/");
-			return {
-				path,
-				name: path.split("/").at(-1) ?? path,
-				dirLabel: toDirLabel(path),
-				content: await Bun.file(fullPath).text(),
-			};
-		}),
-	);
+function isRecognizedDoc(path: string) {
+	const name = path.split("/").at(-1);
+	return !!name && (PROJECT_DOC_NAMES as readonly string[]).includes(name);
+}
 
-	return docs.sort((a, b) => a.path.localeCompare(b.path));
+function resolveProjectDocTarget(projectRoute: string, path: string) {
+	if (!isRecognizedDoc(path)) {
+		return null;
+	}
+
+	const root = resolve(projectRoute);
+	const target = resolve(root, path);
+	if (!target.startsWith(root + sep)) {
+		return null;
+	}
+
+	return { root, target };
+}
+
+function toDirLabel(path: string) {
+	const dir = dirname(path);
+	return dir === "." ? "/" : `/${dir}/`;
+}
+
+function toProjectDocMeta(root: string, target: string): ProjectDocMeta {
+	const path = relative(root, target).split(sep).join("/");
+	return { path, name: basename(path), dirLabel: toDirLabel(path) };
+}
+
+function isInside(root: string, target: string) {
+	return target === root || target.startsWith(root + sep);
+}
+
+async function resolveConfinedFile(root: string, target: string) {
+	const [canonicalRoot, canonicalTarget] = await Promise.all([
+		realpath(root).catch(() => null),
+		realpath(target).catch(() => null),
+	]);
+	if (!canonicalRoot || !canonicalTarget || !isInside(canonicalRoot, canonicalTarget)) {
+		return null;
+	}
+
+	const targetStat = await stat(canonicalTarget).catch(() => null);
+	return targetStat?.isFile() ? canonicalTarget : null;
 }
 
 async function collectDocs(dir: string, matches: string[]): Promise<void> {
@@ -53,10 +73,14 @@ async function collectDocs(dir: string, matches: string[]): Promise<void> {
 	await Promise.all(
 		entries.map(async (entry) => {
 			if (entry.isDirectory()) {
-				if (entry.name.startsWith(".") || SKIP_DIRS.has(entry.name)) return;
+				if (entry.name.startsWith(".") || SKIP_DIRS.has(entry.name)) {
+					return;
+				}
+
 				await collectDocs(join(dir, entry.name), matches);
 				return;
 			}
+
 			if (entry.isFile() && (PROJECT_DOC_NAMES as readonly string[]).includes(entry.name)) {
 				matches.push(join(dir, entry.name));
 			}
@@ -64,29 +88,59 @@ async function collectDocs(dir: string, matches: string[]): Promise<void> {
 	);
 }
 
-function toDirLabel(path: string): string {
-	const dir = dirname(path);
-	return dir === "." ? "/" : `/${dir}/`;
+export async function listProjectDocs(projectRoute: string): Promise<ProjectDocMeta[]> {
+	const root = resolve(projectRoute);
+	const matches: string[] = [];
+	await collectDocs(root, matches);
+
+	return matches
+		.map((target) => toProjectDocMeta(root, target))
+		.sort((a, b) => a.path.localeCompare(b.path));
 }
 
-// Sobrescreve um doc principal. O caminho já chega validado como relativo terminando num nome
-// reconhecido; aqui resolvemos contra a raiz e confirmamos que o destino fica dentro do projeto e
-// continua sendo um nome reconhecido — escrita não excede a leitura.
+export async function readProjectDoc(
+	projectRoute: string,
+	path: string,
+): Promise<ProjectDoc | null> {
+	const resolved = resolveProjectDocTarget(projectRoute, path);
+	if (!resolved) {
+		return null;
+	}
+
+	const target = await resolveConfinedFile(resolved.root, resolved.target);
+	if (!target) {
+		return null;
+	}
+
+	return {
+		...toProjectDocMeta(resolved.root, resolved.target),
+		content: await Bun.file(target).text(),
+	};
+}
+
 export async function writeProjectDoc(params: {
 	projectRoute: string;
 	path: string;
 	content: string;
 }): Promise<void> {
-	const name = params.path.split("/").at(-1) ?? "";
-	if (!(PROJECT_DOC_NAMES as readonly string[]).includes(name)) {
+	if (!isRecognizedDoc(params.path)) {
+		const name = params.path.split("/").at(-1) ?? "";
 		throw new Error(`"${name}" não é um documento principal reconhecido`);
 	}
 
-	const root = resolve(params.projectRoute);
-	const target = resolve(root, params.path);
-	if (target !== root && !target.startsWith(root + sep)) {
+	const resolved = resolveProjectDocTarget(params.projectRoute, params.path);
+	if (!resolved) {
 		throw new Error("Caminho fora do projeto");
 	}
 
-	await Bun.write(target, params.content);
+	const canonicalRoot = await realpath(resolved.root).catch(() => null);
+	const canonicalTarget = await realpath(resolved.target).catch(() => null);
+	const canonicalParent = canonicalTarget
+		? dirname(canonicalTarget)
+		: await realpath(dirname(resolved.target)).catch(() => null);
+	if (!canonicalRoot || !canonicalParent || !isInside(canonicalRoot, canonicalParent)) {
+		throw new Error("Caminho fora do projeto");
+	}
+
+	await Bun.write(resolved.target, params.content);
 }

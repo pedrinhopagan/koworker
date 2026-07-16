@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { z } from "zod";
 
 import { PageShell } from "@/components/layout/page-shell";
+import { Button } from "@/components/ui/button";
 import { TASK_COMPLEXITIES, type TaskComplexity } from "@/constants/complexity";
 import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
 import {
@@ -12,6 +13,7 @@ import {
 } from "./-components/grouped-task-list";
 import { TaskForm } from "./-components/task-form";
 import { TaskListControls, useSortMode } from "./-components/task-groups-controls";
+import { TaskSyncAction } from "./-components/task-sync-dialog";
 import { useCreateTask } from "./-utils/use-create-task";
 import { useTasksData } from "./-utils/use-tasks-data";
 
@@ -75,7 +77,7 @@ export const Route = createFileRoute("/_app/tarefas/")({
 function TarefasPage() {
 	const search = Route.useSearch();
 	const navigate = Route.useNavigate();
-	const { data, loading } = useTasksData(search);
+	const { data, loading, hasMore, loadingMore, loadMore } = useTasksData(search);
 	const { createTask, loading: createLoading } = useCreateTask();
 	const [sortMode, setSortMode] = useSortMode();
 	// Colapso por grupo (chaveado por `id ?? NO_GROUP`) e ordem do "Sem grupo" vivem no store
@@ -107,6 +109,13 @@ function TarefasPage() {
 			title="Tarefas"
 			description={`${data.pendingCount} pendentes, ${data.executedCount} concluídas`}
 			icon={CheckCircle2}
+			actions={
+				<TaskSyncAction
+					projectId={data.selectedProjectId ?? null}
+					categories={data.categories}
+					priorities={data.priorities}
+				/>
+			}
 		>
 			<div className="flex h-full min-h-0 min-w-0 flex-col gap-4">
 				<TaskForm onSubmit={createTask} loading={createLoading} />
@@ -140,6 +149,7 @@ function TarefasPage() {
 							priorities={data.priorities}
 							loading={loading}
 							sortMode={sortMode}
+							reorderingDisabled={hasMore}
 						/>
 					) : (
 						<GroupedTaskList
@@ -149,7 +159,22 @@ function TarefasPage() {
 							priorities={data.priorities}
 							loading={loading}
 							sortMode={sortMode}
+							reorderingDisabled={hasMore}
 						/>
+					)}
+					{hasMore && (
+						<div className="flex justify-center pt-5">
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								disabled={loadingMore}
+								onClick={() => loadMore()}
+							>
+								{loadingMore && <Loader2 className="animate-spin" />}
+								{loadingMore ? "Carregando..." : "Carregar mais tarefas"}
+							</Button>
+						</div>
 					)}
 				</div>
 			</div>

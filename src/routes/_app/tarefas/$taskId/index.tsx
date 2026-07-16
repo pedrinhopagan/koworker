@@ -32,6 +32,7 @@ import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { copyToClipboard } from "@/lib/build-prompt";
 import { relativeTimeFrom } from "@/lib/relative-time";
+import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { cn } from "@/lib/utils";
 import { FlowRunButton } from "./-components/flow-run-button";
 import {
@@ -41,6 +42,7 @@ import {
 	TaskFileCard,
 } from "./-components/task-file-card";
 import { TaskOverviewContextMenu } from "./-components/task-overview-context-menu";
+import { TaskMergeAction } from "./-components/task-merge-action";
 import { useTaskShare } from "./-components/use-task-share";
 
 export const Route = createFileRoute("/_app/tarefas/$taskId/")({
@@ -89,12 +91,13 @@ function TaskOverviewPage() {
 	});
 
 	function invalidateTasks() {
-		queryClient.invalidateQueries({
-			predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "tasks",
+		void invalidateTaskQueries(queryClient, {
+			taskId,
+			projectId: task?.projectId,
 		});
 	}
 
-	const setDoneMutation = useSetDoneMutation();
+	const setDoneMutation = useSetDoneMutation(task?.projectId);
 
 	const updateMutation = useMutation({
 		...orpc.tasks.update.mutationOptions(),
@@ -329,7 +332,7 @@ function TaskOverviewPage() {
 					</div>
 				</div>
 
-				<div className="min-h-0 flex-1 overflow-y-auto">
+				<div className="min-h-0 flex-1 overflow-y-auto pb-24">
 					<div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
 						{task.files.length > 0 ? (
 							<div className="flex flex-col gap-3">
@@ -445,6 +448,17 @@ function TaskOverviewPage() {
 						) : null}
 					</div>
 				</div>
+
+				{task.worktree && task.project ? (
+					<TaskMergeAction
+						taskId={task.id}
+						projectId={task.project.id}
+						folderPath={task.folderPath}
+						branch={task.worktree.branch}
+						targetBranch={task.worktree.targetBranch}
+						prUrl={task.worktree.prUrl}
+					/>
+				) : null}
 
 				<ConfirmDialog
 					open={renamingFile !== null}

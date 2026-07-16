@@ -5,6 +5,7 @@ import { dbProjectRoutes } from "../db/project-routes";
 import { dbProjects } from "../db/projects";
 import { getSystemSettings } from "../helpers/system-settings";
 import { Terminal } from "../helpers/terminal/service";
+import { killStrayAgentBrowsers } from "../helpers/terminal/stray";
 import { PubSub } from "../pubsub";
 import {
 	CloseProjectSessionSchema,
@@ -84,6 +85,16 @@ export const terminalRouter = {
 			});
 			return { closed };
 		}),
+
+	sweepAllActive: protectedProcedure.handler(async () => {
+		const projects = await dbProjects.getAll();
+		const closed = await Terminal.closeInvocationSessions({
+			config: await terminalConfig(),
+			projects: projects.map((project) => ({ id: project.id, name: project.name })),
+		});
+		await killStrayAgentBrowsers();
+		return { closed, strayKilled: true };
+	}),
 };
 
 export const terminalWsRouter = {

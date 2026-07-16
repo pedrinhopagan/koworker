@@ -1,6 +1,8 @@
-// Quantos itens recentes ganham destaque, do mais recente (nível 1, mais forte) ao mais antigo.
-// Compartilhado pelo ranking de tarefas da lista e pelo ranking de arquivos dentro de uma tarefa.
 export const RECENCY_HIGHLIGHT_DEPTH = 3;
+
+export const TASK_RECENCY_HIGHLIGHT_DEPTH = 5;
+
+export const RECENCY_IGNORE_OFFSET_MS = 10 * 24 * 60 * 60 * 1000;
 
 // Janela de frescor do destaque da LISTA de tarefas: só ganha barra/relógio quem foi editado
 // dentro dela — sem isso, uma tarefa parada há meses seguiria "destacada como recente". Não vale

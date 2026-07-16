@@ -33,6 +33,24 @@ export function useSkillMutations() {
 		onError: (error: Error) => toast.error(`Erro ao padronizar: ${error.message}`),
 	});
 
+	const replicateMutation = useMutation({
+		...orpc.skills.replicate.mutationOptions(),
+		onSuccess: (result) => {
+			invalidateAll();
+			if (result.written === 0) {
+				toast.success("Já sincronizada em todos os ambientes");
+				return;
+			}
+			const envLabel = result.written === 1 ? "ambiente" : "ambientes";
+			const syncedLabel =
+				result.unchanged > 0
+					? ` (${result.unchanged} já ${result.unchanged === 1 ? "sincronizado" : "sincronizados"})`
+					: "";
+			toast.success(`Replicada em ${result.written} ${envLabel}${syncedLabel}`);
+		},
+		onError: (error: Error) => toast.error(`Erro ao replicar: ${error.message}`),
+	});
+
 	const deleteMutation = useMutation({
 		...orpc.skills.delete.mutationOptions(),
 		onSuccess: () => {
@@ -63,6 +81,8 @@ export function useSkillMutations() {
 		standardize: (input: { slug: string; projectName?: string; sourcePath: string }) =>
 			standardizeMutation.mutate(input),
 		standardizing: standardizeMutation.isPending,
+		replicate: (input: { slug: string; projectName?: string }) => replicateMutation.mutate(input),
+		replicating: replicateMutation.isPending,
 		removeSkill: (path: string) => deleteMutation.mutate({ path }),
 		removeAllSkill: (input: { slug: string; projectName?: string }) =>
 			deleteAllMutation.mutate(input),

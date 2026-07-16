@@ -11,7 +11,7 @@ export function useCreateProject() {
 	const mutation = useMutation({
 		...orpc.projects.create.mutationOptions(),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["projects"] });
+			queryClient.invalidateQueries({ queryKey: orpc.projects.key() });
 			navigate({ to: "/projetos" });
 		},
 	});

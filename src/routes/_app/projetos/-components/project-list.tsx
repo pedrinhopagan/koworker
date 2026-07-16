@@ -22,7 +22,7 @@ type ProjectListProps = {
 
 export function ProjectList({ projects, selectedId, loading }: ProjectListProps) {
 	const queryClient = useQueryClient();
-	const projectsQueryOptions = orpc.projects.list.queryOptions();
+	const projectsQueryOptions = orpc.projects.overview.queryOptions();
 	const projectsQueryKey = projectsQueryOptions.queryKey;
 
 	const invalidateTimeoutRef = useRef<number | null>(null);
@@ -60,6 +60,7 @@ export function ProjectList({ projects, selectedId, loading }: ProjectListProps)
 			if (invalidateTimeoutRef.current) window.clearTimeout(invalidateTimeoutRef.current);
 			invalidateTimeoutRef.current = window.setTimeout(() => {
 				queryClient.invalidateQueries({ queryKey: projectsQueryKey });
+				queryClient.invalidateQueries({ queryKey: orpc.projects.list.queryOptions().queryKey });
 			}, 350);
 		},
 	});

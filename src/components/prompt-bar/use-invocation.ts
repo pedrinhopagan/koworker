@@ -61,9 +61,14 @@ export function useInvocation(params: {
 	const setSelection = usePromptBarStore((s) => s.setSelection);
 	const patchClaudeSession = usePromptBarStore((s) => s.patchClaudeSession);
 
-	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
-	const { taskAgents, isLoading: agentsLoading } = useAgentsQuery();
-	const { taskSkills, isLoading: skillsLoading } = useSkillsQuery(projectName);
+	const projectsQuery = useQuery({
+		...orpc.projects.list.queryOptions(),
+		enabled: params.active,
+	});
+	const { taskAgents, isLoading: agentsLoading } = useAgentsQuery({ enabled: params.active });
+	const { taskSkills, isLoading: skillsLoading } = useSkillsQuery(projectName, {
+		enabled: params.active,
+	});
 
 	const selection = useMemo<Selection>(() => {
 		if (!selectionRef) return null;

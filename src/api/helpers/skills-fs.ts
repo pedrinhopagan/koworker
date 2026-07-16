@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { readSkillFile, type SkillFile, writeSkillFile } from "@/lib/skills/parser";
 import { dbProjects } from "../db/projects";
 import { dbSkillSourcePaths } from "../db/skill-source-paths";
+import { expandTilde } from "./os-actions";
 import { getSystemSettings } from "./system-settings";
 
 export type SkillTool = "opencode" | "claude-code" | "codex" | "agents" | "koworker";
@@ -74,21 +75,33 @@ async function projectRoots(projectName: string): Promise<SkillRoot[]> {
 	];
 }
 
-// Roots vindos da tabela: os defaults por plataforma (scope 'global', semeados na primeira execução)
-// e os extras do usuário (scope 'custom'), na ordem de cadastro. Essa ordem é a prioridade de
-// conteúdo: o primeiro root que contém o slug é o dono do conteúdo exibido e do arquivo editável.
+// Roots vindos da tabela: os defaults por plataforma (scope 'global', garantidos no boot) e os
+// extras do usuário (scope 'custom'), na ordem de cadastro. O til é expandido. Essa ordem é a
+// prioridade de conteúdo: o primeiro root que contém o slug é o dono do conteúdo exibido e do
+// arquivo editável.
 async function sourcePathRoots(): Promise<SkillRoot[]> {
 	const rows = await dbSkillSourcePaths.list();
 	return rows.map((row) => ({
 		tool: row.tool as SkillTool,
 		scope: row.scope as SkillScope,
-		path: row.path,
+		path: expandTilde(row.path),
 	}));
 }
 
+// Deduplica por path resolvido, mantendo a primeira ocorrência: o mesmo diretório cadastrado duas
+// vezes (ex.: uma linha custom `~/.claude/skills` e a global expandida) entraria em conflito consigo
+// mesmo. A ordem original é a prioridade de conteúdo, então a primeira vence.
 async function buildRoots(projectName?: string): Promise<SkillRoot[]> {
 	const base = [...(await sourcePathRoots()), KOWORKER_ROOT];
-	return projectName ? [...base, ...(await projectRoots(projectName))] : base;
+	const all = projectName ? [...base, ...(await projectRoots(projectName))] : base;
+
+	const seen = new Set<string>();
+	return all.filter((root) => {
+		const resolved = resolve(root.path);
+		if (seen.has(resolved)) return false;
+		seen.add(resolved);
+		return true;
+	});
 }
 
 async function assertAllowedPath(target: string) {
@@ -102,7 +115,7 @@ async function assertAllowedPath(target: string) {
 		home,
 		STATIC_SKILLS_PATH,
 		settings.projectsBasePath,
-		...rows.map((row) => row.path),
+		...rows.map((row) => expandTilde(row.path)),
 		...projects.map((project) => project.main_route),
 	];
 	const allowed = prefixes.some((prefix) => resolved.startsWith(resolve(prefix)));
@@ -130,7 +143,7 @@ async function listSlugs(root: SkillRoot): Promise<string[]> {
 		const entries = await readdir(root.path, { withFileTypes: true });
 		const checked = await Promise.all(
 			entries.map(async (entry) => {
-				if (!entry.isDirectory()) return null;
+				if (!entry.isDirectory() && !entry.isSymbolicLink()) return null;
 				const exists = await Bun.file(join(root.path, entry.name, "SKILL.md")).exists();
 				return exists ? entry.name : null;
 			}),
@@ -282,6 +295,49 @@ export async function standardizeSkillInFs(input: {
 	}
 
 	return { written };
+}
+
+// Espelha a skill em todos os ambientes globais conhecidos (opencode, claude-code, codex, agents),
+// usando a fonte primária como verdade. Cria a pasta onde faltar e sobrescreve onde o hash divergir;
+// alvo já idêntico é contado como `unchanged`. Cada gravação é relida e confere o hash (read-back).
+export async function replicateSkillInFs(input: {
+	slug: string;
+	projectName?: string;
+}): Promise<{ written: number; unchanged: number }> {
+	const roots = await buildRoots(input.projectName);
+	const primary = (await loadSourcesForSlug(input.slug, roots))[0];
+	if (!primary) {
+		throw new Error("Skill não encontrada");
+	}
+
+	const targets = roots.filter((root) => root.scope === "global" && root.tool !== "koworker");
+
+	let written = 0;
+	let unchanged = 0;
+	for (const target of targets) {
+		const dir = join(target.path, input.slug);
+		const path = join(dir, "SKILL.md");
+
+		if (resolve(path) === resolve(primary.path)) continue;
+
+		const existing = await readSkillFile(path);
+		if (existing && skillContentHash(existing) === primary.hash) {
+			unchanged++;
+			continue;
+		}
+
+		await assertAllowedPath(path);
+		await mkdir(dir, { recursive: true });
+		await writeSkillFile(path, primary.file);
+
+		const reread = await readSkillFile(path);
+		if (!reread || skillContentHash(reread) !== primary.hash) {
+			throw new Error(`Falha ao replicar ${path}: verificação não bateu`);
+		}
+		written++;
+	}
+
+	return { written, unchanged };
 }
 
 export async function createSkillInFs(input: {

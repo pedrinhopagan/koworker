@@ -57,7 +57,7 @@ export function ExecutionComposer({
 }) {
 	return (
 		<section className="min-w-0">
-			<div className="mb-3 flex items-center justify-between border-y border-border py-2">
+			<div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-y border-border py-2">
 				<div className="flex items-center gap-2">
 					<Radio className="size-4 text-primary" />
 					<Text className="text-xs font-bold uppercase tracking-[0.14em]">Execução direta</Text>
@@ -80,7 +80,7 @@ export function ExecutionComposer({
 				</Text>
 			</div>
 
-			<div className="border border-border bg-card p-4 shadow-[5px_5px_0_var(--border)] md:p-6">
+			<div className="border border-border bg-card p-4 shadow-[4px_4px_0_var(--border)] md:p-6 md:shadow-[5px_5px_0_var(--border)]">
 				<div className="grid gap-3 sm:grid-cols-2">
 					<CustomSelect
 						items={projects}
@@ -156,12 +156,17 @@ export function ExecutionComposer({
 				/>
 				<AudioRecorder onTranscribed={onTranscribed} />
 
-				<div className="mt-5 flex items-center justify-between gap-4 border-t border-border pt-4">
+				<div className="mt-5 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
 					<Text size="xs" tone="muted">
 						{cli === "codex" ? "Codex" : "Claude"} · unattended ·{" "}
 						{selectedTask?.displayTitle ?? (createTask ? "nova tarefa" : "projeto")}
 					</Text>
-					<Button size="lg" onClick={onSubmit} disabled={!canSubmit || pending}>
+					<Button
+						size="lg"
+						onClick={onSubmit}
+						disabled={!canSubmit || pending}
+						className="w-full sm:w-auto"
+					>
 						{pending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
 						{pending ? "Despachando" : "Executar agora"}
 					</Button>

@@ -27,6 +27,7 @@ function SkillsPage() {
 					skills={skillsQuery.taskSkills}
 					categories={categoriesQuery.data ?? []}
 					loading={skillsQuery.isLoading}
+					projectName={selectedProject?.name}
 				/>
 			</div>
 		</PageShell>

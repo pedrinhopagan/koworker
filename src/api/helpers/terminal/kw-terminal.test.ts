@@ -1,4 +1,8 @@
 import { afterAll, expect, test } from "bun:test";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
 	findTabByLabel,
@@ -94,6 +98,43 @@ test("reconhece o processo do cliente TUI e ignora server e subcomandos efêmero
 	expect(isKwTerminalClientProcess("kw-terminal session list")).toBe(false);
 	expect(isKwTerminalClientProcess("kw-terminal tab close w9:t2")).toBe(false);
 	expect(isKwTerminalClientProcess("/usr/bin/zsh -c kw-terminal")).toBe(false);
+});
+
+test("encontra kw-terminal em ~/.local/bin com o PATH restrito do backend de produção", async () => {
+	const home = await mkdtemp(join(tmpdir(), "kowork-terminal-path-"));
+	const localBin = join(home, ".local", "bin");
+	const executable = join(localBin, "kw-terminal");
+	const moduleUrl = pathToFileURL(join(import.meta.dir, "kw-terminal.ts")).href;
+
+	await mkdir(localBin, { recursive: true });
+	await writeFile(executable, `#!/bin/sh\nprintf '%s\\n' '${WORKSPACE_LIST}'\n`);
+	await chmod(executable, 0o755);
+
+	try {
+		const proc = Bun.spawn(
+			[
+				process.execPath,
+				"-e",
+				`import { kwTerminalWorkspaceList } from "${moduleUrl}"; console.log(JSON.stringify(await kwTerminalWorkspaceList()));`,
+			],
+			{
+				env: { ...process.env, HOME: home, PATH: "/usr/local/bin:/usr/bin" },
+				stdout: "pipe",
+				stderr: "pipe",
+			},
+		);
+		const [stdout, stderr, exitCode] = await Promise.all([
+			new Response(proc.stdout).text(),
+			new Response(proc.stderr).text(),
+			proc.exited,
+		]);
+
+		expect(stderr).toBe("");
+		expect(exitCode).toBe(0);
+		expect(JSON.parse(stdout)[0]?.workspace_id).toBe("w8");
+	} finally {
+		await rm(home, { recursive: true, force: true });
+	}
 });
 
 // Integração real: só roda com o binário kw-terminal disponível. Cria e derruba um workspace de teste.

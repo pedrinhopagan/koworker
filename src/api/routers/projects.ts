@@ -1,12 +1,12 @@
 import { protectedProcedure } from "../auth/context";
 import type { project_routes, projects } from "../db/connection";
 import { dbProjects } from "../db/projects";
-import { dbTasks } from "../db/tasks";
 import { toDisplayPath } from "../helpers/display-path";
-import { listProjectDocs, writeProjectDoc } from "../helpers/project-docs";
+import { listProjectDocs, readProjectDoc, writeProjectDoc } from "../helpers/project-docs";
 import { restartTasksWatcher } from "../helpers/tasks-watcher";
 import {
 	ProjectCreateSchema,
+	ProjectDocReadSchema,
 	ProjectDocWriteSchema,
 	ProjectIdSchema,
 	ProjectReorderSchema,
@@ -44,6 +44,25 @@ export const projectsRouter = {
 	list: protectedProcedure.handler(async () => {
 		const rows = await dbProjects.getAll();
 		return rows.map(mapProject);
+	}),
+
+	overview: protectedProcedure.handler(async () => {
+		const rows = await dbProjects.getOverview();
+
+		return rows.map((row) => {
+			const total = Number(row.tasks_total ?? 0);
+			const done = Number(row.tasks_done ?? 0);
+			const pending = total - done;
+
+			return Object.assign(mapProject(row), {
+				tasksSummary: {
+					total,
+					pending,
+					done,
+					progress: total === 0 ? 0 : Math.round((done / total) * 100),
+				},
+			});
+		});
 	}),
 
 	getById: protectedProcedure.input(ProjectIdSchema).handler(async ({ input }) => {
@@ -115,6 +134,13 @@ export const projectsRouter = {
 		return listProjectDocs(project.main_route);
 	}),
 
+	readDoc: protectedProcedure.input(ProjectDocReadSchema).handler(async ({ input }) => {
+		const project = await dbProjects.getById(input.id);
+		if (!project) return null;
+
+		return readProjectDoc(project.main_route, input.path);
+	}),
+
 	writeDoc: protectedProcedure.input(ProjectDocWriteSchema).handler(async ({ input }) => {
 		const project = await dbProjects.getById(input.id);
 		if (!project) throw new Error("Projeto não encontrado");
@@ -126,16 +152,5 @@ export const projectsRouter = {
 		});
 
 		return { path: input.path };
-	}),
-
-	stats: protectedProcedure.handler(async () => {
-		const statsRows = await dbTasks.getStatsByProject();
-		return statsRows.map((row) => ({
-			projectId: row.project_id,
-			total: Number(row.total) || 0,
-			pending: Number(row.pending) || 0,
-			done: Number(row.done) || 0,
-			lastUpdated: row.last_updated ?? undefined,
-		}));
 	}),
 };

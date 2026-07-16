@@ -92,6 +92,26 @@ function MetaSelect({
 	);
 }
 
+function MetaIndicator({
+	name,
+	color,
+	icon: Icon,
+}: {
+	name: string;
+	color: string;
+	icon: LucideIcon;
+}) {
+	return (
+		<span
+			className="pointer-events-auto inline-flex shrink-0 items-center"
+			aria-label={name}
+			title={name}
+		>
+			<Icon className="size-4 shrink-0" style={{ color }} />
+		</span>
+	);
+}
+
 // Placeholder do input de renome. Quando a task não tem título, o nome exibido é só o início do
 // 1º .md (titleFromContent) — o placeholder deixa explícito que não é um título de verdade, em vez
 // de só repetir o snippet e parecer que já existe um nome.
@@ -252,6 +272,8 @@ export function TaskEditControls({
 // Cluster da direita compartilhado entre o item da lista e o drawer mobile: selects de meta
 // (clicáveis só em edição) + lápis/excluir (só inline). O parent é dono das mutations.
 export function TaskMetaControls({
+	category,
+	priority,
 	categoryId,
 	priorityId,
 	complexity,
@@ -265,6 +287,8 @@ export function TaskMetaControls({
 	onComplexityChange,
 	onDelete,
 }: {
+	category: ColoredItem | null;
+	priority: ColoredItem | null;
 	categoryId: string | null;
 	priorityId: string | null;
 	complexity: TaskComplexity;
@@ -288,16 +312,36 @@ export function TaskMetaControls({
 				className,
 			)}
 		>
-			<TaskMetaSelects
-				categoryId={categoryId}
-				priorityId={priorityId}
-				complexity={complexity}
-				interactive={editing}
-				layout={layout}
-				onCategoryChange={onCategoryChange}
-				onPriorityChange={onPriorityChange}
-				onComplexityChange={onComplexityChange}
-			/>
+			{editing ? (
+				<TaskMetaSelects
+					categoryId={categoryId}
+					priorityId={priorityId}
+					complexity={complexity}
+					interactive
+					layout={layout}
+					onCategoryChange={onCategoryChange}
+					onPriorityChange={onPriorityChange}
+					onComplexityChange={onComplexityChange}
+				/>
+			) : (
+				<>
+					<MetaIndicator
+						name={COMPLEXITY_LABELS[complexity]}
+						color={COMPLEXITY_COLORS[complexity]}
+						icon={Gauge}
+					/>
+					<MetaIndicator
+						name={category?.name ?? "Sem categoria"}
+						color={category?.color ?? "#6b7280"}
+						icon={Tag}
+					/>
+					<MetaIndicator
+						name={priority?.name ?? "Sem prioridade"}
+						color={priority?.color ?? "#6b7280"}
+						icon={Flag}
+					/>
+				</>
+			)}
 			{!stacked && (
 				<TaskEditControls
 					editing={editing}

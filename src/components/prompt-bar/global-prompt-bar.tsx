@@ -107,8 +107,6 @@ export function GlobalPromptBar() {
 
 	const reading = useReadingModeStore((s) => s.reading);
 	const routeTarget = useRouteDocTarget();
-	const { taskSkills } = useSkillsQuery(routeTarget.projectName);
-
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const lastPathname = useRef(pathname);
 
@@ -266,7 +264,7 @@ export function GlobalPromptBar() {
 					>
 						<div className={cn(!reading && "border-t border-border bg-chrome pt-3")}>
 							<div className="mx-auto w-full max-w-3xl px-4 pb-3 xl:max-w-4xl">
-								<PromptInputArea projectName={routeTarget.projectName} taskSkills={taskSkills} />
+								<PromptInputArea projectName={routeTarget.projectName} />
 
 								<PromptImageChips />
 
@@ -388,13 +386,7 @@ export function GlobalPromptBar() {
 // Dono do texto vivo: só esta subárvore re-renderiza a cada tecla. Concentra o textarea, o backdrop
 // de chips, o menu de skills do "/", o overlay de upload e a borracha — tudo que precisa do texto
 // caractere a caractere fica aqui, isolado do resto da barra.
-function PromptInputArea({
-	projectName,
-	taskSkills,
-}: {
-	projectName?: string;
-	taskSkills: TaskSkill[];
-}) {
+function PromptInputArea({ projectName }: { projectName?: string }) {
 	const text = usePromptBarStore((s) => s.text);
 	const images = usePromptBarStore((s) => s.images);
 	const setText = usePromptBarStore((s) => s.setText);
@@ -419,8 +411,30 @@ function PromptInputArea({
 
 	const { handlePaste, uploading } = usePromptImagePaste({ projectName, textareaRef });
 
+	useEffect(() => {
+		function handleGlobalShortcut(event: KeyboardEvent) {
+			if (
+				!event.ctrlKey ||
+				event.code !== "Space" ||
+				event.altKey ||
+				event.metaKey ||
+				event.shiftKey
+			) {
+				return;
+			}
+
+			event.preventDefault();
+			usePromptBarStore.getState().setExpanded(true);
+			requestAnimationFrame(() => textareaRef.current?.focus());
+		}
+
+		window.addEventListener("keydown", handleGlobalShortcut);
+		return () => window.removeEventListener("keydown", handleGlobalShortcut);
+	}, []);
+
 	const [trigger, setTrigger] = useState<SlashTrigger | null>(null);
 	const [activeIndex, setActiveIndex] = useState(0);
+	const { taskSkills } = useSkillsQuery(projectName, { enabled: trigger !== null });
 
 	const matches = useMemo(
 		() => (trigger ? filterSkills(taskSkills, trigger.query) : []),

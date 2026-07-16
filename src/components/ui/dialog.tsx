@@ -13,6 +13,7 @@ type DialogProps = {
 	children: React.ReactNode;
 	footer?: React.ReactNode;
 	className?: string;
+	keepMounted?: boolean;
 };
 
 export function Dialog({
@@ -23,6 +24,7 @@ export function Dialog({
 	children,
 	footer,
 	className,
+	keepMounted = false,
 }: DialogProps) {
 	useEffect(() => {
 		if (!open) return;
@@ -33,22 +35,28 @@ export function Dialog({
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [open, onClose]);
 
-	if (!open) return null;
+	if (!open && !keepMounted) return null;
 
 	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+		<div
+			aria-hidden={!open}
+			className={cn(
+				"fixed inset-0 z-50 flex items-center justify-center p-4",
+				!open && "invisible pointer-events-none",
+			)}
+		>
 			<button
 				type="button"
 				aria-label="Fechar"
 				onClick={onClose}
-				className="absolute inset-0 bg-black/60 backdrop-blur-[2px] animate-in fade-in-0"
+				className={cn("absolute inset-0 bg-black/60", open && "animate-in fade-in-0")}
 			/>
 			<div
 				role="dialog"
 				aria-modal="true"
 				className={cn(
 					"relative z-10 flex max-h-[85vh] w-full max-w-lg flex-col border border-border bg-background shadow-2xl",
-					"animate-in fade-in-0 zoom-in-95 duration-150",
+					open && "animate-in fade-in-0 zoom-in-95 duration-150",
 					className,
 				)}
 			>

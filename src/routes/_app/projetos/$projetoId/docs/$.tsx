@@ -29,10 +29,11 @@ function ProjectDocPage() {
 
 	useEffect(() => () => setReading(false), [setReading]);
 
-	const docsQueryOptions = orpc.projects.listDocs.queryOptions({ input: { id: projetoId } });
-	const docsQuery = useQuery(docsQueryOptions);
-
-	const file = docsQuery.data?.find((entry) => entry.path === docPath) ?? null;
+	const docQueryOptions = orpc.projects.readDoc.queryOptions({
+		input: { id: projetoId, path: docPath },
+	});
+	const docQuery = useQuery(docQueryOptions);
+	const file = docQuery.data ?? null;
 
 	const { pinned, togglePin } = useRecordDocSession(
 		file
@@ -49,10 +50,10 @@ function ProjectDocPage() {
 
 	const writeMutation = useMutation({
 		...orpc.projects.writeDoc.mutationOptions(),
-		onSuccess: () => queryClient.invalidateQueries(docsQueryOptions),
+		onSuccess: () => queryClient.invalidateQueries(docQueryOptions),
 	});
 
-	if (docsQuery.isLoading) {
+	if (docQuery.isLoading) {
 		return (
 			<div className="flex h-full items-center justify-center">
 				<div className="flex items-center gap-2 text-muted-foreground">

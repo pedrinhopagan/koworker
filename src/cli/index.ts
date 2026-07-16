@@ -39,6 +39,10 @@ Tarefas:
   done <taskId|caminho>   Marca a tarefa como concluída
   task reopen <taskId|caminho>
                           Reabre uma tarefa concluída
+  task merge-ready <taskId|caminho> --branch <origem> --target <destino> --worktree <caminho> --pr <url>
+                          Marca uma entrega em worktree como pronta para merge
+  task merge-completed <taskId|caminho>
+                          Finaliza a tarefa depois de integrar e limpar a worktree
   task rm <taskId|caminho>
                           Remove a tarefa (soft delete + apaga a pasta)
   task options            Lista complexidades, tipos/categorias e prioridades

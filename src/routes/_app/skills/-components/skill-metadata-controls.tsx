@@ -1,10 +1,8 @@
-import { Info, Settings2 } from "lucide-react";
+import { Info } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Text } from "@/components/typography";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip } from "@/components/ui/tooltip";
 import {
@@ -116,11 +114,11 @@ function Divider() {
 	return <div className="h-px bg-border" />;
 }
 
-// Editor de metadados do frontmatter, todo dentro de um popover (gatilho ao lado de "Aparência").
-// Switches dos booleanos (condicionais de invocação) e campos de texto com mini-guia pro resto.
-// Modelo e esforço ficam no controle dedicado do cabeçalho, fora daqui. Cada mudança grava direto no
-// arquivo da variante ativa via `onChange`.
-export function SkillMetadataControls({
+// Corpo do editor de metadados do frontmatter: switches dos booleanos (condicionais de invocação) e
+// campos de texto com mini-guia pro resto. Modelo e esforço ficam no controle dedicado, fora daqui.
+// Cada mudança grava direto no arquivo da variante ativa via `onChange`. O container (popover) é do
+// cabeçalho, que o abre pelo menu de ações.
+export function SkillMetadataFields({
 	metadata,
 	onChange,
 }: {
@@ -131,74 +129,60 @@ export function SkillMetadataControls({
 	const extraStrings = extraKeys(metadata, "string");
 
 	return (
-		<Popover>
-			<PopoverTrigger asChild>
-				<Button type="button" variant="outline" size="sm" className="shrink-0">
-					<Settings2 className="size-3.5" />
-					Metadados
-				</Button>
-			</PopoverTrigger>
-			<PopoverContent
-				align="end"
-				collisionPadding={{ right: 16 }}
-				className="max-h-[70vh] w-80 overflow-y-auto p-4"
-			>
-				<div className="flex flex-col gap-3">
-					<Text size="xs" tone="muted" className="font-medium uppercase tracking-wide">
-						Invocação
-					</Text>
-					{SKILL_BOOLEAN_FIELDS.map((field) => (
-						<div key={field.key} className="flex items-start justify-between gap-3">
-							<div className="flex min-w-0 flex-col">
-								<Text size="sm">{field.label}</Text>
-								<Text size="xs" tone="muted" className="leading-snug">
-									{field.help}
-								</Text>
-							</div>
-							<Switch
-								size="sm"
-								checked={readBool(metadata[field.key], field.default)}
-								onCheckedChange={(value) => onChange(setBool(metadata, field, value))}
-							/>
-						</div>
-					))}
-					{extraBools.map((key) => (
-						<div key={key} className="flex items-center justify-between gap-3">
-							<Text size="sm" className="min-w-0 truncate font-mono">
-								{key}
-							</Text>
-							<Switch
-								size="sm"
-								checked={readBool(metadata[key], false)}
-								onCheckedChange={(value) => onChange({ ...metadata, [key]: value })}
-							/>
-						</div>
-					))}
-
-					<Divider />
-
-					{SKILL_STRING_FIELDS.map((field) => (
-						<StringField
-							key={field.key}
-							label={field.label}
-							placeholder={field.placeholder}
-							help={field.help}
-							value={readStr(metadata[field.key])}
-							onCommit={(value) => onChange(setString(metadata, field.key, value))}
-						/>
-					))}
-
-					{extraStrings.map((key) => (
-						<StringField
-							key={key}
-							label={key}
-							placeholder=""
-							value={readStr(metadata[key])}
-							onCommit={(value) => onChange(setString(metadata, key, value))}
-						/>
-					))}
+		<div className="flex flex-col gap-3">
+			<Text size="xs" tone="muted" className="font-medium uppercase tracking-wide">
+				Invocação
+			</Text>
+			{SKILL_BOOLEAN_FIELDS.map((field) => (
+				<div key={field.key} className="flex items-start justify-between gap-3">
+					<div className="flex min-w-0 flex-col">
+						<Text size="sm">{field.label}</Text>
+						<Text size="xs" tone="muted" className="leading-snug">
+							{field.help}
+						</Text>
+					</div>
+					<Switch
+						size="sm"
+						checked={readBool(metadata[field.key], field.default)}
+						onCheckedChange={(value) => onChange(setBool(metadata, field, value))}
+					/>
 				</div>
-			</PopoverContent>
-		</Popover>
+			))}
+			{extraBools.map((key) => (
+				<div key={key} className="flex items-center justify-between gap-3">
+					<Text size="sm" className="min-w-0 truncate font-mono">
+						{key}
+					</Text>
+					<Switch
+						size="sm"
+						checked={readBool(metadata[key], false)}
+						onCheckedChange={(value) => onChange({ ...metadata, [key]: value })}
+					/>
+				</div>
+			))}
+
+			<Divider />
+
+			{SKILL_STRING_FIELDS.map((field) => (
+				<StringField
+					key={field.key}
+					label={field.label}
+					placeholder={field.placeholder}
+					help={field.help}
+					value={readStr(metadata[field.key])}
+					onCommit={(value) => onChange(setString(metadata, field.key, value))}
+				/>
+			))}
+
+			{extraStrings.map((key) => (
+				<StringField
+					key={key}
+					label={key}
+					placeholder=""
+					value={readStr(metadata[key])}
+					onCommit={(value) => onChange(setString(metadata, key, value))}
+				/>
+			))}
+		</div>
 	);
 }

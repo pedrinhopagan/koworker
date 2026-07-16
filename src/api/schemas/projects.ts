@@ -23,6 +23,8 @@ export const ProjectDocWriteSchema = z.object({
 	content: z.string(),
 });
 
+export const ProjectDocReadSchema = ProjectDocWriteSchema.omit({ content: true });
+
 export const ProjectCreateSchema = z.object({
 	name: z.string().min(1),
 	description: z.string().optional(),

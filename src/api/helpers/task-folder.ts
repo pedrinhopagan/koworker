@@ -353,6 +353,26 @@ export async function setTaskFileEditedAt(params: {
 	invalidateFolderPrefix(join(params.projectRoute, params.folderPath));
 }
 
+export async function shiftTaskFolderEditedAt(params: {
+	projectRoute: string;
+	folderPath: string;
+	offsetMs: number;
+}): Promise<void> {
+	const dir = join(params.projectRoute, params.folderPath);
+	const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+
+	await Promise.all(
+		entries
+			.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+			.map(async (entry) => {
+				const path = join(dir, entry.name);
+				const timestamps = await stat(path);
+				await utimes(path, timestamps.atime, new Date(timestamps.mtimeMs - params.offsetMs));
+			}),
+	);
+	invalidateFolderPrefix(dir);
+}
+
 export async function renameTaskFile(params: {
 	projectRoute: string;
 	folderPath: string;

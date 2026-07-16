@@ -127,7 +127,7 @@ async function listSlugs(root: AgentRoot): Promise<string[]> {
 		const entries = await readdir(root.path, { withFileTypes: true });
 		const slugs: string[] = [];
 		for (const entry of entries) {
-			if (!entry.isFile()) continue;
+			if (!entry.isFile() && !entry.isSymbolicLink()) continue;
 			if (entry.name.endsWith(".md")) {
 				slugs.push(basename(entry.name, ".md"));
 			}

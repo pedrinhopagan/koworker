@@ -1,3 +1,5 @@
+import { spawnEnv } from "@/api/helpers/spawn";
+
 // Abre a janela do emulador a partir do template configurado (Fatia 1). O template é uma linha de
 // comando com os placeholders `{title}` e `{command}` — ex.: `alacritty --title {title} -e {command}`.
 // `{title}` vira UM argumento (preserva espaços); `{command}` standalone expande para a argv do
@@ -95,6 +97,7 @@ export function spawnEmulator(params: {
 		stdout: "ignore",
 		stderr: "ignore",
 		stdin: "ignore",
+		env: spawnEnv(),
 	});
 }
 

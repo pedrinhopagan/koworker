@@ -15,6 +15,7 @@ import { useProjectFocus } from "@/hooks";
 import { useNavActionDialogsStore } from "@/hooks/use-nav-action-dialogs";
 import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
 import { hideWindow, isTauri } from "@/lib/tauri";
+import { sweepAllActiveTerminals } from "@/lib/terminal";
 import { getWindowToggleShortcutTooltip } from "@/lib/window-shortcut";
 import { cn } from "@/lib/utils";
 import { useDocSessionsStore } from "@/stores/doc-sessions";
@@ -99,6 +100,10 @@ export function SidebarNavContent({
 			case "sweepInvocations":
 				onNavigate?.();
 				openActionDialog("sweepInvocations");
+				break;
+			case "sweepAll":
+				onNavigate?.();
+				void sweepAllActiveTerminals();
 				break;
 			case "hideWindow":
 				onNavigate?.();

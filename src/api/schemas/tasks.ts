@@ -41,6 +41,8 @@ export const TaskListByProjectSchema = z
 export const TaskGetAllSchema = z
 	.object({
 		projectId: z.string().min(1).nullable().optional(),
+		limit: z.number().int().min(1).max(100).optional().default(50),
+		offset: z.number().int().min(0).optional().default(0),
 
 		// Default to the current app behavior: do NOT return completed tasks unless explicitly asked.
 		includeCompleted: z.boolean().optional().default(false),
@@ -60,6 +62,33 @@ export const TaskCreateSchema = z.object({
 	// do vault para uma tarefa nova) passa false: a pasta nasce vazia e os arquivos entram sem
 	// colidir com um index.md de boilerplate.
 	seed: z.boolean().optional().default(true),
+});
+
+export const TaskSyncDiscoverSchema = z.object({
+	projectId: z.string().trim().min(1).nullable(),
+});
+
+const taskSyncFolderName = z
+	.string()
+	.trim()
+	.min(1)
+	.regex(/^[^/\\]+$/)
+	.refine((name) => name !== "." && name !== "..");
+
+export const TaskSyncCreateSchema = z.object({
+	tasks: z
+		.array(
+			z.object({
+				projectId: z.string().trim().min(1),
+				folderName: taskSyncFolderName,
+				title: z.string().trim().min(1),
+				priorityId: z.string().trim().min(1).optional(),
+				categoryId: z.string().trim().min(1).optional(),
+				complexity: z.enum(TASK_COMPLEXITIES),
+				done: z.boolean(),
+			}),
+		)
+		.min(1),
 });
 
 export const TaskUpdateSchema = z.object({
@@ -83,6 +112,18 @@ export const TaskSetDoneSchema = z.object({
 	// Concluir uma tarefa "Sem feature" pode, no mesmo gesto, vinculá-la a uma feature. Omitido
 	// (reabrir ou concluir sem feature) preserva o group_id atual.
 	groupId: z.string().trim().min(1).optional(),
+});
+
+export const TaskIgnoreRecencySchema = z.object({
+	id: z.string().trim().min(1),
+});
+
+export const TaskMergeReadySchema = z.object({
+	id: z.string().trim().min(1),
+	branch: z.string().trim().min(1),
+	targetBranch: z.string().trim().min(1),
+	worktreePath: z.string().trim().min(1),
+	prUrl: z.url(),
 });
 
 // Migra a tarefa para outro projeto: move a pasta `.koworker/<id>` para o main_route do destino e
@@ -263,6 +304,7 @@ export const TaskSetFileDateSchema = z.object({
 });
 
 export type TaskCreateInput = z.infer<typeof TaskCreateSchema>;
+export type TaskSyncCreateInput = z.infer<typeof TaskSyncCreateSchema>;
 export type TaskUpdateInput = z.infer<typeof TaskUpdateSchema>;
 export type TaskSetDoneInput = z.infer<typeof TaskSetDoneSchema>;
 export type TaskWriteFileInput = z.infer<typeof TaskWriteFileSchema>;
@@ -279,6 +321,11 @@ export const TaskDbCreateSchema = z.object({
 	group_id: z.string().min(1).nullable().optional(),
 	display_order: z.number().int().optional(),
 	file_order: z.string().nullable().optional(),
+	merge_ready_at: z.number().int().nullable().optional(),
+	worktree_branch: z.string().min(1).nullable().optional(),
+	merge_target_branch: z.string().min(1).nullable().optional(),
+	worktree_path: z.string().min(1).nullable().optional(),
+	worktree_pr_url: z.url().nullable().optional(),
 	done: z.number().int().optional(),
 	completed_at: z.number().int().nullable().optional(),
 	created_at: z.number().int().optional(),

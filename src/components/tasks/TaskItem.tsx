@@ -16,10 +16,17 @@ import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { copyToClipboard } from "@/lib/build-prompt";
 import { copyMarkdown, joinPath, openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { relativeTimeFrom } from "@/lib/relative-time";
+import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { cn } from "@/lib/utils";
 import type { TaskGroup, TaskWithMeta } from "@/types/tasks";
 import { CompleteTaskFeatureDialog } from "./CompleteTaskFeatureDialog";
-import { type TaskMenuActions, type TaskMenuData, TaskContextMenu } from "./task-context-menu";
+import {
+	type TaskMenuActions,
+	type TaskMenuData,
+	type TaskMenuTarget,
+	TaskContextMenu,
+	taskMenuItems,
+} from "./task-context-menu";
 import { TaskMobileActionsDrawer } from "./task-mobile-actions-drawer";
 import {
 	TASK_SELECT_CONTENT_SELECTOR,
@@ -54,73 +61,64 @@ type TaskItemProps = {
 	features?: TaskGroup[];
 };
 
-function TaskItemImpl({ task, variant = "default", highlight, features }: TaskItemProps) {
+type TaskActionSurfaceProps = {
+	task: TaskWithMeta;
+	target: TaskMenuTarget;
+	mode: "context" | "mobile";
+	disabled: boolean;
+	onClose?: () => void;
+	onRename: () => void;
+	onToggleDone: () => void;
+};
+
+function TaskActionSurface({
+	task,
+	target,
+	mode,
+	disabled,
+	onClose,
+	onRename,
+	onToggleDone,
+}: TaskActionSurfaceProps) {
 	const queryClient = useQueryClient();
-	const isDone = task.done;
-	// Modo de edição (toggle pelo lápis): libera o input de título e torna os selects
-	// clicáveis. Fora dele o item inteiro é um link para a rota da tarefa.
-	const [editing, setEditing] = useState(false);
-	const [linkingFeature, setLinkingFeature] = useState(false);
-	const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
-	const cardRef = useRef<HTMLDivElement>(null);
-
-	// Clicar fora conclui a edição: o blur do input já salvou o título; o dropdown do
-	// select vive em portal, então cliques nele não contam como "fora".
-	useClickOutside(cardRef, () => setEditing(false), {
-		enabled: editing,
-		ignoreSelector: TASK_SELECT_CONTENT_SELECTOR,
-	});
-
-	function invalidateTasks() {
-		queryClient.invalidateQueries({
-			predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "tasks",
-		});
-	}
-
-	const setDoneMutation = useSetDoneMutation();
-
-	// Tarefa sem feature, com features disponíveis: concluir abre o dialog de vínculo. Os demais
-	// casos (reabrir, já tem feature, projeto sem features) concluem direto.
-	function handleToggleDone(next: boolean) {
-		if (next && !task.groupId && features && features.length > 0) {
-			setLinkingFeature(true);
-			return;
-		}
-		setDoneMutation.mutate({ id: task.id, done: next });
-	}
-
-	function completeWithFeature(groupId: string | undefined) {
-		setDoneMutation.mutate(
-			{ id: task.id, done: true, groupId },
-			{ onSuccess: () => setLinkingFeature(false) },
-		);
-	}
-
-	const updateMutation = useMutation({
-		...orpc.tasks.update.mutationOptions(),
-		onSuccess: invalidateTasks,
-	});
-
-	const removeTaskMutation = useMutation({
-		...orpc.tasks.remove.mutationOptions(),
-		onSuccess: invalidateTasks,
-	});
-
-	const moveToProjectMutation = useMutation({
-		...orpc.tasks.moveToProject.mutationOptions(),
-		onSuccess: invalidateTasks,
-	});
-
 	const navigate = useNavigate();
-
-	// Dados dos submenus do menu de contexto. As três listas já vêm do cache do react-query (a
-	// página de tarefas as carrega), então reler aqui não dispara fetch novo.
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const projects = projectsQuery.data ?? [];
 
-	const taskMenuData: TaskMenuData = {
+	const updateMutation = useMutation({
+		...orpc.tasks.update.mutationOptions(),
+		onSuccess: () => {
+			void invalidateTaskQueries(queryClient, { taskId: task.id, projectId: task.projectId });
+		},
+	});
+	const removeTaskMutation = useMutation({
+		...orpc.tasks.remove.mutationOptions(),
+		onSuccess: () => {
+			void invalidateTaskQueries(queryClient, { taskId: task.id, projectId: task.projectId });
+		},
+	});
+	const moveToProjectMutation = useMutation({
+		...orpc.tasks.moveToProject.mutationOptions(),
+		onSuccess: (_data, variables) => {
+			void invalidateTaskQueries(queryClient, { taskId: task.id, projectId: task.projectId });
+			void invalidateTaskQueries(queryClient, {
+				taskId: task.id,
+				projectId: variables.targetProjectId,
+			});
+		},
+	});
+	const ignoreRecencyMutation = useMutation({
+		...orpc.tasks.ignoreRecency.mutationOptions(),
+		onSuccess: () => {
+			void invalidateTaskQueries(queryClient, { taskId: task.id, projectId: task.projectId });
+			toast.success("Tarefa removida das recentes");
+		},
+		onError: () => toast.error("Não foi possível ignorar a tarefa"),
+	});
+
+	const data: TaskMenuData = {
 		projects: projects
 			.filter((project) => project.id !== task.projectId)
 			.map((project) => ({ id: project.id, name: project.name, color: project.color })),
@@ -136,9 +134,7 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 		})),
 	};
 
-	// Dir absoluto da pasta da tarefa pros comandos do SO (abrir/zip). Resolve o mainRoute do projeto
-	// da tarefa + o folder_path do backend. Sem um dos dois, as ações viram no-op.
-	function taskDir(): string | null {
+	function taskDir() {
 		const route = projects.find((project) => project.id === task.projectId)?.mainRoute;
 		if (!route || !task.folderPath) return null;
 		return joinPath(route, task.folderPath);
@@ -158,17 +154,15 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 		}
 	}
 
-	async function copyTaskPath(target: { folderPath?: string }) {
-		if (!target.folderPath) {
-			return;
-		}
-		const path = target.folderPath.endsWith("/") ? target.folderPath : `${target.folderPath}/`;
+	async function copyTaskPath(value: TaskMenuTarget) {
+		if (!value.folderPath) return;
+		const path = value.folderPath.endsWith("/") ? value.folderPath : `${value.folderPath}/`;
 		const ok = await copyToClipboard(path);
 		toast[ok ? "success" : "error"](ok ? "Caminho da tarefa copiado" : "Falha ao copiar caminho");
 	}
 
-	const menuActions: TaskMenuActions = {
-		onCopyPath: (target) => void copyTaskPath(target),
+	const actions: TaskMenuActions = {
+		onCopyPath: (value) => void copyTaskPath(value),
 		onOpen: () => navigate({ to: "/tarefas/$taskId", params: { taskId: task.id } }),
 		onShareContent: () => void shareContent(),
 		onShareZip: () => {
@@ -179,14 +173,82 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 			const dir = taskDir();
 			if (dir) void openFolderInOs(dir);
 		},
-		onRename: () => setEditing(true),
-		onSetPriority: (_t, priorityId) => updateMutation.mutate({ id: task.id, priorityId }),
-		onSetCategory: (_t, categoryId) => updateMutation.mutate({ id: task.id, categoryId }),
-		onToggleDone: () => handleToggleDone(!isDone),
-		onMoveToProject: (_t, projectId) =>
+		onRename,
+		onSetPriority: (_value, priorityId) => updateMutation.mutate({ id: task.id, priorityId }),
+		onSetCategory: (_value, categoryId) => updateMutation.mutate({ id: task.id, categoryId }),
+		onToggleDone,
+		onIgnoreRecency: () => ignoreRecencyMutation.mutate({ id: task.id }),
+		onMoveToProject: (_value, projectId) =>
 			moveToProjectMutation.mutate({ id: task.id, targetProjectId: projectId }),
 		onDelete: () => removeTaskMutation.mutate({ id: task.id }),
 	};
+
+	const isMutating =
+		disabled ||
+		updateMutation.isPending ||
+		removeTaskMutation.isPending ||
+		moveToProjectMutation.isPending ||
+		ignoreRecencyMutation.isPending;
+
+	if (mode === "context") return taskMenuItems(target, data, actions);
+
+	return (
+		<TaskMobileActionsDrawer
+			open
+			onClose={() => onClose?.()}
+			target={target}
+			data={data}
+			actions={actions}
+			complexity={task.complexity}
+			onComplexityChange={(complexity) => updateMutation.mutate({ id: task.id, complexity })}
+			disabled={isMutating}
+		/>
+	);
+}
+
+function TaskItemImpl({ task, variant = "default", highlight, features }: TaskItemProps) {
+	const queryClient = useQueryClient();
+	const isDone = task.done;
+	const [editing, setEditing] = useState(false);
+	const [linkingFeature, setLinkingFeature] = useState(false);
+	const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+	const cardRef = useRef<HTMLDivElement>(null);
+
+	useClickOutside(cardRef, () => setEditing(false), {
+		enabled: editing,
+		ignoreSelector: TASK_SELECT_CONTENT_SELECTOR,
+	});
+
+	const setDoneMutation = useSetDoneMutation(task.projectId);
+
+	function handleToggleDone(next: boolean) {
+		if (next && !task.groupId && features && features.length > 0) {
+			setLinkingFeature(true);
+			return;
+		}
+		setDoneMutation.mutate({ id: task.id, done: next });
+	}
+
+	function completeWithFeature(groupId: string | undefined) {
+		setDoneMutation.mutate(
+			{ id: task.id, done: true, groupId },
+			{ onSuccess: () => setLinkingFeature(false) },
+		);
+	}
+
+	const updateMutation = useMutation({
+		...orpc.tasks.update.mutationOptions(),
+		onSuccess: () => {
+			void invalidateTaskQueries(queryClient, { taskId: task.id, projectId: task.projectId });
+		},
+	});
+
+	const removeTaskMutation = useMutation({
+		...orpc.tasks.remove.mutationOptions(),
+		onSuccess: () => {
+			void invalidateTaskQueries(queryClient, { taskId: task.id, projectId: task.projectId });
+		},
+	});
 
 	const isMutating =
 		setDoneMutation.isPending || removeTaskMutation.isPending || updateMutation.isPending;
@@ -202,6 +264,14 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 	const artifactNames = task.artifactNames ?? [];
 	const totalFileCount = task.fileNames.length + artifactNames.length;
 	const hasArtifacts = artifactNames.length > 0;
+	const menuTarget: TaskMenuTarget = {
+		id: task.id,
+		label: task.displayTitle,
+		done: isDone,
+		folderPath: task.folderPath,
+		priorityId: task.priority?.id ?? null,
+		categoryId: task.category?.id ?? null,
+	};
 	const fileBadgeLabel = hasArtifacts ? (
 		<div className="flex flex-col gap-1">
 			{task.fileNames.length > 0 ? (
@@ -230,16 +300,17 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 
 	return (
 		<TaskContextMenu
-			target={{
-				id: task.id,
-				label: task.displayTitle,
-				done: isDone,
-				folderPath: task.folderPath,
-				priorityId: task.priority?.id ?? null,
-				categoryId: task.category?.id ?? null,
-			}}
-			data={taskMenuData}
-			actions={menuActions}
+			target={menuTarget}
+			content={
+				<TaskActionSurface
+					task={task}
+					target={menuTarget}
+					mode="context"
+					disabled={isMutating}
+					onRename={() => setEditing(true)}
+					onToggleDone={() => handleToggleDone(!isDone)}
+				/>
+			}
 		>
 			<div
 				ref={cardRef}
@@ -326,6 +397,8 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 
 				<TaskMetaControls
 					className="hidden md:flex"
+					category={task.category}
+					priority={task.priority}
 					categoryId={task.category?.id ?? null}
 					priorityId={task.priority?.id ?? null}
 					complexity={task.complexity}
@@ -352,27 +425,21 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 					<MoreVertical className="size-4" />
 				</button>
 
-				<TaskMobileActionsDrawer
-					open={mobileActionsOpen}
-					onClose={() => setMobileActionsOpen(false)}
-					target={{
-						id: task.id,
-						label: task.displayTitle,
-						done: isDone,
-						folderPath: task.folderPath,
-						priorityId: task.priority?.id ?? null,
-						categoryId: task.category?.id ?? null,
-					}}
-					data={taskMenuData}
-					actions={menuActions}
-					complexity={task.complexity}
-					onComplexityChange={(complexity) => updateMutation.mutate({ id: task.id, complexity })}
-					disabled={isMutating}
-				/>
+				{mobileActionsOpen && (
+					<TaskActionSurface
+						task={task}
+						target={menuTarget}
+						mode="mobile"
+						disabled={isMutating}
+						onClose={() => setMobileActionsOpen(false)}
+						onRename={() => setEditing(true)}
+						onToggleDone={() => handleToggleDone(!isDone)}
+					/>
+				)}
 
-				{features && (
+				{linkingFeature && features && (
 					<CompleteTaskFeatureDialog
-						open={linkingFeature}
+						open
 						onClose={() => setLinkingFeature(false)}
 						taskTitle={task.displayTitle}
 						features={features}

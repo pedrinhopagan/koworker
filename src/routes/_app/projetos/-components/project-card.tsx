@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
 import { Text, Title } from "@/components/typography";
-import { useTaskMetrics } from "@/hooks";
 import { cn } from "@/lib/utils";
 import type { Project } from "../-utils/use-projects-data";
 import { ProjectContextMenu } from "./project-context-menu";
@@ -12,14 +11,14 @@ type ProjectCardProps = {
 };
 
 export function ProjectCard({ project, isSelected }: ProjectCardProps) {
-	const { pendingCount, metrics } = useTaskMetrics(project.id);
+	const metrics = project.tasksSummary;
 
 	const taskLabel =
 		metrics.total === 0
 			? "Sem tarefas"
-			: pendingCount === 0
+			: metrics.pending === 0
 				? `${metrics.done} concluídas`
-				: `${pendingCount} pendente${pendingCount > 1 ? "s" : ""}`;
+				: `${metrics.pending} pendente${metrics.pending > 1 ? "s" : ""}`;
 
 	const displayPath = project.displayPath;
 

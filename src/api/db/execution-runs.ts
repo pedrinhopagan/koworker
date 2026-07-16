@@ -49,6 +49,7 @@ export const dbExecutionRuns = {
 			.selectAll("er")
 			.where("er.id", "=", id)
 			.where("er.user_id", "=", userId)
+			.where("er.deleted_at", "is", null)
 			.executeTakeFirst();
 	},
 
@@ -70,9 +71,24 @@ export const dbExecutionRuns = {
 			.select(["p.name as project_name", "t.title as task_title"])
 			.where("er.user_id", "=", userId)
 			.where("er.kind", "=", "prompt")
+			.where("er.deleted_at", "is", null)
 			.orderBy("er.started_at", "desc")
 			.limit(limit)
 			.execute();
+	},
+
+	async softDeleteFinishedForUser(ids: string[], userId: number) {
+		const result = await db
+			.updateTable("execution_runs")
+			.set({ deleted_at: Date.now(), updated_at: Date.now() })
+			.where("id", "in", ids)
+			.where("user_id", "=", userId)
+			.where("kind", "=", "prompt")
+			.where("status", "!=", "running")
+			.where("deleted_at", "is", null)
+			.executeTakeFirst();
+
+		return Number(result.numUpdatedRows);
 	},
 
 	getLatestFlowForTask(taskId: string, userId: number) {

@@ -6,7 +6,8 @@ import { orpc } from "@/client";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { PageShell } from "@/components/layout/page-shell";
-import { getDefaultProjectColor, ProjectForm } from "../-components/project-form";
+import { defaultProjectColor } from "@/constants/colors";
+import { ProjectForm } from "../-components/project-form";
 import { ProjectHeaderActions } from "../-components/project-header-actions";
 import { useUpdateProject } from "../-utils/use-update-project";
 
@@ -18,7 +19,7 @@ function EditarProjetoPage() {
 	const { projetoId } = Route.useParams();
 	const projectQuery = useQuery(orpc.projects.getById.queryOptions({ input: { id: projetoId } }));
 	const project = projectQuery.data ?? null;
-	const { updateProject, loading, error, success } = useUpdateProject({ projectId: projetoId });
+	const { updateProject, loading, error } = useUpdateProject({ projectId: projetoId });
 	const formId = "project-edit-form";
 
 	const handleRouteChange = () => {
@@ -71,7 +72,6 @@ function EditarProjetoPage() {
 					submitLabel="Salvar alterações"
 					loading={loading}
 					error={error}
-					success={success}
 					cancelTo="/projetos"
 				/>
 			}
@@ -83,7 +83,7 @@ function EditarProjetoPage() {
 					defaultValues={{
 						name: project.name ?? "",
 						description: project.description ?? "",
-						color: project.color ?? getDefaultProjectColor(),
+						color: project.color ?? defaultProjectColor,
 						mainRoute: project.mainRoute,
 					}}
 					onSubmit={updateProject}

@@ -25,7 +25,7 @@ import { orpc } from "@/client";
 import { TaskItem } from "@/components/tasks";
 import { TASK_COMPLEXITIES } from "@/constants/complexity";
 import { Text } from "@/components/typography";
-import { RECENCY_FRESH_WINDOW_MS, RECENCY_HIGHLIGHT_DEPTH } from "@/constants/tasks";
+import { RECENCY_FRESH_WINDOW_MS, TASK_RECENCY_HIGHLIGHT_DEPTH } from "@/constants/tasks";
 import { cn } from "@/lib/utils";
 import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
 import type { TaskGroup, TaskWithMeta } from "@/types/tasks";
@@ -72,6 +72,23 @@ function isTasksQueryKey(queryKey: QueryKey) {
 
 function isTaskGroupsQueryKey(queryKey: QueryKey) {
 	return Array.isArray(queryKey) && Array.isArray(queryKey[0]) && queryKey[0][0] === "taskGroups";
+}
+
+function updateTasksCache(old: unknown, update: (task: TaskWithMeta) => TaskWithMeta): unknown {
+	if (Array.isArray(old)) return old.map(update);
+	if (!old || typeof old !== "object" || !("pages" in old) || !Array.isArray(old.pages)) {
+		return old;
+	}
+
+	return {
+		...old,
+		pages: old.pages.map((page) => {
+			if (!page || typeof page !== "object" || !("tasks" in page) || !Array.isArray(page.tasks)) {
+				return page;
+			}
+			return { ...page, tasks: page.tasks.map(update) };
+		}),
+	};
 }
 
 type SortContext = {
@@ -148,7 +165,7 @@ function buildHighlightLevels(tasks: TaskWithMeta[]) {
 	for (const projectTasks of byProject.values()) {
 		projectTasks
 			.sort((a, b) => b.lastEditedAt - a.lastEditedAt)
-			.slice(0, RECENCY_HIGHLIGHT_DEPTH)
+			.slice(0, TASK_RECENCY_HIGHLIGHT_DEPTH)
 			.forEach((task, index) => levels.set(task.id, index + 1));
 	}
 	return levels;
@@ -161,6 +178,7 @@ type GroupedTaskListProps = {
 	priorities: { id: string; level: number }[];
 	loading: boolean;
 	sortMode: SortMode;
+	reorderingDisabled?: boolean;
 	// Em "Todos os projetos" cada projeto monta uma instância; o prefixo isola só a chave de colapso
 	// do slot "Sem feature" (NO_GROUP). Omitido no modo single → chave idêntica à de hoje.
 	collapseKeyPrefix?: string;
@@ -173,6 +191,7 @@ export function GroupedTaskList({
 	priorities,
 	loading,
 	sortMode,
+	reorderingDisabled = false,
 	collapseKeyPrefix,
 }: GroupedTaskListProps) {
 	const queryClient = useQueryClient();
@@ -238,21 +257,17 @@ export function GroupedTaskList({
 			});
 			const orderIndex = new Map(input.orderedIds.map((id, index) => [id, index]));
 
-			queryClient.setQueriesData<TaskWithMeta[]>(
-				{ predicate: (q) => isTasksQueryKey(q.queryKey) },
-				(old) => {
-					if (!Array.isArray(old)) return old;
-					return old.map((task) => {
-						const index = orderIndex.get(task.id);
-						if (index === undefined) return task;
-						return {
-							...task,
-							groupId: input.groupId ?? undefined,
-							...(input.categoryId ? { categoryId: input.categoryId } : {}),
-							displayOrder: index,
-						};
-					});
-				},
+			queryClient.setQueriesData({ predicate: (q) => isTasksQueryKey(q.queryKey) }, (old) =>
+				updateTasksCache(old, (task) => {
+					const index = orderIndex.get(task.id);
+					if (index === undefined) return task;
+					return {
+						...task,
+						groupId: input.groupId ?? undefined,
+						...(input.categoryId ? { categoryId: input.categoryId } : {}),
+						displayOrder: index,
+					};
+				}),
 			);
 			return { previous };
 		},
@@ -448,6 +463,7 @@ export function GroupedTaskList({
 								taskMap={taskMap}
 								highlightLevels={highlightLevels}
 								features={groups}
+								reorderingDisabled={reorderingDisabled}
 								collapsed={collapsedKeys.includes(collapseKey)}
 								onToggleCollapse={() => toggleCollapsed(collapseKey)}
 							/>
@@ -505,6 +521,7 @@ export function GroupedTaskListByProject({
 	priorities,
 	loading,
 	sortMode,
+	reorderingDisabled,
 	projects,
 }: GroupedTaskListByProjectProps) {
 	const tasksByProject = useMemo(() => Map.groupBy(tasks, (task) => task.projectId), [tasks]);
@@ -550,6 +567,7 @@ export function GroupedTaskListByProject({
 						priorities={priorities}
 						loading={false}
 						sortMode={sortMode}
+						reorderingDisabled={reorderingDisabled}
 						collapseKeyPrefix={project.id}
 					/>
 				</section>
@@ -567,16 +585,18 @@ type GroupSectionProps = {
 	taskMap: Map<string, TaskWithMeta>;
 	highlightLevels: Map<string, number>;
 	features: TaskGroup[];
+	reorderingDisabled: boolean;
 	collapsed: boolean;
 	onToggleCollapse: () => void;
 };
 
 // Grupo nomeado: arrasta (handle no cabeçalho) para reordenar e recebe tasks (o ref do sortable
 // já é droppable). O id "group::<id>" casa com a resolução de drop de tasks sobre o cabeçalho.
-function SortableGroupSection({ groupId, ...rest }: GroupSectionProps) {
+function SortableGroupSection({ groupId, reorderingDisabled, ...rest }: GroupSectionProps) {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
 		id: groupDropId(groupId),
 		data: { type: "group" },
+		disabled: reorderingDisabled,
 	});
 
 	const style: React.CSSProperties = {
@@ -589,7 +609,8 @@ function SortableGroupSection({ groupId, ...rest }: GroupSectionProps) {
 		<button
 			type="button"
 			aria-label="Arrastar feature"
-			className="cursor-grab touch-none p-0.5 text-muted-foreground/40 opacity-0 transition-opacity hover:text-foreground group-hover/header:opacity-100"
+			disabled={reorderingDisabled}
+			className="cursor-grab touch-none p-0.5 text-muted-foreground/40 opacity-0 transition-opacity hover:text-foreground group-hover/header:opacity-100 disabled:cursor-not-allowed disabled:opacity-20"
 			{...attributes}
 			{...(listeners as React.HTMLAttributes<HTMLButtonElement>)}
 		>
@@ -598,7 +619,13 @@ function SortableGroupSection({ groupId, ...rest }: GroupSectionProps) {
 	);
 
 	return (
-		<GroupSectionBody {...rest} setNodeRef={setNodeRef} style={style} dragHandle={dragHandle} />
+		<GroupSectionBody
+			{...rest}
+			reorderingDisabled={reorderingDisabled}
+			setNodeRef={setNodeRef}
+			style={style}
+			dragHandle={dragHandle}
+		/>
 	);
 }
 
@@ -610,6 +637,7 @@ function GroupSectionBody({
 	taskMap,
 	highlightLevels,
 	features,
+	reorderingDisabled,
 	collapsed,
 	onToggleCollapse,
 	setNodeRef,
@@ -645,6 +673,7 @@ function GroupSectionBody({
 										task={task}
 										highlight={highlightLevels.get(taskId)}
 										features={features}
+										reorderingDisabled={reorderingDisabled}
 									/>
 								);
 							}),
@@ -665,14 +694,17 @@ function SortableTaskRow({
 	task,
 	highlight,
 	features,
+	reorderingDisabled,
 }: {
 	task: TaskWithMeta;
 	highlight?: number;
 	features: TaskGroup[];
+	reorderingDisabled: boolean;
 }) {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
 		id: task.id,
 		data: { task },
+		disabled: reorderingDisabled,
 	});
 
 	const style: React.CSSProperties = {
@@ -686,7 +718,8 @@ function SortableTaskRow({
 			<button
 				type="button"
 				aria-label="Arrastar tarefa"
-				className="hidden cursor-grab touch-none p-1 text-muted-foreground/50 transition-colors hover:text-foreground md:flex"
+				disabled={reorderingDisabled}
+				className="hidden cursor-grab touch-none p-1 text-muted-foreground/50 transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-20 md:flex"
 				{...attributes}
 				{...(listeners as React.HTMLAttributes<HTMLButtonElement>)}
 			>

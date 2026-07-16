@@ -65,10 +65,33 @@ export const dbTasks = {
 		return query.execute();
 	},
 
+	listFolderPathsByProjectIds: (projectIds: string[]) =>
+		db
+			.selectFrom("tasks as t")
+			.select(["t.project_id", "t.folder_path"])
+			.where("t.project_id", "in", projectIds)
+			.execute(),
+
+	createMany: async (inputs: TaskDbCreateInput[]) => {
+		const rows = inputs.map((input) => TaskDbCreateSchema.parse(input));
+
+		await db
+			.insertInto("tasks")
+			.values(
+				rows.map(
+					(row) => Object.assign(row, { created_at: row.created_at ?? Date.now() }) as tasks,
+				),
+			)
+			.onConflict((oc) => oc.column("id").doNothing())
+			.execute();
+	},
+
 	getAll: (
 		input: {
 			projectId?: string | null;
 			includeCompleted?: boolean;
+			limit?: number;
+			offset?: number;
 		} & TaskListFiltersInput,
 	) => {
 		let query = db.selectFrom("tasks").selectAll().where("deleted_at", "is", null);
@@ -81,7 +104,12 @@ export const dbTasks = {
 		query = applyTaskListFilters(query, input);
 		// Ordem-base estável; o agrupamento final (grupo → categoria → display_order) é
 		// resolvido no frontend, que tem o display_order de grupos e categorias.
-		query = query.orderBy("display_order", "asc").orderBy("created_at", "desc");
+		query = query
+			.orderBy("display_order", "asc")
+			.orderBy("created_at", "desc")
+			.orderBy("id", "asc")
+			.limit(input.limit ?? 50)
+			.offset(input.offset ?? 0);
 		return query.execute();
 	},
 
@@ -178,6 +206,14 @@ export const dbTasks = {
 			.executeTakeFirst();
 	},
 
+	ignoreRecency: (input: { id: string; createdAt: number; updatedAt: number }) =>
+		db
+			.updateTable("tasks")
+			.set({ created_at: input.createdAt, updated_at: input.updatedAt })
+			.where("id", "=", input.id)
+			.where("deleted_at", "is", null)
+			.execute(),
+
 	// Recoloca um bucket (grupo + categoria): grava a ordem das ids e fixa group_id/category_id.
 	// Uma transação só para a lista chegar consistente quando a task muda de grupo/categoria.
 	reorder: async (input: { groupId: string | null; categoryId?: string; orderedIds: string[] }) => {
@@ -209,20 +245,6 @@ export const dbTasks = {
 			.where("id", "=", id)
 			.where("deleted_at", "is", null)
 			.executeTakeFirst(),
-
-	getStatsByProject: () =>
-		db
-			.selectFrom("tasks")
-			.select([
-				"project_id",
-				sql<number>`count(*)`.as("total"),
-				sql<number>`sum(case when done = 0 then 1 else 0 end)`.as("pending"),
-				sql<number>`sum(case when done = 1 then 1 else 0 end)`.as("done"),
-				sql<number | null>`max(updated_at)`.as("last_updated"),
-			])
-			.where("deleted_at", "is", null)
-			.groupBy("project_id")
-			.execute(),
 
 	getMetrics: (projectId: string | null) => {
 		let query = db

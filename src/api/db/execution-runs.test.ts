@@ -82,4 +82,31 @@ describe("dbExecutionRuns", () => {
 
 		expect(runs.map((run) => run.id)).toEqual(["run-1"]);
 	});
+
+	test("limpa apenas execuções finalizadas do próprio usuário", async () => {
+		await dbExecutionRuns.update("run-1", { status: "done", finished_at: Date.now() });
+		await dbExecutionRuns.create({
+			id: "run-running",
+			user_id: 1,
+			project_id: "project-execution-runs",
+			kind: "prompt",
+			title: "Em andamento",
+			status: "running",
+			started_at: 4,
+			updated_at: 4,
+		});
+
+		const cleared = await dbExecutionRuns.softDeleteFinishedForUser(
+			["run-1", "run-running", "run-2"],
+			1,
+		);
+
+		expect(cleared).toBe(1);
+		expect((await dbExecutionRuns.listForUser(1, 20)).map((run) => run.id)).toEqual([
+			"run-running",
+		]);
+		expect(await dbExecutionRuns.getByIdForUser("run-1", 1)).toBeUndefined();
+		expect(await dbExecutionRuns.getByRequestIdForUser("request-1", 1)).toBeDefined();
+		expect(await dbExecutionRuns.getByIdForUser("run-2", 2)).toBeDefined();
+	});
 });

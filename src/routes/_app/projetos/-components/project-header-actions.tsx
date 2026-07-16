@@ -9,7 +9,6 @@ type ProjectHeaderActionsProps = {
 	submitLabel: string;
 	loading: boolean;
 	error: boolean;
-	success?: boolean;
 	cancelTo: string;
 };
 
@@ -19,7 +18,6 @@ export function ProjectHeaderActions({
 	submitLabel,
 	loading,
 	error,
-	success,
 	cancelTo,
 }: ProjectHeaderActionsProps) {
 	const primaryLabel = loading ? (mode === "create" ? "Criando..." : "Salvando...") : submitLabel;
@@ -34,11 +32,6 @@ export function ProjectHeaderActions({
 					<Link to={cancelTo}>Voltar</Link>
 				</Button>
 			</div>
-			{success && (
-				<Text size="xs" tone="muted">
-					Projeto atualizado com sucesso.
-				</Text>
-			)}
 			{error && (
 				<Text size="xs" tone="destructive">
 					Erro ao salvar projeto. Tente novamente.

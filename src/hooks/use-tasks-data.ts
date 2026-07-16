@@ -1,10 +1,12 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { orpc } from "@/client";
 import type { TaskComplexity } from "@/constants/complexity";
 import type { TaskWithMeta } from "@/types/tasks";
 import { useProjectFocus } from "./use-project-focus";
+
+const TASKS_PAGE_SIZE = 50;
 
 export type TasksSearchFilters = {
 	projectId?: string;
@@ -38,17 +40,34 @@ export function useTasksData(filters: TasksSearchFilters) {
 	const searchQuery = filters.q?.trim();
 	const projectIdForQuery = filters.projectId ?? selectedProjectId ?? null;
 
-	const tasksQuery = useQuery({
-		...orpc.tasks.getAll.queryOptions({
-			input: {
-				projectId: projectIdForQuery,
-				includeCompleted: filters.includeCompleted ?? false,
-				taskTypeId: filters.taskTypeId,
-				priorityId: filters.priorityId,
-				complexity: filters.complexity,
-				q: searchQuery && searchQuery.length > 0 ? searchQuery : undefined,
-			},
+	const tasksInput = {
+		projectId: projectIdForQuery,
+		includeCompleted: filters.includeCompleted ?? false,
+		taskTypeId: filters.taskTypeId,
+		priorityId: filters.priorityId,
+		complexity: filters.complexity,
+		q: searchQuery && searchQuery.length > 0 ? searchQuery : undefined,
+	};
+	const tasksQueryKey = [
+		...orpc.tasks.getAll.queryKey({
+			input: { ...tasksInput, limit: TASKS_PAGE_SIZE + 1, offset: 0 },
 		}),
+		"infinite",
+	] as const;
+	const tasksQuery = useInfiniteQuery({
+		queryKey: tasksQueryKey,
+		queryFn: async ({ pageParam, signal }) => {
+			const rows = await orpc.tasks.getAll.call(
+				{ ...tasksInput, limit: TASKS_PAGE_SIZE + 1, offset: pageParam },
+				{ signal },
+			);
+			return {
+				tasks: rows.slice(0, TASKS_PAGE_SIZE),
+				nextOffset: rows.length > TASKS_PAGE_SIZE ? pageParam + TASKS_PAGE_SIZE : undefined,
+			};
+		},
+		initialPageParam: 0,
+		getNextPageParam: (lastPage) => lastPage.nextOffset,
 		// Cada tecla da busca muda a queryKey; sem isso a lista inteira desmonta pro "Carregando"
 		// e remonta a cada caractere digitado.
 		placeholderData: keepPreviousData,
@@ -66,7 +85,7 @@ export function useTasksData(filters: TasksSearchFilters) {
 	// de cada task estável entre renders, o que deixa o memo do TaskItem funcionar — sem isso, todo
 	// evento de tasks re-renderizava as dezenas de linhas da lista inteira.
 	const tasksWithMeta: TaskWithMeta[] = useMemo(() => {
-		const rawTasks = tasksQuery.data ?? [];
+		const rawTasks = tasksQuery.data?.pages.flatMap((page) => page.tasks) ?? [];
 		const categoryMap = new Map(categories.map((category) => [category.id, category]));
 		const priorityMap = new Map(priorities.map((priority) => [priority.id, priority]));
 
@@ -105,5 +124,8 @@ export function useTasksData(filters: TasksSearchFilters) {
 			executedCount,
 		},
 		loading,
+		hasMore: tasksQuery.hasNextPage,
+		loadingMore: tasksQuery.isFetchingNextPage,
+		loadMore: tasksQuery.fetchNextPage,
 	};
 }

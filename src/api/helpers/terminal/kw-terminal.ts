@@ -1,3 +1,5 @@
+import { spawnEnv } from "@/api/helpers/spawn";
+
 // Wrappers finos sobre o binário `kw-terminal`. O estado de verdade do "que está aberto" vive no
 // servidor kw-terminal (um daemon independente que sobrevive ao restart do backend), então lemos dele
 // ao vivo em vez de cachear. A CLI responde com um envelope JSON de uma linha
@@ -48,6 +50,7 @@ async function runKwTerminal(
 		stdout: "pipe",
 		stderr: "pipe",
 		stdin: "ignore",
+		env: spawnEnv(),
 	});
 	const [stdout, stderr] = await Promise.all([
 		new Response(proc.stdout).text(),
@@ -87,6 +90,7 @@ export async function ensureKwTerminalServer(): Promise<void> {
 		stdout: "ignore",
 		stderr: "ignore",
 		stdin: "ignore",
+		env: spawnEnv(),
 	}).unref();
 
 	for (let attempt = 0; attempt < 25; attempt++) {
@@ -125,6 +129,7 @@ export async function kwTerminalClientAttached(): Promise<boolean> {
 		stdout: "pipe",
 		stderr: "ignore",
 		stdin: "ignore",
+		env: spawnEnv(),
 	});
 	const stdout = await new Response(proc.stdout).text();
 	await proc.exited;

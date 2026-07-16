@@ -5,6 +5,5 @@ export { useLogout } from "./use-logout";
 export { usePrimaryColor } from "./use-primary-color";
 export { type UseProjectFocusReturn, useProjectFocus } from "./use-project-focus";
 export { useSkillsQuery } from "./use-skills";
-export { type TaskMetrics, useTaskMetrics } from "./use-task-metrics";
 export { type TasksSearchFilters, useTasksData } from "./use-tasks-data";
 export { useUser } from "./use-user";

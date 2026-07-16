@@ -1,11 +1,11 @@
 import { protectedProcedure } from "../auth/context";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
-import { type AssetFileMeta, listTaskArtifacts } from "../helpers/koworker-assets";
+import { listTaskArtifacts, type TaskArtifactMeta } from "../helpers/koworker-assets";
 import { MostruarioListSchema } from "../schemas";
 import { mapTasks } from "./tasks";
 
-function latestArtifact(artifacts: AssetFileMeta[]): number {
+function latestArtifact(artifacts: TaskArtifactMeta[]): number {
 	return artifacts.reduce((max, artifact) => Math.max(max, artifact.mtime), 0);
 }
 

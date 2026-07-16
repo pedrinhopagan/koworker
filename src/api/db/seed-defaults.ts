@@ -1,7 +1,8 @@
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { DEFAULT_CATEGORIES } from "@/constants/categories";
+import { expandTilde } from "../helpers/os-actions";
 import { defaultSystemSettings, setSystemSettings } from "../helpers/system-settings";
 import { dbAgentSourcePaths } from "./agent-source-paths";
 import { dbCategories } from "./categories";
@@ -22,39 +23,57 @@ export async function migrateTerminalMultiplexerRename() {
 		.execute();
 }
 
-// Marca que os defaults de SO já foram semeados. Sem isso, semear a cada boot recriaria roots que o
-// usuário removeu de propósito.
+// Marca que a config de SO já foi semeada uma vez. Sem isso, reescrever os settings a cada boot
+// sobrescreveria ajustes do usuário.
 const SEEDED_MARKER = "default_sources_seeded";
 
 // Marca própria das categorias default: separa o ciclo de vida delas do dos roots de SO, para que
 // semear uma não force a outra.
 const CATEGORIES_SEEDED_MARKER = "default_categories_seeded";
 
-// Semeia, uma única vez, a configuração de SO por plataforma e os roots default de agents/skills que
-// antes eram constantes no código. Roda no boot do backend, depois do schema estar garantido.
-export async function ensureDefaultSettings() {
-	if (await dbSettings.has(SEEDED_MARKER)) {
+// Garante que cada root default de plataforma exista com scope 'global', sem duplicar. Compara com o
+// til expandido para reconhecer linhas custom equivalentes (ex.: `~/.claude/skills`) e nunca remove
+// linhas do usuário. Insere só os que faltam, todo boot — o koworker fica sempre pronto para buscar
+// skills/agents de todos os lugares comuns, mesmo que um default novo entre no código depois.
+async function ensureGlobalRoots<T extends string>(
+	dao: {
+		list: () => Promise<{ tool: string; path: string }[]>;
+		seedGlobals: (roots: { tool: T; path: string }[]) => Promise<unknown>;
+	},
+	defaults: { tool: T; path: string }[],
+) {
+	const existing = await dao.list();
+	const known = new Set(existing.map((row) => resolve(expandTilde(row.path))));
+	const missing = defaults.filter((root) => !known.has(resolve(root.path)));
+	if (missing.length === 0) {
 		return;
 	}
 
+	await dao.seedGlobals(missing);
+}
+
+// Semeia a configuração de SO por plataforma (uma única vez) e garante os roots default de
+// agents/skills a cada boot. Roda depois do schema estar garantido.
+export async function ensureDefaultSettings() {
 	const home = homedir();
 
-	await setSystemSettings(defaultSystemSettings());
+	if (!(await dbSettings.has(SEEDED_MARKER))) {
+		await setSystemSettings(defaultSystemSettings());
+		await dbSettings.set({ key: SEEDED_MARKER, value: "1" });
+	}
 
-	await dbAgentSourcePaths.seedGlobals([
+	await ensureGlobalRoots(dbAgentSourcePaths, [
 		{ tool: "claude-code", path: join(home, ".claude/agents") },
 		{ tool: "opencode", path: join(home, ".config/opencode/agent") },
 		{ tool: "codex", path: join(home, ".codex/agents") },
 	]);
 
-	await dbSkillSourcePaths.seedGlobals([
+	await ensureGlobalRoots(dbSkillSourcePaths, [
 		{ tool: "opencode", path: join(home, ".config/opencode/skills") },
 		{ tool: "claude-code", path: join(home, ".claude/skills") },
 		{ tool: "codex", path: join(home, ".codex/skills") },
 		{ tool: "agents", path: join(home, ".agents/skills") },
 	]);
-
-	await dbSettings.set({ key: SEEDED_MARKER, value: "1" });
 }
 
 // Semeia, uma única vez, as categorias padrão já vinculadas à estrutura de prompt. Cria só as
