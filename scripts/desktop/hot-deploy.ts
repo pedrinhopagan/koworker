@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { koworkerDataDir } from "../../src/lib/app-paths";
 import { KOWORK_PROD_PORT } from "../../src/lib/runtime-config";
+import { installSharpVendor } from "./install-sharp-vendor";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(scriptDir, "../..");
@@ -154,10 +155,11 @@ if (!(await pathExists(join(distSource, "index.html")))) {
 }
 
 // Instala com prod antigo ainda no ar; os renames atomicos so trocam tudo no fim.
-console.log("→ Instalando GUI, backend e dist...");
+console.log("→ Instalando GUI, backend, dist e vendor do sharp...");
 await installFile(guiSource, guiTarget);
 await installFile(backendSource, backendTarget);
 await installDir(distSource, distTarget);
+await installSharpVendor(rootDir);
 
 console.log("→ Reiniciando o app de prod...");
 const backendManagedBySystemd = systemdBackendUnitExists();

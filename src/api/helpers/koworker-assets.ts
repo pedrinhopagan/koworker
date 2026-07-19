@@ -1,7 +1,6 @@
 import { mkdir, readdir, realpath, rename, rm, stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join, sep } from "node:path";
-
-import sharp from "sharp";
 
 import {
 	DOC_MIME_BY_EXT,
@@ -12,8 +11,45 @@ import {
 import { djs } from "./dayjs";
 import { createFolderCache } from "./folder-cache";
 
-sharp.cache(false);
-sharp.concurrency(2);
+// No binário compilado (`bun build --compile`), o addon do sharp é embutido mas seu rpath relativo
+// não encontra o libvips fora do node_modules. Pré-carregar o .so do vendor (instalado pelos
+// scripts de deploy) satisfaz o dlopen; em dev o vendor não existe e o rpath resolve sozinho.
+// Só o require CJS funciona no compilado — o caminho ESM do sharp não embute o .node.
+const SHARP_VENDOR_LIBVIPS_DIR = join(
+	homedir(),
+	".local/lib/kowork/vendor/node_modules/@img/sharp-libvips-linux-x64/lib",
+);
+
+let sharpPromise: Promise<typeof import("sharp").default> | undefined;
+
+async function preloadVendorLibvips() {
+	const soname = (await readdir(SHARP_VENDOR_LIBVIPS_DIR).catch(() => [])).find((name) =>
+		name.startsWith("libvips-cpp.so"),
+	);
+	if (!soname) return;
+
+	const { dlopen } = await import("bun:ffi");
+	dlopen(join(SHARP_VENDOR_LIBVIPS_DIR, soname), {
+		vips_version: { args: ["int"], returns: "int" },
+	});
+}
+
+async function loadSharp() {
+	await preloadVendorLibvips().catch(() => {});
+
+	const mod = require("sharp");
+	const sharp = (mod.default ?? mod) as typeof import("sharp").default;
+	sharp.cache(false);
+	sharp.concurrency(2);
+
+	return sharp;
+}
+
+async function getSharp() {
+	sharpPromise ??= loadSharp();
+
+	return await sharpPromise;
+}
 
 const KOWORKER_DIR = ".koworker";
 
@@ -60,6 +96,7 @@ async function createMediaPreview(path: string) {
 	activeMediaPreviews++;
 
 	try {
+		const sharp = await getSharp();
 		const output = await sharp(path)
 			.rotate()
 			.resize({ width: 480, height: 360, fit: "cover", position: "north" })

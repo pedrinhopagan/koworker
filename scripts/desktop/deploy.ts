@@ -18,6 +18,7 @@ import { createInterface } from "node:readline/promises";
 import { koworkerDataDir } from "../../src/lib/app-paths";
 import { buildProductionIndexHtml } from "./inject-prod-index";
 import { buildProductionServiceWorker } from "./inject-prod-sw";
+import { installSharpVendor } from "./install-sharp-vendor";
 
 type BumpType = "patch" | "minor" | "major";
 
@@ -229,6 +230,7 @@ async function installLocally(worktreeDir: string) {
 		await mkdir(backendBinDir, { recursive: true });
 		await copyFile(backendSource, join(backendBinDir, "kowork-backend"));
 		await chmod(join(backendBinDir, "kowork-backend"), 0o755);
+		await installSharpVendor(worktreeDir);
 	}
 
 	if (await pathExists(distSource)) {
