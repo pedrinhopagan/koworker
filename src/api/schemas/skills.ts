@@ -15,7 +15,10 @@ export const SkillCreateSchema = z.object({
 });
 
 export const SkillUpdateSchema = z.object({
-	path: z.string().min(1),
+	slug: z
+		.string()
+		.min(1)
+		.regex(/^[a-z0-9-]+$/, "Slug deve conter apenas letras minúsculas, números e hífens"),
 	description: z.string().min(1),
 	content: z.string().optional(),
 	metadata: z.record(z.string(), z.unknown()).optional(),
@@ -32,9 +35,15 @@ export const SkillStandardizeSchema = z.object({
 	sourcePath: z.string().min(1),
 });
 
-export const SkillReplicateSchema = z.object({
-	slug: z.string().min(1),
-	projectName: z.string().optional(),
+export const SkillSyncSchema = z.object({
+	planHash: z.string().min(1),
+	choices: z.array(
+		z.object({
+			slug: z.string().min(1),
+			sourcePath: z.string().min(1),
+			hash: z.string().min(1),
+		}),
+	),
 });
 
 export const SkillDeleteSchema = z.object({

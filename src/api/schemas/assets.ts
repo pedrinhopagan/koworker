@@ -26,6 +26,7 @@ export const MediaUploadSchema = z.object({
 
 export const MediaReadFileSchema = z.object({
 	projectId: z.string().trim().min(1),
+	taskId: z.string().trim().min(1).optional(),
 	name: pathSegment,
 });
 

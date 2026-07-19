@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm } from "node:fs/promises";
+import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +10,13 @@ import { getSystemSettings } from "./system-settings";
 
 export type SkillTool = "opencode" | "claude-code" | "codex" | "agents" | "koworker";
 export type SkillScope = "global" | "project" | "custom";
+
+export const SYNCED_SKILL_TOOLS = new Set<SkillTool>([
+	"opencode",
+	"claude-code",
+	"codex",
+	"agents",
+]);
 
 type SkillRoot = {
 	tool: SkillTool;
@@ -48,14 +55,16 @@ export type SkillFsRecord = {
 	primaryDir: string;
 };
 
-export type SkillFsRecordDetailed = SkillFsRecord & { variants: SkillVariant[] };
+export type SkillFsRecordDetailed = SkillFsRecord & {
+	variants: SkillVariant[];
+	missingTools: SkillTool[];
+};
 
 const home = homedir();
 const helpersDir = dirname(fileURLToPath(import.meta.url));
 const STATIC_SKILLS_PATH = resolve(helpersDir, "../../../static/skills");
 
-// Onde skills criadas pela UI são gravadas: o diretório global do opencode.
-const CREATE_ROOT = join(home, ".config/opencode/skills");
+const CREATE_ROOT = join(home, ".agents/skills");
 
 // Static interno do koworker, resolvido relativo ao módulo (não é caminho do usuário). Menor
 // prioridade de conteúdo: depois dos source_paths, antes dos projetos.
@@ -88,11 +97,24 @@ async function sourcePathRoots(): Promise<SkillRoot[]> {
 	}));
 }
 
+async function agentsSkillsRoot() {
+	const configured = (await sourcePathRoots()).find(
+		(root) => root.scope === "global" && root.tool === "agents",
+	);
+
+	return configured?.path ?? CREATE_ROOT;
+}
+
 // Deduplica por path resolvido, mantendo a primeira ocorrência: o mesmo diretório cadastrado duas
 // vezes (ex.: uma linha custom `~/.claude/skills` e a global expandida) entraria em conflito consigo
 // mesmo. A ordem original é a prioridade de conteúdo, então a primeira vence.
 async function buildRoots(projectName?: string): Promise<SkillRoot[]> {
-	const base = [...(await sourcePathRoots()), KOWORKER_ROOT];
+	const sourceRoots = await sourcePathRoots();
+	const base = [
+		...sourceRoots.filter((root) => root.scope === "global" && root.tool === "agents"),
+		...sourceRoots.filter((root) => root.scope !== "global" || root.tool !== "agents"),
+		KOWORKER_ROOT,
+	];
 	const all = projectName ? [...base, ...(await projectRoots(projectName))] : base;
 
 	const seen = new Set<string>();
@@ -127,7 +149,7 @@ async function assertAllowedPath(target: string) {
 // Hash do arquivo inteiro (descrição + corpo + metadata canônica), não só do corpo: o
 // frontmatter pode divergir entre cópias e ainda assim é "conteúdo diferente". Metadata
 // serializada com chaves ordenadas pra não falsear divergência por ordem de chave.
-function skillContentHash(file: SkillFile): string {
+export function skillContentHash(file: SkillFile): string {
 	const { name: _name, description: _desc, ...rest } = file.frontmatter;
 	const orderedMeta = Object.fromEntries(
 		Object.keys(rest)
@@ -236,11 +258,23 @@ export async function listSkillsFromFs(projectName?: string): Promise<SkillFsRec
 		.sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
+function missingSyncedRoots(slug: string, roots: SkillRoot[], loaded: LoadedSource[]) {
+	const presentDirs = new Set(loaded.map((source) => resolve(source.dir)));
+
+	return roots.filter(
+		(root) =>
+			root.scope === "global" &&
+			SYNCED_SKILL_TOOLS.has(root.tool) &&
+			!presentDirs.has(resolve(join(root.path, slug))),
+	);
+}
+
 export async function getSkillFromFs(
 	slug: string,
 	projectName?: string,
 ): Promise<SkillFsRecordDetailed | null> {
-	const loaded = await loadSourcesForSlug(slug, await buildRoots(projectName));
+	const roots = await buildRoots(projectName);
+	const loaded = await loadSourcesForSlug(slug, roots);
 	if (loaded.length === 0) return null;
 
 	const groupByHash = new Map<string, number>();
@@ -264,17 +298,20 @@ export async function getSkillFromFs(
 		};
 	});
 
-	return { ...buildRecord(slug, loaded), variants };
+	return {
+		...buildRecord(slug, loaded),
+		variants,
+		missingTools: [...new Set(missingSyncedRoots(slug, roots, loaded).map((root) => root.tool))],
+	};
 }
 
-// Sobrescreve todas as outras cópias do slug com o conteúdo da variante escolhida e relê cada
-// arquivo gravado pra confirmar (read-back). Ação destrutiva — só chamada após confirmação na UI.
 export async function standardizeSkillInFs(input: {
 	slug: string;
 	projectName?: string;
 	sourcePath: string;
-}): Promise<{ written: number }> {
-	const loaded = await loadSourcesForSlug(input.slug, await buildRoots(input.projectName));
+}): Promise<{ written: number; created: number }> {
+	const roots = await buildRoots(input.projectName);
+	const loaded = await loadSourcesForSlug(input.slug, roots);
 	const chosen = loaded.find((source) => source.path === input.sourcePath);
 	if (!chosen) {
 		throw new Error("Variante escolhida não encontrada");
@@ -294,50 +331,24 @@ export async function standardizeSkillInFs(input: {
 		written++;
 	}
 
-	return { written };
-}
-
-// Espelha a skill em todos os ambientes globais conhecidos (opencode, claude-code, codex, agents),
-// usando a fonte primária como verdade. Cria a pasta onde faltar e sobrescreve onde o hash divergir;
-// alvo já idêntico é contado como `unchanged`. Cada gravação é relida e confere o hash (read-back).
-export async function replicateSkillInFs(input: {
-	slug: string;
-	projectName?: string;
-}): Promise<{ written: number; unchanged: number }> {
-	const roots = await buildRoots(input.projectName);
-	const primary = (await loadSourcesForSlug(input.slug, roots))[0];
-	if (!primary) {
-		throw new Error("Skill não encontrada");
-	}
-
-	const targets = roots.filter((root) => root.scope === "global" && root.tool !== "koworker");
-
-	let written = 0;
-	let unchanged = 0;
-	for (const target of targets) {
-		const dir = join(target.path, input.slug);
+	let created = 0;
+	for (const root of missingSyncedRoots(input.slug, roots, loaded)) {
+		const dir = join(root.path, input.slug);
 		const path = join(dir, "SKILL.md");
 
-		if (resolve(path) === resolve(primary.path)) continue;
-
-		const existing = await readSkillFile(path);
-		if (existing && skillContentHash(existing) === primary.hash) {
-			unchanged++;
-			continue;
-		}
-
 		await assertAllowedPath(path);
-		await mkdir(dir, { recursive: true });
-		await writeSkillFile(path, primary.file);
+		await mkdir(root.path, { recursive: true });
+		await cp(chosen.dir, dir, { recursive: true, dereference: true });
 
 		const reread = await readSkillFile(path);
-		if (!reread || skillContentHash(reread) !== primary.hash) {
-			throw new Error(`Falha ao replicar ${path}: verificação não bateu`);
+		if (!reread || skillContentHash(reread) !== chosen.hash) {
+			await rm(dir, { recursive: true, force: true });
+			throw new Error(`Falha ao criar ${dir}: verificação não bateu`);
 		}
-		written++;
+		created++;
 	}
 
-	return { written, unchanged };
+	return { written, created };
 }
 
 export async function createSkillInFs(input: {
@@ -346,7 +357,7 @@ export async function createSkillInFs(input: {
 	content?: string;
 	metadata?: Record<string, unknown>;
 }): Promise<SkillFsRecord | null> {
-	const skillDir = join(CREATE_ROOT, input.slug);
+	const skillDir = join(await agentsSkillsRoot(), input.slug);
 	const skillPath = join(skillDir, "SKILL.md");
 
 	if (await Bun.file(skillPath).exists()) {
@@ -370,7 +381,7 @@ export async function createSkillInFs(input: {
 		content: skillFile.body,
 		metadata,
 		sources: [
-			{ tool: "opencode", scope: "global", path: skillDir, hash: skillContentHash(skillFile) },
+			{ tool: "agents", scope: "global", path: skillDir, hash: skillContentHash(skillFile) },
 		],
 		conflict: false,
 		primaryPath: skillPath,
@@ -379,16 +390,17 @@ export async function createSkillInFs(input: {
 }
 
 export async function updateSkillInFs(input: {
-	path: string;
+	slug: string;
 	description: string;
 	content?: string;
 	metadata?: Record<string, unknown>;
 }): Promise<void> {
-	await assertAllowedPath(input.path);
-	const slug = basename(dirname(input.path));
+	const skillDir = join(await agentsSkillsRoot(), input.slug);
+	const skillPath = join(skillDir, "SKILL.md");
+	await mkdir(skillDir, { recursive: true });
 
-	await writeSkillFile(input.path, {
-		frontmatter: { name: slug, description: input.description, ...input.metadata },
+	await writeSkillFile(skillPath, {
+		frontmatter: { name: input.slug, description: input.description, ...input.metadata },
 		body: input.content ?? "",
 	});
 }

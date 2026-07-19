@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 process.env.DATABASE_URL = ":memory:";
@@ -9,14 +9,14 @@ process.env.NODE_ENV = "development";
 
 let db: typeof import("../db/connection").db;
 let listSkillsFromFs: typeof import("./skills-fs").listSkillsFromFs;
-let replicateSkillInFs: typeof import("./skills-fs").replicateSkillInFs;
+let updateSkillInFs: typeof import("./skills-fs").updateSkillInFs;
 
 const home = homedir();
 const tempDirs: string[] = [];
 
 beforeAll(async () => {
 	({ db } = await import("../db/connection"));
-	({ listSkillsFromFs, replicateSkillInFs } = await import("./skills-fs"));
+	({ listSkillsFromFs, updateSkillInFs } = await import("./skills-fs"));
 });
 
 afterEach(async () => {
@@ -85,27 +85,21 @@ describe("listSkillsFromFs", () => {
 	});
 });
 
-describe("replicateSkillInFs", () => {
-	test("grava a primária nos globais faltantes e conta idênticos como unchanged", async () => {
-		const primaryDir = await mkdtemp(join(tmpdir(), "skills-primary-"));
-		const targetDir = await mkdtemp(join(tmpdir(), "skills-target-"));
-		tempDirs.push(primaryDir, targetDir);
-		await writeSkill(primaryDir, "rep-skill", "descricao rep", "corpo rep");
-		await addRow("opencode", primaryDir, "global", 1);
-		await addRow("claude-code", targetDir, "global", 2);
+describe("updateSkillInFs", () => {
+	test("grava sempre na fonte global Agents", async () => {
+		const cli = await homeDir();
+		const agents = await homeDir();
+		await writeSkill(cli, "canonical", "descrição CLI", "corpo CLI");
+		await addRow("opencode", cli, "global", 1);
+		await addRow("agents", agents, "global", 2);
 
-		const first = await replicateSkillInFs({ slug: "rep-skill" });
+		await updateSkillInFs({
+			slug: "canonical",
+			description: "descrição Agents",
+			content: "corpo Agents",
+		});
 
-		expect(first.written).toBe(1);
-		expect(first.unchanged).toBe(0);
-
-		const copied = await readFile(join(targetDir, "rep-skill", "SKILL.md"), "utf8");
-		expect(copied).toContain("descricao rep");
-		expect(copied).toContain("corpo rep");
-
-		const second = await replicateSkillInFs({ slug: "rep-skill" });
-
-		expect(second.written).toBe(0);
-		expect(second.unchanged).toBe(1);
+		expect(await readFile(join(cli, "canonical", "SKILL.md"), "utf8")).toContain("corpo CLI");
+		expect(await readFile(join(agents, "canonical", "SKILL.md"), "utf8")).toContain("corpo Agents");
 	});
 });

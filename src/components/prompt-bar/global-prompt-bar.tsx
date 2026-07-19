@@ -36,12 +36,15 @@ import {
 import { LucideIcon } from "@/lib/lucide-icon";
 import { PromptUndoHistory, type PromptSnapshot } from "@/lib/prompt-undo";
 import { recordPromptHistory } from "@/lib/prompt-history";
+import { searchSkills } from "@/lib/skill-search";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 import { useReadingModeStore } from "@/stores/reading-mode";
 import type { TaskSkill } from "@/types/skills";
 
 type SlashTrigger = { triggerPos: number; query: string };
+
+const CLEAR_CONFIRM_MS = 2500;
 
 // O menu de skills só abre quando o "/" está no início do texto ou logo após um espaço/quebra —
 // caminhos e URLs com "/" no meio de palavra não disparam.
@@ -60,17 +63,6 @@ function detectSlashTrigger(text: string, caret: number): SlashTrigger | null {
 		}
 	}
 	return null;
-}
-
-function filterSkills(skills: TaskSkill[], query: string): TaskSkill[] {
-	const term = query.trim().toLowerCase();
-	if (!term) return skills;
-	return skills.filter(
-		(skill) =>
-			skill.slug.toLowerCase().includes(term) ||
-			skill.label.toLowerCase().includes(term) ||
-			skill.description.toLowerCase().includes(term),
-	);
 }
 
 // Footer global do prompt: vive acima da StatusBar em qualquer rota, persiste rascunho/estado,
@@ -411,25 +403,59 @@ function PromptInputArea({ projectName }: { projectName?: string }) {
 
 	const { handlePaste, uploading } = usePromptImagePaste({ projectName, textareaRef });
 
+	const [clearArmed, setClearArmed] = useState(false);
+	const clearArmedRef = useRef(false);
+	const clearArmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	function setClearArm(value: boolean) {
+		clearArmedRef.current = value;
+		setClearArmed(value);
+		if (clearArmTimer.current) {
+			clearTimeout(clearArmTimer.current);
+			clearArmTimer.current = null;
+		}
+		if (value) {
+			clearArmTimer.current = setTimeout(() => {
+				clearArmedRef.current = false;
+				setClearArmed(false);
+			}, CLEAR_CONFIRM_MS);
+		}
+	}
+
 	useEffect(() => {
 		function handleGlobalShortcut(event: KeyboardEvent) {
-			if (
-				!event.ctrlKey ||
-				event.code !== "Space" ||
-				event.altKey ||
-				event.metaKey ||
-				event.shiftKey
-			) {
+			if (event.code !== "Space" || event.metaKey || event.shiftKey) {
 				return;
 			}
 
-			event.preventDefault();
-			usePromptBarStore.getState().setExpanded(true);
-			requestAnimationFrame(() => textareaRef.current?.focus());
+			if (event.ctrlKey && !event.altKey) {
+				event.preventDefault();
+				usePromptBarStore.getState().setExpanded(true);
+				requestAnimationFrame(() => textareaRef.current?.focus());
+				return;
+			}
+
+			if (event.altKey && !event.ctrlKey) {
+				const store = usePromptBarStore.getState();
+				if (!store.expanded) return;
+
+				event.preventDefault();
+				if (!clearArmedRef.current) {
+					if (store.text.trim().length > 0) setClearArm(true);
+					return;
+				}
+
+				setClearArm(false);
+				store.clear();
+				requestAnimationFrame(() => textareaRef.current?.focus());
+			}
 		}
 
 		window.addEventListener("keydown", handleGlobalShortcut);
-		return () => window.removeEventListener("keydown", handleGlobalShortcut);
+		return () => {
+			window.removeEventListener("keydown", handleGlobalShortcut);
+			if (clearArmTimer.current) clearTimeout(clearArmTimer.current);
+		};
 	}, []);
 
 	const [trigger, setTrigger] = useState<SlashTrigger | null>(null);
@@ -437,7 +463,7 @@ function PromptInputArea({ projectName }: { projectName?: string }) {
 	const { taskSkills } = useSkillsQuery(projectName, { enabled: trigger !== null });
 
 	const matches = useMemo(
-		() => (trigger ? filterSkills(taskSkills, trigger.query) : []),
+		() => (trigger ? searchSkills(taskSkills, trigger.query) : []),
 		[trigger, taskSkills],
 	);
 	const menuOpen = trigger !== null && matches.length > 0;
@@ -451,6 +477,7 @@ function PromptInputArea({ projectName }: { projectName?: string }) {
 	}
 
 	function handleChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
+		if (clearArmedRef.current) setClearArm(false);
 		const next = event.target.value;
 		undoHistory.record(snapshotRef.current, next);
 		snapshotRef.current = { text: next, caret: event.target.selectionStart, images };
@@ -618,6 +645,12 @@ function PromptInputArea({ projectName }: { projectName?: string }) {
 					"disabled:cursor-not-allowed",
 				)}
 			/>
+
+			{clearArmed && (
+				<div className="pointer-events-none absolute bottom-2 right-3 text-xs text-muted-foreground/50 animate-in fade-in-0 duration-150">
+					pressione alt + espaço novamente para limpar
+				</div>
+			)}
 
 			{/* Enquanto a imagem sobe, o input trava: colar de novo no meio da gravação bagunçaria a
 			    ordem dos marcadores. O overlay cobre o textarea com um respiro e o spinner. */}

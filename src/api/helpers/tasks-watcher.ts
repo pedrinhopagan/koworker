@@ -1,9 +1,11 @@
 import { existsSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import chokidar from "chokidar";
+import { IMAGE_MIME_BY_EXT } from "@/constants/koworker";
 import { dbProjects } from "../db/projects";
 import { PubSub } from "../pubsub";
 import { invalidateFolderPrefix } from "./folder-cache";
+import { invalidateMediaFilesCache } from "./koworker-assets";
 
 const KOWORKER_DIR = ".koworker";
 const DEBOUNCE_MS = 300;
@@ -38,6 +40,10 @@ function handleFsEvent(path: string) {
 	// A pasta do arquivo alterado é a chave dos caches de metadados (task e vault). Invalidar por
 	// esse prefixo derruba só as entradas afetadas, mantendo o resto do projeto em cache.
 	invalidateFolderPrefix(dirname(path));
+	const dot = path.lastIndexOf(".");
+	if (dot >= 0 && IMAGE_MIME_BY_EXT[path.slice(dot).toLowerCase()]) {
+		invalidateMediaFilesCache(dirname(path));
+	}
 
 	pendingProjects.add(projectId);
 	if (debounceTimer) clearTimeout(debounceTimer);

@@ -1,4 +1,11 @@
-import { FolderOpen, Link as LinkIcon, Pencil, Route as RouteIcon, Trash2 } from "lucide-react";
+import {
+	FolderOpen,
+	HardDrive,
+	Link as LinkIcon,
+	Pencil,
+	Route as RouteIcon,
+	Trash2,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -14,13 +21,15 @@ import { copyToClipboard } from "@/lib/build-prompt";
 
 // Menu de botão direito de um arquivo `.md` (Copiar caminho / Renomear / Deletar), igual em qualquer
 // tela: vault e abas da tarefa só passam o nome e os callbacks. `path` é opcional — quando presente,
-// habilita "Copiar caminho" (relativo à raiz do projeto). ContextMenu abre só no contextmenu, então o
-// clique esquerdo (selecionar / arrastar / abrir) do alvo segue intocado. O `stopPropagation` no
-// trigger impede que o contextmenu suba pra menus externos (o global da tarefa / AppContextMenu):
-// clicar num card sempre abre o menu do próprio arquivo.
+// habilita "Copiar caminho" (relativo à raiz do projeto); `absolutePath` habilita "Copiar caminho no
+// PC" (absoluto no SO). ContextMenu abre só no contextmenu, então o clique esquerdo (selecionar /
+// arrastar / abrir) do alvo segue intocado. O `stopPropagation` no trigger impede que o contextmenu
+// suba pra menus externos (o global da tarefa / AppContextMenu): clicar num card sempre abre o menu
+// do próprio arquivo.
 export function FileContextMenu({
 	name,
 	path,
+	absolutePath,
 	route,
 	onRename,
 	onDelete,
@@ -29,6 +38,7 @@ export function FileContextMenu({
 }: {
 	name: string;
 	path?: string;
+	absolutePath?: string;
 	route?: string;
 	onRename: () => void;
 	onDelete: () => void;
@@ -38,6 +48,12 @@ export function FileContextMenu({
 	async function handleCopyPath() {
 		if (!path) return;
 		const ok = await copyToClipboard(path);
+		toast[ok ? "success" : "error"](ok ? "Caminho copiado" : "Falha ao copiar caminho");
+	}
+
+	async function handleCopyAbsolutePath() {
+		if (!absolutePath) return;
+		const ok = await copyToClipboard(absolutePath);
 		toast[ok ? "success" : "error"](ok ? "Caminho copiado" : "Falha ao copiar caminho");
 	}
 
@@ -65,6 +81,15 @@ export function FileContextMenu({
 					>
 						<LinkIcon className="mr-2 size-4" />
 						Copiar caminho
+					</ContextMenuItem>
+				) : null}
+				{absolutePath ? (
+					<ContextMenuItem
+						onSelect={() => void handleCopyAbsolutePath()}
+						className="rounded-none px-3 py-2 text-muted-foreground focus:text-foreground"
+					>
+						<HardDrive className="mr-2 size-4" />
+						Copiar caminho no PC
 					</ContextMenuItem>
 				) : null}
 				{route ? (

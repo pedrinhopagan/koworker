@@ -1,5 +1,7 @@
-import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readdir, realpath, rename, rm, stat } from "node:fs/promises";
+import { join, sep } from "node:path";
+
+import sharp from "sharp";
 
 import {
 	DOC_MIME_BY_EXT,
@@ -8,6 +10,10 @@ import {
 	MEDIAS_DIRNAME,
 } from "@/constants/koworker";
 import { djs } from "./dayjs";
+import { createFolderCache } from "./folder-cache";
+
+sharp.cache(false);
+sharp.concurrency(2);
 
 const KOWORKER_DIR = ".koworker";
 
@@ -37,6 +43,48 @@ const artifactMetadataCache = new Map<
 		metadata: Promise<TaskArtifactMeta["metadata"]>;
 	}
 >();
+const MEDIA_PREVIEW_CACHE_MAX = 64;
+const MEDIA_PREVIEW_CONCURRENCY = 2;
+const MEDIA_FILES_TTL_MS = 30_000;
+const mediaPreviewQueue: (() => void)[] = [];
+const mediaFilesCache = createFolderCache<AssetFileMeta[]>(MEDIA_FILES_TTL_MS);
+let activeMediaPreviews = 0;
+
+async function createMediaPreview(path: string) {
+	if (activeMediaPreviews >= MEDIA_PREVIEW_CONCURRENCY) {
+		await new Promise<void>((resolve) => {
+			mediaPreviewQueue.push(resolve);
+		});
+	}
+
+	activeMediaPreviews++;
+
+	try {
+		const output = await sharp(path)
+			.rotate()
+			.resize({ width: 480, height: 360, fit: "cover", position: "north" })
+			.webp({ quality: 78 })
+			.toBuffer();
+		const bytes = new Uint8Array(output.length);
+		bytes.set(output);
+
+		return bytes.buffer;
+	} finally {
+		activeMediaPreviews--;
+		mediaPreviewQueue.shift()?.();
+	}
+}
+
+const mediaPreviewCache = new Map<string, ArrayBuffer>();
+const mediaPreviewInflight = new Map<string, ReturnType<typeof createMediaPreview>>();
+
+function mediaFilesCacheKey(dir: string) {
+	return `media-files\0${dir}`;
+}
+
+export function invalidateMediaFilesCache(dir: string): void {
+	mediaFilesCache.deletePrefix(mediaFilesCacheKey(dir));
+}
 
 // MIME de um nome de arquivo pela extensão dentro da whitelist do destino, ou null quando a extensão
 // não pertence a ele — o que também serve de filtro: `medias/` passa IMAGE_MIME_BY_EXT (só imagens)
@@ -50,6 +98,91 @@ function mimeForAsset(name: string, mimeByExt: Record<string, string>): string |
 
 function mediasDir(projectRoute: string): string {
 	return join(projectRoute, KOWORKER_DIR, MEDIAS_DIRNAME);
+}
+
+function isInside(root: string, target: string) {
+	return target === root || target.startsWith(root + sep);
+}
+
+async function resolveAssetDir(projectRoute: string, dir: string) {
+	const [projectRoot, koworkerRoot, assetDir] = await Promise.all([
+		realpath(projectRoute).catch(() => null),
+		realpath(join(projectRoute, KOWORKER_DIR)).catch(() => null),
+		realpath(dir).catch(() => null),
+	]);
+
+	if (
+		!projectRoot ||
+		!koworkerRoot ||
+		!assetDir ||
+		!isInside(projectRoot, koworkerRoot) ||
+		!isInside(koworkerRoot, assetDir)
+	) {
+		return null;
+	}
+
+	return assetDir;
+}
+
+async function resolveAssetFile(
+	projectRoute: string,
+	dir: string,
+	name: string,
+	mimeByExt: Record<string, string>,
+) {
+	const mime = mimeForAsset(name, mimeByExt);
+	if (!mime) return null;
+
+	const assetDir = await resolveAssetDir(projectRoute, dir);
+	if (!assetDir) return null;
+
+	const path = await realpath(join(assetDir, name)).catch(() => null);
+	if (!path || !isInside(assetDir, path)) return null;
+
+	const stats = await stat(path).catch(() => null);
+	if (!stats?.isFile()) return null;
+
+	return { mime, mtime: stats.mtimeMs, path, size: stats.size };
+}
+
+async function readCachedMediaPreview(path: string, mtime: number, size: number) {
+	const key = `${path}\0${mtime}\0${size}`;
+	const cached = mediaPreviewCache.get(key);
+	if (cached) {
+		mediaPreviewCache.delete(key);
+		mediaPreviewCache.set(key, cached);
+
+		return cached;
+	}
+
+	const inflight = mediaPreviewInflight.get(key);
+	if (inflight) {
+		return await inflight;
+	}
+
+	const preview = createMediaPreview(path);
+	mediaPreviewInflight.set(key, preview);
+	void preview.then(
+		(value) => {
+			if (mediaPreviewInflight.get(key) !== preview) return;
+
+			mediaPreviewInflight.delete(key);
+			mediaPreviewCache.set(key, value);
+			if (mediaPreviewCache.size > MEDIA_PREVIEW_CACHE_MAX) {
+				const oldestKey = mediaPreviewCache.keys().next().value;
+				if (oldestKey) {
+					mediaPreviewCache.delete(oldestKey);
+				}
+			}
+		},
+		() => {
+			if (mediaPreviewInflight.get(key) === preview) {
+				mediaPreviewInflight.delete(key);
+			}
+		},
+	);
+
+	return await preview;
 }
 
 // Metadata-only dos assets direto numa pasta (não recursivo), do mais recente pro mais antigo.
@@ -78,17 +211,33 @@ async function listAssetsIn(
 // extensão está fora da whitelist do destino ou o arquivo não existe — a rota trata como "não
 // encontrado", então uma rota nunca serve o tipo da outra mesmo se o nome for adivinhado.
 async function readAssetFile(
+	projectRoute: string,
 	dir: string,
 	name: string,
 	mimeByExt: Record<string, string>,
 ): Promise<File | null> {
-	const mime = mimeForAsset(name, mimeByExt);
-	if (!mime) return null;
+	const asset = await resolveAssetFile(projectRoute, dir, name, mimeByExt);
+	if (!asset) return null;
 
-	const file = Bun.file(join(dir, name));
-	if (!(await file.exists())) return null;
+	const file = Bun.file(asset.path);
 
-	return new File([await file.arrayBuffer()], name, { type: mime });
+	return new File([await file.arrayBuffer()], name, { type: asset.mime });
+}
+
+async function readAssetPreview(
+	projectRoute: string,
+	dir: string,
+	name: string,
+	mimeByExt: Record<string, string>,
+): Promise<File | null> {
+	const asset = await resolveAssetFile(projectRoute, dir, name, mimeByExt);
+	if (!asset) return null;
+
+	return new File(
+		[await readCachedMediaPreview(asset.path, asset.mtime, asset.size)],
+		name.replace(/\.[^.]+$/, ".webp"),
+		{ type: "image/webp" },
+	);
 }
 
 async function assertFree(dir: string, name: string): Promise<void> {
@@ -100,15 +249,77 @@ async function assertFree(dir: string, name: string): Promise<void> {
 
 // ---------- medias/ (mídia solta do projeto) ----------
 
-export function listMediaFiles(projectRoute: string): Promise<AssetFileMeta[]> {
-	return listAssetsIn(mediasDir(projectRoute), IMAGE_MIME_BY_EXT);
+export async function listMediaFiles(projectRoute: string): Promise<AssetFileMeta[]> {
+	const dir = mediasDir(projectRoute);
+	const resolvedDir = await resolveAssetDir(projectRoute, dir);
+	if (!resolvedDir) return [];
+
+	return await mediaFilesCache.get(mediaFilesCacheKey(dir), () =>
+		listAssetsIn(resolvedDir, IMAGE_MIME_BY_EXT),
+	);
 }
 
 export function readMediaFile(params: {
 	projectRoute: string;
 	name: string;
 }): Promise<File | null> {
-	return readAssetFile(mediasDir(params.projectRoute), params.name, IMAGE_MIME_BY_EXT);
+	return readAssetFile(
+		params.projectRoute,
+		mediasDir(params.projectRoute),
+		params.name,
+		IMAGE_MIME_BY_EXT,
+	);
+}
+
+export function readMediaPreview(params: {
+	projectRoute: string;
+	name: string;
+}): Promise<File | null> {
+	return readAssetPreview(
+		params.projectRoute,
+		mediasDir(params.projectRoute),
+		params.name,
+		IMAGE_MIME_BY_EXT,
+	);
+}
+
+export async function listTaskMediaFiles(params: {
+	projectRoute: string;
+	folderPath: string;
+}): Promise<AssetFileMeta[]> {
+	const dir = join(params.projectRoute, params.folderPath);
+	const resolvedDir = await resolveAssetDir(params.projectRoute, dir);
+	if (!resolvedDir) return [];
+
+	return await mediaFilesCache.get(mediaFilesCacheKey(dir), () =>
+		listAssetsIn(resolvedDir, IMAGE_MIME_BY_EXT),
+	);
+}
+
+export function readTaskMediaFile(params: {
+	projectRoute: string;
+	folderPath: string;
+	name: string;
+}): Promise<File | null> {
+	return readAssetFile(
+		params.projectRoute,
+		join(params.projectRoute, params.folderPath),
+		params.name,
+		IMAGE_MIME_BY_EXT,
+	);
+}
+
+export function readTaskMediaPreview(params: {
+	projectRoute: string;
+	folderPath: string;
+	name: string;
+}): Promise<File | null> {
+	return readAssetPreview(
+		params.projectRoute,
+		join(params.projectRoute, params.folderPath),
+		params.name,
+		IMAGE_MIME_BY_EXT,
+	);
 }
 
 // Grava uma imagem vinda do clipboard em `.koworker/medias/`. O clipboard não traz nome: o arquivo
@@ -132,6 +343,7 @@ export async function saveMediaFile(params: {
 	}
 
 	await Bun.write(join(dir, name), params.file);
+	invalidateMediaFilesCache(dir);
 
 	const stats = await stat(join(dir, name));
 	return { name, mime: params.file.type, size: stats.size, mtime: stats.mtimeMs };
@@ -141,7 +353,9 @@ export async function deleteMediaFile(params: {
 	projectRoute: string;
 	name: string;
 }): Promise<void> {
-	await rm(join(mediasDir(params.projectRoute), params.name), { force: true });
+	const dir = mediasDir(params.projectRoute);
+	await rm(join(dir, params.name), { force: true });
+	invalidateMediaFilesCache(dir);
 }
 
 export async function renameMediaFile(params: {
@@ -152,6 +366,7 @@ export async function renameMediaFile(params: {
 	const dir = mediasDir(params.projectRoute);
 	await assertFree(dir, params.newName);
 	await rename(join(dir, params.oldName), join(dir, params.newName));
+	invalidateMediaFilesCache(dir);
 }
 
 // ---------- artefatos soltos na pasta da tarefa ----------

@@ -11,6 +11,7 @@ import { joinPath, openFolderInOs } from "@/lib/os-share";
 
 const searchSchema = z.object({
 	projectId: z.string().min(1),
+	taskId: z.string().min(1).optional(),
 });
 
 export const Route = createFileRoute("/_app/media/$fileName/")({
@@ -20,21 +21,21 @@ export const Route = createFileRoute("/_app/media/$fileName/")({
 
 function MediaFilePage() {
 	const { fileName } = Route.useParams();
-	const { projectId } = Route.useSearch();
+	const { projectId, taskId } = Route.useSearch();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { projects } = useProjectFocus();
 
 	const project = projects.find((candidate) => candidate.id === projectId) ?? null;
 
-	const fileQuery = useQuery(
-		orpc.media.readFile.queryOptions({ input: { projectId, name: fileName } }),
-	);
+	const readInput = taskId ? { projectId, taskId, name: fileName } : { projectId, name: fileName };
+	const fileQuery = useQuery({
+		...orpc.media.readFile.queryOptions({ input: readInput }),
+		gcTime: 0,
+	});
 
 	function invalidateMedia() {
-		queryClient.invalidateQueries({
-			predicate: (query) => Array.isArray(query.queryKey[0]) && query.queryKey[0][0] === "media",
-		});
+		queryClient.invalidateQueries({ queryKey: orpc.media.list.key() });
 	}
 
 	const deleteMutation = useMutation({
@@ -42,7 +43,7 @@ function MediaFilePage() {
 		onSuccess: () => {
 			invalidateMedia();
 			toast.success("Arquivo deletado");
-			navigate({ to: "/media" });
+			navigate({ to: "/media", search: { page: 1 } });
 		},
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Falha ao deletar"),
 	});
@@ -61,10 +62,13 @@ function MediaFilePage() {
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Falha ao renomear"),
 	});
 
-	const openInOs = project
-		? () =>
-				void openFolderInOs(joinPath(project.mainRoute, `.koworker/${MEDIAS_DIRNAME}/${fileName}`))
-		: undefined;
+	const openInOs =
+		project && !taskId
+			? () =>
+					void openFolderInOs(
+						joinPath(project.mainRoute, `.koworker/${MEDIAS_DIRNAME}/${fileName}`),
+					)
+			: undefined;
 
 	return (
 		<AssetViewerPage
@@ -72,10 +76,14 @@ function MediaFilePage() {
 			blob={fileQuery.data}
 			isLoading={fileQuery.isLoading}
 			isError={fileQuery.isError}
-			onBack={() => navigate({ to: "/media" })}
+			onBack={() => navigate({ to: "/media", search: { page: 1 } })}
 			onOpenInOs={openInOs}
-			onRename={(newName) => renameMutation.mutate({ projectId, oldName: fileName, newName })}
-			onDelete={() => deleteMutation.mutate({ projectId, name: fileName })}
+			onRename={
+				taskId
+					? undefined
+					: (newName) => renameMutation.mutate({ projectId, oldName: fileName, newName })
+			}
+			onDelete={taskId ? undefined : () => deleteMutation.mutate({ projectId, name: fileName })}
 			deleting={deleteMutation.isPending}
 		/>
 	);

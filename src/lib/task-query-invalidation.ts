@@ -44,6 +44,10 @@ export function shouldInvalidateTaskQuery(query: Query, event: TaskQueryInvalida
 		return matchesProject(input?.projectId, event.projectId);
 	}
 
+	if (root === "media" && procedure === "list") {
+		return matchesProject(input?.projectId, event.projectId);
+	}
+
 	return false;
 }
 

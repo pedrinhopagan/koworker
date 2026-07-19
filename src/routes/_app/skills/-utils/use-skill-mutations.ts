@@ -3,11 +3,6 @@ import { toast } from "sonner";
 
 import { orpc } from "@/client";
 
-// Mutations da página de skill: gravar o arquivo (autosave do corpo + descrição), padronizar as
-// variantes divergentes e remover. `updateContent` é silencioso no sucesso (dispara via debounce do
-// editor); revalida `list` e `get` — `get` é single-slug e o editor é keyado por path, então o
-// refetch na mesma tab não remonta nem atropela o que está sendo digitado. Padronizar e delete
-// avisam porque são ações únicas e destrutivas.
 export function useSkillMutations() {
 	const queryClient = useQueryClient();
 	const invalidateList = () => queryClient.invalidateQueries({ queryKey: orpc.skills.list.key() });
@@ -26,27 +21,17 @@ export function useSkillMutations() {
 		...orpc.skills.standardize.mutationOptions(),
 		onSuccess: (result) => {
 			invalidateAll();
+			const parts = [
+				result.written > 0 &&
+					`${result.written} ${result.written === 1 ? "cópia sobrescrita" : "cópias sobrescritas"}`,
+				result.created > 0 &&
+					`${result.created} ${result.created === 1 ? "cópia criada" : "cópias criadas"}`,
+			].filter(Boolean);
 			toast.success(
-				`Padronizado em ${result.written} ${result.written === 1 ? "cópia" : "cópias"}`,
+				parts.length > 0
+					? `Skill replicada: ${parts.join(" e ")}`
+					: "Todas as cópias já estavam iguais",
 			);
-		},
-		onError: (error: Error) => toast.error(`Erro ao padronizar: ${error.message}`),
-	});
-
-	const replicateMutation = useMutation({
-		...orpc.skills.replicate.mutationOptions(),
-		onSuccess: (result) => {
-			invalidateAll();
-			if (result.written === 0) {
-				toast.success("Já sincronizada em todos os ambientes");
-				return;
-			}
-			const envLabel = result.written === 1 ? "ambiente" : "ambientes";
-			const syncedLabel =
-				result.unchanged > 0
-					? ` (${result.unchanged} já ${result.unchanged === 1 ? "sincronizado" : "sincronizados"})`
-					: "";
-			toast.success(`Replicada em ${result.written} ${envLabel}${syncedLabel}`);
 		},
 		onError: (error: Error) => toast.error(`Erro ao replicar: ${error.message}`),
 	});
@@ -73,7 +58,7 @@ export function useSkillMutations() {
 
 	return {
 		updateContent: (input: {
-			path: string;
+			slug: string;
 			description: string;
 			content: string;
 			metadata: Record<string, unknown>;
@@ -81,8 +66,6 @@ export function useSkillMutations() {
 		standardize: (input: { slug: string; projectName?: string; sourcePath: string }) =>
 			standardizeMutation.mutate(input),
 		standardizing: standardizeMutation.isPending,
-		replicate: (input: { slug: string; projectName?: string }) => replicateMutation.mutate(input),
-		replicating: replicateMutation.isPending,
 		removeSkill: (path: string) => deleteMutation.mutate({ path }),
 		removeAllSkill: (input: { slug: string; projectName?: string }) =>
 			deleteAllMutation.mutate(input),

@@ -1,9 +1,23 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, rm, utimes } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, symlink, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { listMediaFiles, listTaskArtifacts, saveMediaFile } from "./koworker-assets";
+import sharp from "sharp";
+
+import {
+	deleteMediaFile,
+	invalidateMediaFilesCache,
+	listMediaFiles,
+	listTaskArtifacts,
+	listTaskMediaFiles,
+	readMediaPreview,
+	readTaskMediaFile,
+	readTaskMediaPreview,
+	renameMediaFile,
+	saveMediaFile,
+} from "./koworker-assets";
+import { invalidateFolderPrefix } from "./folder-cache";
 
 let projectRoute: string;
 
@@ -53,6 +67,210 @@ describe("saveMediaFile", () => {
 		await expect(saveMediaFile({ projectRoute, file: pdf })).rejects.toThrow(
 			"Tipo de imagem não suportado",
 		);
+	});
+
+	test("invalida a listagem ao salvar, renomear e excluir", async () => {
+		const dir = join(projectRoute, ".koworker", "medias");
+		await mkdir(dir, { recursive: true });
+		await Bun.write(join(dir, "manual.png"), new Uint8Array([1]));
+
+		expect((await listMediaFiles(projectRoute)).map((file) => file.name)).toEqual(["manual.png"]);
+
+		const saved = await saveMediaFile({ projectRoute, file: pngFile() });
+		expect((await listMediaFiles(projectRoute)).map((file) => file.name).sort()).toEqual(
+			["manual.png", saved.name].sort(),
+		);
+
+		await renameMediaFile({ projectRoute, oldName: "manual.png", newName: "renamed.png" });
+		expect((await listMediaFiles(projectRoute)).map((file) => file.name).sort()).toEqual(
+			["renamed.png", saved.name].sort(),
+		);
+
+		await deleteMediaFile({ projectRoute, name: "renamed.png" });
+		expect((await listMediaFiles(projectRoute)).map((file) => file.name)).toEqual([saved.name]);
+	});
+});
+
+describe("task media", () => {
+	test("lista e lê somente imagens diretamente na pasta da tarefa", async () => {
+		const folderPath = ".koworker/task-media";
+		const taskDir = join(projectRoute, folderPath);
+		await mkdir(join(taskDir, "nested"), { recursive: true });
+		await Bun.write(join(taskDir, "captura.png"), new Uint8Array([1, 2, 3]));
+		await Bun.write(join(taskDir, "foto.JPG"), new Uint8Array([4, 5]));
+		await Bun.write(join(taskDir, "index.md"), "# Tarefa");
+		await Bun.write(join(taskDir, "relatorio.pdf"), new Uint8Array([6]));
+		await Bun.write(join(taskDir, "nested", "oculta.png"), new Uint8Array([7]));
+
+		const files = await listTaskMediaFiles({ projectRoute, folderPath });
+		const image = await readTaskMediaFile({
+			projectRoute,
+			folderPath,
+			name: "captura.png",
+		});
+
+		expect(files.map((file) => file.name).sort()).toEqual(["captura.png", "foto.JPG"]);
+		expect(image?.type).toBe("image/png");
+		expect(await image?.arrayBuffer()).toEqual(new Uint8Array([1, 2, 3]).buffer);
+	});
+
+	test("não lê uma imagem apontada por link simbólico", async () => {
+		const folderPath = ".koworker/task-media";
+		const taskDir = join(projectRoute, folderPath);
+		const outside = join(projectRoute, "outside.png");
+		await mkdir(taskDir, { recursive: true });
+		await Bun.write(outside, new Uint8Array([1, 2, 3]));
+		await symlink(outside, join(taskDir, "linked.png"));
+
+		const image = await readTaskMediaFile({
+			projectRoute,
+			folderPath,
+			name: "linked.png",
+		});
+
+		expect(image).toBeNull();
+	});
+
+	test("não lista nem lê uma pasta de tarefa apontada para fora de .koworker", async () => {
+		const folderPath = ".koworker/task-linked";
+		const outside = join(projectRoute, "outside-task");
+		await mkdir(join(projectRoute, ".koworker"), { recursive: true });
+		await mkdir(outside);
+		await Bun.write(join(outside, "secret.png"), new Uint8Array([1, 2, 3]));
+		await symlink(outside, join(projectRoute, folderPath));
+
+		const files = await listTaskMediaFiles({ projectRoute, folderPath });
+		const image = await readTaskMediaFile({
+			projectRoute,
+			folderPath,
+			name: "secret.png",
+		});
+
+		expect(files).toEqual([]);
+		expect(image).toBeNull();
+	});
+
+	test("preserva a listagem em eventos não-imagem e invalida em eventos de imagem", async () => {
+		const folderPath = ".koworker/task-cache";
+		const dir = join(projectRoute, folderPath);
+		await mkdir(dir, { recursive: true });
+		await Bun.write(join(dir, "first.png"), new Uint8Array([1]));
+
+		expect(
+			(await listTaskMediaFiles({ projectRoute, folderPath })).map((file) => file.name),
+		).toEqual(["first.png"]);
+
+		await Bun.write(join(dir, "index.md"), "# Alterada");
+		invalidateFolderPrefix(dir);
+		expect(
+			(await listTaskMediaFiles({ projectRoute, folderPath })).map((file) => file.name),
+		).toEqual(["first.png"]);
+
+		await Bun.write(join(dir, "second.png"), new Uint8Array([2]));
+		invalidateFolderPrefix(dir);
+		expect(
+			(await listTaskMediaFiles({ projectRoute, folderPath })).map((file) => file.name),
+		).toEqual(["first.png"]);
+
+		invalidateMediaFilesCache(dir);
+		expect(
+			(await listTaskMediaFiles({ projectRoute, folderPath })).map((file) => file.name).sort(),
+		).toEqual(["first.png", "second.png"]);
+	});
+});
+
+describe("media previews", () => {
+	test("gera WebP 480x360 ancorado no topo para mídia avulsa", async () => {
+		const dir = join(projectRoute, ".koworker", "medias");
+		const path = join(dir, "captura.png");
+		const pixels = new Uint8Array(480 * 720 * 3);
+		for (let index = 0; index < pixels.length; index += 3) {
+			const isTopHalf = index / 3 < 480 * 360;
+			pixels[index] = isTopHalf ? 255 : 0;
+			pixels[index + 2] = isTopHalf ? 0 : 255;
+		}
+		await mkdir(dir, { recursive: true });
+		await sharp(pixels, { raw: { width: 480, height: 720, channels: 3 } })
+			.png()
+			.toFile(path);
+
+		const preview = await readMediaPreview({ projectRoute, name: "captura.png" });
+		if (!preview) {
+			throw new Error("Preview não gerado");
+		}
+		const bytes = new Uint8Array(await preview.arrayBuffer());
+		const metadata = await sharp(bytes).metadata();
+		const raw = await sharp(bytes).raw().toBuffer();
+
+		expect(preview.name).toBe("captura.webp");
+		expect(preview.type).toBe("image/webp");
+		expect(metadata).toMatchObject({ format: "webp", width: 480, height: 360 });
+		expect(raw[0]).toBeGreaterThan(240);
+		expect(raw[2]).toBeLessThan(15);
+	});
+
+	test("gera preview para imagem direta da pasta da tarefa", async () => {
+		const folderPath = ".koworker/task-preview";
+		const dir = join(projectRoute, folderPath);
+		await mkdir(dir, { recursive: true });
+		await sharp({
+			create: { width: 900, height: 600, channels: 3, background: "#20a060" },
+		})
+			.jpeg()
+			.toFile(join(dir, "tarefa.jpg"));
+
+		const preview = await readTaskMediaPreview({
+			projectRoute,
+			folderPath,
+			name: "tarefa.jpg",
+		});
+		if (!preview) {
+			throw new Error("Preview não gerado");
+		}
+		const metadata = await sharp(await preview.arrayBuffer()).metadata();
+
+		expect(preview.name).toBe("tarefa.webp");
+		expect(preview.type).toBe("image/webp");
+		expect(metadata).toMatchObject({ format: "webp", width: 480, height: 360 });
+	});
+
+	test("invalida o cache quando o mtime muda", async () => {
+		const dir = join(projectRoute, ".koworker", "medias");
+		const path = join(dir, "cache.svg");
+		const stableTime = new Date(Date.now() - 10_000);
+		await mkdir(dir, { recursive: true });
+		await Bun.write(
+			path,
+			'<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="#ff0000"/></svg>',
+		);
+		await utimes(path, stableTime, stableTime);
+
+		const first = await readMediaPreview({ projectRoute, name: "cache.svg" });
+		if (!first) {
+			throw new Error("Preview não gerado");
+		}
+		const firstBytes = new Uint8Array(await first.arrayBuffer());
+
+		await Bun.write(
+			path,
+			'<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="#0000ff"/></svg>',
+		);
+		await utimes(path, stableTime, stableTime);
+
+		const cached = await readMediaPreview({ projectRoute, name: "cache.svg" });
+		if (!cached) {
+			throw new Error("Preview não gerado");
+		}
+		expect(new Uint8Array(await cached.arrayBuffer())).toEqual(firstBytes);
+
+		const changedTime = new Date(stableTime.getTime() + 2_000);
+		await utimes(path, changedTime, changedTime);
+
+		const refreshed = await readMediaPreview({ projectRoute, name: "cache.svg" });
+		if (!refreshed) {
+			throw new Error("Preview não gerado");
+		}
+		expect(new Uint8Array(await refreshed.arrayBuffer())).not.toEqual(firstBytes);
 	});
 });
 

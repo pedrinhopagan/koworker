@@ -9,7 +9,7 @@ import { dbPriorities } from "../db/priorities";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
 import { listTaskAttachments } from "../helpers/koworker-assets";
-import { openInFileManager } from "../helpers/os-actions";
+import { openFileInDefaultApp } from "../helpers/os-actions";
 import {
 	deleteTaskFile,
 	inferTaskStage,
@@ -317,7 +317,7 @@ export const tasksRouter = {
 			throw new Error("Arquivo não encontrado");
 		}
 
-		openInFileManager(join(project.main_route, row.folder_path, input.name));
+		await openFileInDefaultApp(join(project.main_route, row.folder_path, input.name));
 
 		return { ok: true };
 	}),

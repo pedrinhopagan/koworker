@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { copyToClipboard } from "@/lib/build-prompt";
+import { joinPath } from "@/lib/os-share";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { cn } from "@/lib/utils";
@@ -341,6 +342,9 @@ function TaskOverviewPage() {
 										name={indexFile.name}
 										route={`/tarefas/${taskId}/${indexFile.name}`}
 										path={`${task.folderPath}/${indexFile.name}`}
+										absolutePath={
+											share.folderAbs ? joinPath(share.folderAbs, indexFile.name) : undefined
+										}
 										onOpenFolder={share.openInOs}
 										onRename={() => startRename(indexFile.name)}
 										onDelete={() => setDeletingFile(indexFile.name)}
@@ -369,6 +373,9 @@ function TaskOverviewPage() {
 													name={file.name}
 													route={`/tarefas/${taskId}/${file.name}`}
 													path={`${task.folderPath}/${file.name}`}
+													absolutePath={
+														share.folderAbs ? joinPath(share.folderAbs, file.name) : undefined
+													}
 													onOpenFolder={share.openInOs}
 													onRename={() => startRename(file.name)}
 													onDelete={() => setDeletingFile(file.name)}
@@ -428,6 +435,9 @@ function TaskOverviewPage() {
 											key={attachment.name}
 											name={attachment.name}
 											path={`${task.folderPath}/${attachment.name}`}
+											absolutePath={
+												share.folderAbs ? joinPath(share.folderAbs, attachment.name) : undefined
+											}
 											onOpenFolder={share.openInOs}
 											onRename={() => startRename(attachment.name)}
 											onDelete={() => setDeletingFile(attachment.name)}

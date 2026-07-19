@@ -78,9 +78,7 @@ export function usePromptImagePaste(params: {
 					.addImage({ projectId: project.id, name: saved.name });
 				insertAtCaret(imagePlaceholder(index));
 			}
-			queryClient.invalidateQueries({
-				predicate: (query) => Array.isArray(query.queryKey[0]) && query.queryKey[0][0] === "media",
-			});
+			queryClient.invalidateQueries({ queryKey: orpc.media.list.key() });
 		} catch (err: any) {
 			toast.error(err?.message ?? "Não foi possível salvar a imagem");
 		} finally {

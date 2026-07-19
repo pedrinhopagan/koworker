@@ -1,6 +1,5 @@
 import {
 	Check,
-	CopyPlus,
 	FileArchive,
 	FolderOpen,
 	Pin,
@@ -32,7 +31,6 @@ export function SkillSettingsMenu({
 	skill,
 	categories,
 	onAppearance,
-	onReplicate,
 	trigger,
 	open,
 	onOpenChange,
@@ -41,7 +39,6 @@ export function SkillSettingsMenu({
 	skill: { slug: string; categoryId: string | null };
 	categories: SkillCategory[];
 	onAppearance: () => void;
-	onReplicate?: () => void;
 	trigger: ReactNode;
 	open?: boolean;
 	onOpenChange?: (open: boolean) => void;
@@ -94,15 +91,6 @@ export function SkillSettingsMenu({
 						))}
 					</DropdownMenuSubContent>
 				</DropdownMenuSub>
-				{onReplicate && (
-					<>
-						<DropdownMenuSeparator />
-						<DropdownMenuItem onSelect={onReplicate}>
-							<CopyPlus />
-							Replicar em todos os ambientes
-						</DropdownMenuItem>
-					</>
-				)}
 				{docActions && (
 					<>
 						<DropdownMenuSeparator />

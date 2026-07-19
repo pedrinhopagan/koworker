@@ -7,10 +7,10 @@ import {
 	deleteSkillInFs,
 	getSkillFromFs,
 	listSkillsFromFs,
-	replicateSkillInFs,
 	standardizeSkillInFs,
 	updateSkillInFs,
 } from "../helpers/skills-fs";
+import { applySkillSyncInFs, previewSkillSyncInFs } from "../helpers/skills-sync";
 import {
 	SkillCreateSchema,
 	SkillDeleteAllSchema,
@@ -19,9 +19,9 @@ import {
 	SkillListSchema,
 	SkillPathAddSchema,
 	SkillPathRemoveSchema,
-	SkillReplicateSchema,
 	SkillSettingsSchema,
 	SkillStandardizeSchema,
+	SkillSyncSchema,
 	SkillUpdateSchema,
 } from "../schemas/skills";
 
@@ -82,9 +82,9 @@ export const skillsRouter = {
 		return await standardizeSkillInFs(input);
 	}),
 
-	replicate: protectedProcedure.input(SkillReplicateSchema).handler(async ({ input }) => {
-		return await replicateSkillInFs(input);
-	}),
+	syncPlan: protectedProcedure.handler(() => previewSkillSyncInFs()),
+
+	sync: protectedProcedure.input(SkillSyncSchema).handler(({ input }) => applySkillSyncInFs(input)),
 
 	delete: protectedProcedure.input(SkillDeleteSchema).handler(async ({ input }) => {
 		await deleteSkillInFs(input.path);

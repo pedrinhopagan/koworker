@@ -4,7 +4,6 @@ import {
 	Check,
 	ChevronDown,
 	ClipboardCopy,
-	CopyPlus,
 	Loader2,
 	MoreVertical,
 	PencilLine,
@@ -41,7 +40,7 @@ import { openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
-import type { SkillCategory, SkillVariant, TaskSkill } from "@/types/skills";
+import type { SkillCategory, SkillDetail, SkillVariant, TaskSkill } from "@/types/skills";
 import { SkillAppearanceDialog } from "../-components/skill-appearance-dialog";
 import { SkillHeaderActions } from "../-components/skill-header-actions";
 import { useSkillMutations } from "../-utils/use-skill-mutations";
@@ -89,6 +88,7 @@ function SkillPage() {
 			key={skillQuery.skill.slug}
 			skill={skillQuery.skill}
 			variants={skillQuery.variants}
+			missingTools={skillQuery.missingTools}
 			projectName={projectName}
 		/>
 	);
@@ -176,10 +176,12 @@ function SkillCategorySelect({
 function SkillEditor({
 	skill,
 	variants,
+	missingTools,
 	projectName,
 }: {
 	skill: TaskSkill;
 	variants: SkillVariant[];
+	missingTools: SkillDetail["missingTools"];
 	projectName?: string;
 }) {
 	const navigate = useNavigate();
@@ -190,7 +192,6 @@ function SkillEditor({
 	const [editingLabel, setEditingLabel] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [confirmingStandardize, setConfirmingStandardize] = useState(false);
-	const [confirmingReplicate, setConfirmingReplicate] = useState(false);
 	const [appearanceOpen, setAppearanceOpen] = useState(false);
 	const [actionsOpen, setActionsOpen] = useState(false);
 	const [activeVariantPath, setActiveVariantPath] = useState(skill.primaryPath);
@@ -209,16 +210,8 @@ function SkillEditor({
 
 	const settingsMutation = useSkillSettingsMutation();
 	const categoriesQuery = useSkillCategoriesQuery();
-	const {
-		updateContent,
-		standardize,
-		standardizing,
-		replicate,
-		replicating,
-		removeSkill,
-		removeAllSkill,
-		removing,
-	} = useSkillMutations();
+	const { updateContent, standardize, standardizing, removeSkill, removeAllSkill, removing } =
+		useSkillMutations();
 
 	useEffect(() => () => setReading(false), [setReading]);
 
@@ -244,16 +237,13 @@ function SkillEditor({
 		setMetadata(activeVariant?.metadata ?? {});
 	}, [activeVariantPath]);
 
-	// `skills.update` reescreve o arquivo da VARIANTE ATIVA: os três gatilhos (descrição, corpo,
-	// metadados) sempre enviam o trio completo. Descrição e metadados vêm do estado local; o corpo,
-	// ao vivo do editor. Assim um switch de metadado não atropela uma edição de texto pendente.
 	function persist(next: {
 		description: string;
 		content: string;
 		metadata: Record<string, unknown>;
 	}) {
 		return updateContent({
-			path: activeVariantPath,
+			slug: skill.slug,
 			description: next.description,
 			content: next.content,
 			metadata: next.metadata,
@@ -328,20 +318,27 @@ function SkillEditor({
 		navigate({ to: "/skills" });
 	}
 
-	function confirmStandardize() {
-		standardize({ slug: skill.slug, projectName, sourcePath: activeVariantPath });
-		setConfirmingStandardize(false);
-	}
-
 	function changeCategory(categoryId: string | null) {
 		if (categoryId === skill.categoryId) return;
 		settingsMutation.mutate({ slug: skill.slug, categoryId });
 	}
 
-	function confirmReplicate() {
-		replicate({ slug: skill.slug, projectName });
-		setConfirmingReplicate(false);
+	function confirmStandardize() {
+		standardize({ slug: skill.slug, projectName, sourcePath: activeVariantPath });
+		setConfirmingStandardize(false);
 	}
+
+	const activeVariantLabel = activeVariant
+		? `${SKILL_TOOL_LABEL[activeVariant.tool]}${scopeSuffix(activeVariant.scope)}`
+		: "";
+	const standardizeDescription = [
+		variants.length > 1 &&
+			`A versão de “${activeVariantLabel}” será gravada por cima das outras ${variants.length - 1} cópias no disco e as versões divergentes serão perdidas.`,
+		missingTools.length > 0 &&
+			`A skill será criada em: ${missingTools.map((tool) => SKILL_TOOL_LABEL[tool]).join(", ")}.`,
+	]
+		.filter(Boolean)
+		.join(" ");
 
 	const closeActions = () => setActionsOpen(false);
 
@@ -421,17 +418,6 @@ function SkillEditor({
 									<ClipboardCopy className="size-3.5" />
 									Copiar
 								</Button>
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={() => setConfirmingReplicate(true)}
-									disabled={replicating}
-									title="Replicar em todos os ambientes"
-								>
-									<CopyPlus className="size-3.5" />
-									Replicar
-								</Button>
 								<SkillHeaderActions
 									metadata={metadata}
 									pinned={pinned}
@@ -473,15 +459,6 @@ function SkillEditor({
 							/>
 						</div>
 						<DocSheetDivider />
-						<DocSheetActionButton
-							icon={<CopyPlus className="size-[18px]" />}
-							label="Replicar em todos os ambientes"
-							onClick={() => {
-								setConfirmingReplicate(true);
-								closeActions();
-							}}
-							disabled={replicating}
-						/>
 						<DocSheetActionButton
 							icon={<SlidersHorizontal className="size-[18px]" />}
 							label="Aparência"
@@ -531,48 +508,59 @@ function SkillEditor({
 						</div>
 					</div>
 
-					{/* Variantes divergentes: uma tab por cópia (visual das tabs de /tarefas, sem DnD). O
-					    ponto colorido agrupa as idênticas; "Padronizar" sobrescreve as outras com a ativa. */}
-					{hasConflict && (
+					{(hasConflict || missingTools.length > 0) && (
 						<div className="w-full border-b border-border">
 							<div className="mx-auto flex h-8 w-full max-w-6xl items-stretch">
 								<div className="flex min-w-0 flex-1 items-stretch">
-									{variants.map((variant) => {
-										const isActive = variant.path === activeVariantPath;
-										return (
-											<button
-												key={variant.path}
-												type="button"
-												onClick={() => void selectVariant(variant.path)}
-												className={cn(
-													"flex h-full items-center justify-center gap-1.5 border-l border-border px-3 text-xs transition-colors",
-													isActive
-														? "bg-secondary text-foreground"
-														: "text-muted-foreground hover:bg-secondary/50",
-												)}
-												title={variant.path}
-											>
-												<span
+									{!hasConflict && (
+										<div className="flex min-w-0 items-center gap-1.5 px-3 text-xs text-muted-foreground">
+											<TriangleAlert className="size-3.5 shrink-0 text-amber-500" />
+											<span className="truncate">
+												Falta em {missingTools.map((tool) => SKILL_TOOL_LABEL[tool]).join(", ")}
+											</span>
+										</div>
+									)}
+									{hasConflict &&
+										variants.map((variant) => {
+											const isActive = variant.path === activeVariantPath;
+											return (
+												<button
+													key={variant.path}
+													type="button"
+													onClick={() => void selectVariant(variant.path)}
 													className={cn(
-														"size-1.5 shrink-0 rounded-full",
-														GROUP_DOT[variant.group % GROUP_DOT.length],
+														"flex h-full items-center justify-center gap-1.5 border-l border-border px-3 text-xs transition-colors",
+														isActive
+															? "bg-secondary text-foreground"
+															: "text-muted-foreground hover:bg-secondary/50",
 													)}
-													aria-hidden
-												/>
-												<span className="truncate">
-													{SKILL_TOOL_LABEL[variant.tool]}
-													{scopeSuffix(variant.scope)}
-												</span>
-											</button>
-										);
-									})}
+													title={variant.path}
+												>
+													<span
+														className={cn(
+															"size-1.5 shrink-0 rounded-full",
+															GROUP_DOT[variant.group % GROUP_DOT.length],
+														)}
+														aria-hidden
+													/>
+													<span className="truncate">
+														{SKILL_TOOL_LABEL[variant.tool]}
+														{scopeSuffix(variant.scope)}
+													</span>
+												</button>
+											);
+										})}
 								</div>
 								<button
 									type="button"
 									onClick={() => setConfirmingStandardize(true)}
 									disabled={standardizing}
 									className="flex shrink-0 items-center gap-1.5 border-l border-border px-3 text-xs text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground disabled:opacity-50"
-									title="Sobrescrever as outras cópias com esta versão"
+									title={
+										hasConflict
+											? "Sobrescrever as outras cópias e criar nas CLIs que não têm a skill"
+											: "Criar esta skill nas CLIs que ainda não a têm"
+									}
 								>
 									<Check size={14} />
 									Definir como principal
@@ -678,21 +666,11 @@ function SkillEditor({
 				open={confirmingStandardize}
 				onClose={() => setConfirmingStandardize(false)}
 				onConfirm={confirmStandardize}
-				title="Padronizar variantes"
-				description={`A versão de “${activeVariant ? SKILL_TOOL_LABEL[activeVariant.tool] : ""}${activeVariant ? scopeSuffix(activeVariant.scope) : ""}” será gravada por cima das outras ${variants.length - 1} cópias no disco. As versões divergentes serão perdidas.`}
-				confirmLabel="Padronizar"
+				title="Definir como principal"
+				description={standardizeDescription}
+				confirmLabel="Confirmar"
 				variant="danger"
 				loading={standardizing}
-			/>
-
-			<ConfirmDialog
-				open={confirmingReplicate}
-				onClose={() => setConfirmingReplicate(false)}
-				onConfirm={confirmReplicate}
-				title="Replicar em todos os ambientes"
-				description={`“${skill.label}” será copiada para opencode, Claude Code, Codex e Agents, sobrescrevendo cópias divergentes com a versão principal.`}
-				confirmLabel="Replicar"
-				loading={replicating}
 			/>
 		</div>
 	);

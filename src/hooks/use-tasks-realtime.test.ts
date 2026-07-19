@@ -58,6 +58,27 @@ describe("shouldInvalidateTaskEventQuery", () => {
 		expect(matchedKeys(queryClient)).toEqual([]);
 	});
 
+	test("invalida a galeria de mídia do projeto alterado", () => {
+		const queryClient = new QueryClient();
+		const affectedMedia = orpc.media.list.queryOptions({
+			input: { projectId: "project-1" },
+		});
+		const aggregateMedia = orpc.media.list.queryOptions({ input: {} });
+		const otherMedia = orpc.media.list.queryOptions({
+			input: { projectId: "project-2" },
+		});
+
+		for (const query of [affectedMedia, aggregateMedia, otherMedia]) {
+			registerQuery(queryClient, query.queryKey);
+		}
+
+		const matches = matchedKeys(queryClient);
+
+		expect(matches).toContain(hashKey(affectedMedia.queryKey));
+		expect(matches).toContain(hashKey(aggregateMedia.queryKey));
+		expect(matches).not.toContain(hashKey(otherMedia.queryKey));
+	});
+
 	test("usa o projeto do dado em cache quando o watcher não informa taskId", () => {
 		const queryClient = new QueryClient();
 		const affectedTask = orpc.tasks.getFull.queryOptions({ input: { id: "task-1" } });

@@ -76,10 +76,12 @@ export function useSkillQuery(slug: string, projectName?: string, options?: { en
 		[query.data, categoryColors],
 	);
 	const variants = query.data?.variants ?? [];
+	const missingTools = query.data?.missingTools ?? [];
 
 	return {
 		...query,
 		skill,
 		variants,
+		missingTools,
 	};
 }

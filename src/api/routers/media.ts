@@ -1,10 +1,15 @@
 import { protectedProcedure } from "../auth/context";
 import { dbProjects } from "../db/projects";
+import { dbTasks } from "../db/tasks";
 import {
 	type AssetFileMeta,
 	deleteMediaFile,
 	listMediaFiles,
+	listTaskMediaFiles,
 	readMediaFile,
+	readMediaPreview,
+	readTaskMediaFile,
+	readTaskMediaPreview,
 	renameMediaFile,
 	saveMediaFile,
 } from "../helpers/koworker-assets";
@@ -15,12 +20,15 @@ import {
 	MediaRenameSchema,
 	MediaUploadSchema,
 } from "../schemas";
+import { mapTasks } from "./tasks";
 
-// Mídia solta de `.koworker/medias/`, marcada com o projeto de origem. Em "Todos os projetos" o
-// projectId de cada entry é o discriminador que a UI usa pra abrir o arquivo no projeto certo.
+const MEDIA_TASK_SCAN_BATCH_SIZE = 16;
+
 type MediaEntry = AssetFileMeta & {
 	projectId: string;
 	projectName: string;
+	taskId: string | null;
+	taskTitle: string | null;
 };
 
 async function readProjectMedia(project: {
@@ -28,12 +36,60 @@ async function readProjectMedia(project: {
 	name: string;
 	main_route: string;
 }): Promise<MediaEntry[]> {
-	const files = await listMediaFiles(project.main_route);
-	// Muta em vez de espalhar: cada meta é criada fresca em listMediaFiles, então anexar a origem
-	// no lugar é seguro (e o que o oxlint no-map-spread pede).
-	return files.map((file) =>
-		Object.assign(file, { projectId: project.id, projectName: project.name }),
-	);
+	const tasks = await dbTasks.listByProject({ projectId: project.id });
+	const projectFiles = await listMediaFiles(project.main_route);
+	const taskFiles: {
+		task: (typeof tasks)[number];
+		files: AssetFileMeta[];
+	}[] = [];
+
+	for (let index = 0; index < tasks.length; index += MEDIA_TASK_SCAN_BATCH_SIZE) {
+		taskFiles.push(
+			...(await Promise.all(
+				tasks.slice(index, index + MEDIA_TASK_SCAN_BATCH_SIZE).map(async (task) => ({
+					task,
+					files: await listTaskMediaFiles({
+						projectRoute: project.main_route,
+						folderPath: task.folder_path,
+					}),
+				})),
+			)),
+		);
+	}
+
+	const entries: MediaEntry[] = projectFiles.map((file) => ({
+		name: file.name,
+		mime: file.mime,
+		size: file.size,
+		mtime: file.mtime,
+		projectId: project.id,
+		projectName: project.name,
+		taskId: null,
+		taskTitle: null,
+	}));
+
+	const tasksWithFiles = taskFiles.filter(({ files }) => files.length > 0);
+	const mappedTasks = await mapTasks(tasksWithFiles.map(({ task }) => task));
+
+	for (const [index, { files }] of tasksWithFiles.entries()) {
+		const task = mappedTasks[index];
+		if (!task) continue;
+
+		for (const file of files) {
+			entries.push({
+				name: file.name,
+				mime: file.mime,
+				size: file.size,
+				mtime: file.mtime,
+				projectId: project.id,
+				projectName: project.name,
+				taskId: task.id,
+				taskTitle: task.displayTitle,
+			});
+		}
+	}
+
+	return entries.sort((a, b) => b.mtime - a.mtime);
 }
 
 export const mediaRouter = {
@@ -47,7 +103,10 @@ export const mediaRouter = {
 		}
 
 		const projects = await dbProjects.getAll();
-		const parts = await Promise.all(projects.map(readProjectMedia));
+		const parts: MediaEntry[][] = [];
+		for (const project of projects) {
+			parts.push(await readProjectMedia(project));
+		}
 
 		return { entries: parts.flat() };
 	}),
@@ -58,7 +117,39 @@ export const mediaRouter = {
 		const project = await dbProjects.getById(input.projectId);
 		if (!project) throw new Error("Projeto não encontrado");
 
-		const file = await readMediaFile({ projectRoute: project.main_route, name: input.name });
+		const task = input.taskId ? await dbTasks.getById(input.taskId) : null;
+		if (input.taskId && (!task || task.project_id !== project.id)) {
+			throw new Error("Tarefa não encontrada");
+		}
+
+		const file = task
+			? await readTaskMediaFile({
+					projectRoute: project.main_route,
+					folderPath: task.folder_path,
+					name: input.name,
+				})
+			: await readMediaFile({ projectRoute: project.main_route, name: input.name });
+		if (!file) throw new Error("Arquivo não encontrado");
+
+		return file;
+	}),
+
+	readPreview: protectedProcedure.input(MediaReadFileSchema).handler(async ({ input }) => {
+		const project = await dbProjects.getById(input.projectId);
+		if (!project) throw new Error("Projeto não encontrado");
+
+		const task = input.taskId ? await dbTasks.getById(input.taskId) : null;
+		if (input.taskId && (!task || task.project_id !== project.id)) {
+			throw new Error("Tarefa não encontrada");
+		}
+
+		const file = task
+			? await readTaskMediaPreview({
+					projectRoute: project.main_route,
+					folderPath: task.folder_path,
+					name: input.name,
+				})
+			: await readMediaPreview({ projectRoute: project.main_route, name: input.name });
 		if (!file) throw new Error("Arquivo não encontrado");
 
 		return file;

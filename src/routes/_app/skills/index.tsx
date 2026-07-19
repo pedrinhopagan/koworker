@@ -6,6 +6,7 @@ import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useSkillCategoriesQuery } from "@/hooks/use-skill-categories";
 import { useSkillsQuery } from "@/hooks/use-skills";
 import { SkillsGrid } from "./-components/skills-grid";
+import { SkillsSyncAction } from "./-components/skills-sync-dialog";
 
 export const Route = createFileRoute("/_app/skills/")({
 	component: SkillsPage,
@@ -21,13 +22,13 @@ function SkillsPage() {
 			title="Skills"
 			description="Skills encontradas nas pastas do opencode, Claude Code, Codex e Agents"
 			icon={Book}
+			actions={<SkillsSyncAction />}
 		>
 			<div className="h-full min-h-0 pb-4">
 				<SkillsGrid
 					skills={skillsQuery.taskSkills}
 					categories={categoriesQuery.data ?? []}
 					loading={skillsQuery.isLoading}
-					projectName={selectedProject?.name}
 				/>
 			</div>
 		</PageShell>

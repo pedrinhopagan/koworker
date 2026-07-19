@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import { PrinciplesFindings } from "@/components/principles/principles-findings";
 import { Text } from "@/components/typography";
 import { Chip } from "@/components/ui/chip";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
@@ -15,7 +14,6 @@ import { lintPrinciples } from "@/lib/principles/lint";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
 import type { SkillCategory, TaskSkill } from "@/types/skills";
-import { useSkillMutations } from "../-utils/use-skill-mutations";
 import { SkillAppearanceDialog } from "./skill-appearance-dialog";
 import { SkillCategoryCreateButton, SkillCategoryHeader } from "./skill-categories-controls";
 import { SkillCreateTile } from "./skill-create-tile";
@@ -32,10 +30,9 @@ type SkillsGridProps = {
 	skills: TaskSkill[];
 	categories: SkillCategory[];
 	loading: boolean;
-	projectName?: string;
 };
 
-export function SkillsGrid({ skills, categories, loading, projectName }: SkillsGridProps) {
+export function SkillsGrid({ skills, categories, loading }: SkillsGridProps) {
 	const [search, setSearch] = useState("");
 	const [categoryFilter, setCategoryFilter] = useState<string>("all");
 	const [appearanceSlug, setAppearanceSlug] = useState<string | null>(null);
@@ -233,7 +230,6 @@ export function SkillsGrid({ skills, categories, loading, projectName }: SkillsG
 													skill={skill}
 													index={index}
 													categories={categories}
-													projectName={projectName}
 													onAppearance={() => setAppearanceSlug(skill.slug)}
 												/>
 											))}
@@ -266,15 +262,12 @@ type SkillTileProps = {
 	skill: TaskSkill;
 	index: number;
 	categories: SkillCategory[];
-	projectName?: string;
 	onAppearance: () => void;
 };
 
-function SkillTile({ skill, index, categories, projectName, onAppearance }: SkillTileProps) {
+function SkillTile({ skill, index, categories, onAppearance }: SkillTileProps) {
 	const navigate = useNavigate();
 	const [menuOpen, setMenuOpen] = useState(false);
-	const [confirmingReplicate, setConfirmingReplicate] = useState(false);
-	const { replicate, replicating } = useSkillMutations();
 	const findings = useMemo(
 		() =>
 			lintPrinciples({
@@ -327,7 +320,6 @@ function SkillTile({ skill, index, categories, projectName, onAppearance }: Skil
 				skill={skill}
 				categories={categories}
 				onAppearance={onAppearance}
-				onReplicate={() => setConfirmingReplicate(true)}
 				open={menuOpen}
 				onOpenChange={setMenuOpen}
 				docActions={{
@@ -386,19 +378,6 @@ function SkillTile({ skill, index, categories, projectName, onAppearance }: Skil
 					</span>
 				</div>
 			</div>
-
-			<ConfirmDialog
-				open={confirmingReplicate}
-				onClose={() => setConfirmingReplicate(false)}
-				onConfirm={() => {
-					replicate({ slug: skill.slug, projectName });
-					setConfirmingReplicate(false);
-				}}
-				title="Replicar em todos os ambientes"
-				description={`“${skill.label}” será copiada para opencode, Claude Code, Codex e Agents, sobrescrevendo cópias divergentes com a versão principal.`}
-				confirmLabel="Replicar"
-				loading={replicating}
-			/>
 		</div>
 	);
 }

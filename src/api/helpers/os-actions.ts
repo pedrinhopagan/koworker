@@ -1,6 +1,6 @@
 import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join } from "node:path";
+import { basename, dirname, extname, isAbsolute, join } from "node:path";
 
 import { getSystemSettings } from "./system-settings";
 import { zipDirectory } from "./zip";
@@ -43,6 +43,64 @@ function resolveInput(raw: string, base: string): string {
 export function openInFileManager(path: string): void {
 	const target = expandTilde(path);
 	Bun.spawn([fileManagerOpener(), target], { stdout: "ignore", stderr: "ignore" });
+}
+
+const MIME_BY_EXTENSION: Record<string, string> = {
+	".html": "text/html",
+	".pdf": "application/pdf",
+};
+
+async function defaultAppWindowClass(mime: string): Promise<string | null> {
+	const proc = Bun.spawn(["xdg-mime", "query", "default", mime], {
+		stdout: "pipe",
+		stderr: "ignore",
+	});
+	const desktopId = (await new Response(proc.stdout).text()).trim();
+	if (!desktopId) {
+		return null;
+	}
+
+	for (const dir of [join(HOME, ".local/share/applications"), "/usr/share/applications"]) {
+		const entry = await Bun.file(join(dir, desktopId))
+			.text()
+			.catch(() => null);
+		const exec = entry?.match(/^Exec=(\S+)/m)?.[1];
+
+		if (exec) {
+			return basename(exec);
+		}
+	}
+
+	return null;
+}
+
+// O xdg-open só entrega a URL pro app já aberto; no Wayland a prevenção de roubo de foco do KWin
+// impede a janela de subir sozinha, então ativamos ela explicitamente via kdotool (best-effort:
+// só Linux/KDE, e silencioso quando a ferramenta ou o .desktop não existem).
+async function focusDefaultApp(ext: string): Promise<void> {
+	const mime = MIME_BY_EXTENSION[ext];
+	if (process.platform !== "linux" || !mime) {
+		return;
+	}
+
+	try {
+		const windowClass = await defaultAppWindowClass(mime);
+		if (!windowClass) {
+			return;
+		}
+
+		Bun.spawn(["kdotool", "search", "--class", windowClass, "windowactivate"], {
+			stdout: "ignore",
+			stderr: "ignore",
+		});
+	} catch {}
+}
+
+export async function openFileInDefaultApp(path: string): Promise<void> {
+	const target = expandTilde(path);
+	Bun.spawn([fileManagerOpener(), target], { stdout: "ignore", stderr: "ignore" });
+
+	await focusDefaultApp(extname(target).toLowerCase());
 }
 
 // Compacta a pasta num `.zip` temporário e copia o arquivo pro clipboard (best-effort Linux). O zip

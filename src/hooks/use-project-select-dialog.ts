@@ -20,7 +20,7 @@ export function useProjectSelectDialog() {
 
 	useEffect(() => {
 		function handleKeyDown(e: KeyboardEvent) {
-			if (!e.altKey || e.code !== "KeyP") {
+			if (!e.altKey || (e.code !== "KeyP" && e.code !== "Escape")) {
 				return;
 			}
 
