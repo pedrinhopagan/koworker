@@ -223,6 +223,8 @@ function CustomSelect<T extends { id: string }>({
 									<SelectPrimitive.Item
 										key={item.id}
 										value={item.id}
+										data-component="custom-select-item"
+										data-value={item.id}
 										data-slot="custom-select-item"
 										className={cn(customSelectItemVariants(), itemClassName?.(item))}
 									>

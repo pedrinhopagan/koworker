@@ -4,6 +4,7 @@ import { RPCLink as WsLink } from "@orpc/client/websocket";
 import type { InferRouterInputs, InferRouterOutputs, RouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { getAppEnv } from "@/lib/env";
+import { createResilientWebSocket } from "@/lib/resilient-websocket";
 import { DEFAULT_KOWORK_API_ORIGIN, resolveApiOrigin } from "@/lib/runtime-config";
 import { isTauri } from "@/lib/tauri";
 import type { API, WsAPI } from "./server";
@@ -29,7 +30,7 @@ const wsBase = new URL(apiOrigin);
 wsBase.protocol = wsBase.protocol.replace("http", "ws");
 
 const wsLink = new WsLink({
-	websocket: new WebSocket(new URL("/ws", wsBase).href),
+	websocket: createResilientWebSocket(new URL("/ws", wsBase).href),
 });
 
 const httpClient: RouterClient<API> = createORPCClient(httpLink);

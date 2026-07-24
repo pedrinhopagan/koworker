@@ -4,6 +4,7 @@ import { orpc } from "@/client";
 import { buildKoworkerPrompt, convertSkillCallsForCli, flattenPrompt } from "@/lib/build-prompt";
 import { buildClaudeCommand } from "@/lib/claude-command";
 import { buildCodexCommand } from "@/lib/codex-command";
+import { newClientRequestId } from "@/lib/client-request-id";
 import { recordPromptHistory } from "@/lib/prompt-history";
 import { isTauri } from "@/lib/tauri";
 import { executeInTerminal, type ProjectInfo } from "@/lib/terminal";
@@ -118,7 +119,7 @@ export function runInvocation(params: { project: ProjectInfo; request: InvokeReq
 	} else {
 		void orpc.prompt.execute
 			.call({
-				clientRequestId: crypto.randomUUID(),
+				clientRequestId: newClientRequestId(),
 				projectId: project.id,
 				...(request.taskId ? { taskId: request.taskId } : {}),
 				prompt,

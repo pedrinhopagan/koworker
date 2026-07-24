@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { buildClaudeCommand } from "./claude-command";
+import { buildClaudeCommand, buildClaudePrintArgs } from "./claude-command";
 
 test("permissionMode bypass usa o atalho --dangerously-skip-permissions", () => {
 	expect(buildClaudeCommand({ prompt: "oi", permissionMode: "bypass" })).toBe(
@@ -36,4 +36,28 @@ test("background usa modo print sem sessão interativa", () => {
 	expect(
 		buildClaudeCommand({ prompt: "/mobile faça", permissionMode: "bypass", headless: true }),
 	).toBe('claude -p --dangerously-skip-permissions "/mobile faça"');
+});
+
+test("execução headless cria e retoma sessões identificadas", () => {
+	expect(
+		buildClaudePrintArgs({
+			prompt: "primeiro turno",
+			permissionMode: "bypass",
+			sessionId: "run-1",
+		}),
+	).toEqual([
+		"claude",
+		"-p",
+		"--dangerously-skip-permissions",
+		"--session-id",
+		"run-1",
+		"primeiro turno",
+	]);
+	expect(
+		buildClaudePrintArgs({
+			prompt: "segundo turno",
+			permissionMode: "bypass",
+			resumeSessionId: "run-1",
+		}),
+	).toContain("--resume");
 });

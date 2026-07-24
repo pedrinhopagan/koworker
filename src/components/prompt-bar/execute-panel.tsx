@@ -23,11 +23,13 @@ import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 
 export function ExecutePanel({
+	projectId,
 	projectName,
 	routePath,
 	taskId,
 	nextStage,
 }: {
+	projectId?: string;
 	projectName?: string;
 	routePath: string | null;
 	taskId?: string;
@@ -40,7 +42,14 @@ export function ExecutePanel({
 	const patchCodexSession = usePromptBarStore((s) => s.patchCodexSession);
 
 	const { promptPreview, canExecute, isRunning, elapsedLabel, output, error, handleExecute } =
-		usePromptExecution({ projectName, routePath, taskId, nextStage, active: executeOpen });
+		usePromptExecution({
+			projectId,
+			projectName,
+			routePath,
+			taskId,
+			nextStage,
+			active: executeOpen,
+		});
 
 	return (
 		<div className="flex flex-col gap-2">

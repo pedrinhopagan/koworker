@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 
 import { protectedProcedure } from "../auth/context";
+import { KOWORK_STORAGE_RELEASE } from "@/constants/release";
 import {
 	browseDirectory,
 	openInFileManager,
@@ -17,6 +18,28 @@ import {
 import { BrowseDirectorySchema, OsPathSchema } from "../schemas/system";
 
 export const systemRouter = {
+	version: protectedProcedure.handler(() => {
+		const cli = Bun.spawnSync(["kw-cli", "version", "--json"], {
+			stdout: "pipe",
+			stderr: "ignore",
+		});
+		let cliRelease: string | null = null;
+		if (cli.exitCode === 0) {
+			try {
+				const parsed = JSON.parse(cli.stdout.toString()) as { storageRelease?: string };
+				cliRelease = parsed.storageRelease || null;
+			} catch {
+				cliRelease = null;
+			}
+		}
+
+		return {
+			storageRelease: KOWORK_STORAGE_RELEASE,
+			cliRelease,
+			compatible: cliRelease === KOWORK_STORAGE_RELEASE,
+		};
+	}),
+
 	capabilities: protectedProcedure.handler(() => systemCapabilities()),
 
 	browseDirectory: protectedProcedure

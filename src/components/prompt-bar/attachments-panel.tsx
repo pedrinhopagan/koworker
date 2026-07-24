@@ -21,13 +21,16 @@ import { usePromptBarStore } from "@/stores/prompt-bar";
 const ENGINE_LABELS: Record<PromptEngine, string> = {
 	opus: "Opus",
 	sonnet: "Sonnet",
+	"gpt-5.6-sol": "GPT-5.6 Sol",
+	"gpt-5.6-terra": "GPT-5.6 Terra",
+	"gpt-5.6-luna": "GPT-5.6 Lua",
 	"gpt-5.5": "GPT-5.5",
 };
 
 const ENGINE_OPTIONS: InvokeOption[] = PROMPT_ENGINES.map((value) => ({
 	value,
 	label: ENGINE_LABELS[value],
-	hint: value === "gpt-5.5" ? "roda headless via codex" : "roda headless via claude",
+	hint: value.startsWith("gpt-") ? `codex -m ${value}` : "roda headless via claude",
 }));
 
 const EFFORT_LABELS: Record<PromptEngineEffort, string> = {

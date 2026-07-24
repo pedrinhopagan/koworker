@@ -12,7 +12,9 @@ import {
 	convertSkillCallsForCli,
 	flattenPrompt,
 } from "@/lib/build-prompt";
+import { newClientRequestId } from "@/lib/client-request-id";
 import { type InvokeTarget, planInvocation } from "@/lib/invoke";
+import { isNotFoundError } from "@/lib/orpc-errors";
 import { recordPromptHistory } from "@/lib/prompt-history";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 import type { TaskStage } from "@/constants/complexity";
@@ -43,13 +45,14 @@ function formatElapsed(ms: number): string {
 }
 
 export function usePromptExecution(params: {
+	projectId?: string;
 	projectName?: string;
 	routePath: string | null;
 	taskId?: string;
 	nextStage?: TaskStage | null;
 	active: boolean;
 }) {
-	const { projectName, routePath, active } = params;
+	const { projectId, routePath, active } = params;
 
 	// Com o painel fechado o preview não aparece: assinar "" mantém o seletor estável e nenhuma tecla
 	// re-renderiza o painel. Aberto, o deferred deixa o React priorizar a digitação sobre o preview.
@@ -67,7 +70,7 @@ export function usePromptExecution(params: {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
-	const project = projectsQuery.data?.find((p) => p.name === projectName);
+	const project = projectsQuery.data?.find((entry) => entry.id === projectId);
 
 	const effectiveRoute = interactWithRoute ? routePath : null;
 	const effectiveText = interactWithInput
@@ -108,15 +111,26 @@ export function usePromptExecution(params: {
 	const [elapsedMs, setElapsedMs] = useState(0);
 	const startedAtRef = useRef<number | null>(null);
 	const lastNotified = useRef<LiveEvent["status"] | null>(null);
+	// Reenviar o mesmo prompt reaproveita o identificador: o servidor devolve o run existente em vez
+	// de despachar o agente de novo.
+	const requestId = useRef(newClientRequestId());
 
+	// O celular perde rede o tempo todo: parar o polling no primeiro erro deixava a tela presa para
+	// sempre. Só um NOT_FOUND (o registro sumiu do banco) encerra o acompanhamento; qualquer outra
+	// falha é transitória e o polling continua tentando.
 	const statusQuery = useQuery({
 		...orpc.prompt.runStatus.queryOptions({ input: { runId: runId ?? "" } }),
 		enabled: !!runId,
+		retry: (failureCount, error) => !isNotFoundError(error) && failureCount < 3,
 		refetchInterval: (query) => {
-			if (query.state.status === "error") {
+			if (isNotFoundError(query.state.error)) {
 				return false;
 			}
-			return query.state.data?.status === "running" ? 5000 : false;
+			if (!query.state.data || query.state.data.status === "running") {
+				return 5000;
+			}
+
+			return false;
 		},
 	});
 
@@ -128,6 +142,7 @@ export function usePromptExecution(params: {
 			setLive({ runId: result.runId, status: "started" });
 			startedAtRef.current = Date.now();
 			setElapsedMs(0);
+			requestId.current = newClientRequestId();
 		},
 		onError: (err) =>
 			toast.error(err instanceof Error ? err.message : "Não foi possível iniciar a execução"),
@@ -164,7 +179,8 @@ export function usePromptExecution(params: {
 
 	const record = statusQuery.data;
 	// Um run que o backend não reconhece mais é uma execução interrompida, não uma execução viva.
-	const runLost = !!runId && statusQuery.isError;
+	// Falha de rede não conta: o run segue vivo do outro lado e o polling volta sozinho.
+	const runLost = !!runId && isNotFoundError(statusQuery.error);
 	// O evento terminal do WebSocket pode se perder (run que falha em milissegundos termina antes da
 	// assinatura), deixando `live` preso em "started". O status terminal vindo do polling do banco
 	// precisa vencer esse "started" antigo — senão o spinner nunca fecha.
@@ -232,7 +248,7 @@ export function usePromptExecution(params: {
 		const permissionMode = cli === "claude" ? invoke.claude.permissionMode : undefined;
 
 		executeMutation.mutate({
-			clientRequestId: crypto.randomUUID(),
+			clientRequestId: requestId.current,
 			projectId: project.id,
 			...(params.taskId ? { taskId: params.taskId } : {}),
 			prompt: promptPreview,

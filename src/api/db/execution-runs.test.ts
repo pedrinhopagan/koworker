@@ -28,10 +28,14 @@ beforeAll(async () => {
 			display_order: 0,
 			main_route: "/tmp/project-execution-runs",
 			hide_terminal: 0,
+			task_layout_version: 1,
 			created_at: 1,
 		})
 		.execute();
 	await sql`CREATE UNIQUE INDEX execution_runs_user_request_test_idx ON execution_runs (user_id, client_request_id) WHERE client_request_id IS NOT NULL`.execute(
+		db,
+	);
+	await sql`CREATE UNIQUE INDEX execution_runs_running_session_test_idx ON execution_runs (cli_session_id) WHERE cli_session_id IS NOT NULL AND status = 'running' AND deleted_at IS NULL`.execute(
 		db,
 	);
 });
@@ -108,5 +112,98 @@ describe("dbExecutionRuns", () => {
 		expect(await dbExecutionRuns.getByIdForUser("run-1", 1)).toBeUndefined();
 		expect(await dbExecutionRuns.getByRequestIdForUser("request-1", 1)).toBeDefined();
 		expect(await dbExecutionRuns.getByIdForUser("run-2", 2)).toBeDefined();
+	});
+
+	test("impede duas continuações simultâneas da mesma sessão", async () => {
+		await dbExecutionRuns.create({
+			id: "run-continuation-1",
+			user_id: 1,
+			project_id: "project-execution-runs",
+			kind: "prompt",
+			title: "Continuação 1",
+			status: "running",
+			cli_session_id: "session-1",
+			started_at: 5,
+			updated_at: 5,
+		});
+
+		let error: unknown;
+		try {
+			await dbExecutionRuns.create({
+				id: "run-continuation-2",
+				user_id: 1,
+				project_id: "project-execution-runs",
+				kind: "prompt",
+				title: "Continuação 2",
+				status: "running",
+				cli_session_id: "session-1",
+				started_at: 6,
+				updated_at: 6,
+			});
+		} catch (caught) {
+			error = caught;
+		}
+
+		expect(error).toBeInstanceOf(Error);
+	});
+
+	test("lista como parada a execução sem sinal de vida e a que estourou o teto", async () => {
+		const now = Date.now();
+		await dbExecutionRuns.create({
+			id: "run-heartbeat-vivo",
+			user_id: 1,
+			project_id: "project-execution-runs",
+			kind: "prompt",
+			title: "Viva",
+			status: "running",
+			started_at: now,
+			updated_at: now,
+			heartbeat_at: now,
+		});
+		await dbExecutionRuns.create({
+			id: "run-heartbeat-morto",
+			user_id: 1,
+			project_id: "project-execution-runs",
+			kind: "prompt",
+			title: "Sem sinal",
+			status: "running",
+			started_at: now,
+			updated_at: now,
+			heartbeat_at: now - 120_000,
+		});
+		await dbExecutionRuns.create({
+			id: "run-estourado",
+			user_id: 1,
+			project_id: "project-execution-runs",
+			kind: "prompt",
+			title: "Estourada",
+			status: "running",
+			started_at: now - 60 * 60_000,
+			updated_at: now,
+			heartbeat_at: now,
+		});
+
+		const stale = (
+			await dbExecutionRuns.listStale({
+				heartbeatBefore: now - 90_000,
+				startedBefore: now - 45 * 60_000,
+			})
+		).map((run) => run.id);
+
+		expect(stale).toContain("run-heartbeat-morto");
+		expect(stale).toContain("run-estourado");
+		expect(stale).not.toContain("run-heartbeat-vivo");
+	});
+
+	test("renova o sinal de vida apenas das execuções em andamento", async () => {
+		await dbExecutionRuns.update("run-heartbeat-morto", { status: "failed" });
+		await dbExecutionRuns.touchHeartbeat(["run-heartbeat-vivo", "run-heartbeat-morto"]);
+
+		const [alive, finished] = await Promise.all([
+			dbExecutionRuns.getByIdForUser("run-heartbeat-vivo", 1),
+			dbExecutionRuns.getByIdForUser("run-heartbeat-morto", 1),
+		]);
+
+		expect(alive?.heartbeat_at).toBeGreaterThan(finished?.heartbeat_at ?? 0);
 	});
 });

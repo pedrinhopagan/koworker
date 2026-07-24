@@ -1,20 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import { Ban, ChevronRight, Clock3, Loader2, RotateCcw, TerminalSquare } from "lucide-react";
+import { ArrowUpRight, Ban, Clock3, Loader2, RotateCcw, TerminalSquare } from "lucide-react";
 
 import type { RouterOutputs } from "@/client";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
+import { EXECUTION_STATUS_LABELS } from "@/constants/execution";
 import { cn } from "@/lib/utils";
 
 type Run = RouterOutputs["prompt"]["listRuns"][number];
-
-const STATUS_LABELS = {
-	running: "Em execução",
-	done: "Concluída",
-	failed: "Falhou",
-	timeout: "Tempo esgotado",
-	cancelled: "Cancelada",
-} as const;
 
 export function ExecutionRunCard({
 	run,
@@ -62,11 +55,12 @@ export function ExecutionRunCard({
 								running && "border-primary text-primary",
 							)}
 						>
-							{STATUS_LABELS[run.status]}
+							{EXECUTION_STATUS_LABELS[run.status]}
 						</span>
 					</div>
 					<Text size="xs" tone="muted">
-						{run.projectName} · {new Date(run.startedAt).toLocaleString("pt-BR")}
+						{run.projectName} · {run.cli === "codex" ? "Codex" : "Claude"}
+						{run.model && ` · ${run.model}`} · {new Date(run.startedAt).toLocaleString("pt-BR")}
 					</Text>
 				</div>
 				{running && onCancel ? (
@@ -94,22 +88,6 @@ export function ExecutionRunCard({
 			</div>
 			<div className="p-3.5">
 				<Text className="line-clamp-2 text-sm">{run.originalPrompt ?? run.prompt}</Text>
-				{run.output && active && (
-					<pre className="mt-3 max-h-52 overflow-auto border-l-2 border-primary bg-muted/40 p-3 font-mono text-xs whitespace-pre-wrap">
-						{run.output}
-					</pre>
-				)}
-				{run.output && !active && (
-					<details className="group mt-3 border-l-2 border-border bg-muted/30">
-						<summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 px-3 text-xs font-bold focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-							Ver resultado
-							<ChevronRight className="size-4 transition-transform group-open:rotate-90" />
-						</summary>
-						<pre className="max-h-52 overflow-auto border-t border-border p-3 font-mono text-xs whitespace-pre-wrap">
-							{run.output}
-						</pre>
-					</details>
-				)}
 				{run.error && <Text className="mt-3 text-sm text-destructive">{run.error}</Text>}
 				<div className="mt-3 flex items-center justify-between gap-3">
 					<Text size="xs" tone="muted" className="flex items-center gap-1">
@@ -118,15 +96,25 @@ export function ExecutionRunCard({
 							? `${Math.max(1, Math.round((run.finishedAt - run.startedAt) / 1000))}s`
 							: "agora"}
 					</Text>
-					{run.taskId && (
+					<div className="flex items-center gap-3">
+						{run.taskId && (
+							<Link
+								to="/tarefas/$taskId"
+								params={{ taskId: run.taskId }}
+								className="text-xs font-bold text-muted-foreground hover:text-foreground hover:underline"
+							>
+								Tarefa
+							</Link>
+						)}
 						<Link
-							to="/tarefas/$taskId"
-							params={{ taskId: run.taskId }}
-							className="text-xs font-bold text-primary hover:underline"
+							to="/executar/$executionId"
+							params={{ executionId: run.runId }}
+							className="inline-flex min-h-9 items-center gap-1 border border-border px-2.5 text-xs font-bold transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 						>
-							Abrir tarefa
+							Abrir execução
+							<ArrowUpRight className="size-3.5" />
 						</Link>
-					)}
+					</div>
 				</div>
 			</div>
 		</article>

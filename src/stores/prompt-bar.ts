@@ -6,6 +6,7 @@ import {
 	INVOKE_INHERIT,
 	type InvokeCli,
 	type InvokePermissionMode,
+	normalizeCodexModel,
 } from "@/constants/invoke";
 import type { PromptTemplateSlug } from "@/constants/prompt-templates";
 import type { PromptEngine, PromptEngineEffort } from "@/api/schemas/prompt";
@@ -28,9 +29,6 @@ export interface InvokeSelection {
 	slug: string;
 }
 
-// Knobs da sessão `claude`. `permissionMode` é a preferência favorita e persiste; `model`/`effort`
-// NÃO persistem: o painel os semeia do frontmatter do alvo a cada invocação (o dono do default é o
-// .md), então `inherit` aqui significa "sem flag".
 export interface ClaudeSessionConfig {
 	model: string;
 	effort: string;
@@ -336,13 +334,7 @@ export const usePromptBarStore = create<PromptBarState>()(
 				images: state.images,
 				autofillEngine: state.autofillEngine,
 				autofillEffort: state.autofillEffort,
-				// model/effort do claude não persistem: são semeados do alvo a cada invocação. Salvos
-				// sempre como `inherit` pra não grudar o default de um .md no favorito global. O codex
-				// persiste inteiro — a escolha do usuário é o único dono.
-				invoke: {
-					...state.invoke,
-					claude: { ...state.invoke.claude, model: INVOKE_INHERIT, effort: INVOKE_INHERIT },
-				},
+				invoke: state.invoke,
 			}),
 			// O shape do `invoke` mudou (sessões aninhadas) e campos novos surgiram; o merge reconstrói a
 			// partir dos defaults e valida os modos salvos — estado persistido antigo (flat) simplesmente
@@ -366,6 +358,7 @@ export const usePromptBarStore = create<PromptBarState>()(
 				if (!VALID_APPROVAL_MODES.has(invoke.codex.approvalMode)) {
 					invoke.codex.approvalMode = DEFAULT_INVOKE.codex.approvalMode;
 				}
+				invoke.codex.model = normalizeCodexModel(invoke.codex.model);
 				const cli: InvokeCli = saved.cli === "codex" ? "codex" : "claude";
 				const images = Array.isArray(saved.images) ? saved.images : [];
 				return { ...current, ...saved, cli, invoke, images };

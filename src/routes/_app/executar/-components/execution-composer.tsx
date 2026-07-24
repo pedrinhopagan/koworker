@@ -1,22 +1,30 @@
-import { Check, ChevronRight, Loader2, Radio, Send, X } from "lucide-react";
+import { Check, ChevronRight, Loader2, Radio, Send } from "lucide-react";
 
 import type { RouterOutputs } from "@/client";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { InvokeCli } from "@/constants/invoke";
 import { AudioRecorder } from "./audio-recorder";
+import { ExecutionProjectPicker } from "./execution-project-picker";
+import { ExecutionSettings } from "./execution-settings";
+import { ExecutionTaskPicker } from "./execution-task-picker";
 
 type Project = RouterOutputs["projects"]["list"][number];
 type Task = RouterOutputs["tasks"]["listByProject"][number];
+type Category = RouterOutputs["categories"]["list"][number];
+type Priority = RouterOutputs["priorities"]["list"][number];
+type TaskGroup = RouterOutputs["taskGroups"]["list"][number];
 
 export function ExecutionComposer({
 	projects,
 	projectId,
 	tasks,
-	taskId,
+	categories,
+	priorities,
+	groups,
+	tasksLoading,
 	createTask,
 	taskTitle,
 	text,
@@ -37,7 +45,10 @@ export function ExecutionComposer({
 	projects: Project[];
 	projectId: string;
 	tasks: Task[];
-	taskId: string;
+	categories: Category[];
+	priorities: Priority[];
+	groups: TaskGroup[];
+	tasksLoading: boolean;
 	createTask: boolean;
 	taskTitle: string;
 	text: string;
@@ -81,39 +92,25 @@ export function ExecutionComposer({
 			</div>
 
 			<div className="border border-border bg-card p-4 shadow-[4px_4px_0_var(--border)] md:p-6 md:shadow-[5px_5px_0_var(--border)]">
+				<ExecutionSettings />
 				<div className="grid gap-3 sm:grid-cols-2">
-					<CustomSelect
-						items={projects}
-						value={projectId}
-						onValueChange={onProjectChange}
-						renderItem={(project) => <span>{project.name}</span>}
-						placeholder="Escolha o projeto"
-						upperLabel
-						label="Projeto"
+					<ExecutionProjectPicker
+						projects={projects}
+						projectId={projectId}
+						onChange={onProjectChange}
 					/>
-					<CustomSelect
-						items={tasks}
-						value={taskId}
-						onValueChange={onTaskChange}
-						renderItem={(task) => <span>{task.displayTitle}</span>}
-						placeholder="Sem tarefa específica"
-						upperLabel
-						label="Tarefa"
+					<ExecutionTaskPicker
+						tasks={tasks}
+						categories={categories}
+						priorities={priorities}
+						groups={groups}
+						selectedTask={selectedTask}
 						disabled={!projectId || createTask}
+						loading={tasksLoading}
+						onChange={onTaskChange}
+						onClear={onTaskClear}
 					/>
 				</div>
-				{taskId && !createTask && (
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						onClick={onTaskClear}
-						className="mt-2 ml-auto flex"
-					>
-						<X className="size-3" />
-						Executar sem tarefa
-					</Button>
-				)}
 
 				<button
 					type="button"

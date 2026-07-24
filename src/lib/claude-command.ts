@@ -10,6 +10,8 @@ export type ClaudeCommandParams = {
 	model?: string;
 	effort?: string;
 	headless?: boolean;
+	sessionId?: string;
+	resumeSessionId?: string;
 };
 
 function permissionArgs(permissionMode: string) {
@@ -20,6 +22,11 @@ function permissionArgs(permissionMode: string) {
 
 export function buildClaudePrintArgs(params: ClaudeCommandParams) {
 	const args = ["claude", "-p", ...permissionArgs(params.permissionMode)];
+	if (params.resumeSessionId) {
+		args.push("--resume", params.resumeSessionId);
+	} else if (params.sessionId) {
+		args.push("--session-id", params.sessionId);
+	}
 	if (params.agent) {
 		args.push("--agent", params.agent);
 	}

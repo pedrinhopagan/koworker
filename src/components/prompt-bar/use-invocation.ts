@@ -4,7 +4,11 @@ import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { STAGE_AGENT, type TaskStage } from "@/constants/complexity";
-import { INVOKE_INHERIT } from "@/constants/invoke";
+import {
+	INVOKE_INHERIT,
+	resolveSkillEffortPreference,
+	resolveSkillModelPreference,
+} from "@/constants/invoke";
 import { useAgentsQuery } from "@/hooks/use-agents";
 import { useSkillsQuery } from "@/hooks/use-skills";
 import { buildKoworkerPrompt, buildPromptBody, flattenPrompt } from "@/lib/build-prompt";
@@ -21,15 +25,19 @@ export type Selection =
 
 function toTarget(selection: NonNullable<Selection>): InvokeTarget {
 	if (selection.kind === "agent") {
-		return { kind: "agent", slug: selection.agent.slug, label: selection.agent.label };
+		return {
+			kind: "agent",
+			slug: selection.agent.slug,
+			label: selection.agent.label,
+		};
 	}
-	return { kind: "skill", slug: selection.skill.slug, label: selection.skill.label };
+	return {
+		kind: "skill",
+		slug: selection.skill.slug,
+		label: selection.skill.label,
+	};
 }
 
-// Padrão de model/effort que o alvo carrega no frontmatter. String não-vazia vira a pré-seleção do
-// select; ausência cai em `INVOKE_INHERIT` ("padrão" = sem flag). Um ID de modelo completo passa
-// reto — o select ganha um item extra pra refleti-lo. Frontmatter é conceito do claude; a sessão
-// codex não é tocada.
 function metaDefault(value: unknown): string {
 	return typeof value === "string" && value.trim() ? value.trim() : INVOKE_INHERIT;
 }
@@ -38,13 +46,14 @@ function metaDefault(value: unknown): string {
 // a seção de ações do prompt-bar (botão Invocar). A seleção vive no store como kind+slug; aqui ela
 // vira o agent/skill completo pelas listas em cache.
 export function useInvocation(params: {
+	projectId?: string;
 	projectName?: string;
 	routePath: string | null;
 	taskId?: string;
 	nextStage?: TaskStage | null;
 	active: boolean;
 }) {
-	const { projectName, routePath, nextStage } = params;
+	const { projectId, projectName, routePath, nextStage } = params;
 
 	// Painel fechado assina "" (nenhuma tecla re-renderiza); aberto, o deferred prioriza a digitação
 	// sobre o preview do comando.
@@ -60,12 +69,15 @@ export function useInvocation(params: {
 	const selectionRef = usePromptBarStore((s) => s.selection);
 	const setSelection = usePromptBarStore((s) => s.setSelection);
 	const patchClaudeSession = usePromptBarStore((s) => s.patchClaudeSession);
+	const patchCodexSession = usePromptBarStore((s) => s.patchCodexSession);
 
 	const projectsQuery = useQuery({
 		...orpc.projects.list.queryOptions(),
 		enabled: params.active,
 	});
-	const { taskAgents, isLoading: agentsLoading } = useAgentsQuery({ enabled: params.active });
+	const { taskAgents, isLoading: agentsLoading } = useAgentsQuery({
+		enabled: params.active,
+	});
 	const { taskSkills, isLoading: skillsLoading } = useSkillsQuery(projectName, {
 		enabled: params.active,
 	});
@@ -85,7 +97,8 @@ export function useInvocation(params: {
 	useEffect(() => {
 		setSelection(null);
 		patchClaudeSession({ model: INVOKE_INHERIT, effort: INVOKE_INHERIT });
-	}, [projectName, patchClaudeSession, setSelection]);
+		patchCodexSession({ model: INVOKE_INHERIT, effort: INVOKE_INHERIT });
+	}, [projectName, patchClaudeSession, patchCodexSession, setSelection]);
 
 	// Agents são um conceito do claude (`--agent`); mudar pro codex com um agent selecionado solta o
 	// alvo pra não montar um comando impossível.
@@ -110,15 +123,28 @@ export function useInvocation(params: {
 	// O corpo compõe a estrutura (template ativo do painel de anexos) antes do texto livre — o mesmo
 	// que o "Copiar prompt" produz.
 	const effectiveText = interactWithInput
-		? buildPromptBody({ templateSlug: structureTemplate, values: structureValues, text, images })
+		? buildPromptBody({
+				templateSlug: structureTemplate,
+				values: structureValues,
+				text,
+				images,
+			})
 		: "";
 
-	// Escolher um alvo fixa a seleção e puxa o model/effort padrão dele pros selects da sessão claude —
-	// é o que o usuário vê e pode sobrescrever antes de invocar. Dono do default é o frontmatter do
-	// alvo; os selects são só a janela editável disso, então model/effort não persistem (ver store).
 	function selectTarget(next: NonNullable<Selection>) {
 		const target = next.kind === "agent" ? next.agent : next.skill;
 		setSelection({ kind: next.kind, slug: target.slug });
+		if (next.kind === "skill") {
+			patchClaudeSession({
+				model: resolveSkillModelPreference(target.metadata.model, "claude"),
+				effort: resolveSkillEffortPreference(target.metadata.effort, "claude"),
+			});
+			patchCodexSession({
+				model: resolveSkillModelPreference(target.metadata.model, "codex"),
+				effort: resolveSkillEffortPreference(target.metadata.effort, "codex"),
+			});
+			return;
+		}
 		patchClaudeSession({
 			model: metaDefault(target.metadata.model),
 			effort: metaDefault(target.metadata.effort),
@@ -129,6 +155,7 @@ export function useInvocation(params: {
 	function clearTarget() {
 		setSelection(null);
 		patchClaudeSession({ model: INVOKE_INHERIT, effort: INVOKE_INHERIT });
+		patchCodexSession({ model: INVOKE_INHERIT, effort: INVOKE_INHERIT });
 	}
 
 	// Com alvo: o comando exato do cli ativo. Sem alvo: o prompt que "Copiar prompt" produz — assim os
@@ -146,7 +173,11 @@ export function useInvocation(params: {
 		}
 		const prompt = convertSkillCallsForCli(
 			flattenPrompt(
-				buildKoworkerPrompt({ kw: interactWithKw, target: effectiveRoute, text: effectiveText }),
+				buildKoworkerPrompt({
+					kw: interactWithKw,
+					target: effectiveRoute,
+					text: effectiveText,
+				}),
 			),
 			cli,
 		);
@@ -154,13 +185,17 @@ export function useInvocation(params: {
 	}, [selection, cli, interactWithKw, effectiveRoute, effectiveText, invoke]);
 
 	function handleInvoke() {
-		const project = projectsQuery.data?.find((p) => p.name === projectName);
+		const project = projectsQuery.data?.find((entry) => entry.id === projectId);
 		if (!project || !selection) {
 			toast.error("Projeto da rota não encontrado");
 			return;
 		}
 		runInvocation({
-			project: { id: project.id, name: project.name, mainRoute: project.mainRoute },
+			project: {
+				id: project.id,
+				name: project.name,
+				mainRoute: project.mainRoute,
+			},
 			request: {
 				target: toTarget(selection),
 				cli,
@@ -183,7 +218,7 @@ export function useInvocation(params: {
 		agentsLoading,
 		skillsLoading,
 		preview,
-		canInvoke: !!projectName && !!selection,
+		canInvoke: !!projectId && !!selection,
 		handleInvoke,
 	};
 }

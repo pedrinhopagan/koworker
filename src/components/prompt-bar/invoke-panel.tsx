@@ -54,10 +54,12 @@ function matches(
 // botão Invocar mora na seção de ações do prompt-bar; os dois compartilham o mesmo estado via
 // useInvocation.
 export function InvokePanel({
+	projectId,
 	projectName,
 	routePath,
 	nextStage,
 }: {
+	projectId?: string;
 	projectName?: string;
 	routePath: string | null;
 	nextStage?: TaskStage | null;
@@ -81,7 +83,7 @@ export function InvokePanel({
 		preview,
 		canInvoke,
 		handleInvoke,
-	} = useInvocation({ projectName, routePath, nextStage, active: invokeOpen });
+	} = useInvocation({ projectId, projectName, routePath, nextStage, active: invokeOpen });
 
 	return (
 		<div className="flex flex-col gap-2">

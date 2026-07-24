@@ -2,9 +2,14 @@ import { z } from "zod";
 
 import { PROMPT_TEMPLATE_SLUGS } from "@/constants/prompt-templates";
 
-// Motores headless que preenchem a estrutura: Opus e Sonnet rodam via `claude`; GPT-5.5 via `codex`.
-// O conjunto é fechado — o helper de spawn ramifica por ele. Cada motor aceita um effort próprio.
-export const PROMPT_ENGINES = ["opus", "sonnet", "gpt-5.5"] as const;
+export const PROMPT_ENGINES = [
+	"opus",
+	"sonnet",
+	"gpt-5.6-sol",
+	"gpt-5.6-terra",
+	"gpt-5.6-luna",
+	"gpt-5.5",
+] as const;
 
 export type PromptEngine = (typeof PROMPT_ENGINES)[number];
 
@@ -63,6 +68,13 @@ export const PromptExecuteSchema = z
 	});
 
 export type PromptExecuteInput = z.infer<typeof PromptExecuteSchema>;
+
+export const PromptRunContinueSchema = z.object({
+	runId: z.string().trim().min(1),
+	clientRequestId: z.string().uuid(),
+	prompt: z.string().trim().min(1),
+	inputKind: z.enum(["text", "audio_transcript"]),
+});
 
 export const PromptRunIdSchema = z.object({
 	runId: z.string().trim().min(1),

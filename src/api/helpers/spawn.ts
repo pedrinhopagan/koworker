@@ -25,17 +25,53 @@ function killProcessTree(proc: ReturnType<typeof Bun.spawn>) {
 	proc.kill();
 }
 
-// Roda um processo capturando stdout com teto de tempo: o timer mata o processo e sinaliza o
-// estouro por `timedOut`. Neutro de propósito — o chamador decide como tratar (o autofill vira
-// ORPCError; o runner de fluxo vira um evento de falha). Padrão de `terminal/tmux.ts`: stdout em
-// pipe lido por `new Response(proc.stdout).text()`, sincronizado com `proc.exited`.
+// Um processo que já saiu pode deixar o pipe aberto: qualquer neto que herdou o descritor (um dev
+// server, um watch que o agente subiu) segura a leitura para sempre. Depois da saída, a drenagem
+// ganha um teto próprio e devolve o que já chegou, em vez de pendurar o run inteiro.
+const STREAM_DRAIN_MS = 5_000;
+
+function collectStream(stream: ReadableStream<Uint8Array> | undefined) {
+	const chunks: Uint8Array[] = [];
+	if (!stream) {
+		return { drained: Promise.resolve(), text: () => "" };
+	}
+
+	const reader = stream.getReader();
+
+	async function read() {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				return;
+			}
+			if (value) {
+				chunks.push(value);
+			}
+		}
+	}
+
+	return {
+		drained: read().catch(() => {}),
+		text: () => new TextDecoder().decode(Buffer.concat(chunks)),
+	};
+}
+
+// Roda um processo capturando stdout e stderr com teto de tempo: o timer mata o processo e sinaliza
+// o estouro por `timedOut`. Neutro de propósito — o chamador decide como tratar (o autofill vira
+// ORPCError; o runner de fluxo vira um evento de falha).
 export async function spawnCapture(params: {
 	cmd: string[];
 	cwd: string;
 	timeoutMs: number;
 	env?: Record<string, string>;
 	signal?: AbortSignal;
-}): Promise<{ stdout: string; exitCode: number; timedOut: boolean; cancelled: boolean }> {
+}): Promise<{
+	stdout: string;
+	stderr: string;
+	exitCode: number;
+	timedOut: boolean;
+	cancelled: boolean;
+}> {
 	const env = spawnEnv(params.env);
 
 	if (!Bun.which(params.cmd[0], { PATH: env.PATH })) {
@@ -47,7 +83,7 @@ export async function spawnCapture(params: {
 	const proc = Bun.spawn(params.cmd, {
 		cwd: params.cwd,
 		stdout: "pipe",
-		stderr: "ignore",
+		stderr: "pipe",
 		stdin: "ignore",
 		env,
 		detached: process.platform !== "win32",
@@ -65,11 +101,12 @@ export async function spawnCapture(params: {
 	};
 	params.signal?.addEventListener("abort", handleAbort, { once: true });
 
-	const stdoutPromise = new Response(proc.stdout).text();
+	const stdout = collectStream(proc.stdout);
+	const stderr = collectStream(proc.stderr);
 	const exitCode = await proc.exited;
+	await Promise.race([Promise.all([stdout.drained, stderr.drained]), Bun.sleep(STREAM_DRAIN_MS)]);
 	clearTimeout(timer);
 	params.signal?.removeEventListener("abort", handleAbort);
-	const stdout = await stdoutPromise;
 
-	return { stdout, exitCode, timedOut, cancelled };
+	return { stdout: stdout.text(), stderr: stderr.text(), exitCode, timedOut, cancelled };
 }

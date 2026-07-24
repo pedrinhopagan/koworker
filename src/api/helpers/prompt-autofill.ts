@@ -7,11 +7,7 @@ import { z } from "zod";
 
 import { COMPLEXITY_LABELS, STAGE_AGENT, type TaskComplexity } from "@/constants/complexity";
 import { PROMPT_TEMPLATES } from "@/constants/prompt-templates";
-import {
-	type PromptAutofillInput,
-	PromptAutofillResultSchema,
-	type PromptEngine,
-} from "../schemas/prompt";
+import { type PromptAutofillInput, PromptAutofillResultSchema } from "../schemas/prompt";
 import { dbCategories } from "../db/categories";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
@@ -180,10 +176,8 @@ async function runClaude(params: { model: string; prompt: string; cwd: string; e
 	return parseAutofillOutput(parsed.data.result);
 }
 
-// GPT-5.5 headless via codex: a última mensagem do agente é escrita no arquivo `-o`. O schema
-// restringe o shape da resposta; lemos o arquivo depois de o processo sair.
-async function runGpt(params: { prompt: string; cwd: string; effort: string }) {
-	const { prompt, cwd, effort } = params;
+async function runGpt(params: { model: string; prompt: string; cwd: string; effort: string }) {
+	const { model, prompt, cwd, effort } = params;
 	const stamp = crypto.randomUUID();
 	const schemaPath = join(tmpdir(), `koworker-autofill-schema-${stamp}.json`);
 	const outputPath = join(tmpdir(), `koworker-autofill-out-${stamp}.txt`);
@@ -196,7 +190,7 @@ async function runGpt(params: { prompt: string; cwd: string; effort: string }) {
 				"codex",
 				"exec",
 				"-m",
-				"gpt-5.5",
+				model,
 				"-c",
 				`model_reasoning_effort=${effort}`,
 				"--json",
@@ -213,7 +207,9 @@ async function runGpt(params: { prompt: string; cwd: string; effort: string }) {
 			cwd,
 		);
 		if (exitCode !== 0) {
-			throw new ORPCError("BAD_REQUEST", { message: "Falha ao executar o codex (gpt-5.5)" });
+			throw new ORPCError("BAD_REQUEST", {
+				message: `Falha ao executar o codex (${model})`,
+			});
 		}
 
 		const outFile = Bun.file(outputPath);
@@ -228,20 +224,15 @@ async function runGpt(params: { prompt: string; cwd: string; effort: string }) {
 	}
 }
 
-const ENGINE_RUNNERS: Record<
-	PromptEngine,
-	(params: { prompt: string; cwd: string; effort: string }) => ReturnType<typeof runGpt>
-> = {
-	opus: (params) => runClaude({ model: "opus", ...params }),
-	sonnet: (params) => runClaude({ model: "sonnet", ...params }),
-	"gpt-5.5": runGpt,
-};
-
 // Ponto único do autofill: monta o contexto e o prompt, roda o motor escolhido e devolve o shape já
 // validado. Erros de execução/parse sobem como ORPCError com mensagem legível.
 export async function runPromptAutofill(input: PromptAutofillInput) {
 	const { context, cwd } = await buildTaskContext(input.taskId);
 	const prompt = buildAutofillPrompt({ userText: input.text, context });
 
-	return ENGINE_RUNNERS[input.engine]({ prompt, cwd, effort: input.effort });
+	if (input.engine === "opus" || input.engine === "sonnet") {
+		return runClaude({ model: input.engine, prompt, cwd, effort: input.effort });
+	}
+
+	return runGpt({ model: input.engine, prompt, cwd, effort: input.effort });
 }

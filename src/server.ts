@@ -109,6 +109,10 @@ await ensureDefaultCategories();
 const { startTasksWatcher } = await import("./api/helpers/tasks-watcher");
 await startTasksWatcher();
 
+// Fecha execuções que perderam o executor e vigia o teto de tempo dos runs em andamento.
+const { startPromptRunReconciler } = await import("./api/helpers/prompt-run");
+await startPromptRunReconciler();
+
 Bun.serve<WsData>({
 	port,
 	...(isProduction

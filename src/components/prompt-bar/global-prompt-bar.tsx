@@ -352,6 +352,7 @@ export function GlobalPromptBar() {
 								    escolhido; os popovers do alvo são portalados, então o overflow-hidden não os clipa. */}
 								<CollapsibleSection open={invokeOpen}>
 									<InvokePanel
+										projectId={routeTarget.projectId}
 										projectName={routeTarget.projectName}
 										routePath={routeTarget.path}
 										nextStage={routeTarget.nextStage}
@@ -360,6 +361,7 @@ export function GlobalPromptBar() {
 
 								<CollapsibleSection open={executeOpen}>
 									<ExecutePanel
+										projectId={routeTarget.projectId}
 										projectName={routeTarget.projectName}
 										routePath={routeTarget.path}
 										taskId={routeTarget.taskId}

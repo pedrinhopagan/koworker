@@ -9,6 +9,7 @@ import {
 } from "@/components/tasks/InlineTaskCreateForm";
 import { Text } from "@/components/typography";
 import { Dialog } from "@/components/ui/dialog";
+import { canonicalTaskRoute } from "@/routes/_app/tarefas/-utils/task-route-resolution";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 
 type NewTaskDialogProps = {
@@ -32,6 +33,7 @@ export function NewTaskDialog({ open, onClose }: NewTaskDialogProps) {
 				priorityId: data.priorityId,
 				categoryId: data.categoryId,
 				complexity: data.complexity,
+				groupId: data.groupId,
 			});
 			if (!task) throw new Error("Não foi possível criar a tarefa");
 
@@ -47,7 +49,11 @@ export function NewTaskDialog({ open, onClose }: NewTaskDialogProps) {
 			}
 
 			onClose();
-			navigate({ to: "/tarefas/$taskId", params: { taskId: task.id } });
+			const canonical = canonicalTaskRoute(task);
+			navigate({
+				to: "/tarefas/$taskId/$file",
+				params: { taskId: canonical.featureId, file: canonical.taskId },
+			});
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Não foi possível criar a tarefa");
 		}

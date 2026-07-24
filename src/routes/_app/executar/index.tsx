@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Smartphone } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
 import { orpc } from "@/client";
 import { PageShell } from "@/components/layout/page-shell";
+import { withoutInvokeInherit } from "@/constants/invoke";
+import { newClientRequestId } from "@/lib/client-request-id";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 import { ExecutionComposer } from "./-components/execution-composer";
@@ -15,11 +17,10 @@ import { ActiveExecutions, RecentExecutions } from "./-components/execution-hist
 const executionSearchSchema = z.object({
 	projectId: z.string().optional(),
 	taskId: z.string().optional(),
-	runId: z.string().optional(),
 });
 
 export const Route = createFileRoute("/_app/executar/")({
-	validateSearch: (search) => executionSearchSchema.parse(search),
+	validateSearch: executionSearchSchema,
 	component: ExecutePage,
 });
 
@@ -29,12 +30,17 @@ function ExecutePage() {
 	const queryClient = useQueryClient();
 	const { projects, selectedProjectId } = useProjectFocus();
 	const cli = usePromptBarStore((state) => state.cli);
+	const invoke = usePromptBarStore((state) => state.invoke);
 	const [projectId, setProjectId] = useState(search.projectId ?? selectedProjectId ?? "");
 	const [taskId, setTaskId] = useState(search.taskId ?? "");
 	const [createTask, setCreateTask] = useState(false);
 	const [taskTitle, setTaskTitle] = useState("");
 	const [text, setText] = useState(() => localStorage.getItem("kowork-execution-draft") ?? "");
 	const [inputKind, setInputKind] = useState<"text" | "audio_transcript">("text");
+	// Toque duplo e reenvio depois de um timeout de rede são a regra no celular. Manter o mesmo
+	// identificador enquanto o rascunho é o mesmo faz o servidor devolver o run que já existe em vez
+	// de disparar o agente duas vezes no mesmo projeto.
+	const requestId = useRef(newClientRequestId());
 
 	useEffect(() => {
 		if (!projectId && selectedProjectId) {
@@ -51,6 +57,12 @@ function ExecutePage() {
 		...orpc.tasks.listByProject.queryOptions({ input: { projectId } }),
 		enabled: !!projectId,
 	});
+	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
+	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
+	const groupsQuery = useQuery({
+		...orpc.taskGroups.list.queryOptions({ input: { projectId } }),
+		enabled: !!projectId,
+	});
 	const runsQuery = useQuery({
 		...orpc.prompt.listRuns.queryOptions({ input: { limit: 50 } }),
 		refetchInterval: (query) =>
@@ -61,14 +73,8 @@ function ExecutePage() {
 	const selectedProject = projects.find((project) => project.id === projectId);
 	const canSubmit = !!projectId && !!text.trim() && (!createTask || !!taskTitle.trim());
 
-	async function refreshRuns(runId?: string) {
+	async function refreshRuns() {
 		await queryClient.invalidateQueries({ queryKey: orpc.prompt.listRuns.key() });
-		if (runId) {
-			await navigate({
-				search: { projectId, ...(taskId && !createTask ? { taskId } : {}), runId },
-				replace: true,
-			});
-		}
 	}
 
 	const executeMutation = useMutation({
@@ -77,14 +83,19 @@ function ExecutePage() {
 			setText("");
 			localStorage.removeItem("kowork-execution-draft");
 			setInputKind("text");
-			await refreshRuns(runId);
+			requestId.current = newClientRequestId();
+			await refreshRuns();
 			toast.success("Execução despachada");
+			await navigate({ to: "/executar/$executionId", params: { executionId: runId } });
 		},
 		onError: (error: Error) => toast.error(error.message),
 	});
 	const retryMutation = useMutation({
 		...orpc.prompt.retry.mutationOptions(),
-		onSuccess: ({ runId }) => void refreshRuns(runId),
+		onSuccess: ({ runId }) => {
+			void refreshRuns();
+			void navigate({ to: "/executar/$executionId", params: { executionId: runId } });
+		},
 		onError: (error: Error) => toast.error(error.message),
 	});
 	const cancelMutation = useMutation({
@@ -119,30 +130,35 @@ function ExecutePage() {
 		const prompt = selectedTask
 			? `${cli === "codex" ? "$kw" : "/kw"} ${selectedTask.folderPath}/${selectedTask.fileNames[0] ?? "index.md"}\n\n${text.trim()}`
 			: text.trim();
+		const session = cli === "codex" ? invoke.codex : invoke.claude;
+		const model = withoutInvokeInherit(session.model);
+		const effort = withoutInvokeInherit(session.effort);
+
 		executeMutation.mutate({
-			clientRequestId: crypto.randomUUID(),
+			clientRequestId: requestId.current,
 			projectId,
-			...(createTask ? { createTaskTitle: taskTitle.trim() } : taskId ? { taskId } : {}),
+			...(createTask
+				? { createTaskTitle: taskTitle.trim() }
+				: selectedTask
+					? { taskId: selectedTask.id }
+					: {}),
 			prompt,
 			originalPrompt: text.trim(),
 			source: "execution_route",
 			interactionMode: "unattended",
 			inputKind,
 			cli,
+			...(model ? { model } : {}),
+			...(effort ? { effort } : {}),
+			...(cli === "codex"
+				? { approvalMode: invoke.codex.approvalMode }
+				: { permissionMode: invoke.claude.permissionMode }),
 		});
 	}
 
-	const orderedRuns = useMemo(() => {
-		const runs = runsQuery.data ?? [];
-		if (!search.runId) {
-			return runs;
-		}
-		return [...runs].sort(
-			(a, b) => Number(b.runId === search.runId) - Number(a.runId === search.runId),
-		);
-	}, [runsQuery.data, search.runId]);
-	const activeRuns = orderedRuns.filter((run) => run.status === "running");
-	const recentRuns = orderedRuns.filter((run) => run.status !== "running");
+	const runs = runsQuery.data ?? [];
+	const activeRuns = runs.filter((run) => run.status === "running");
+	const recentRuns = runs.filter((run) => run.status !== "running");
 	const historyPending =
 		retryMutation.isPending || cancelMutation.isPending || clearMutation.isPending;
 
@@ -154,12 +170,15 @@ function ExecutePage() {
 			contentClassName="overflow-y-auto pb-24"
 		>
 			<div className="grid gap-7 pb-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)] lg:items-start">
-				<div className="order-2 lg:order-1 lg:row-span-2">
+				<div className="order-2 min-w-0 lg:order-1 lg:row-span-2">
 					<ExecutionComposer
 						projects={projects}
 						projectId={projectId}
 						tasks={tasksQuery.data ?? []}
-						taskId={taskId}
+						categories={categoriesQuery.data ?? []}
+						priorities={prioritiesQuery.data ?? []}
+						groups={groupsQuery.data ?? []}
+						tasksLoading={tasksQuery.isLoading}
 						createTask={createTask}
 						taskTitle={taskTitle}
 						text={text}
@@ -193,7 +212,7 @@ function ExecutePage() {
 					/>
 				</div>
 
-				<div className="order-1 lg:order-2">
+				<div className="order-1 min-w-0 lg:order-2">
 					<ActiveExecutions
 						runs={activeRuns}
 						loading={runsQuery.isLoading}
@@ -201,12 +220,12 @@ function ExecutePage() {
 						onCancel={(runId) => cancelMutation.mutate({ runId })}
 					/>
 				</div>
-				<div className="order-3 lg:order-3">
+				<div className="order-3 min-w-0 lg:order-3">
 					<RecentExecutions
 						runs={recentRuns}
 						pending={historyPending}
 						onRetry={(runId) =>
-							retryMutation.mutate({ runId, clientRequestId: crypto.randomUUID() })
+							retryMutation.mutate({ runId, clientRequestId: newClientRequestId() })
 						}
 						onClear={(runIds) => clearMutation.mutate({ runIds })}
 					/>
