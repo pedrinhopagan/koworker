@@ -4,7 +4,7 @@ export const MEDIAS_DIRNAME = "medias";
 
 // Nomes reservados no root do `.koworker/`: o vault os exclui da listagem de pastas soltas pra que
 // nunca sejam adotados como tarefa.
-export const RESERVED_KOWORKER_FOLDERS = new Set([MEDIAS_DIRNAME]);
+export const RESERVED_KOWORKER_FOLDERS = new Set([MEDIAS_DIRNAME, "tasks", ".backups", ".staging"]);
 
 // Correspondência extensão → MIME dos assets. `IMAGE_MIME_BY_EXT` é a whitelist de `medias/`, que só
 // aceita imagens e as renderiza inline em /media. `DOC_MIME_BY_EXT` é a whitelist de

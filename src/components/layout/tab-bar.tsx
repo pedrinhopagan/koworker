@@ -41,15 +41,22 @@ const iconButton = tv({
 	},
 });
 
+const routeDisplayPaths: Record<string, string> = {
+	"/tarefas/$taskId/": "/tarefas/$featureId",
+	"/tarefas/$taskId/$file": "/tarefas/$featureId/$taskId",
+	"/tarefas/$taskId/$file/$canonicalFile": "/tarefas/$featureId/$taskId/$file",
+};
+
 export function TabBar() {
 	const location = useLocation();
 	const navigate = useNavigate();
-	// Selector em vez do estado inteiro do router: sem ele, a TabBar re-renderizava em toda
-	// transição interna (pending/loading) de qualquer navegação.
+	const currentPath = location.pathname;
 	const currentRoutePath = useRouterState({
 		select: (state) => state.matches.at(-1)?.fullPath ?? "/",
 	});
-	const currentPath = location.pathname;
+	const displayPath =
+		routeDisplayPaths[currentRoutePath] ??
+		(currentRoutePath === "/" ? currentRoutePath : currentRoutePath.replace(/\/$/, ""));
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
 	const openActionDialog = useNavActionDialogsStore((s) => s.open);
 	const sidebarMode = useSidebarNavStore((s) => s.mode);
@@ -82,7 +89,7 @@ export function TabBar() {
 	}, []);
 
 	async function handleCopyRoutePath() {
-		const ok = await copyToClipboard(currentRoutePath);
+		const ok = await copyToClipboard(displayPath);
 		toast[ok ? "success" : "error"](ok ? "Rota copiada" : "Falha ao copiar rota");
 	}
 
@@ -133,13 +140,13 @@ export function TabBar() {
 				</div>
 
 				<div className="hidden md:block flex-1 text-center">
-					<Tooltip label="Copiar o padrão da rota">
+					<Tooltip label="Copiar padrão da rota">
 						<button
 							type="button"
 							onClick={() => void handleCopyRoutePath()}
 							className="text-xs text-muted-foreground opacity-30 transition-opacity hover:opacity-70"
 						>
-							{currentRoutePath}
+							{displayPath}
 						</button>
 					</Tooltip>
 				</div>

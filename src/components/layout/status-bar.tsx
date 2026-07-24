@@ -10,7 +10,7 @@ import {
 import { type ComponentType, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { CustomSelect } from "@/components/ui/custom-select";
+import { InvokeCliSelect } from "@/components/invoke-cli-select";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -130,7 +130,7 @@ export function StatusBar() {
 
 			<div className="hidden md:flex items-center gap-1 min-w-0">
 				<ProjectSelectTrigger />
-				<CliSelect />
+				<InvokeCliSelect compact />
 				<ActionButton onClick={handleOpenConsole} label="Console" icon={Bug} />
 				<ActionButton onClick={handleClearCache} label="Limpar Cache" icon={DatabaseZap} />
 			</div>
@@ -207,44 +207,6 @@ function ProjectSelectTrigger() {
 				<span className="truncate text-left">{label}</span>
 				<ChevronDown size={12} className="shrink-0 opacity-50" />
 			</button>
-		</Tooltip>
-	);
-}
-
-function CliSelect() {
-	const cli = usePromptBarStore((s) => s.cli);
-	const setCli = usePromptBarStore((s) => s.setCli);
-
-	const items = INVOKE_CLI_OPTIONS.map((option) => ({
-		id: option.value,
-		label: option.label,
-		hint: option.hint,
-	}));
-	const active = items.find((option) => option.id === cli);
-
-	return (
-		<Tooltip label={active?.hint ?? ""}>
-			<CustomSelect
-				items={items}
-				value={cli}
-				onValueChange={(next) => setCli(next as InvokeCli)}
-				size="sm"
-				fitContent
-				triggerClassName="h-6 gap-1 border-border/70 bg-muted/40 px-2 text-[11px] text-muted-foreground hover:bg-muted/70 hover:text-foreground"
-				renderTrigger={() => (
-					<>
-						<SquareTerminal size={12} className="shrink-0" />
-						<span className="truncate text-left">{active?.label ?? ""}</span>
-						<ChevronDown size={12} className="shrink-0 opacity-50" />
-					</>
-				)}
-				renderItem={(option) => (
-					<div className="flex flex-col">
-						<span className="text-xs font-medium">{option.label}</span>
-						<span className="text-[11px] text-muted-foreground">{option.hint}</span>
-					</div>
-				)}
-			/>
 		</Tooltip>
 	);
 }

@@ -44,7 +44,7 @@ export function PageShell({
 									type="button"
 									onClick={onBack}
 									aria-label="Voltar"
-									className="flex size-8 items-center justify-center border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+									className="flex size-8 cursor-pointer items-center justify-center border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 								>
 									<ArrowLeft className="size-4" />
 								</button>
