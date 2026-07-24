@@ -5,7 +5,8 @@ export function buildProductionIndexHtml(sourceIndex: string, appVersion: string
     </script>`;
 
 	const builtIndex = sourceIndex
-		.replace("./main.tsx", "./main.js")
+		.replace('href="./index.css"', 'href="/index.css"')
+		.replace('src="./main.tsx"', 'src="/main.js"')
 		.replace(/<script>\s*window\.__KOWORK_ENV__[\s\S]*?<\/script>/, prodScript);
 
 	if (!builtIndex.includes('window.__KOWORK_ENV__ = "production"')) {
