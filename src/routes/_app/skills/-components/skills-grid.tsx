@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { PrinciplesFindings } from "@/components/principles/principles-findings";
 import { Text } from "@/components/typography";
 import { Chip } from "@/components/ui/chip";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
@@ -18,6 +19,7 @@ import { SkillAppearanceDialog } from "./skill-appearance-dialog";
 import { SkillCategoryCreateButton, SkillCategoryHeader } from "./skill-categories-controls";
 import { SkillCreateTile } from "./skill-create-tile";
 import { SkillSettingsMenu } from "./skill-settings-menu";
+import { useSkillMutations } from "../-utils/use-skill-mutations";
 
 // Pseudo-id da seção/filtro "Sem categoria"; nenhuma categoria real usa essa string.
 const NO_CATEGORY_KEY = "__none__";
@@ -268,6 +270,8 @@ type SkillTileProps = {
 function SkillTile({ skill, index, categories, onAppearance }: SkillTileProps) {
 	const navigate = useNavigate();
 	const [menuOpen, setMenuOpen] = useState(false);
+	const [confirmDelete, setConfirmDelete] = useState(false);
+	const { removeAllSkill, removing } = useSkillMutations();
 	const findings = useMemo(
 		() =>
 			lintPrinciples({
@@ -296,88 +300,107 @@ function SkillTile({ skill, index, categories, onAppearance }: SkillTileProps) {
 	// link). Só os controles próprios (menu, findings) reativam o ponteiro. Igual ao TaskItem. O botão
 	// abre o menu no clique esquerdo; o clique direito no card abre o mesmo menu, ancorado no botão.
 	return (
-		<div
-			className={cn(
-				"group relative flex min-w-0 flex-col p-4",
-				"border border-border border-t-2 bg-card transition-colors",
-				"hover:bg-secondary/50",
-				"animate-in fade-in-0 slide-in-from-bottom-2 fill-mode-both",
-			)}
-			style={{ borderTopColor: skill.color, animationDelay: `${Math.min(index, 12) * 35}ms` }}
-			onContextMenu={(event) => {
-				event.preventDefault();
-				setMenuOpen(true);
-			}}
-		>
-			<Link
-				to="/skills/$slug"
-				params={{ slug: skill.slug }}
-				aria-label={skill.label}
-				className="absolute inset-0 z-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-			/>
-
-			<SkillSettingsMenu
-				skill={skill}
-				categories={categories}
-				onAppearance={onAppearance}
-				open={menuOpen}
-				onOpenChange={setMenuOpen}
-				docActions={{
-					pinned,
-					onTogglePin: togglePin,
-					onOpen: () => navigate({ to: "/skills/$slug", params: { slug: skill.slug } }),
-					onOpenInOs: () => void openFolderInOs(skill.primaryDir),
-					onShareZip: () => void shareFolderAsZip(skill.primaryDir),
+		<>
+			<div
+				className={cn(
+					"group relative flex min-w-0 flex-col p-4",
+					"border border-border border-t-2 bg-card transition-colors",
+					"hover:bg-secondary/50",
+					"animate-in fade-in-0 slide-in-from-bottom-2 fill-mode-both",
+				)}
+				style={{ borderTopColor: skill.color, animationDelay: `${Math.min(index, 12) * 35}ms` }}
+				onContextMenu={(event) => {
+					event.preventDefault();
 				}}
-				trigger={
-					<button
-						type="button"
-						aria-label="Ações da skill"
-						title="Ações da skill"
-						className="absolute right-2 top-2 z-10 flex size-7 items-center justify-center border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-background hover:text-foreground data-[state=open]:border-border data-[state=open]:bg-background"
-					>
-						<SlidersHorizontal className="size-3.5" />
-					</button>
-				}
-			/>
+				onPointerUp={(event) => {
+					if (event.button === 2) {
+						setMenuOpen(true);
+					}
+				}}
+			>
+				<Link
+					to="/skills/$slug"
+					params={{ slug: skill.slug }}
+					aria-label={skill.label}
+					className="absolute inset-0 z-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+				/>
 
-			<div className="pointer-events-none relative z-10 flex flex-col gap-3">
-				<div className="flex items-center gap-3">
-					<div
-						className="flex h-10 w-10 shrink-0 items-center justify-center border bg-muted/30 transition-colors group-hover:bg-muted/60"
-						style={{ borderColor: skill.color, color: skill.color }}
-					>
-						<LucideIcon name={skill.icon} className="size-5" />
-					</div>
-					<div className="min-w-0 flex-1">
-						<div className="truncate font-display text-sm font-semibold leading-tight">
-							{skill.label}
+				<SkillSettingsMenu
+					skill={skill}
+					categories={categories}
+					onAppearance={onAppearance}
+					open={menuOpen}
+					onOpenChange={setMenuOpen}
+					docActions={{
+						pinned,
+						onTogglePin: togglePin,
+						onOpen: () => navigate({ to: "/skills/$slug", params: { slug: skill.slug } }),
+						onOpenInOs: () => void openFolderInOs(skill.primaryDir),
+						onShareZip: () => void shareFolderAsZip(skill.primaryDir),
+						onDelete: () => setConfirmDelete(true),
+					}}
+					trigger={
+						<button
+							type="button"
+							aria-label="Ações da skill"
+							title="Ações da skill"
+							className="absolute right-2 top-2 z-10 flex size-7 items-center justify-center border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-background hover:text-foreground data-[state=open]:border-border data-[state=open]:bg-background"
+						>
+							<SlidersHorizontal className="size-3.5" />
+						</button>
+					}
+				/>
+
+				<div className="pointer-events-none relative z-10 flex flex-col gap-3">
+					<div className="flex items-center gap-3">
+						<div
+							className="flex h-10 w-10 shrink-0 items-center justify-center border bg-muted/30 transition-colors group-hover:bg-muted/60"
+							style={{ borderColor: skill.color, color: skill.color }}
+						>
+							<LucideIcon name={skill.icon} className="size-5" />
 						</div>
-						<div className="truncate font-mono text-[11px] text-muted-foreground">{skill.slug}</div>
+						<div className="min-w-0 flex-1">
+							<div className="truncate font-display text-sm font-semibold leading-tight">
+								{skill.label}
+							</div>
+							<div className="truncate font-mono text-[11px] text-muted-foreground">
+								{skill.slug}
+							</div>
+						</div>
 					</div>
-				</div>
 
-				<p className="line-clamp-2 min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground">
-					{skill.description}
-				</p>
+					<p className="line-clamp-2 min-h-[2.5rem] text-xs leading-relaxed text-muted-foreground">
+						{skill.description}
+					</p>
 
-				<div className="flex flex-wrap items-center gap-1">
-					{distinctTools(skill).map((tool) => (
-						<Chip key={tool} size="xs" variant="ghost">
-							{SKILL_TOOL_LABEL[tool]}
-						</Chip>
-					))}
-					{skill.conflict && (
-						<Chip size="xs" variant="destructive" className="gap-1">
-							<TriangleAlert className="size-3" />
-							conflito
-						</Chip>
-					)}
-					<span className="pointer-events-auto">
-						<PrinciplesFindings findings={findings} />
-					</span>
+					<div className="flex flex-wrap items-center gap-1">
+						{distinctTools(skill).map((tool) => (
+							<Chip key={tool} size="xs" variant="ghost">
+								{SKILL_TOOL_LABEL[tool]}
+							</Chip>
+						))}
+						{skill.conflict && (
+							<Chip size="xs" variant="destructive" className="gap-1">
+								<TriangleAlert className="size-3" />
+								conflito
+							</Chip>
+						)}
+						<span className="pointer-events-auto">
+							<PrinciplesFindings findings={findings} />
+						</span>
+					</div>
 				</div>
 			</div>
-		</div>
+			<ConfirmDialog
+				open={confirmDelete}
+				onClose={() => setConfirmDelete(false)}
+				onConfirm={() => removeAllSkill({ slug: skill.slug }, () => setConfirmDelete(false))}
+				title={`Deletar a skill "${skill.label}"?`}
+				description="A skill será removida de todos os projetos e fontes configuradas. Antes disso, uma cópia completa será salva em ~/Documentos/backups/koworker/skills/."
+				confirmLabel="Deletar"
+				variant="danger"
+				loading={removing}
+			/>
+		</>
 	);
 }

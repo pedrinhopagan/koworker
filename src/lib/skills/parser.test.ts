@@ -97,4 +97,24 @@ Body text here.`;
 		expect(reparsed.frontmatter.description).toBe(parsed.frontmatter.description);
 		expect(reparsed.body).toBe(parsed.body);
 	});
+
+	it("preserva boolean, number, array, object, null e chave desconhecida", () => {
+		const skill: SkillFile = {
+			frontmatter: {
+				name: "typed",
+				description: "Tipos YAML",
+				booleano: true,
+				numero: 42,
+				lista: ["texto", 7, false],
+				objeto: { nested: { ativo: true } },
+				nulo: null,
+				"chave-desconhecida": "preservada",
+			},
+			body: "Body",
+		};
+
+		const reparsed = parseSkillMd(serializeSkillMd(skill));
+
+		expect(reparsed).toEqual(skill);
+	});
 });

@@ -11,17 +11,14 @@ export const SKILL_TOOL_LABEL: Record<SkillSource["tool"], string> = {
 // Agents que o usuário pode cadastrar um caminho custom (koworker fica de fora: é o static interno).
 export const SKILL_TOOLS: SkillSource["tool"][] = ["opencode", "claude-code", "codex", "agents"];
 
-// Metadados booleanos que o Claude Code reconhece no frontmatter da skill. Viram switches no
-// cabeçalho: o valor escrito no arquivo é sempre `true`/`false` explícito. `default` é o que o
-// Claude Code assume quando a chave está ausente — usado pra refletir o estado real sem gravar.
-export type SkillBooleanField = {
+type SkillBooleanField = {
 	key: string;
 	label: string;
 	help: string;
 	default: boolean;
 };
 
-export const SKILL_BOOLEAN_FIELDS: SkillBooleanField[] = [
+const SKILL_BOOLEAN_FIELDS: SkillBooleanField[] = [
 	{
 		key: "disable-model-invocation",
 		label: "Só por chamada explícita",
@@ -36,94 +33,69 @@ export const SKILL_BOOLEAN_FIELDS: SkillBooleanField[] = [
 	},
 ];
 
-// Demais metadados conhecidos do Claude Code. `help` é o mini-guia (info no hover); `options`, quando
-// presente, troca o campo de texto por um radio de escolha única. Listas (`allowed-tools`, `paths`, …)
-// são aceitas como string separada por vírgula pelo próprio agente.
-export type SkillStringField = {
-	key: string;
-	label: string;
-	placeholder: string;
-	help: string;
-};
-
-// Valores conhecidos de model/effort que uma skill pode declarar. Fonte única: alimentam as options
-// do controle dedicado de padrões (cabeçalho) e do select do painel de invocação. A fronteira do
-// invoke não valida mais: só ausência/`inherit` omite a flag — qualquer outra string (ex.: um ID de
-// modelo completo) vira `--model`/`--effort` literal. Por isso `model`/`effort` ficam fora de
-// SKILL_STRING_FIELDS: são editados no controle dedicado, não no popover genérico de metadados.
 export const SKILL_MODEL_VALUES = ["opus", "sonnet", "haiku", "fable"] as const;
 export const SKILL_EFFORT_VALUES = ["low", "medium", "high", "xhigh", "max"] as const;
+export const SKILL_MODEL_PREFERENCE_VALUES = ["smartest", "balanced", "fastest"] as const;
 
-export const SKILL_STRING_FIELDS: SkillStringField[] = [
+export type SkillMetadataOption = {
+	value: string;
+	label: string;
+};
+
+export type SkillMetadataField = {
+	key: string;
+	label: string;
+	help: string;
+	type: "boolean" | "string" | "number" | "enum" | "raw";
+	default?: boolean;
+	options?: readonly SkillMetadataOption[];
+	placeholder?: string;
+};
+
+export const SKILL_METADATA_FIELDS: SkillMetadataField[] = [
+	...SKILL_BOOLEAN_FIELDS.map((field) => ({
+		...field,
+		type: "boolean" as const,
+	})),
 	{
-		key: "when_to_use",
-		label: "Quando usar",
-		placeholder: "frases de gatilho extras",
-		help: "Frases de gatilho extras que ajudam o agente a decidir quando acionar a skill sozinho.",
+		key: "model",
+		label: "Modelo",
+		help: "Intenção de capacidade traduzida pela CLI que invocar a skill.",
+		type: "enum",
+		options: [
+			{ value: "smartest", label: "Mais inteligente" },
+			{ value: "balanced", label: "Intermediário" },
+			{ value: "fastest", label: "Mais rápido" },
+		],
 	},
 	{
-		key: "argument-hint",
-		label: "Dica de argumentos",
-		placeholder: "[issue] [formato]",
-		help: "Dica mostrada no menu / sobre quais argumentos a skill espera.",
-	},
-	{
-		key: "arguments",
-		label: "Argumentos",
-		placeholder: "nome1 nome2",
-		help: "Nomes dos argumentos posicionais que a skill recebe ao ser chamada.",
-	},
-	{
-		key: "allowed-tools",
-		label: "Ferramentas liberadas",
-		placeholder: "Bash, Read, Edit",
-		help: "Restringe a skill a apenas estas ferramentas (lista separada por vírgula).",
-	},
-	{
-		key: "disallowed-tools",
-		label: "Ferramentas bloqueadas",
-		placeholder: "WebFetch",
-		help: "Bloqueia estas ferramentas enquanto a skill roda (lista separada por vírgula).",
-	},
-	{
-		key: "paths",
-		label: "Globs de ativação",
-		placeholder: "src/**/*.ts",
-		help: "Globs de arquivos que sugerem a skill automaticamente quando casam com o contexto.",
-	},
-	{
-		key: "context",
-		label: "Contexto",
-		placeholder: "fork",
-		help: "Como o contexto é tratado ao rodar a skill (ex.: 'fork' executa num contexto separado).",
-	},
-	{
-		key: "agent",
-		label: "Subagent",
-		placeholder: "Explore · Plan",
-		help: "Subagent que executa a skill no lugar do agente principal.",
-	},
-	{
-		key: "shell",
-		label: "Shell",
-		placeholder: "bash · powershell",
-		help: "Shell usado pelos comandos da skill.",
-	},
-	{
-		key: "license",
-		label: "Licença",
-		placeholder: "MIT",
-		help: "Licença declarada da skill.",
+		key: "effort",
+		label: "Esforço",
+		help: "Intenção de raciocínio traduzida pela CLI que invocar a skill.",
+		type: "enum",
+		options: [
+			{ value: "high", label: "Mais inteligente" },
+			{ value: "medium", label: "Intermediário" },
+			{ value: "low", label: "Mais rápido" },
+		],
 	},
 ];
 
 export const SKILL_KNOWN_METADATA_KEYS = new Set<string>([
 	...SKILL_BOOLEAN_FIELDS.map((field) => field.key),
-	...SKILL_STRING_FIELDS.map((field) => field.key),
-	// Editados no controle dedicado de padrões (cabeçalho), fora do popover genérico.
+	...SKILL_METADATA_FIELDS.map((field) => field.key),
+	"when_to_use",
+	"argument-hint",
+	"arguments",
+	"allowed-tools",
+	"disallowed-tools",
+	"paths",
+	"context",
+	"agent",
+	"shell",
+	"license",
 	"model",
 	"effort",
-	// Já editados em outros lugares (aparência) — fora do editor de metadados.
 	"icon",
 	"color",
 	"name",

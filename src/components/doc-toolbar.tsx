@@ -24,7 +24,7 @@ export function DocToolbar({
 }: {
 	onCollapse: () => void;
 	onExpand: () => void;
-	onCopyContent: () => void;
+	onCopyContent?: () => void;
 	onCopyPath: () => void;
 	onReading: () => void;
 	pinned?: boolean;
@@ -64,11 +64,13 @@ export function DocToolbar({
 					label="Expandir todos os títulos"
 					onClick={() => runAction(onExpand)}
 				/>
-				<DocSheetActionButton
-					icon={<ClipboardCopy className="size-[18px]" />}
-					label="Copiar conteúdo do arquivo"
-					onClick={() => runAction(onCopyContent)}
-				/>
+				{onCopyContent && (
+					<DocSheetActionButton
+						icon={<ClipboardCopy className="size-[18px]" />}
+						label="Copiar conteúdo do arquivo"
+						onClick={() => runAction(onCopyContent)}
+					/>
+				)}
 				<DocSheetActionButton
 					icon={<Link2 className="size-[18px]" />}
 					label="Copiar caminho do arquivo"
@@ -137,18 +139,20 @@ export function DocToolbar({
 					<ChevronsUpDown className="h-3.5 w-3.5" />
 				</Button>
 			</Tooltip>
-			<Tooltip label="Copiar conteúdo do arquivo">
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon-sm"
-					onClick={onCopyContent}
-					aria-label="Copiar conteúdo do arquivo"
-					className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
-				>
-					<ClipboardCopy className="h-3.5 w-3.5" />
-				</Button>
-			</Tooltip>
+			{onCopyContent && (
+				<Tooltip label="Copiar conteúdo do arquivo">
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon-sm"
+						onClick={onCopyContent}
+						aria-label="Copiar conteúdo do arquivo"
+						className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+					>
+						<ClipboardCopy className="h-3.5 w-3.5" />
+					</Button>
+				</Tooltip>
+			)}
 			<Tooltip label="Copiar caminho do arquivo">
 				<Button
 					type="button"

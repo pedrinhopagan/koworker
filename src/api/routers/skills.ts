@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/server";
 import { protectedProcedure } from "../auth/context";
 import { dbSkillSettings } from "../db/skill-settings";
 import { dbSkillSourcePaths } from "../db/skill-source-paths";
@@ -5,8 +6,12 @@ import {
 	createSkillInFs,
 	deleteAllSkillInFs,
 	deleteSkillInFs,
+	exportSkillTextFromFs,
 	getSkillFromFs,
 	listSkillsFromFs,
+	previewSkillStandardizationInFs,
+	readSkillFileFromFs,
+	renameSkillInFs,
 	standardizeSkillInFs,
 	updateSkillInFs,
 } from "../helpers/skills-fs";
@@ -16,12 +21,16 @@ import {
 	SkillDeleteAllSchema,
 	SkillDeleteSchema,
 	SkillGetSchema,
+	SkillFileReadSchema,
 	SkillListSchema,
 	SkillPathAddSchema,
 	SkillPathRemoveSchema,
+	SkillRenameSchema,
 	SkillSettingsSchema,
 	SkillStandardizeSchema,
+	SkillStandardizePreviewSchema,
 	SkillSyncSchema,
+	SkillTextExportSchema,
 	SkillUpdateSchema,
 } from "../schemas/skills";
 
@@ -74,25 +83,64 @@ export const skillsRouter = {
 	}),
 
 	update: protectedProcedure.input(SkillUpdateSchema).handler(async ({ input }) => {
-		await updateSkillInFs(input);
-		return { success: true };
+		return await updateSkillInFs(input);
 	}),
 
-	standardize: protectedProcedure.input(SkillStandardizeSchema).handler(async ({ input }) => {
-		return await standardizeSkillInFs(input);
+	rename: protectedProcedure.input(SkillRenameSchema).handler(async ({ input }) => {
+		const renamed = await renameSkillInFs(input);
+		try {
+			await dbSkillSettings.rename(input.slug, input.newSlug);
+		} catch (err) {
+			await renameSkillInFs({
+				slug: input.newSlug,
+				newSlug: input.slug,
+				projectName: input.projectName,
+			});
+			throw err;
+		}
+
+		return renamed;
 	}),
+
+	readFile: protectedProcedure.input(SkillFileReadSchema).handler(async ({ input }) => {
+		return await readSkillFileFromFs(input);
+	}),
+
+	exportText: protectedProcedure.input(SkillTextExportSchema).handler(async ({ input }) => {
+		return await exportSkillTextFromFs(input);
+	}),
+
+	standardizePreview: protectedProcedure
+		.input(SkillStandardizePreviewSchema)
+		.handler(async ({ input }) => {
+			return await previewSkillStandardizationInFs(input);
+		}),
+
+	standardize: protectedProcedure
+		.input(SkillStandardizeSchema)
+		.errors({ CONFLICT: {} })
+		.handler(async ({ input }) => {
+			return await standardizeSkillInFs(input);
+		}),
 
 	syncPlan: protectedProcedure.handler(() => previewSkillSyncInFs()),
 
 	sync: protectedProcedure.input(SkillSyncSchema).handler(({ input }) => applySkillSyncInFs(input)),
 
 	delete: protectedProcedure.input(SkillDeleteSchema).handler(async ({ input }) => {
-		await deleteSkillInFs(input.path);
+		await deleteSkillInFs(input);
 		return { success: true };
 	}),
 
 	deleteAll: protectedProcedure.input(SkillDeleteAllSchema).handler(async ({ input }) => {
-		return await deleteAllSkillInFs(input);
+		const result = await deleteAllSkillInFs(input).catch((err: any) => {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: err instanceof Error ? err.message : "Não foi possível remover a skill",
+				cause: err,
+			});
+		});
+		await dbSkillSettings.remove(input.slug);
+		return result;
 	}),
 
 	listPaths: protectedProcedure.handler(async () => {

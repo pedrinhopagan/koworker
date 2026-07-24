@@ -6,7 +6,7 @@ import {
 	syntaxTree,
 } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
-import { EditorSelection, Prec } from "@codemirror/state";
+import { EditorSelection, EditorState, Prec } from "@codemirror/state";
 import { type Command, EditorView, keymap, placeholder } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 import { tags as t } from "@lezer/highlight";
@@ -307,6 +307,7 @@ type MarkdownEditorProps = {
 	// Colar markdown com frontmatter (`---...---`) roteia os metadados pra fora do editor (controles
 	// + descrição da página) e insere só o corpo. Sem callback, o paste segue cru e nativo.
 	onPasteFrontmatter?: (frontmatter: Record<string, unknown>, body: string) => void;
+	readOnly?: boolean;
 };
 
 // Editor markdown sempre editável com live preview estilo Obsidian: o `.md` cru fica
@@ -324,6 +325,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 			initialAnchor,
 			onAnchorChange,
 			onPasteFrontmatter,
+			readOnly = false,
 		},
 		ref,
 	) {
@@ -439,6 +441,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
 		const extensions = useMemo(
 			() => [
+				EditorState.readOnly.of(readOnly),
+				EditorView.editable.of(!readOnly),
 				pasteHandler,
 				markdown({
 					base: markdownLanguage,
@@ -452,7 +456,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 				EditorView.lineWrapping,
 				placeholder("Comece a escrever…"),
 			],
-			[stableCallbacks, fontSize, proseMaxWidth, pasteHandler],
+			[stableCallbacks, fontSize, proseMaxWidth, pasteHandler, readOnly],
 		);
 
 		useImperativeHandle(ref, () => ({

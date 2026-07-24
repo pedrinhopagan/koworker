@@ -1,0 +1,1 @@
+export const SKILL_SLUG_PATTERN = /^[a-z0-9-]+$/;

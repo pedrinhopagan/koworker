@@ -1,9 +1,8 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useBlocker, useNavigate } from "@tanstack/react-router";
 import {
 	ArrowLeft,
 	Check,
 	ChevronDown,
-	ClipboardCopy,
 	Loader2,
 	MoreVertical,
 	PencilLine,
@@ -12,9 +11,10 @@ import {
 	TriangleAlert,
 	X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { orpc } from "@/client";
 import {
 	DocMobileActionsDrawer,
 	DocSheetActionButton,
@@ -26,25 +26,31 @@ import { TaskTitleInput } from "@/components/tasks/task-meta-controls";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Dialog } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import { Tooltip } from "@/components/ui/tooltip";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { useSkillCategoriesQuery } from "@/hooks/use-skill-categories";
 import { useSkillQuery } from "@/hooks/use-skills";
 import { LucideIcon } from "@/lib/lucide-icon";
+import { copyToClipboard } from "@/lib/build-prompt";
 import { openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
 import type { SkillCategory, SkillDetail, SkillVariant, TaskSkill } from "@/types/skills";
 import { SkillAppearanceDialog } from "../-components/skill-appearance-dialog";
+import { SkillCopyMenu } from "../-components/skill-copy-menu";
+import { SkillDocumentFrontmatter } from "../-components/skill-document-frontmatter";
+import { SkillFilesStrip } from "../-components/skill-files-strip";
 import { SkillHeaderActions } from "../-components/skill-header-actions";
+import { SkillStandardizeDialog } from "../-components/skill-standardize-dialog";
+import { useSkillDocumentAutosave } from "../-utils/use-skill-document-autosave";
 import { useSkillMutations } from "../-utils/use-skill-mutations";
 import { useSkillSettingsMutation } from "../-utils/use-skill-settings";
+import { getSkillConflictNature } from "../-utils/skill-page-actions";
 
 export const Route = createFileRoute("/_app/skills/$slug/")({
 	component: SkillPage,
@@ -210,17 +216,56 @@ function SkillEditor({
 
 	const settingsMutation = useSkillSettingsMutation();
 	const categoriesQuery = useSkillCategoriesQuery();
-	const { updateContent, standardize, standardizing, removeSkill, removeAllSkill, removing } =
-		useSkillMutations();
+	const {
+		updateContent,
+		renameSkill,
+		renaming,
+		standardize,
+		standardizing,
+		removeSkill,
+		removeAllSkill,
+		removing,
+	} = useSkillMutations();
 
 	useEffect(() => () => setReading(false), [setReading]);
 
 	const activeVariant =
 		variants.find((variant) => variant.path === activeVariantPath) ?? variants[0];
-	const hasConflict = new Set(variants.map((variant) => variant.group)).size > 1;
+	const hasConflict = new Set(variants.map((variant) => variant.contentHash)).size > 1;
+	const hasMultipleVariants = variants.length > 1;
 
-	const [description, setDescription] = useState(activeVariant?.description ?? skill.description);
-	const [metadata, setMetadata] = useState<Record<string, unknown>>(activeVariant?.metadata ?? {});
+	const saveDocument = useCallback(
+		async (document: {
+			variantPath: string;
+			description: string;
+			metadata: Record<string, unknown>;
+			content: string;
+			expectedSkillHash: string;
+		}) => await updateContent({ slug: skill.slug, projectName, ...document }),
+		[projectName, skill.slug, updateContent],
+	);
+	const autosave = useSkillDocumentAutosave({
+		initialDocument: {
+			variantPath: activeVariant.path,
+			description: activeVariant.description,
+			metadata: activeVariant.metadata,
+			content: activeVariant.content,
+		},
+		initialSkillHash: activeVariant.skillHash,
+		save: saveDocument,
+	});
+	useBlocker({
+		disabled: !autosave.pending,
+		enableBeforeUnload: () => autosave.pending,
+		shouldBlockFn: async () => {
+			try {
+				await autosave.flush();
+				return false;
+			} catch {
+				return true;
+			}
+		},
+	});
 
 	// Se a variante ativa some (ex.: removeu só esta cópia), cai pra primeira restante. Troca o path
 	// → remonta o editor com o conteúdo certo e dispara o reset da descrição abaixo.
@@ -230,55 +275,16 @@ function SkillEditor({
 		}
 	}, [variants, activeVariantPath]);
 
-	// Reseta descrição e metadados só ao trocar de variante (ou de slug, via remount do parent).
-	// biome-ignore lint/correctness/useExhaustiveDependencies: reset intencional só por variante.
-	useEffect(() => {
-		setDescription(activeVariant?.description ?? "");
-		setMetadata(activeVariant?.metadata ?? {});
-	}, [activeVariantPath]);
-
-	function persist(next: {
-		description: string;
-		content: string;
-		metadata: Record<string, unknown>;
-	}) {
-		return updateContent({
-			slug: skill.slug,
-			description: next.description,
-			content: next.content,
-			metadata: next.metadata,
-		});
-	}
-
-	function changeMetadata(next: Record<string, unknown>) {
-		setMetadata(next);
-		void persist({
-			description,
-			content: paneRef.current?.getContent() ?? activeVariant?.content ?? "",
-			metadata: next,
-		});
-	}
-
-	function saveDescription() {
-		if (description === activeVariant?.description) return;
-		void persist({
-			description,
-			content: paneRef.current?.getContent() ?? activeVariant?.content ?? "",
-			metadata,
-		});
-	}
-
 	// Colar um SKILL.md completo: o `name` vem do slug ao gravar, então descartamos. A descrição
 	// colada vira a descrição da skill; o restante do frontmatter substitui os metadados; o corpo
 	// recém-inserido no editor é o conteúdo. Persistimos o trio de uma vez pra não depender do estado
 	// desta renderização.
 	function applyPastedFrontmatter(frontmatter: Record<string, unknown>, body: string) {
 		const { name: _name, description: pastedDesc, ...pastedMeta } = frontmatter;
-		const nextDescription = typeof pastedDesc === "string" ? pastedDesc : description;
+		const nextDescription =
+			typeof pastedDesc === "string" ? pastedDesc : autosave.document.description;
 
-		setDescription(nextDescription);
-		setMetadata(pastedMeta);
-		void persist({ description: nextDescription, content: body, metadata: pastedMeta });
+		autosave.schedule({ description: nextDescription, content: body, metadata: pastedMeta }, true);
 		toast.success("Metadados aplicados do arquivo colado");
 	}
 
@@ -289,33 +295,59 @@ function SkillEditor({
 		settingsMutation.mutate({ slug: skill.slug, label: next });
 	}
 
+	async function renameSlug(newSlug: string) {
+		await autosave.flush();
+		await renameSkill({
+			slug: skill.slug,
+			newSlug,
+			projectName,
+			expectedVariants: variants.map((variant) => ({
+				path: variant.path,
+				contentHash: variant.contentHash,
+			})),
+		});
+		await navigate({ to: "/skills/$slug", params: { slug: newSlug }, replace: true });
+	}
+
 	async function selectVariant(path: string) {
 		if (path === activeVariantPath) return;
-		await paneRef.current?.flush();
+		await autosave.flush();
 		setActiveVariantPath(path);
+	}
+
+	async function navigateBack() {
+		await autosave.flush();
+		await navigate({ to: "/skills" });
 	}
 
 	// Pasta da variante ativa (absoluta) — alvo de "abrir no SO" e do zip "exportar pasta da skill".
 	const skillDir = activeVariant?.dir ?? skill.primaryDir;
 
 	async function copySkillZip() {
-		await paneRef.current?.flush();
+		await autosave.flush();
 		await shareFolderAsZip(skillDir);
 	}
 
 	const multiSource = skill.sources.length > 1;
 
-	function deleteActiveCopy() {
+	async function deleteActiveCopy() {
+		await autosave.flush();
 		setConfirmingDelete(false);
-		removeSkill(activeVariantPath);
+		removeSkill({
+			slug: skill.slug,
+			projectName,
+			variantPath: activeVariantPath,
+		});
 		// Última (ou única) cópia → a skill some de vez; senão fica nas fontes restantes.
 		if (!multiSource) navigate({ to: "/skills" });
 	}
 
-	function deleteEverywhere() {
-		setConfirmingDelete(false);
-		removeAllSkill({ slug: skill.slug, projectName });
-		navigate({ to: "/skills" });
+	async function deleteEverywhere() {
+		await autosave.flush();
+		removeAllSkill({ slug: skill.slug }, () => {
+			setConfirmingDelete(false);
+			navigate({ to: "/skills" });
+		});
 	}
 
 	function changeCategory(categoryId: string | null) {
@@ -323,24 +355,59 @@ function SkillEditor({
 		settingsMutation.mutate({ slug: skill.slug, categoryId });
 	}
 
-	function confirmStandardize() {
-		standardize({ slug: skill.slug, projectName, sourcePath: activeVariantPath });
-		setConfirmingStandardize(false);
+	const variantTarget = {
+		slug: skill.slug,
+		projectName,
+		variantPath: activeVariantPath,
+	};
+
+	async function copyPath(path: string) {
+		await autosave.flush();
+		const copied = await copyToClipboard(path);
+		toast[copied ? "success" : "error"](copied ? "Caminho copiado" : "Falha ao copiar caminho");
+	}
+
+	async function openSkillFolder() {
+		await autosave.flush();
+		await openFolderInOs(skillDir);
+	}
+
+	async function copyFile(relativePath: string) {
+		await autosave.flush();
+		const { content } = await orpc.skills.readFile.call({
+			...variantTarget,
+			relativePath,
+		});
+		const copied = await copyToClipboard(content);
+		toast[copied ? "success" : "error"](copied ? "Conteúdo copiado" : "Falha ao copiar conteúdo");
+	}
+
+	async function copySkillText() {
+		await autosave.flush();
+		const result = await orpc.skills.exportText.call(variantTarget);
+		const copied = await copyToClipboard(result.content);
+		if (!copied) {
+			toast.error("Falha ao copiar skill");
+			return;
+		}
+		if (result.omittedBinaryPaths.length > 0) {
+			toast.success(`${result.omittedBinaryPaths.length} arquivo(s) binário(s) omitido(s)`);
+			return;
+		}
+		toast.success("Skill copiada como texto");
 	}
 
 	const activeVariantLabel = activeVariant
 		? `${SKILL_TOOL_LABEL[activeVariant.tool]}${scopeSuffix(activeVariant.scope)}`
 		: "";
-	const standardizeDescription = [
-		variants.length > 1 &&
-			`A versão de “${activeVariantLabel}” será gravada por cima das outras ${variants.length - 1} cópias no disco e as versões divergentes serão perdidas.`,
-		missingTools.length > 0 &&
-			`A skill será criada em: ${missingTools.map((tool) => SKILL_TOOL_LABEL[tool]).join(", ")}.`,
-	]
-		.filter(Boolean)
-		.join(" ");
+	const conflictNature = getSkillConflictNature(variants, activeVariantPath);
 
 	const closeActions = () => setActionsOpen(false);
+	function runAction(action: Promise<unknown>) {
+		void action.catch((error) =>
+			toast.error(error instanceof Error ? error.message : "Não foi possível concluir a ação"),
+		);
+	}
 
 	return (
 		<div className="relative flex h-full w-full flex-col">
@@ -348,13 +415,14 @@ function SkillEditor({
 				<>
 					<div className="w-full border-b border-border">
 						<div className="mx-auto flex h-10 w-full max-w-6xl items-center gap-2 px-2">
-							<Link
-								to="/skills"
+							<button
+								type="button"
+								onClick={() => runAction(navigateBack())}
 								className="flex items-center px-2 text-muted-foreground transition-colors hover:text-foreground"
 								aria-label="Voltar para skills"
 							>
 								<ArrowLeft size={16} />
-							</Link>
+							</button>
 							<div
 								className="flex size-6 shrink-0 items-center justify-center border"
 								style={{ borderColor: skill.color, color: skill.color }}
@@ -391,12 +459,6 @@ function SkillEditor({
 										{scopeSuffix(source.scope)}
 									</Chip>
 								))}
-								{hasConflict && (
-									<Chip size="xs" variant="destructive" className="gap-1">
-										<TriangleAlert className="size-3" />
-										conflito
-									</Chip>
-								)}
 							</div>
 
 							{/* Principais inline (desktop): categoria, copiar e replicar. O resto vive no menu
@@ -408,28 +470,22 @@ function SkillEditor({
 									onChange={changeCategory}
 									className="w-40"
 								/>
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={() => void paneRef.current?.copyContent()}
-									title="Copiar conteúdo"
-								>
-									<ClipboardCopy className="size-3.5" />
-									Copiar
-								</Button>
+								<SkillCopyMenu
+									onCopySkill={() => copyFile("SKILL.md")}
+									onCopyText={copySkillText}
+									onCopyZip={copySkillZip}
+									flush={autosave.flush}
+								/>
 								<SkillHeaderActions
-									metadata={metadata}
 									pinned={pinned}
-									onMetadataChange={changeMetadata}
 									onAppearance={() => setAppearanceOpen(true)}
 									onTogglePin={togglePin}
 									onReading={() => setReading(true)}
 									onCollapse={() => paneRef.current?.collapseAll()}
 									onExpand={() => paneRef.current?.expandAll()}
-									onCopyPath={() => void paneRef.current?.copyPath()}
-									onOpenInOs={() => void openFolderInOs(skillDir)}
-									onShareZip={() => void copySkillZip()}
+									onCopyPath={() => runAction(copyPath(`${skillDir}/SKILL.md`))}
+									onOpenInOs={() => runAction(openSkillFolder())}
+									onShareZip={() => runAction(copySkillZip())}
 									onDelete={() => setConfirmingDelete(true)}
 								/>
 							</div>
@@ -468,17 +524,25 @@ function SkillEditor({
 							}}
 						/>
 						<DocSheetDivider />
+						<div className="flex justify-center px-5 py-2">
+							<SkillCopyMenu
+								onCopySkill={() => copyFile("SKILL.md")}
+								onCopyText={copySkillText}
+								onCopyZip={copySkillZip}
+								flush={autosave.flush}
+							/>
+						</div>
+						<DocSheetDivider />
 						<DocToolbar
 							onCollapse={() => paneRef.current?.collapseAll()}
 							onExpand={() => paneRef.current?.expandAll()}
-							onCopyContent={() => void paneRef.current?.copyContent()}
-							onCopyPath={() => void paneRef.current?.copyPath()}
+							onCopyPath={() => runAction(copyPath(`${skillDir}/SKILL.md`))}
 							onReading={() => setReading(true)}
 							pinned={pinned}
 							onTogglePin={togglePin}
 							share={{
-								onOpenInOs: () => void openFolderInOs(skillDir),
-								onCopyZip: () => void copySkillZip(),
+								onOpenInOs: () => runAction(openSkillFolder()),
+								onCopyZip: () => runAction(copySkillZip()),
 							}}
 							layout="stacked"
 							onAction={closeActions}
@@ -495,24 +559,15 @@ function SkillEditor({
 						/>
 					</DocMobileActionsDrawer>
 
-					<div className="w-full border-b border-border">
-						<div className="mx-auto w-full max-w-6xl px-2 py-1.5">
-							<Textarea
-								value={description}
-								onChange={(event) => setDescription(event.target.value)}
-								onBlur={saveDescription}
-								placeholder="Descrição da skill"
-								rows={1}
-								className="min-h-0 max-h-32 resize-none border-0 bg-transparent px-2 py-1 text-sm leading-relaxed shadow-none field-sizing-content focus-visible:ring-0"
-							/>
-						</div>
-					</div>
-
-					{(hasConflict || missingTools.length > 0) && (
+					{(hasMultipleVariants || missingTools.length > 0) && (
 						<div className="w-full border-b border-border">
 							<div className="mx-auto flex h-8 w-full max-w-6xl items-stretch">
-								<div className="flex min-w-0 flex-1 items-stretch">
-									{!hasConflict && (
+								<div
+									className="flex min-w-0 flex-1 items-stretch overflow-x-auto"
+									role={hasMultipleVariants ? "tablist" : undefined}
+									aria-label={hasMultipleVariants ? "Variantes da skill" : undefined}
+								>
+									{!hasMultipleVariants && (
 										<div className="flex min-w-0 items-center gap-1.5 px-3 text-xs text-muted-foreground">
 											<TriangleAlert className="size-3.5 shrink-0 text-amber-500" />
 											<span className="truncate">
@@ -520,21 +575,23 @@ function SkillEditor({
 											</span>
 										</div>
 									)}
-									{hasConflict &&
+									{hasMultipleVariants &&
 										variants.map((variant) => {
 											const isActive = variant.path === activeVariantPath;
 											return (
 												<button
 													key={variant.path}
 													type="button"
-													onClick={() => void selectVariant(variant.path)}
+													onClick={() => runAction(selectVariant(variant.path))}
 													className={cn(
-														"flex h-full items-center justify-center gap-1.5 border-l border-border px-3 text-xs transition-colors",
+														"flex h-full shrink-0 items-center justify-center gap-1.5 border-l border-border px-3 text-xs transition-colors",
 														isActive
 															? "bg-secondary text-foreground"
 															: "text-muted-foreground hover:bg-secondary/50",
 													)}
 													title={variant.path}
+													role="tab"
+													aria-selected={isActive}
 												>
 													<span
 														className={cn(
@@ -551,20 +608,30 @@ function SkillEditor({
 											);
 										})}
 								</div>
-								<button
-									type="button"
-									onClick={() => setConfirmingStandardize(true)}
-									disabled={standardizing}
-									className="flex shrink-0 items-center gap-1.5 border-l border-border px-3 text-xs text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground disabled:opacity-50"
-									title={
-										hasConflict
-											? "Sobrescrever as outras cópias e criar nas CLIs que não têm a skill"
-											: "Criar esta skill nas CLIs que ainda não a têm"
-									}
-								>
-									<Check size={14} />
-									Definir como principal
-								</button>
+								<div className="flex shrink-0 items-stretch border-l border-border">
+									<button
+										type="button"
+										onClick={() => setConfirmingStandardize(true)}
+										disabled={standardizing}
+										className="flex items-center gap-1.5 px-3 text-xs text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground disabled:opacity-50"
+										aria-label="Tornar como principal"
+										title="Criar esta skill nas CLIs que ainda não a têm"
+									>
+										<Check size={14} />
+										<span className="hidden sm:inline">Tornar como principal</span>
+									</button>
+									{hasConflict && (
+										<Tooltip label={conflictNature ?? "Variantes divergem"} side="bottom">
+											<button
+												type="button"
+												aria-label={conflictNature ?? "Variantes divergem"}
+												className="flex h-full items-center px-2 text-amber-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+											>
+												<TriangleAlert className="size-3.5" />
+											</button>
+										</Tooltip>
+									)}
+								</div>
 							</div>
 						</div>
 					)}
@@ -578,14 +645,42 @@ function SkillEditor({
 					key={activeVariantPath}
 					ref={paneRef}
 					fileName="SKILL.md"
-					sessionKey={docSessionKey({ kind: "skill", variantPath: activeVariantPath })}
+					sessionKey={docSessionKey({
+						kind: "skill",
+						variantPath: activeVariantPath,
+					})}
 					content={activeVariant?.content ?? skill.instructions}
 					folderPath={activeVariant?.dir ?? skill.primaryDir}
-					writeFile={({ content }) => persist({ description, content, metadata })}
+					documentMaxWidth="52rem"
+					externalSave={{
+						schedule: (content) => autosave.schedule({ content }),
+						flush: autosave.flush,
+					}}
+					beforeEditor={
+						<>
+							<SkillFilesStrip
+								files={activeVariant.files}
+								onCopyContent={(file) => runAction(copyFile(file.path))}
+								onCopyPath={(file) => runAction(copyPath(file.path))}
+								onOpenFolder={() => runAction(openSkillFolder())}
+							/>
+							<SkillDocumentFrontmatter
+								slug={skill.slug}
+								description={autosave.document.description}
+								metadata={autosave.document.metadata}
+								status={autosave.status}
+								renaming={renaming}
+								onSlugCommit={renameSlug}
+								onDescriptionChange={(description) => autosave.schedule({ description })}
+								onDescriptionCommit={() => runAction(autosave.flush())}
+								onMetadataChange={(metadata) => autosave.schedule({ metadata }, true)}
+							/>
+						</>
+					}
 					onPasteFrontmatter={applyPastedFrontmatter}
 					reading={reading}
 					onExitReading={() => setReading(false)}
-					onExit={() => navigate({ to: "/skills" })}
+					onExit={() => void navigate({ to: "/skills" })}
 				/>
 				{reading ? (
 					<Button
@@ -608,7 +703,7 @@ function SkillEditor({
 				description={
 					multiSource
 						? `“${skill.label}” existe em ${skill.sources.length} fontes. Escolha o que apagar do disco.`
-						: `A pasta de “${skill.label}” será apagada permanentemente do disco.`
+						: `“${skill.label}” será salva no backup e removida de todas as fontes configuradas.`
 				}
 				className="max-w-md"
 				footer={
@@ -621,7 +716,7 @@ function SkillEditor({
 								<Button
 									variant="outline"
 									size="sm"
-									onClick={deleteActiveCopy}
+									onClick={() => runAction(deleteActiveCopy())}
 									disabled={removing}
 									className="text-destructive"
 								>
@@ -631,7 +726,7 @@ function SkillEditor({
 								<Button
 									variant="destructive"
 									size="sm"
-									onClick={deleteEverywhere}
+									onClick={() => runAction(deleteEverywhere())}
 									disabled={removing}
 								>
 									Todas as {skill.sources.length} fontes
@@ -641,10 +736,10 @@ function SkillEditor({
 							<Button
 								variant="destructive"
 								size="sm"
-								onClick={deleteActiveCopy}
+								onClick={() => runAction(deleteEverywhere())}
 								disabled={removing}
 							>
-								Remover
+								Deletar
 							</Button>
 						)}
 					</div>
@@ -652,8 +747,8 @@ function SkillEditor({
 			>
 				<Text size="sm" tone="muted">
 					{multiSource
-						? "“Só esta cópia” remove apenas a pasta da fonte selecionada; “todas as fontes” apaga a skill de todos os lugares."
-						: "Esta ação não pode ser desfeita."}
+						? "“Só esta cópia” remove apenas a pasta selecionada; “todas as fontes” cria um backup e remove a skill de todos os projetos."
+						: "Uma cópia completa será salva em ~/Documentos/backups/koworker/skills/ antes da remoção em todos os projetos."}
 				</Text>
 			</Dialog>
 
@@ -662,15 +757,13 @@ function SkillEditor({
 				onClose={() => setAppearanceOpen(false)}
 			/>
 
-			<ConfirmDialog
+			<SkillStandardizeDialog
 				open={confirmingStandardize}
+				label={activeVariantLabel}
+				flush={autosave.flush}
+				loadPreview={async () => await orpc.skills.standardizePreview.call(variantTarget)}
+				apply={async (planHash) => await standardize({ ...variantTarget, planHash })}
 				onClose={() => setConfirmingStandardize(false)}
-				onConfirm={confirmStandardize}
-				title="Definir como principal"
-				description={standardizeDescription}
-				confirmLabel="Confirmar"
-				variant="danger"
-				loading={standardizing}
 			/>
 		</div>
 	);

@@ -1,4 +1,12 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import {
+	forwardRef,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useImperativeHandle,
+	useMemo,
+	useRef,
+} from "react";
 import { toast } from "sonner";
 
 import { MarkdownEditor, type MarkdownEditorHandle } from "@/components/markdown-doc";
@@ -29,7 +37,13 @@ type DocEditorPaneProps = {
 	sessionKey: string;
 	content: string;
 	folderPath: string;
-	writeFile: (payload: { name: string; content: string }) => Promise<unknown>;
+	writeFile?: (payload: { name: string; content: string }) => Promise<unknown>;
+	externalSave?: {
+		schedule: (content: string) => void;
+		flush: () => Promise<void>;
+	};
+	beforeEditor?: ReactNode;
+	documentMaxWidth?: string;
 	emptyState?: string;
 	// Modo leitura é controlado pela página (que decide o que dimmer/esconder no entorno);
 	// aqui ele só amplia a fonte/largura e atende o Esc pra sair.
@@ -50,6 +64,9 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 			content,
 			folderPath,
 			writeFile,
+			externalSave,
+			beforeEditor,
+			documentMaxWidth = "44rem",
 			emptyState,
 			reading,
 			onExitReading,
@@ -63,7 +80,20 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 		// Na leitura o footer do prompt é fixo sobre o conteúdo; --prompt-bar-h (publicada pelo footer
 		// via ResizeObserver) garante que o scroll alcance o texto que ficaria atrás do drawer.
 
-		const { schedule, flush } = useDebouncedWrite(writeFile);
+		const localSave = useDebouncedWrite(async (payload: { name: string; content: string }) => {
+			if (!writeFile) {
+				throw new Error("Salvamento não configurado");
+			}
+			await writeFile(payload);
+		});
+		const schedule = (payload: { name: string; content: string }) => {
+			if (externalSave) {
+				externalSave.schedule(payload.content);
+				return;
+			}
+			localSave.schedule(payload);
+		};
+		const flush = externalSave?.flush ?? localSave.flush;
 
 		// Lido uma vez por remount (o editor é keyado por arquivo); `getState` evita re-render reativo.
 		const initialAnchor = useMemo(
@@ -85,6 +115,12 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 		useEffect(() => {
 			async function onKey(event: KeyboardEvent) {
 				if (event.key !== "Escape") return;
+				if (
+					event.target instanceof Element &&
+					event.target.closest('[role="menu"], [role="dialog"], [role="listbox"]')
+				) {
+					return;
+				}
 
 				if (reading) {
 					onExitReading();
@@ -97,7 +133,14 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 				if (!escFree) return;
 
 				event.preventDefault();
-				await flush();
+				try {
+					await flush();
+				} catch (error) {
+					toast.error(
+						error instanceof Error ? error.message : "Não foi possível salvar o documento",
+					);
+					return;
+				}
 				const store = useDocSessionsStore.getState();
 				const session = store.recents.find((entry) => entry.key === sessionKey);
 				if (!session?.pinned) {
@@ -156,13 +199,21 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 					)}
 					style={reading ? { paddingBottom: "calc(2.5rem + var(--prompt-bar-h, 0px))" } : undefined}
 				>
+					{beforeEditor && (
+						<div
+							className="mx-auto w-full"
+							style={reading ? undefined : { maxWidth: documentMaxWidth }}
+						>
+							{beforeEditor}
+						</div>
+					)}
 					{fileName ? (
 						<MarkdownEditor
 							key={fileName}
 							ref={editorRef}
 							initialContent={content}
 							fontSize={reading ? "1.25rem" : "1rem"}
-							proseMaxWidth={reading ? undefined : "44rem"}
+							proseMaxWidth={reading ? undefined : documentMaxWidth}
 							initialAnchor={initialAnchor}
 							onAnchorChange={saveAnchor}
 							onChange={(next) => schedule({ name: fileName, content: next })}

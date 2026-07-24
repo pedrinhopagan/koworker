@@ -7,6 +7,7 @@ import {
 	SlidersHorizontal,
 	SquareArrowOutUpRight,
 	Tag,
+	Trash2,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -48,6 +49,7 @@ export function SkillSettingsMenu({
 		onOpen: () => void;
 		onOpenInOs: () => void;
 		onShareZip: () => void;
+		onDelete: () => void;
 	};
 }) {
 	const settingsMutation = useSkillSettingsMutation();
@@ -109,6 +111,14 @@ export function SkillSettingsMenu({
 						<DropdownMenuItem onSelect={docActions.onShareZip}>
 							<FileArchive />
 							Compartilhar zip
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							onSelect={docActions.onDelete}
+							className="text-destructive focus:text-destructive"
+						>
+							<Trash2 />
+							Deletar
 						</DropdownMenuItem>
 					</>
 				)}

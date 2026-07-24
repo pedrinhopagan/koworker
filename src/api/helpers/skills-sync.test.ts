@@ -204,4 +204,22 @@ describe("applySkillSyncInFs", () => {
 		expect((await lstat(join(agents, "linked"))).isDirectory()).toBe(true);
 		expect(await readFile(join(agents, "linked", "SKILL.md"), "utf8")).toContain("corpo");
 	});
+
+	test("cria a skill quando a raiz global configurada ainda não existe", async () => {
+		const opencode = await root();
+		const parent = await root();
+		const missing = join(parent, "nova", "agents-skills");
+		await addRoot("opencode", opencode);
+		await addRoot("agents", missing);
+		await writeSkill(opencode, "create-root", "corpo");
+		const plan = await previewSkillSyncInFs();
+
+		const result = await applySkillSyncInFs({ planHash: plan.planHash, choices: [] });
+		if (result.backupPath) {
+			tempDirs.push(result.backupPath);
+		}
+
+		expect(result.created).toBe(1);
+		expect(await readFile(join(missing, "create-root", "SKILL.md"), "utf8")).toContain("corpo");
+	});
 });

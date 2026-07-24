@@ -11,6 +11,36 @@ export type SkillSettingsInput = {
 
 export const dbSkillSettings = {
 	getAll: () => db.selectFrom("skill_settings").selectAll().execute(),
+	remove: (slug: string) =>
+		db.deleteFrom("skill_settings").where("slug", "=", slug).executeTakeFirst(),
+
+	rename: async (slug: string, newSlug: string) => {
+		await db.transaction().execute(async (trx) => {
+			const source = await trx
+				.selectFrom("skill_settings")
+				.select("slug")
+				.where("slug", "=", slug)
+				.executeTakeFirst();
+			if (!source) {
+				return;
+			}
+
+			const target = await trx
+				.selectFrom("skill_settings")
+				.select("slug")
+				.where("slug", "=", newSlug)
+				.executeTakeFirst();
+			if (target) {
+				throw new Error(`Já existem configurações para a skill "${newSlug}"`);
+			}
+
+			await trx
+				.updateTable("skill_settings")
+				.set({ slug: newSlug, updated_at: Date.now() })
+				.where("slug", "=", slug)
+				.executeTakeFirst();
+		});
+	},
 
 	upsert: ({ slug, label, icon, color, categoryId, quickInvoke }: SkillSettingsInput) => {
 		const values = {

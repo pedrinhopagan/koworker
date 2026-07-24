@@ -1,10 +1,11 @@
-import { cp, lstat, mkdir, readlink, readdir, realpath, rename, rm, stat } from "node:fs/promises";
+import { cp, lstat, mkdir, readlink, readdir, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { readSkillFile } from "@/lib/skills/parser";
 import { dbSkillSourcePaths } from "../db/skill-source-paths";
-import { skillContentHash, SYNCED_SKILL_TOOLS, type SkillTool } from "./skills-fs";
+import { SYNCED_SKILL_TOOLS, type SkillTool } from "./skills-fs";
 import { expandTilde } from "./os-actions";
+import { inspectSkillDirectory, replaceSkillDirectories } from "./skill-directory";
 
 const home = homedir();
 const backupRoot = join(home, "backups", "koworker", "skills");
@@ -49,77 +50,35 @@ export type SkillSyncPlan = {
 async function globalRoots() {
 	const rows = await dbSkillSourcePaths.list();
 	const seen = new Set<string>();
-
-	return rows
+	const roots = rows
 		.filter((row) => row.scope === "global" && SYNCED_SKILL_TOOLS.has(row.tool as SkillTool))
-		.map((row) => ({ tool: row.tool as SkillTool, path: expandTilde(row.path) }))
-		.filter((root) => {
-			const path = resolve(root.path);
-			if (seen.has(path)) {
-				return false;
+		.map((row) => ({ tool: row.tool as SkillTool, path: expandTilde(row.path) }));
+	const deduplicated: SyncRoot[] = [];
+	for (const root of roots) {
+		const identity = await realpath(root.path).catch((err: any) => {
+			if (err?.code === "ENOENT") {
+				return resolve(root.path);
 			}
-			seen.add(path);
-			return true;
+			throw err;
 		});
-}
-
-async function directoryFingerprint(path: string) {
-	const entries: string[] = [];
-	const contentEntries: string[] = [];
-	const fileNames: string[] = [];
-	let files = 0;
-	const rootStat = await lstat(path);
-	const entryType: SkillSyncSource["entryType"] = rootStat.isSymbolicLink()
-		? "symlink"
-		: "directory";
-	const linkTarget = rootStat.isSymbolicLink() ? await readlink(path) : undefined;
-	const contentRoot = rootStat.isSymbolicLink() ? await realpath(path) : path;
-
-	async function visit(currentPath: string, relativePath: string) {
-		const currentStat = await lstat(currentPath);
-		const mode = currentStat.mode & 0o777;
-
-		if (currentStat.isSymbolicLink()) {
-			throw new Error(`Link interno não suportado em ${currentPath}`);
-		}
-
-		if (!currentStat.isDirectory()) {
-			const bytes = new Uint8Array(await Bun.file(currentPath).arrayBuffer());
-			entries.push(`f:${relativePath}:${mode}:${Bun.hash(bytes).toString()}`);
-			fileNames.push(relativePath);
-			files++;
-
-			if (relativePath === "SKILL.md") {
-				const file = await readSkillFile(currentPath);
-				contentEntries.push(
-					file
-						? `skill:${skillContentHash(file)}`
-						: `f:${relativePath}:${Bun.hash(bytes).toString()}`,
-				);
-				return;
-			}
-			contentEntries.push(`f:${relativePath}:${Bun.hash(bytes).toString()}`);
-			return;
-		}
-
-		entries.push(`d:${relativePath}:${mode}`);
-		const children = await readdir(currentPath);
-		children.sort((a, b) => a.localeCompare(b));
-
-		for (const child of children) {
-			await visit(join(currentPath, child), join(relativePath, child));
+		if (!seen.has(identity)) {
+			seen.add(identity);
+			deduplicated.push(root);
 		}
 	}
 
-	await visit(contentRoot, ".");
+	return deduplicated;
+}
 
+async function directoryFingerprint(path: string) {
+	const manifest = await inspectSkillDirectory(path);
 	return {
-		hash: Bun.hash(entries.join("\n")).toString(),
-		contentHash: Bun.hash(contentEntries.join("\n")).toString(),
-		files,
-		entryType,
-		linkTarget,
-		fileNames,
+		hash: manifest.hash,
+		contentHash: manifest.contentHash,
+		files: manifest.files.length,
+		entryType: manifest.entryType,
+		...(manifest.linkTarget ? { linkTarget: manifest.linkTarget } : {}),
+		fileNames: manifest.files.map((file) => file.path),
 	};
 }
 
@@ -185,12 +144,13 @@ export async function previewSkillSyncInFs(): Promise<SkillSyncPlan> {
 		[...sourcesBySlug.entries()].map(async ([slug, sources]) => {
 			const detailed = await Promise.all(
 				sources.map(async (source) => {
+					const fingerprint = await directoryFingerprint(source.path);
 					const file = await readSkillFile(join(source.path, "SKILL.md"));
 
 					return {
 						tool: source.root.tool,
 						path: source.path,
-						...(await directoryFingerprint(source.path)),
+						...fingerprint,
 						preview: file?.body.trim().slice(0, 400) ?? "",
 						updatedAt: (await stat(join(source.path, "SKILL.md"))).mtimeMs,
 					};
@@ -282,50 +242,6 @@ async function backupSources(
 	return backupPath;
 }
 
-async function replaceTarget(input: {
-	slug: string;
-	targetPath: string;
-	existing: SkillSyncSource;
-	chosen: SkillSyncSource;
-}) {
-	const quarantinePath = join(
-		dirname(input.targetPath),
-		`.${input.slug}.koworker-sync-${crypto.randomUUID().slice(0, 8)}`,
-	);
-	await rename(input.targetPath, quarantinePath);
-
-	try {
-		const quarantined = await directoryFingerprint(quarantinePath);
-		if (quarantined.hash !== input.existing.hash) {
-			throw new Error(`${input.slug} mudou durante a sincronização`);
-		}
-
-		await cp(input.chosen.path, input.targetPath, { recursive: true, dereference: true });
-		const installed = await directoryFingerprint(input.targetPath);
-		if (installed.hash !== input.chosen.hash) {
-			throw new Error(`Falha ao instalar ${input.slug}: verificação não bateu`);
-		}
-	} catch (err: any) {
-		await rm(input.targetPath, { recursive: true, force: true });
-		await rename(quarantinePath, input.targetPath);
-		throw err;
-	}
-
-	await rm(quarantinePath, { recursive: true, force: true });
-}
-
-async function createTarget(input: { slug: string; root: SyncRoot; chosen: SkillSyncSource }) {
-	const targetPath = join(input.root.path, input.slug);
-	await mkdir(input.root.path, { recursive: true });
-	await cp(input.chosen.path, targetPath, { recursive: true, dereference: true });
-
-	const installed = await directoryFingerprint(targetPath);
-	if (installed.hash !== input.chosen.hash) {
-		await rm(targetPath, { recursive: true, force: true });
-		throw new Error(`Falha ao instalar ${input.slug}: verificação não bateu`);
-	}
-}
-
 export async function applySkillSyncInFs(input: {
 	planHash: string;
 	choices: { slug: string; sourcePath: string; hash: string }[];
@@ -376,29 +292,22 @@ export async function applySkillSyncInFs(input: {
 		jobs.flatMap((job) => (job.existing ? [{ slug: job.slug, source: job.existing }] : [])),
 	);
 
-	let created = 0;
-	let updated = 0;
-	for (const job of jobs) {
-		try {
-			if (job.existing) {
-				await replaceTarget({
-					slug: job.slug,
-					targetPath: job.targetPath,
-					existing: job.existing,
-					chosen: job.chosen,
-				});
-				updated++;
-			} else {
-				await createTarget({ slug: job.slug, root: job.root, chosen: job.chosen });
-				created++;
-			}
-		} catch (err: any) {
-			throw new Error(
-				`Sincronização interrompida em ${job.slug}: ${err.message}. Backup em ${backupPath}`,
-				{ cause: err },
-			);
-		}
-	}
+	await replaceSkillDirectories(
+		jobs.map((job) => ({
+			sourceDir: job.chosen.path,
+			targetDir: job.targetPath,
+			expectedContentHash: job.chosen.contentHash,
+			expectedHash: job.chosen.hash,
+			expectedTargetContentHash: job.existing?.contentHash ?? null,
+			expectedTargetHash: job.existing?.hash ?? null,
+		})),
+	).catch((err: any) => {
+		throw new Error(`Sincronização interrompida: ${err.message}. Backup em ${backupPath}`, {
+			cause: err,
+		});
+	});
+	const created = jobs.filter((job) => !job.existing).length;
+	const updated = jobs.length - created;
 
 	return { backupPath, created, updated };
 }
