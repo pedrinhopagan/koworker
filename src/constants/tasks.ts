@@ -2,6 +2,16 @@ export const RECENCY_HIGHLIGHT_DEPTH = 3;
 
 export const TASK_RECENCY_HIGHLIGHT_DEPTH = 5;
 
+export const TASK_SORT_MODES = [
+	{ mode: "recente", label: "Recente" },
+	{ mode: "categoria", label: "Categoria" },
+	{ mode: "prioridade", label: "Prioridade" },
+	{ mode: "complexidade", label: "Complexidade" },
+	{ mode: "alfabetica", label: "A-Z" },
+] as const;
+
+export type TaskSortMode = (typeof TASK_SORT_MODES)[number]["mode"];
+
 export const RECENCY_IGNORE_OFFSET_MS = 10 * 24 * 60 * 60 * 1000;
 
 // Janela de frescor do destaque da LISTA de tarefas: só ganha barra/relógio quem foi editado

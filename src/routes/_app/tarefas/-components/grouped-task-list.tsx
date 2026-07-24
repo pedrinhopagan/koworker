@@ -23,13 +23,14 @@ import { useMemo, useState } from "react";
 
 import { orpc } from "@/client";
 import { TaskItem } from "@/components/tasks";
-import { TASK_COMPLEXITIES } from "@/constants/complexity";
 import { Text } from "@/components/typography";
 import { RECENCY_FRESH_WINDOW_MS, TASK_RECENCY_HIGHLIGHT_DEPTH } from "@/constants/tasks";
+import type { TaskSortMode } from "@/constants/tasks";
+import { sortTasksByMode } from "@/lib/task-sorting";
 import { cn } from "@/lib/utils";
 import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
 import type { TaskGroup, TaskWithMeta } from "@/types/tasks";
-import { type SortMode, TaskGroupHeader } from "./task-groups-controls";
+import { TaskGroupHeader } from "./task-groups-controls";
 
 export const NO_GROUP = "__none__";
 // Categoria sentinela dos buckets "achatados" (modos que não clusterizam por categoria).
@@ -91,54 +92,26 @@ function updateTasksCache(old: unknown, update: (task: TaskWithMeta) => TaskWith
 	};
 }
 
-type SortContext = {
-	mode: SortMode;
-	categoryOrder: Map<string, number>;
-	priorityLevel: Map<string, number>;
-};
-
 // O bucket de uma task depende do modo: por categoria clusteriza (grupo+categoria); nos demais
 // o grupo é um bucket único e a categoria não separa.
-function taskBucketKey(task: TaskWithMeta, mode: SortMode) {
+function taskBucketKey(task: TaskWithMeta, mode: TaskSortMode) {
 	const groupId = task.groupId ?? null;
 	return mode === "categoria"
 		? bucketKey(groupId, task.categoryId ?? NO_CATEGORY)
 		: bucketKey(groupId, FLAT_CAT);
 }
 
-// Comparador dentro do bucket. Concluídas sempre afundam; depois vem a chave do modo; o
-// display_order (ordem manual do arraste) é sempre o desempate.
-function compareInBucket(a: TaskWithMeta, b: TaskWithMeta, ctx: SortContext) {
-	if (a.done !== b.done) return a.done ? 1 : -1;
-
-	if (ctx.mode === "prioridade") {
-		// level menor = mais importante (Alta=1), igual ao critério de getFocusTask. Sem prioridade
-		// afunda (MAX_SAFE_INTEGER).
-		const la = (a.priorityId && ctx.priorityLevel.get(a.priorityId)) || Number.MAX_SAFE_INTEGER;
-		const lb = (b.priorityId && ctx.priorityLevel.get(b.priorityId)) || Number.MAX_SAFE_INTEGER;
-		if (la !== lb) return la - lb;
-	} else if (ctx.mode === "complexidade") {
-		// Extremo (maior índice na constante) primeiro; desempate cai no display_order abaixo.
-		const ca = TASK_COMPLEXITIES.indexOf(a.complexity);
-		const cb = TASK_COMPLEXITIES.indexOf(b.complexity);
-		if (ca !== cb) return cb - ca;
-	} else if (ctx.mode === "recente") {
-		if (a.lastEditedAt !== b.lastEditedAt) return b.lastEditedAt - a.lastEditedAt;
-	} else if (ctx.mode === "alfabetica") {
-		const cmp = a.displayTitle.localeCompare(b.displayTitle, "pt-BR");
-		if (cmp !== 0) return cmp;
-	}
-
-	if (a.displayOrder !== b.displayOrder) return a.displayOrder - b.displayOrder;
-	return b.createdAt - a.createdAt;
-}
-
-function buildBuckets(tasks: TaskWithMeta[], ctx: SortContext) {
-	const sorted = [...tasks].sort((a, b) => compareInBucket(a, b, ctx));
+function buildBuckets(
+	tasks: TaskWithMeta[],
+	mode: TaskSortMode,
+	categories: { id: string; displayOrder: number }[],
+	priorities: { id: string; level: number }[],
+) {
+	const sorted = sortTasksByMode(tasks, mode, categories, priorities);
 
 	const buckets: Record<string, string[]> = {};
 	for (const task of sorted) {
-		(buckets[taskBucketKey(task, ctx.mode)] ??= []).push(task.id);
+		(buckets[taskBucketKey(task, mode)] ??= []).push(task.id);
 	}
 	return buckets;
 }
@@ -177,7 +150,7 @@ type GroupedTaskListProps = {
 	categories: { id: string; displayOrder: number }[];
 	priorities: { id: string; level: number }[];
 	loading: boolean;
-	sortMode: SortMode;
+	sortMode: TaskSortMode;
 	reorderingDisabled?: boolean;
 	// Em "Todos os projetos" cada projeto monta uma instância; o prefixo isola só a chave de colapso
 	// do slot "Sem feature" (NO_GROUP). Omitido no modo single → chave idêntica à de hoje.
@@ -201,17 +174,16 @@ export function GroupedTaskList({
 	const noGroupOrder = useTaskGroupsUiStore((state) => state.noGroupOrder);
 	const setNoGroupOrder = useTaskGroupsUiStore((state) => state.setNoGroupOrder);
 
-	const sortCtx = useMemo<SortContext>(
-		() => ({
-			mode: sortMode,
-			categoryOrder: new Map(categories.map((c) => [c.id, c.displayOrder])),
-			priorityLevel: new Map(priorities.map((p) => [p.id, p.level])),
-		}),
-		[sortMode, categories, priorities],
+	const categoryOrder = useMemo(
+		() => new Map(categories.map((category) => [category.id, category.displayOrder])),
+		[categories],
 	);
 	const taskMap = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
 
-	const buckets = useMemo(() => buildBuckets(tasks, sortCtx), [tasks, sortCtx]);
+	const buckets = useMemo(
+		() => buildBuckets(tasks, sortMode, categories, priorities),
+		[tasks, sortMode, categories, priorities],
+	);
 	const highlightLevels = useMemo(() => buildHighlightLevels(tasks), [tasks]);
 
 	// Ordem de render dos slots de grupo: grupos reais (ordem do banco) com o "Sem grupo" (id null)
@@ -232,8 +204,8 @@ export function GroupedTaskList({
 						.filter((key) => parseBucketKey(key).groupId === id)
 						.sort(
 							(a, b) =>
-								(sortCtx.categoryOrder.get(parseBucketKey(a).categoryId) ?? 0) -
-								(sortCtx.categoryOrder.get(parseBucketKey(b).categoryId) ?? 0),
+								(categoryOrder.get(parseBucketKey(a).categoryId) ?? 0) -
+								(categoryOrder.get(parseBucketKey(b).categoryId) ?? 0),
 						);
 					const count = bucketKeys.reduce((sum, key) => sum + buckets[key].length, 0);
 					return { id, group, bucketKeys, count };
@@ -241,7 +213,7 @@ export function GroupedTaskList({
 				// "Sem grupo" só aparece quando tem task; grupos nomeados sempre aparecem.
 				.filter((slot) => !(slot.id === null && slot.count === 0))
 		);
-	}, [groups, noGroupOrder, buckets, sortCtx]);
+	}, [groups, noGroupOrder, buckets, categoryOrder]);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),

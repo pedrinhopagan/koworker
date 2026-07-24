@@ -3,7 +3,9 @@ import { realpathSync } from "node:fs";
 import { dbCategories } from "@/api/db/categories";
 import { dbPriorities } from "@/api/db/priorities";
 import { dbProjects } from "@/api/db/projects";
+import { dbTaskGroups } from "@/api/db/task-groups";
 import { dbTasks } from "@/api/db/tasks";
+import { normalizeEntityName } from "@/api/db/entity-name";
 import { TASK_COMPLEXITIES, type TaskComplexity } from "@/constants/complexity";
 
 // Caminho real e normalizado: resolve symlinks (o main_route pode ter sido cadastrado por um
@@ -24,24 +26,58 @@ export async function resolveProjectByCwd() {
 	return projects.find((project) => canonicalPath(project.main_route) === cwd) ?? null;
 }
 
-// Resolve a tarefa a partir de um taskId (uuid completo), de um caminho dentro de `.koworker/`
-// (absoluto, relativo, ou apontando pra um arquivo dela) ou do id curto (8 chars) que nomeia a
-// pasta. Devolve a row ou null.
 export async function resolveTask(raw: string) {
-	const marker = ".koworker/";
-	const normalized = raw.replaceAll("\\", "/");
-
-	const idx = normalized.indexOf(marker);
-	if (idx !== -1) {
-		const dir = normalized.slice(idx + marker.length).split("/")[0];
-		if (!dir) return null;
-		return dbTasks.getByFolderPath(`.koworker/${dir}`);
+	const project = await resolveProjectByCwd();
+	if (!project) {
+		return null;
 	}
 
 	const byId = await dbTasks.getById(raw);
-	if (byId) return byId;
+	if (byId?.project_id === project.id) {
+		return byId;
+	}
 
-	return dbTasks.getByFolderPath(`.koworker/${raw}`);
+	const byStorageKey = await dbTasks.getByStorageKey(raw.toLowerCase());
+	if (byStorageKey?.project_id === project.id) {
+		return byStorageKey;
+	}
+
+	const normalized = raw.replaceAll("\\", "/").replace(/\/$/, "");
+	const markerIndex = normalized.indexOf(".koworker/");
+	const target =
+		markerIndex === -1
+			? `.koworker/${normalized}`
+			: normalized.slice(markerIndex).replace(/^\.\//, "");
+	const tasks = await dbTasks.listFolderPathsByProject(project.id);
+
+	return (
+		tasks
+			.filter((task) => target === task.folder_path || target.startsWith(`${task.folder_path}/`))
+			.sort((left, right) => right.folder_path.length - left.folder_path.length)
+			.at(0) ?? null
+	);
+}
+
+export async function resolveTaskGroupId(arg: string, projectId: string) {
+	const groups = await dbTaskGroups.listByProject(projectId);
+	const byId = groups.find((candidate) => candidate.id === arg);
+	if (byId) {
+		return byId.id;
+	}
+
+	const normalized = normalizeEntityName(arg);
+	const matches = groups.filter((candidate) => normalizeEntityName(candidate.name) === normalized);
+
+	if (matches.length === 0) {
+		throw new Error(`Feature não encontrada neste projeto: ${arg}`);
+	}
+	if (matches.length > 1) {
+		throw new Error(
+			`Feature ambígua neste projeto: ${arg}. Use o id: ${matches.map((group) => group.id).join(", ")}`,
+		);
+	}
+
+	return matches[0].id;
 }
 
 // A CLI é boundary: a cor é texto livre até provar o formato (mesma regra do schema da UI).

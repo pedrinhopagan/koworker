@@ -5,6 +5,7 @@ import { z } from "zod";
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { TASK_COMPLEXITIES, type TaskComplexity } from "@/constants/complexity";
+import { useTaskSortMode } from "@/hooks/use-task-sort-mode";
 import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
 import {
 	GroupedTaskList,
@@ -12,7 +13,7 @@ import {
 	noGroupKey,
 } from "./-components/grouped-task-list";
 import { TaskForm } from "./-components/task-form";
-import { TaskListControls, useSortMode } from "./-components/task-groups-controls";
+import { TaskListControls } from "./-components/task-groups-controls";
 import { TaskSyncAction } from "./-components/task-sync-dialog";
 import { useCreateTask } from "./-utils/use-create-task";
 import { useTasksData } from "./-utils/use-tasks-data";
@@ -79,7 +80,7 @@ function TarefasPage() {
 	const navigate = Route.useNavigate();
 	const { data, loading, hasMore, loadingMore, loadMore } = useTasksData(search);
 	const { createTask, loading: createLoading } = useCreateTask();
-	const [sortMode, setSortMode] = useSortMode();
+	const [sortMode, setSortMode] = useTaskSortMode();
 	// Colapso por grupo (chaveado por `id ?? NO_GROUP`) e ordem do "Sem grupo" vivem no store
 	// persistido; a lista lê o mesmo store. Aqui só os atalhos globais de colapsar/expandir tudo.
 	const setCollapsed = useTaskGroupsUiStore((state) => state.setCollapsed);
@@ -114,6 +115,7 @@ function TarefasPage() {
 					projectId={data.selectedProjectId ?? null}
 					categories={data.categories}
 					priorities={data.priorities}
+					features={data.groups}
 				/>
 			}
 		>

@@ -62,6 +62,7 @@ function localHeader(nameBytes: Uint8Array, crc: number, size: number): Uint8Arr
 	const view = new DataView(buf.buffer);
 	view.setUint32(0, 0x04034b50, true);
 	view.setUint16(4, 20, true);
+	view.setUint16(6, 0x0800, true);
 	view.setUint16(8, 0, true);
 	view.setUint16(12, 0x0021, true);
 	view.setUint32(14, crc, true);
@@ -86,6 +87,7 @@ function centralHeader(
 	view.setUint32(0, 0x02014b50, true);
 	view.setUint16(4, 20, true);
 	view.setUint16(6, 20, true);
+	view.setUint16(8, 0x0800, true);
 	view.setUint16(12, 0x0021, true);
 	view.setUint32(16, crc, true);
 	view.setUint32(20, size, true);

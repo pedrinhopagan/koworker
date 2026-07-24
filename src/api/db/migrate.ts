@@ -1,11 +1,8 @@
-import { existsSync, renameSync } from "node:fs";
-import { join } from "node:path";
 import Database from "bun:sqlite";
 
 import { envVariables } from "@/api/config/env";
+import { allocateStorageKey, normalizeStorageSlug } from "@/api/helpers/task-storage-path";
 import { normalizeEntityName } from "./entity-name";
-
-const KOWORKER_DIR = ".koworker";
 
 type ColumnInfo = {
 	cid: number;
@@ -34,6 +31,44 @@ function tableInfo(db: Database, table: string): ColumnInfo[] {
 function ensureColumn(db: Database, table: string, columnDef: string) {
 	// columnDef includes column name, type, default, etc.
 	db.exec(`ALTER TABLE ${table} ADD COLUMN ${columnDef}`);
+}
+
+function backfillStorageKeys(db: Database, table: "tasks" | "task_groups") {
+	const usedKeys = new Set(
+		db
+			.query<{ storage_key: string }, []>(
+				`SELECT storage_key FROM ${table} WHERE storage_key IS NOT NULL`,
+			)
+			.all()
+			.map((row) => row.storage_key),
+	);
+	const rows = db
+		.query<{ id: string }, []>(
+			`SELECT id FROM ${table} WHERE storage_key IS NULL ORDER BY created_at ASC, id ASC`,
+		)
+		.all();
+	const update = db.query(
+		`UPDATE ${table} SET storage_key = ? WHERE id = ? AND storage_key IS NULL`,
+	);
+
+	for (const row of rows) {
+		const storageKey = allocateStorageKey({ id: row.id, usedKeys });
+		update.run(storageKey, row.id);
+		usedKeys.add(storageKey);
+	}
+}
+
+function hasLiveTaskPathDuplicates(db: Database) {
+	return !!db
+		.query<{ duplicate: number }, []>(
+			`SELECT 1 AS duplicate
+			 FROM tasks
+			 WHERE deleted_at IS NULL
+			 GROUP BY project_id, folder_path
+			 HAVING count(*) > 1
+			 LIMIT 1`,
+		)
+		.get();
 }
 
 function resequenceDisplayOrder(db: Database, table: string, whereClause = "1=1") {
@@ -100,6 +135,9 @@ export function ensureDbSchema() {
 		}
 		if (!hasColumn(cols, "hide_terminal")) {
 			ensureColumn(sqlite, "projects", "hide_terminal INTEGER NOT NULL DEFAULT 0");
+		}
+		if (!hasColumn(cols, "task_layout_version")) {
+			ensureColumn(sqlite, "projects", "task_layout_version INTEGER NOT NULL DEFAULT 1");
 		}
 	}
 
@@ -189,6 +227,22 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 			// Migração: tasks existentes viram "medio" (o DEFAULT preenche as linhas atuais).
 			ensureColumn(sqlite, "tasks", "complexity TEXT NOT NULL DEFAULT 'medio'");
 		}
+		if (!hasColumn(cols, "storage_key")) {
+			ensureColumn(sqlite, "tasks", "storage_key TEXT");
+		}
+		if (!hasColumn(cols, "storage_slug")) {
+			ensureColumn(sqlite, "tasks", "storage_slug TEXT");
+		}
+	}
+
+	{
+		const cols = tableInfo(sqlite, "task_groups");
+		if (!hasColumn(cols, "storage_key")) {
+			ensureColumn(sqlite, "task_groups", "storage_key TEXT");
+		}
+		if (!hasColumn(cols, "storage_slug")) {
+			ensureColumn(sqlite, "task_groups", "storage_slug TEXT");
+		}
 	}
 
 	// tasks.priority_id / tasks.category_id: eram NOT NULL (toda task tinha prioridade e categoria).
@@ -221,41 +275,6 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 				sqlite.exec("ALTER TABLE tasks_new RENAME TO tasks");
 			})();
 			sqlite.exec("PRAGMA foreign_keys=ON");
-		}
-	}
-
-	// tasks: a pasta da task agora é só o id curto (".koworker/<id8>"), sem slug do título.
-	// Canoniza o folder_path antigo (".koworker/<id8>-<slug>") e renomeia a pasta no disco
-	// quando ela ainda estiver no nome antigo. Idempotente e tolerante a pastas já renomeadas
-	// à mão (aí só o folder_path do banco é atualizado).
-	{
-		const tasks = sqlite
-			.query<{ id: string; project_id: string; folder_path: string }, []>(
-				"SELECT id, project_id, folder_path FROM tasks",
-			)
-			.all();
-		const mainRouteByProject = new Map(
-			sqlite
-				.query<{ id: string; main_route: string }, []>("SELECT id, main_route FROM projects")
-				.all()
-				.map((project) => [project.id, project.main_route] as const),
-		);
-		const updateFolderPath = sqlite.query("UPDATE tasks SET folder_path = ? WHERE id = ?");
-
-		for (const task of tasks) {
-			const canonical = join(KOWORKER_DIR, task.id.slice(0, 8));
-			if (task.folder_path === canonical) continue;
-
-			const mainRoute = mainRouteByProject.get(task.project_id);
-			if (mainRoute) {
-				const oldDir = join(mainRoute, task.folder_path);
-				const newDir = join(mainRoute, canonical);
-				if (existsSync(oldDir) && !existsSync(newDir)) {
-					renameSync(oldDir, newDir);
-				}
-			}
-
-			updateFolderPath.run(canonical, task.id);
 		}
 	}
 
@@ -315,6 +334,55 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		}
 	}
 
+	backfillStorageKeys(sqlite, "tasks");
+	backfillStorageKeys(sqlite, "task_groups");
+
+	const updateGroupSlug = sqlite.query(
+		"UPDATE task_groups SET storage_slug = ? WHERE id = ? AND storage_slug IS NULL",
+	);
+	for (const group of sqlite
+		.query<{ id: string; name: string }, []>(
+			"SELECT id, name FROM task_groups WHERE storage_slug IS NULL",
+		)
+		.all()) {
+		updateGroupSlug.run(normalizeStorageSlug(group.name, "feature"), group.id);
+	}
+
+	sqlite.exec(
+		"CREATE UNIQUE INDEX IF NOT EXISTS tasks_storage_key_unique_idx ON tasks (storage_key) WHERE storage_key IS NOT NULL",
+	);
+	sqlite.exec(
+		"CREATE UNIQUE INDEX IF NOT EXISTS task_groups_storage_key_unique_idx ON task_groups (storage_key) WHERE storage_key IS NOT NULL",
+	);
+	if (!hasLiveTaskPathDuplicates(sqlite)) {
+		sqlite.exec(
+			"CREATE UNIQUE INDEX IF NOT EXISTS tasks_project_folder_path_live_unique_idx ON tasks (project_id, folder_path) WHERE deleted_at IS NULL",
+		);
+	}
+
+	sqlite.exec(`
+CREATE TABLE IF NOT EXISTS task_storage_runs (
+	id TEXT PRIMARY KEY NOT NULL,
+	project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
+	plan_hash TEXT NOT NULL,
+	from_layout_version INTEGER NOT NULL,
+	to_layout_version INTEGER NOT NULL,
+	status TEXT NOT NULL,
+	manifest TEXT NOT NULL,
+	backup_path TEXT,
+	lock_owner TEXT,
+	error TEXT,
+	created_at INTEGER NOT NULL,
+	updated_at INTEGER NOT NULL,
+	completed_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS task_storage_runs_project_created_idx
+	ON task_storage_runs (project_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS task_storage_runs_active_project_unique_idx
+	ON task_storage_runs (project_id)
+	WHERE status NOT IN ('completed', 'rolled_back');
+`);
+
 	// skill_settings.category_id: a tabela skill_categories é criada pelo constructor do
 	// @lobomfz/db (CREATE TABLE IF NOT EXISTS) no boot; aqui só garantimos a coluna nova em
 	// skill_settings nos bancos já existentes. ALTER do SQLite não anexa a FK, mas a referência
@@ -359,6 +427,8 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 	for (const [name, definition] of [
 		["client_request_id", "TEXT"],
 		["request_fingerprint", "TEXT"],
+		["parent_run_id", "TEXT REFERENCES execution_runs(id) ON DELETE SET NULL"],
+		["cli_session_id", "TEXT"],
 		["create_task_title", "TEXT"],
 		["original_prompt", "TEXT"],
 		["source", "TEXT"],
@@ -370,6 +440,7 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		["effort", "TEXT"],
 		["approval_mode", "TEXT"],
 		["deleted_at", "INTEGER"],
+		["heartbeat_at", "INTEGER"],
 	] as const) {
 		if (!hasColumn(tableInfo(sqlite, "execution_runs"), name)) {
 			ensureColumn(sqlite, "execution_runs", `${name} ${definition}`);
@@ -385,6 +456,12 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 	);
 	sqlite.exec("CREATE INDEX IF NOT EXISTS execution_runs_task_id_idx ON execution_runs (task_id)");
 	sqlite.exec(
+		"CREATE INDEX IF NOT EXISTS execution_runs_parent_run_id_idx ON execution_runs (parent_run_id)",
+	);
+	sqlite.exec(
+		"CREATE UNIQUE INDEX IF NOT EXISTS execution_runs_running_session_idx ON execution_runs (cli_session_id) WHERE cli_session_id IS NOT NULL AND status = 'running' AND deleted_at IS NULL",
+	);
+	sqlite.exec(
 		"CREATE INDEX IF NOT EXISTS execution_runs_deleted_at_idx ON execution_runs (deleted_at)",
 	);
 	sqlite.exec(
@@ -394,11 +471,9 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		"CREATE INDEX IF NOT EXISTS prompt_history_created_idx ON prompt_history (created_at)",
 	);
 	sqlite.exec("CREATE INDEX IF NOT EXISTS task_groups_project_id_idx ON task_groups (project_id)");
-	sqlite
-		.query(
-			"UPDATE execution_runs SET status = 'failed', error = ?, finished_at = ?, updated_at = ? WHERE status = 'running'",
-		)
-		.run("A execução foi interrompida pelo reinício do executor.", Date.now(), Date.now());
+	sqlite.exec(
+		"CREATE INDEX IF NOT EXISTS execution_runs_status_heartbeat_idx ON execution_runs (status, heartbeat_at)",
+	);
 
 	sqlite.close();
 }

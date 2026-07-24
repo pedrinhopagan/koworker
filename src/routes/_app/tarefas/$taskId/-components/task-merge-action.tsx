@@ -4,8 +4,11 @@ import { ExternalLink, GitMerge, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
+import { newClientRequestId } from "@/lib/client-request-id";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
+import { withoutInvokeInherit } from "@/constants/invoke";
+import { usePromptBarStore } from "@/stores/prompt-bar";
 
 export function TaskMergeAction({
 	taskId,
@@ -23,33 +26,39 @@ export function TaskMergeAction({
 	prUrl: string;
 }) {
 	const navigate = useNavigate();
+	const cli = usePromptBarStore((state) => state.cli);
+	const invoke = usePromptBarStore((state) => state.invoke);
 	const mergeMutation = useMutation({
 		...orpc.prompt.execute.mutationOptions(),
 		onSuccess: ({ runId }) => {
 			localStorage.setItem("kowork-active-run", runId);
 			toast.success("Merge despachado");
 			void navigate({
-				to: "/executar",
-				search: { projectId, taskId, runId },
+				to: "/executar/$executionId",
+				params: { executionId: runId },
 			});
 		},
 		onError: (error: Error) => toast.error(error.message),
 	});
 
 	function merge() {
+		const session = cli === "codex" ? invoke.codex : invoke.claude;
+		const model = withoutInvokeInherit(session.model);
+		const effort = withoutInvokeInherit(session.effort);
+
 		mergeMutation.mutate({
-			clientRequestId: crypto.randomUUID(),
+			clientRequestId: newClientRequestId(),
 			projectId,
 			taskId,
-			prompt: `$kw ${folderPath} $merge-worktree`,
+			prompt: `${cli === "codex" ? "$kw" : "/kw"} ${folderPath} ${cli === "codex" ? "$merge-worktree" : "/merge-worktree"}`,
 			originalPrompt: "Mergear PR",
 			source: "task_flow",
 			interactionMode: "unattended",
 			inputKind: "task_flow",
-			cli: "codex",
-			model: "gpt-5.6",
-			effort: "low",
-			approvalMode: "bypass",
+			cli,
+			...(model ? { model } : {}),
+			...(effort ? { effort } : {}),
+			...(cli === "codex" ? { approvalMode: "bypass" } : { permissionMode: "bypass" }),
 		});
 	}
 

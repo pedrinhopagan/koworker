@@ -1,8 +1,14 @@
-import { cp, mkdir, readdir, rename, rm, stat, utimes } from "node:fs/promises";
+import { cp, mkdir, readdir, rename, stat, utimes } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { COMPLEXITY_FLOWS, type TaskComplexity, type TaskStage } from "@/constants/complexity";
 import { createFolderCache, invalidateFolderPrefix } from "./folder-cache";
+import {
+	resolveExistingTaskFile,
+	resolveExistingTaskFolder,
+	resolveTaskFileDestination,
+	resolveTaskFolderDestination,
+} from "./task-storage-path";
 
 const TASK_FOLDER_META_TTL_MS = 30_000;
 
@@ -117,13 +123,32 @@ export async function createTaskFolder(params: {
 }): Promise<void> {
 	await ensureKoworkerGitignored(params.projectRoute);
 
-	const dir = join(params.projectRoute, params.folderPath);
-	await mkdir(dir, { recursive: true });
+	await mkdir(join(params.projectRoute, KOWORKER_DIR), { recursive: true });
+	const dir = await resolveTaskFolderDestination({
+		projectRoute: params.projectRoute,
+		folderPath: params.folderPath,
+	});
+	await mkdir(dirname(dir), { recursive: true });
+	await mkdir(dir);
 	invalidateFolderPrefix(dir);
 
 	if (params.seed === false) return;
 
 	await Bun.write(join(dir, PRIMARY_FILE), params.title ? `# ${params.title}\n` : "");
+}
+
+export async function quarantineCreatedTaskFolder(params: {
+	projectRoute: string;
+	folderPath: string;
+}) {
+	const source = await resolveExistingTaskFolder(params);
+	const quarantineRoot = join(params.projectRoute, KOWORKER_DIR, ".backups", "creation-rollbacks");
+	await mkdir(quarantineRoot, { recursive: true });
+	const destination = join(quarantineRoot, crypto.randomUUID());
+	await rename(source, destination);
+	invalidateFolderPrefix(source);
+
+	return destination;
 }
 
 // Lista só os nomes dos .md da pasta, na ordem canônica (index.md primeiro, depois alfabético).
@@ -132,7 +157,10 @@ export async function listTaskMarkdownNames(params: {
 	projectRoute: string;
 	folderPath: string;
 }): Promise<string[]> {
-	const dir = join(params.projectRoute, params.folderPath);
+	const dir = await resolveExistingTaskFolder(params).catch(() => null);
+	if (!dir) {
+		return [];
+	}
 
 	try {
 		const entries = (await readdir(dir, { withFileTypes: true }))
@@ -148,12 +176,16 @@ export async function listTaskMarkdownNames(params: {
 // Nomes dos .md + o instante da última edição (maior mtime entre eles), numa só leitura de
 // pasta. lastEditedAt fica undefined quando a pasta não tem .md. Pega edições feitas direto no
 // disco (ex.: pelo agente), não só pela UI.
-export function readTaskFolderMeta(params: {
+export async function readTaskFolderMeta(params: {
 	projectRoute: string;
 	folderPath: string;
 }): Promise<{ fileNames: string[]; artifactNames: string[]; lastEditedAt?: number }> {
-	const dir = join(params.projectRoute, params.folderPath);
-	return taskFolderMetaCache.get(dir, () => loadTaskFolderMeta(dir));
+	const dir = await resolveExistingTaskFolder(params).catch(() => null);
+	if (!dir) {
+		return { fileNames: [], artifactNames: [] };
+	}
+
+	return await taskFolderMetaCache.get(dir, () => loadTaskFolderMeta(dir));
 }
 
 async function loadTaskFolderMeta(
@@ -224,12 +256,16 @@ export function inferTaskStage(params: {
 
 // Conteúdo do primeiro .md da pasta (mesma ordem de readTaskFiles), para o fallback de
 // exibição das tasks sem título. Lê só um arquivo, não a pasta inteira.
-export function readFirstMarkdownContent(params: {
+export async function readFirstMarkdownContent(params: {
 	projectRoute: string;
 	folderPath: string;
 }): Promise<string | undefined> {
-	const dir = join(params.projectRoute, params.folderPath);
-	return taskFirstContentCache.get(dir, () => loadFirstMarkdownContent(dir));
+	const dir = await resolveExistingTaskFolder(params).catch(() => null);
+	if (!dir) {
+		return undefined;
+	}
+
+	return await taskFirstContentCache.get(dir, () => loadFirstMarkdownContent(dir));
 }
 
 async function loadFirstMarkdownContent(dir: string): Promise<string | undefined> {
@@ -255,7 +291,10 @@ export async function readTaskFiles(params: {
 	folderPath: string;
 	order?: string[];
 }): Promise<{ files: TaskFile[]; primaryFile: string | null }> {
-	const dir = join(params.projectRoute, params.folderPath);
+	const dir = await resolveExistingTaskFolder(params).catch(() => null);
+	if (!dir) {
+		return { files: [], primaryFile: null };
+	}
 
 	let entries: string[];
 	try {
@@ -307,7 +346,7 @@ export async function taskFileExists(params: {
 	name: string;
 }): Promise<boolean> {
 	try {
-		await stat(join(params.projectRoute, params.folderPath, params.name));
+		await resolveExistingTaskFile(params);
 		return true;
 	} catch {
 		return false;
@@ -319,12 +358,12 @@ export async function readTaskFile(params: {
 	folderPath: string;
 	name: string;
 }): Promise<string> {
-	const path = join(params.projectRoute, params.folderPath, params.name);
-	const file = Bun.file(path);
-	if (!(await file.exists())) {
+	const path = await resolveExistingTaskFile(params).catch(() => null);
+	if (!path) {
 		throw new Error(`Arquivo "${params.name}" não encontrado nesta tarefa`);
 	}
-	return file.text();
+
+	return Bun.file(path).text();
 }
 
 export async function writeTaskFile(params: {
@@ -333,10 +372,9 @@ export async function writeTaskFile(params: {
 	name: string;
 	content: string;
 }): Promise<void> {
-	const dir = join(params.projectRoute, params.folderPath);
-	await mkdir(dir, { recursive: true });
-	await Bun.write(join(dir, params.name), params.content);
-	invalidateFolderPrefix(dir);
+	const path = await resolveTaskFileDestination(params);
+	await Bun.write(path, params.content);
+	invalidateFolderPrefix(dirname(path));
 }
 
 // Sobrescreve o mtime de um .md — a "data de atualização" que baseia toda a recência (lista,
@@ -349,8 +387,9 @@ export async function setTaskFileEditedAt(params: {
 	editedAt: number;
 }): Promise<void> {
 	const when = new Date(params.editedAt);
-	await utimes(join(params.projectRoute, params.folderPath, params.name), when, when);
-	invalidateFolderPrefix(join(params.projectRoute, params.folderPath));
+	const path = await resolveExistingTaskFile(params);
+	await utimes(path, when, when);
+	invalidateFolderPrefix(dirname(path));
 }
 
 export async function shiftTaskFolderEditedAt(params: {
@@ -358,7 +397,10 @@ export async function shiftTaskFolderEditedAt(params: {
 	folderPath: string;
 	offsetMs: number;
 }): Promise<void> {
-	const dir = join(params.projectRoute, params.folderPath);
+	const dir = await resolveExistingTaskFolder(params).catch(() => null);
+	if (!dir) {
+		return;
+	}
 	const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
 
 	await Promise.all(
@@ -379,16 +421,24 @@ export async function renameTaskFile(params: {
 	oldName: string;
 	newName: string;
 }): Promise<void> {
-	const dir = join(params.projectRoute, params.folderPath);
-	const destPath = join(dir, params.newName);
+	const sourcePath = await resolveExistingTaskFile({
+		projectRoute: params.projectRoute,
+		folderPath: params.folderPath,
+		name: params.oldName,
+	});
+	const destPath = await resolveTaskFileDestination({
+		projectRoute: params.projectRoute,
+		folderPath: params.folderPath,
+		name: params.newName,
+	});
 
 	const exists = await stat(destPath)
 		.then(() => true)
 		.catch(() => false);
 	if (exists) throw new Error(`Arquivo "${params.newName}" já existe nesta tarefa`);
 
-	await rename(join(dir, params.oldName), destPath);
-	invalidateFolderPrefix(dir);
+	await rename(sourcePath, destPath);
+	invalidateFolderPrefix(dirname(sourcePath));
 }
 
 // Apaga um `.md` da pasta da task. `force` evita estourar se o arquivo já não existir.
@@ -397,8 +447,21 @@ export async function deleteTaskFile(params: {
 	folderPath: string;
 	name: string;
 }): Promise<void> {
-	await rm(join(params.projectRoute, params.folderPath, params.name), { force: true });
-	invalidateFolderPrefix(join(params.projectRoute, params.folderPath));
+	const path = await resolveExistingTaskFile(params).catch(() => null);
+	if (!path) {
+		return;
+	}
+	const backup = join(
+		params.projectRoute,
+		".koworker",
+		".backups",
+		"deleted-files",
+		crypto.randomUUID(),
+		params.name,
+	);
+	await mkdir(dirname(backup), { recursive: true });
+	await rename(path, backup);
+	invalidateFolderPrefix(dirname(path));
 }
 
 // Move a pasta da task de um projeto para outro: o folder_path (relativo) é o mesmo, muda só a raiz.
@@ -426,7 +489,15 @@ export async function moveTaskFolderToProject(params: {
 	} catch (err: any) {
 		if (err?.code !== "EXDEV") throw err;
 		await cp(from, to, { recursive: true });
-		await rm(from, { recursive: true, force: true });
+		const backup = join(
+			params.fromRoute,
+			".koworker",
+			".backups",
+			"legacy-project-moves",
+			crypto.randomUUID(),
+		);
+		await mkdir(dirname(backup), { recursive: true });
+		await rename(from, backup);
 	}
 
 	invalidateFolderPrefix(from);
@@ -437,6 +508,18 @@ export async function removeTaskFolder(params: {
 	projectRoute: string;
 	folderPath: string;
 }): Promise<void> {
-	await rm(join(params.projectRoute, params.folderPath), { recursive: true, force: true });
-	invalidateFolderPrefix(join(params.projectRoute, params.folderPath));
+	const source = await resolveExistingTaskFolder(params).catch(() => null);
+	if (!source) {
+		return;
+	}
+	const backup = join(
+		params.projectRoute,
+		".koworker",
+		".backups",
+		"legacy-task-removals",
+		crypto.randomUUID(),
+	);
+	await mkdir(dirname(backup), { recursive: true });
+	await rename(source, backup);
+	invalidateFolderPrefix(source);
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { koworkerDatabasePath } from "@/lib/app-paths";
+import { KOWORK_STORAGE_RELEASE } from "@/constants/release";
 
 // A CLI roda no diretório de outro projeto. O Bun auto-carrega o `.env` desse projeto,
 // então NÃO confiamos em `DATABASE_URL` herdado — forçamos o DB do koworker (app data
@@ -10,10 +11,21 @@ process.env.JWT_SECRET ??= "kowork-cli";
 
 const [command, ...args] = process.argv.slice(2);
 
+if (command === "version") {
+	if (args.includes("--json")) {
+		console.log(JSON.stringify({ storageRelease: KOWORK_STORAGE_RELEASE }));
+	} else {
+		console.log(`kw-cli ${KOWORK_STORAGE_RELEASE}`);
+	}
+	process.exit(0);
+}
+
 const commands: Record<string, (args: string[]) => Promise<void>> = {
 	create: async (a) => (await import("./commands/create")).runCreate(a),
 	done: async (a) => (await import("./commands/done")).runDone(a),
 	task: async (a) => (await import("./commands/task")).runTask(a),
+	feature: async (a) => (await import("./commands/feature")).runFeature(a),
+	storage: async (a) => (await import("./commands/storage")).runStorage(a),
 	project: async (a) => (await import("./commands/project")).runProject(a),
 	route: async (a) => (await import("./commands/route")).runRoute(a),
 	skill: async (a) => (await import("./commands/skill")).runSkill(a),
@@ -26,8 +38,8 @@ if (!handler) {
 	console.log(`kw-cli - CLI
 
 Tarefas:
-  create [título] [--type <nome|id>] [--category <nome|id>] [--priority <nome|id>] [--complexity <simples|medio|complexo|extremo>]
-                          Cria uma tarefa no projeto do cwd; imprime taskId + pasta (.koworker/<id>)
+  create [título] --feature <nome|id> [--type <nome|id>] [--category <nome|id>] [--priority <nome|id>] [--complexity <simples|medio|complexo|extremo>]
+                          Cria uma tarefa no projeto do cwd; imprime taskId + pasta v1/v2
   task create [título] [...] Alias de create
   task list [busca] [--all|--done|--pending] [--type ...] [--priority ...] [--complexity ...]
                           Lista tarefas do projeto do cwd; use --all-projects para todos
@@ -44,8 +56,20 @@ Tarefas:
   task merge-completed <taskId|caminho>
                           Finaliza a tarefa depois de integrar e limpar a worktree
   task rm <taskId|caminho>
-                          Remove a tarefa (soft delete + apaga a pasta)
+                          Remove a tarefa (soft delete + quarentena recuperável)
   task options            Lista complexidades, tipos/categorias e prioridades
+
+Features:
+  feature list [busca] [--project <id>]
+                          Lista ou busca features do projeto do cwd
+  feature create <nome> [--project <id>]
+                          Cria uma feature com identidade de storage v2
+
+Storage:
+  storage preview [--all]
+                          Diagnostica o projeto atual ou todos os projetos
+  storage reconcile [--all]
+                          Faz backup global e reconcilia todos os projetos seguros
 
 Arquivos de tarefa:
   task file list <taskId|caminho>
@@ -79,6 +103,9 @@ Backup:
   backup install [--calendar <expr>]
                           Instala timer systemd (default 09h, 15h e 21h, todo dia)
   backup snapshots        Lista os snapshots existentes
+
+Versão:
+  version [--json]         Mostra a release de storage instalada
 `);
 	process.exit(command ? 1 : 0);
 }

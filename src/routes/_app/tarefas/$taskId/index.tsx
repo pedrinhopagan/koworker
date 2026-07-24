@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import {
 	ArrowLeft,
 	File,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { orpc } from "@/client";
 import { DocShareControls } from "@/components/doc-share-controls";
@@ -45,10 +46,54 @@ import {
 import { TaskOverviewContextMenu } from "./-components/task-overview-context-menu";
 import { TaskMergeAction } from "./-components/task-merge-action";
 import { useTaskShare } from "./-components/use-task-share";
+import { FeatureTaskPage } from "../-components/feature-task-page";
+import { canonicalTaskRoute } from "../-utils/task-route-resolution";
+
+const routeSearchSchema = z.object({
+	projectId: z.string().optional(),
+});
 
 export const Route = createFileRoute("/_app/tarefas/$taskId/")({
-	component: TaskOverviewPage,
+	validateSearch: routeSearchSchema,
+	component: TaskOverviewRoute,
 });
+
+function TaskOverviewRoute() {
+	const { taskId: segment } = Route.useParams();
+	const { projectId } = Route.useSearch();
+	const taskQuery = useQuery(orpc.tasks.getFull.queryOptions({ input: { id: segment } }));
+
+	if (taskQuery.isLoading) {
+		return (
+			<div className="flex h-full items-center justify-center">
+				<Loader2 className="size-5 animate-spin text-muted-foreground" />
+			</div>
+		);
+	}
+	if (taskQuery.data) {
+		const canonical = canonicalTaskRoute(taskQuery.data);
+		return (
+			<Navigate
+				to="/tarefas/$taskId/$file"
+				params={{ taskId: canonical.featureId, file: canonical.taskId }}
+				replace
+			/>
+		);
+	}
+	if (!projectId) {
+		return (
+			<div className="flex h-full flex-col items-center justify-center gap-4">
+				<Text size="sm" tone="muted">
+					Selecione um projeto para abrir esta feature.
+				</Text>
+				<Button variant="outline" asChild>
+					<Link to="/tarefas">Voltar para tarefas</Link>
+				</Button>
+			</div>
+		);
+	}
+	return <FeatureTaskPage featureId={segment} projectId={projectId} />;
+}
 
 function artifactIcon(mime: string): LucideIcon {
 	if (mime === "application/pdf") {
@@ -71,13 +116,13 @@ function SectionDivider({ label }: { label: string }) {
 	);
 }
 
-function TaskOverviewPage() {
-	const { taskId } = Route.useParams();
+export function TaskOverviewPage({ taskId }: { taskId: string }) {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
 	const taskQuery = useQuery(orpc.tasks.getFull.queryOptions({ input: { id: taskId } }));
 	const task = taskQuery.data ?? null;
+	const route = task ? canonicalTaskRoute(task) : null;
 
 	const [editing, setEditing] = useState(false);
 	const [newFileValue, setNewFileValue] = useState("");
@@ -119,11 +164,17 @@ function TaskOverviewPage() {
 			await queryClient.invalidateQueries(
 				orpc.tasks.getFull.queryOptions({ input: { id: taskId } }),
 			);
-			navigate({
-				to: "/tarefas/$taskId/$file",
-				params: { taskId, file: variables.name },
-				replace: true,
-			});
+			if (route) {
+				navigate({
+					to: "/tarefas/$taskId/$file/$canonicalFile",
+					params: {
+						taskId: route.featureId,
+						file: route.taskId,
+						canonicalFile: variables.name,
+					},
+					replace: true,
+				});
+			}
 		},
 	});
 
@@ -177,6 +228,7 @@ function TaskOverviewPage() {
 			</div>
 		);
 	}
+	const canonical = canonicalTaskRoute(task);
 
 	const isMutating =
 		setDoneMutation.isPending || updateMutation.isPending || removeTaskMutation.isPending;
@@ -260,7 +312,9 @@ function TaskOverviewPage() {
 					>
 						<div className="flex min-w-0 flex-1 items-center gap-3">
 							<Link
-								to="/tarefas"
+								to="/tarefas/$taskId"
+								params={{ taskId: canonical.featureId }}
+								search={{ projectId: task.projectId }}
 								className="flex size-8 shrink-0 items-center justify-center border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 								aria-label="Voltar para tarefas"
 							>
@@ -340,7 +394,7 @@ function TaskOverviewPage() {
 								{indexFile ? (
 									<FileContextMenu
 										name={indexFile.name}
-										route={`/tarefas/${taskId}/${indexFile.name}`}
+										route={`/tarefas/${canonical.featureId}/${canonical.taskId}/${indexFile.name}`}
 										path={`${task.folderPath}/${indexFile.name}`}
 										absolutePath={
 											share.folderAbs ? joinPath(share.folderAbs, indexFile.name) : undefined
@@ -358,8 +412,12 @@ function TaskOverviewPage() {
 											headings={markdownHeadings(indexFile.content)}
 											size={indexFile.size}
 											timestamp={indexFile.editedAt}
-											to="/tarefas/$taskId/$file"
-											params={{ taskId, file: indexFile.name }}
+											to="/tarefas/$taskId/$file/$canonicalFile"
+											params={{
+												taskId: canonical.featureId,
+												file: canonical.taskId,
+												canonicalFile: indexFile.name,
+											}}
 										/>
 									</FileContextMenu>
 								) : null}
@@ -371,7 +429,7 @@ function TaskOverviewPage() {
 												<FileContextMenu
 													key={file.name}
 													name={file.name}
-													route={`/tarefas/${taskId}/${file.name}`}
+													route={`/tarefas/${canonical.featureId}/${canonical.taskId}/${file.name}`}
 													path={`${task.folderPath}/${file.name}`}
 													absolutePath={
 														share.folderAbs ? joinPath(share.folderAbs, file.name) : undefined
@@ -387,8 +445,12 @@ function TaskOverviewPage() {
 														summary={markdownSummary(file.content)}
 														size={file.size}
 														timestamp={file.editedAt}
-														to="/tarefas/$taskId/$file"
-														params={{ taskId, file: file.name }}
+														to="/tarefas/$taskId/$file/$canonicalFile"
+														params={{
+															taskId: canonical.featureId,
+															file: canonical.taskId,
+															canonicalFile: file.name,
+														}}
 													/>
 												</FileContextMenu>
 											))}
@@ -500,7 +562,9 @@ function TaskOverviewPage() {
 					}
 					title="Deletar arquivo"
 					description={
-						deletingFile ? `“${deletingFile}” será apagado permanentemente do disco.` : undefined
+						deletingFile
+							? `“${deletingFile}” será movido para a quarentena recuperável.`
+							: undefined
 					}
 					confirmLabel="Deletar"
 					variant="danger"

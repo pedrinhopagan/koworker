@@ -1,14 +1,10 @@
 import { type QueryKey, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
-	ArrowDownAZ,
 	ChevronDown,
 	ChevronRight,
 	ChevronsDownUp,
 	ChevronsUpDown,
-	Clock,
-	Flame,
-	Gauge,
-	LayoutGrid,
 	Palette,
 	Pencil,
 	Plus,
@@ -17,9 +13,11 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { type ReactNode, useCallback, useMemo, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { orpc, type RouterOutputs } from "@/client";
+import { TaskGroupLabel } from "@/components/tasks/task-group-label";
+import { TASK_SORT_OPTIONS, TaskSortControls } from "@/components/tasks/task-sort-controls";
 import { Text } from "@/components/typography";
 import {
 	COMPLEXITY_COLORS,
@@ -46,6 +44,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip } from "@/components/ui/tooltip";
+import type { TaskSortMode } from "@/constants/tasks";
 import { cn } from "@/lib/utils";
 import type { TaskGroup } from "@/types/tasks";
 
@@ -58,42 +57,6 @@ const COMPLEXITY_ALL_ID = "__all_complexity__";
 
 type Category = RouterOutputs["categories"]["list"][number];
 type Priority = RouterOutputs["priorities"]["list"][number];
-
-export type SortMode = "categoria" | "prioridade" | "complexidade" | "recente" | "alfabetica";
-
-const SORT_MODE_KEY = "tarefas:sortMode";
-const SORT_MODES: { mode: SortMode; label: string; icon: typeof LayoutGrid }[] = [
-	{ mode: "recente", label: "Recente", icon: Clock },
-	{ mode: "categoria", label: "Categoria", icon: LayoutGrid },
-	{ mode: "prioridade", label: "Prioridade", icon: Flame },
-	{ mode: "complexidade", label: "Complexidade", icon: Gauge },
-	{ mode: "alfabetica", label: "A-Z", icon: ArrowDownAZ },
-];
-
-function isSortMode(value: string | null): value is SortMode {
-	return SORT_MODES.some((m) => m.mode === value);
-}
-
-export function useSortMode(): [SortMode, (mode: SortMode) => void] {
-	const subscribe = useCallback((onChange: () => void) => {
-		window.addEventListener("storage", onChange);
-		return () => window.removeEventListener("storage", onChange);
-	}, []);
-	const stored = useSyncExternalStore(
-		subscribe,
-		() => localStorage.getItem(SORT_MODE_KEY),
-		() => null,
-	);
-	const mode: SortMode = isSortMode(stored) ? stored : "recente";
-
-	const setMode = useCallback((next: SortMode) => {
-		localStorage.setItem(SORT_MODE_KEY, next);
-		// useSyncExternalStore só ouve "storage" (outras abas); dispara no mesmo documento também.
-		window.dispatchEvent(new StorageEvent("storage", { key: SORT_MODE_KEY }));
-	}, []);
-
-	return [mode, setMode];
-}
 
 function invalidateGroups(queryClient: ReturnType<typeof useQueryClient>) {
 	queryClient.invalidateQueries({
@@ -350,8 +313,8 @@ type TaskListControlsProps = {
 	search: { value: TaskSearchValue; onChange: (next: TaskSearchValue) => void };
 	categories: Category[];
 	priorities: Priority[];
-	sortMode: SortMode;
-	onSortModeChange: (mode: SortMode) => void;
+	sortMode: TaskSortMode;
+	onSortModeChange: (mode: TaskSortMode) => void;
 	onCollapseAll: () => void;
 	onExpandAll: () => void;
 };
@@ -488,20 +451,7 @@ export function TaskListControls({
 
 				<Divider />
 
-				{SORT_MODES.map(({ mode, label, icon: Icon }) => (
-					<Tooltip key={mode} label={label}>
-						<Button
-							type="button"
-							variant={sortMode === mode ? "secondary" : "ghost"}
-							size="icon-sm"
-							aria-label={label}
-							className={cn(sortMode !== mode && "text-muted-foreground")}
-							onClick={() => onSortModeChange(mode)}
-						>
-							<Icon className="size-4" />
-						</Button>
-					</Tooltip>
-				))}
+				<TaskSortControls value={sortMode} onChange={onSortModeChange} />
 
 				<Tooltip label="Colapsar tudo">
 					<Button
@@ -552,7 +502,7 @@ export function TaskListControls({
 							Ordenação
 						</Text>
 						<div className="grid grid-cols-2 gap-3">
-							{SORT_MODES.map(({ mode, label, icon: Icon }) => (
+							{TASK_SORT_OPTIONS.map(({ mode, label, icon: Icon }) => (
 								<Button
 									key={mode}
 									type="button"
@@ -731,26 +681,13 @@ export function TaskGroupHeader({
 			<button
 				type="button"
 				onClick={onToggleCollapse}
-				className="flex min-w-0 flex-1 items-center gap-2 text-left"
+				className="flex size-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+				aria-label={collapsed ? "Expandir feature" : "Recolher feature"}
 			>
-				<ChevronIcon className="size-4 shrink-0 text-muted-foreground" />
-				{group ? (
-					<span
-						className="size-2.5 shrink-0 rounded-full"
-						style={{ backgroundColor: group.color }}
-					/>
-				) : null}
-				{editing && group ? null : (
-					<Text size="sm" className={cn("truncate font-medium", !group && "text-muted-foreground")}>
-						{group?.name ?? "Sem feature"}
-					</Text>
-				)}
-				<Text size="xs" tone="muted" className="shrink-0">
-					{count}
-				</Text>
+				<ChevronIcon className="size-4" />
 			</button>
 
-			{editing && group && (
+			{editing && group ? (
 				<Input
 					autoFocus
 					value={name}
@@ -769,6 +706,28 @@ export function TaskGroupHeader({
 					}}
 					className="h-7 w-48"
 				/>
+			) : group ? (
+				<Link
+					to="/tarefas/$taskId"
+					params={{ taskId: group.id }}
+					search={{ projectId: group.projectId }}
+					className="min-w-0 flex-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+				>
+					<TaskGroupLabel
+						name={group.name}
+						color={group.color}
+						count={count}
+						className="min-w-0 flex-1 border-0 pb-0"
+					/>
+				</Link>
+			) : (
+				<button
+					type="button"
+					onClick={onToggleCollapse}
+					className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+				>
+					<TaskGroupLabel count={count} className="min-w-0 flex-1 border-0 pb-0" />
+				</button>
 			)}
 		</div>
 	);

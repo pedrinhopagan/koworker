@@ -10,6 +10,7 @@ const TASKS_PAGE_SIZE = 50;
 
 export type TasksSearchFilters = {
 	projectId?: string;
+	groupId?: string | null;
 	taskTypeId?: string;
 	priorityId?: string;
 	complexity?: TaskComplexity;
@@ -43,6 +44,7 @@ export function useTasksData(filters: TasksSearchFilters) {
 	const tasksInput = {
 		projectId: projectIdForQuery,
 		includeCompleted: filters.includeCompleted ?? false,
+		groupId: filters.groupId,
 		taskTypeId: filters.taskTypeId,
 		priorityId: filters.priorityId,
 		complexity: filters.complexity,

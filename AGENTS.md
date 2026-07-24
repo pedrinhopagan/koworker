@@ -127,11 +127,22 @@ src/
 - `completed_at` só é preenchido quando o usuário aprova
 - O estado visual do progresso é derivado por função em `src/lib/` (não é coluna)
 
+## STORAGE DE TAREFAS
+
+- Projetos persistem `task_layout_version`; v1 e v2 continuam legíveis.
+- Layout v1 aceita paths flat ou adotados sob `.koworker/`.
+- Layout v2 usa `.koworker/tasks/<feature-slug>--<featureStorageKey>/<task-slug>--<taskStorageKey>/`.
+- Tarefas sem feature usam `.koworker/tasks/_sem-feature/<task-slug>--<taskStorageKey>/`.
+- `storage_key` e `storage_slug` são congelados; rename de tarefa ou feature não move arquivos.
+- Apenas o coordinator de storage altera `folder_path`; movimentos preservam backup, staging e journal.
+- `tasks`, `.backups`, `.staging` e `medias` são namespaces reservados.
+- Reconciliação nunca roda no boot ou deploy e mutations são bloqueadas pelo lock do projeto.
+
 ## CLI kw-cli
 
 - CLI mora em `src/cli/` e **acessa o DB direto** (sem API)
 - Binário: `kw-cli` (nome distinto da GUI `kowork` pra não colidir no PATH)
-- Comandos: `create`, `done`, `task set/rm`, `project list/create/set`, `route add/rm`, `skill style/list`
+- Comandos: `create`, `done`, `task set/rm`, `project list/create/set`, `route add/rm`, `skill style/list`, `version`
 - Após escritas no banco, avisa o servidor por HTTP (`notify.ts`) — best-effort
 - Falhas retornam erro em pt-BR e exit code != 0
 

@@ -31,6 +31,7 @@ export {
 	PromptAutofillSchema,
 	PromptExecuteSchema,
 	PromptRunClearSchema,
+	PromptRunContinueSchema,
 	PromptRunIdSchema,
 	PromptRunListSchema,
 	PromptRunRetrySchema,
@@ -81,6 +82,13 @@ export {
 	TaskGroupReorderSchema,
 	TaskGroupUpdateSchema,
 } from "./task-groups";
+export {
+	TaskStorageApplySchema,
+	TaskStorageCleanBackupsSchema,
+	TaskStoragePlanSchema,
+	TaskStoragePreviewSchema,
+	TaskStorageRunSchema,
+} from "./task-storage";
 export {
 	TaskCreateSchema,
 	TaskDeleteFileSchema,

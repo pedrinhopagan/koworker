@@ -143,7 +143,11 @@ export const dbProjects = {
 
 		const result = await db
 			.insertInto("projects")
-			.values({ ...(input as projects), display_order: displayOrder })
+			.values({
+				...(input as projects),
+				task_layout_version: input.task_layout_version ?? 2,
+				display_order: displayOrder,
+			})
 			.executeTakeFirst();
 
 		// Criar um projeto = criá-lo já com suas rotas padrão. Mora aqui (não no router) pra que

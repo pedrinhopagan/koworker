@@ -37,6 +37,8 @@ export const TaskGroupDbCreateSchema = z.object({
 	id: z.string().min(1),
 	project_id: z.string().min(1),
 	name: z.string().min(1),
+	storage_key: z.string().min(8).optional(),
+	storage_slug: z.string().min(1).optional(),
 	color: z.string().optional(),
 	display_order: z.number().int().optional(),
 	created_at: z.number().int().optional(),

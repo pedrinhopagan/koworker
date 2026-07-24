@@ -18,6 +18,7 @@ import { copyMarkdown, joinPath, openFolderInOs, shareFolderAsZip } from "@/lib/
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { cn } from "@/lib/utils";
+import { canonicalTaskRoute } from "@/routes/_app/tarefas/-utils/task-route-resolution";
 import type { TaskGroup, TaskWithMeta } from "@/types/tasks";
 import { CompleteTaskFeatureDialog } from "./CompleteTaskFeatureDialog";
 import {
@@ -35,7 +36,7 @@ import {
 	taskTitlePlaceholder,
 } from "./task-meta-controls";
 
-const taskItemVariants = tv({
+export const taskItemVariants = tv({
 	base: "flex items-center justify-between gap-4 border border-transparent bg-card transition-all duration-200 hover:border-border hover:bg-secondary/30 animate-fade-in w-full min-w-0 overflow-hidden",
 	variants: {
 		variant: {
@@ -86,6 +87,7 @@ function TaskActionSurface({
 	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
 	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const projects = projectsQuery.data ?? [];
+	const canonical = canonicalTaskRoute(task);
 
 	const updateMutation = useMutation({
 		...orpc.tasks.update.mutationOptions(),
@@ -163,7 +165,11 @@ function TaskActionSurface({
 
 	const actions: TaskMenuActions = {
 		onCopyPath: (value) => void copyTaskPath(value),
-		onOpen: () => navigate({ to: "/tarefas/$taskId", params: { taskId: task.id } }),
+		onOpen: () =>
+			navigate({
+				to: "/tarefas/$taskId/$file",
+				params: { taskId: canonical.featureId, file: canonical.taskId },
+			}),
 		onShareContent: () => void shareContent(),
 		onShareZip: () => {
 			const dir = taskDir();
@@ -207,6 +213,7 @@ function TaskActionSurface({
 }
 
 function TaskItemImpl({ task, variant = "default", highlight, features }: TaskItemProps) {
+	const canonical = canonicalTaskRoute(task);
 	const queryClient = useQueryClient();
 	const isDone = task.done;
 	const [editing, setEditing] = useState(false);
@@ -336,8 +343,8 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 
 				{!editing && (
 					<Link
-						to="/tarefas/$taskId"
-						params={{ taskId: task.id }}
+						to="/tarefas/$taskId/$file"
+						params={{ taskId: canonical.featureId, file: canonical.taskId }}
 						className="absolute inset-0 z-0"
 						aria-label={task.displayTitle}
 					/>

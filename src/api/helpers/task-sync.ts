@@ -3,11 +3,14 @@ import { join } from "node:path";
 
 import { RESERVED_KOWORKER_FOLDERS } from "@/constants/koworker";
 import { dbProjects } from "../db/projects";
+import { dbTaskGroups } from "../db/task-groups";
 import { dbTasks } from "../db/tasks";
 import { PubSub } from "../pubsub";
 import type { TaskSyncCreateInput } from "../schemas/tasks";
 import { readFirstMarkdownContent, readTaskFolderMeta, resolveDisplayTitle } from "./task-folder";
+import { allocateStorageKey, normalizeStorageSlug } from "./task-storage-path";
 import { restartTasksWatcher } from "./tasks-watcher";
+import { withProjectStorageLock } from "./task-storage-coordinator";
 
 const KOWORKER_DIR = ".koworker";
 
@@ -78,30 +81,63 @@ export async function createDiscoveredTasks(input: TaskSyncCreateInput) {
 		throw new Error("A mesma pasta foi selecionada mais de uma vez");
 	}
 
-	const discovered = await discoverTaskFolders(null);
-	const available = new Set(discovered.map((folder) => `${folder.projectId}:${folder.folderName}`));
-	const selected = input.tasks.filter((task) =>
-		available.has(`${task.projectId}:${task.folderName}`),
-	);
+	const byProject = Map.groupBy(input.tasks, (task) => task.projectId);
+	const rows: { id: string; project_id: string }[] = [];
+	for (const [projectId, tasks] of [...byProject].sort(([left], [right]) =>
+		left.localeCompare(right),
+	)) {
+		const project = await dbProjects.getById(projectId);
+		if (!project) {
+			throw new Error("Projeto não encontrado");
+		}
 
-	if (selected.length !== input.tasks.length) {
-		throw new Error("Algumas pastas não estão mais disponíveis para sincronização");
+		const created = await withProjectStorageLock(
+			{ projectId, projectRoute: project.main_route },
+			async () => {
+				const discovered = await discoverTaskFolders(projectId);
+				const available = new Set(discovered.map((folder) => folder.folderName));
+				if (tasks.some((task) => !available.has(task.folderName))) {
+					throw new Error("Algumas pastas não estão mais disponíveis para sincronização");
+				}
+
+				const features = await Promise.all(tasks.map((task) => dbTaskGroups.getById(task.groupId)));
+				if (features.some((feature) => !feature || feature.project_id !== projectId)) {
+					throw new Error("Uma feature selecionada não pertence ao projeto");
+				}
+
+				const usedKeys = new Set(
+					(await dbTasks.listStorageKeys()).flatMap((row) =>
+						row.storage_key ? [row.storage_key] : [],
+					),
+				);
+				const now = Date.now();
+				const projectRows = tasks.map((task) => {
+					const id = crypto.randomUUID();
+					const storageKey = allocateStorageKey({ id, usedKeys });
+					usedKeys.add(storageKey);
+
+					return {
+						id,
+						project_id: task.projectId,
+						folder_path: taskFolderPath(task.folderName),
+						storage_key: storageKey,
+						storage_slug: normalizeStorageSlug(task.title, "tarefa"),
+						title: task.title,
+						group_id: task.groupId,
+						priority_id: task.priorityId,
+						category_id: task.categoryId,
+						complexity: task.complexity,
+						done: task.done ? 1 : 0,
+						completed_at: task.done ? now : undefined,
+					};
+				});
+
+				await dbTasks.createMany(projectRows);
+				return projectRows;
+			},
+		);
+		rows.push(...created);
 	}
-
-	const now = Date.now();
-	const rows = selected.map((task) => ({
-		id: crypto.randomUUID(),
-		project_id: task.projectId,
-		folder_path: taskFolderPath(task.folderName),
-		title: task.title,
-		priority_id: task.priorityId,
-		category_id: task.categoryId,
-		complexity: task.complexity,
-		done: task.done ? 1 : 0,
-		completed_at: task.done ? now : undefined,
-	}));
-
-	await dbTasks.createMany(rows);
 	await Promise.all(
 		rows.flatMap((row) => [
 			PubSub.publish("tasks", row.project_id, {

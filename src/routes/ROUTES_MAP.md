@@ -16,7 +16,7 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
 
 3. Layouts de página (por rota)
    - Quase todas as páginas internas usam `PageShell` para header/descrição/ícone e área de conteúdo.
-   - Exceção relevante: detalhe de tarefa (`/tarefas/$taskId/$file`) usa header próprio (sem `PageShell`); o índice `/tarefas/$taskId` só redireciona para o arquivo ativo.
+   - Exceção relevante: overview e editor de tarefa usam header próprio; os arquivos dinâmicos despacham shapes canônicos e legados por aridade.
 
 ## Rotas file-based
 
@@ -27,8 +27,9 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
 | `src/routes/_app.tsx` | `/_app` | `/` (pathless) | `__root` + `AppShell` |
 | `src/routes/_app/index.tsx` | `/_app/` | `/` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/tarefas/index.tsx` | `/_app/tarefas/` | `/tarefas` | `__root` + `AppShell` + `PageShell` |
-| `src/routes/_app/tarefas/$taskId/index.tsx` | `/_app/tarefas/$taskId/` | `/tarefas/$taskId` | `__root` + `AppShell` (só redirect → `$file`; empty-state se sem arquivos) |
-| `src/routes/_app/tarefas/$taskId/$file.tsx` | `/_app/tarefas/$taskId/$file` | `/tarefas/$taskId/$file` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
+| `src/routes/_app/tarefas/$taskId/index.tsx` | `/_app/tarefas/$taskId/` | `/tarefas/$featureId?projectId=...` | Dispatcher de feature; overview legado redireciona ao canônico |
+| `src/routes/_app/tarefas/$taskId/$file.tsx` | `/_app/tarefas/$taskId/$file` | `/tarefas/$featureId/$taskId` | Overview canônico; arquivo legado redireciona ao canônico |
+| `src/routes/_app/tarefas/$taskId/$file_/$canonicalFile.tsx` | `/_app/tarefas/$taskId/$file_/$canonicalFile` | `/tarefas/$featureId/$taskId/$file` | Editor canônico desaninhado com header próprio |
 | `src/routes/_app/vault/index.tsx` | `/_app/vault/` | `/vault` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/vault/$fileName/index.tsx` | `/_app/vault/$fileName/` | `/vault/$fileName` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
 | `src/routes/_app/media/index.tsx` | `/_app/media/` | `/media` | `__root` + `AppShell` + `PageShell` |
@@ -51,8 +52,10 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
 - Segmento `/_app` é estrutural (layout autenticado), então não aparece no path final.
 - Rotas dinâmicas atuais:
   - `/projetos/$projetoId`
-  - `/tarefas/$taskId` (redirect → `/tarefas/$taskId/$file`)
-  - `/tarefas/$taskId/$file` (`$file` é o nome do `.md` ativo da tarefa, ex. `plan.md` — match exato, sem slug)
+  - `/tarefas/$featureId?projectId=<uuid>` lista a feature; `sem-feature` representa vínculo nulo.
+  - `/tarefas/$featureId/$taskId` abre o overview e valida a relação feature/projeto.
+  - `/tarefas/$featureId/$taskId/$file` abre o `.md` ativo.
+  - `/tarefas/$taskId` e `/tarefas/$taskId/$file` permanecem como links legados e redirecionam por `replace`.
   - `/vault/$fileName` (`$fileName` é o nome do `.md` solto, ex. `notas.md` — não é uma task)
   - `/media/$fileName` (`$fileName` é o asset em `.koworker/medias/`; `?projectId` no search identifica o projeto)
   - `/skills/$slug` (`$slug` é o slug da skill, ex. `commit` — edita o `SKILL.md` da pasta dona)

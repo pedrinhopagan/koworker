@@ -1,19 +1,15 @@
-import { type LinkProps, type RegisteredRouter, useRouterState } from "@tanstack/react-router";
-import { CheckCheckIcon, FolderKanbanIcon } from "lucide-react";
-import { useMemo } from "react";
+import {
+	type LinkProps,
+	type RegisteredRouter,
+	useNavigate,
+	useParams,
+	useRouterState,
+} from "@tanstack/react-router";
 
-import { Dialog } from "@/components/ui/dialog";
-import { Text } from "@/components/typography";
+import { ProjectPickerDialog } from "@/components/projects/project-picker-dialog";
 import { useProjectFocus } from "@/hooks";
 import { useProjectSelectDialog } from "@/hooks/use-project-select-dialog";
-import { ALL_PROJECTS_ID, DISABLED_PATHS } from "@/lib/project-focus";
-import { cn } from "@/lib/utils";
-
-type ProjectItem = {
-	id: string;
-	name: string;
-	color: string | null;
-};
+import { ALL_PROJECTS_ID, DISABLED_PATHS, REDIRECT_ON_SELECT_PATHS } from "@/lib/project-focus";
 
 type ProjectSelectDialogProps = {
 	open: boolean;
@@ -27,102 +23,71 @@ export function GlobalProjectSelectDialog() {
 
 export function ProjectSelectDialog({ open, onClose }: ProjectSelectDialogProps) {
 	const routerState = useRouterState();
+	const navigate = useNavigate();
+	const params = useParams({ strict: false });
 	const { projects, selectedProjectId, loading, setSelectedProjectId } = useProjectFocus();
 
-	const projectItems = useMemo<ProjectItem[]>(() => {
-		return [
-			{ id: ALL_PROJECTS_ID, name: "Todos os projetos", color: null },
-			...projects.map((project) => ({
-				id: project.id,
-				name: project.name,
-				color: project.color ?? null,
-			})),
-		];
-	}, [projects]);
-
-	const currentRoutePath = (routerState.matches.at(-1)?.fullPath ?? "/").replace(/\/$/, "");
-	const disableChangeFocus = DISABLED_PATHS.has(
-		currentRoutePath as LinkProps<RegisteredRouter>["to"],
-	);
-	const isEmpty = projectItems.length <= 1;
-
+	const currentMatch = routerState.matches.at(-1);
+	const currentRoutePath = (currentMatch?.fullPath ?? "/").replace(
+		/\/$/,
+		"",
+	) as LinkProps<RegisteredRouter>["to"];
+	const disableChangeFocus = DISABLED_PATHS.has(currentRoutePath);
+	const redirectOnSelect = REDIRECT_ON_SELECT_PATHS.get(currentRoutePath);
+	const focusedProjectValue = selectedProjectId === undefined ? ALL_PROJECTS_ID : selectedProjectId;
 	const currentValue =
-		selectedProjectId === undefined ? ALL_PROJECTS_ID : (selectedProjectId ?? undefined);
+		currentRoutePath === "/projetos/$projetoId" ? params.projetoId : focusedProjectValue;
 
 	function handleSelect(id: string) {
-		if (disableChangeFocus || isEmpty) {
+		if (disableChangeFocus) {
 			return;
 		}
 
 		if (id === ALL_PROJECTS_ID) {
 			setSelectedProjectId(undefined);
+
+			if (currentRoutePath === "/projetos/$projetoId") {
+				navigate({ to: "/projetos" });
+				onClose();
+				return;
+			}
 		} else {
 			setSelectedProjectId(id);
+
+			if (currentRoutePath === "/projetos/$projetoId") {
+				navigate({ to: "/projetos/$projetoId", params: { projetoId: id } });
+				onClose();
+				return;
+			}
 		}
+
+		if (redirectOnSelect) {
+			navigate({ to: redirectOnSelect });
+		}
+
 		onClose();
 	}
 
 	return (
-		<Dialog
+		<ProjectPickerDialog
 			open={open}
-			keepMounted
 			onClose={onClose}
-			title="Selecionar projeto"
-			description={
-				disableChangeFocus
-					? "Troca de projeto indisponível nesta página."
-					: "Alt+P para abrir este diálogo."
-			}
-			className="max-w-md"
-		>
-			{loading ? (
-				<Text size="sm" tone="muted">
-					Carregando projetos...
-				</Text>
-			) : isEmpty ? (
-				<Text size="sm" tone="muted">
-					Nenhum projeto cadastrado.
-				</Text>
-			) : (
-				<ul className="-mx-1 flex flex-col gap-0.5">
-					{projectItems.map((project) => {
-						const isSelected = project.id === currentValue;
-
-						return (
-							<li key={project.id}>
-								<button
-									type="button"
-									disabled={disableChangeFocus}
-									onClick={() => handleSelect(project.id)}
-									className={cn(
-										"flex w-full items-center gap-3 rounded-sm px-3 py-2.5 text-left transition-colors",
-										isSelected && "bg-muted/50 font-medium",
-										!disableChangeFocus && "hover:bg-muted/30",
-										disableChangeFocus && "cursor-not-allowed opacity-60",
-									)}
-									style={isSelected ? { color: project.color ?? undefined } : undefined}
-								>
-									{project.color ? (
-										<span
-											className="size-2.5 shrink-0"
-											style={{ backgroundColor: project.color }}
-										/>
-									) : (
-										<FolderKanbanIcon className="size-3.5 shrink-0 text-current" />
-									)}
-									<span className="min-w-0 flex-1 truncate text-sm">{project.name}</span>
-									{isSelected ? (
-										<CheckCheckIcon
-											className="size-4 shrink-0"
-											style={{ color: project.color ?? undefined }}
-										/>
-									) : null}
-								</button>
-							</li>
-						);
-					})}
-				</ul>
-			)}
-		</Dialog>
+			projects={projects.map((project) => ({
+				id: project.id,
+				name: project.name,
+				color: project.color,
+				displayPath: project.displayPath,
+			}))}
+			value={currentValue ?? undefined}
+			onSelect={handleSelect}
+			loading={loading}
+			disabled={disableChangeFocus}
+			allOption={{
+				id: ALL_PROJECTS_ID,
+				name: "Todos os projetos",
+				color: null,
+				displayPath: "Visão combinada das tarefas",
+			}}
+		/>
 	);
 }

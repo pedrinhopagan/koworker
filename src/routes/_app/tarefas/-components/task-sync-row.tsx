@@ -17,9 +17,11 @@ import { cn } from "@/lib/utils";
 type DiscoveredTask = RouterOutputs["tasks"]["discoverSync"][number];
 type Category = RouterOutputs["categories"]["list"][number];
 type Priority = RouterOutputs["priorities"]["list"][number];
+type Feature = RouterOutputs["taskGroups"]["list"][number];
 
 export interface TaskSyncDraft extends DiscoveredTask {
 	selected: boolean;
+	groupId: string;
 	categoryId?: string;
 	priorityId?: string;
 	complexity: TaskComplexity;
@@ -83,12 +85,14 @@ export function TaskSyncRow({
 	draft,
 	categories,
 	priorities,
+	features,
 	disabled,
 	onChange,
 }: {
 	draft: TaskSyncDraft;
 	categories: Category[];
 	priorities: Priority[];
+	features: Feature[];
 	disabled: boolean;
 	onChange: (updates: Partial<TaskSyncDraft>) => void;
 }) {
@@ -122,7 +126,14 @@ export function TaskSyncRow({
 				</div>
 			</div>
 
-			<div className="mt-4 grid gap-3 pl-7 sm:grid-cols-3">
+			<div className="mt-4 grid gap-3 pl-7 sm:grid-cols-2 xl:grid-cols-4">
+				<ColoredSelect
+					label="Feature"
+					items={features}
+					value={draft.groupId}
+					disabled={disabled || !draft.selected}
+					onValueChange={(groupId) => onChange({ groupId })}
+				/>
 				<ColoredSelect
 					label="Tipo"
 					items={categories}

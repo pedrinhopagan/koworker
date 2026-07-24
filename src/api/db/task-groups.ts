@@ -13,6 +13,13 @@ export const dbTaskGroups = {
 
 	listAll: () => db.selectFrom("task_groups").selectAll().orderBy("display_order", "asc").execute(),
 
+	listStorageKeys: () =>
+		db
+			.selectFrom("task_groups as tg")
+			.select("tg.storage_key")
+			.where("tg.storage_key", "is not", null)
+			.execute(),
+
 	getById: (id: string) =>
 		db.selectFrom("task_groups").selectAll().where("id", "=", id).executeTakeFirst(),
 

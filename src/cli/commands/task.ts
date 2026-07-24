@@ -3,10 +3,12 @@ import { dbPriorities } from "@/api/db/priorities";
 import { dbProjects } from "@/api/db/projects";
 import { dbTasks } from "@/api/db/tasks";
 import { TaskMergeReadySchema, type TaskDbUpdateInput } from "@/api/schemas/tasks";
-import { parseTaskFileOrder, readTaskFiles, removeTaskFolder } from "@/api/helpers/task-folder";
+import { parseTaskFileOrder, readTaskFiles } from "@/api/helpers/task-folder";
+import { quarantineTaskStorage } from "@/api/helpers/task-storage-coordinator";
 import { COMPLEXITY_LABELS, TASK_COMPLEXITIES } from "@/constants/complexity";
 import { hasFlag, parseArgs } from "../args";
 import { notifyTasksChanged } from "../notify";
+import { withCliTaskStorageLock } from "../task-storage";
 import {
 	resolveCategoryId,
 	resolveCategoryIdOrNull,
@@ -206,7 +208,7 @@ async function runTaskSet(args: string[]): Promise<void> {
 		throw new Error("Informe ao menos um campo para atualizar.");
 	}
 
-	await dbTasks.update(update);
+	await withCliTaskStorageLock(row, () => dbTasks.update(update));
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
 
 	console.log(`✅ Tarefa "${update.title ?? row.title ?? row.folder_path}" atualizada.`);
@@ -224,16 +226,18 @@ export async function setTaskDone(raw: string | undefined, done: boolean): Promi
 		throw new Error(`Nenhuma tarefa encontrada para ${raw}`);
 	}
 
-	await dbTasks.update({
-		id: row.id,
-		done: done ? 1 : 0,
-		completed_at: done ? Date.now() : null,
-		merge_ready_at: done ? null : undefined,
-		worktree_branch: done ? null : undefined,
-		merge_target_branch: done ? null : undefined,
-		worktree_path: done ? null : undefined,
-		worktree_pr_url: done ? null : undefined,
-	});
+	await withCliTaskStorageLock(row, () =>
+		dbTasks.update({
+			id: row.id,
+			done: done ? 1 : 0,
+			completed_at: done ? Date.now() : null,
+			merge_ready_at: done ? null : undefined,
+			worktree_branch: done ? null : undefined,
+			merge_target_branch: done ? null : undefined,
+			worktree_path: done ? null : undefined,
+			worktree_pr_url: done ? null : undefined,
+		}),
+	);
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
 
 	console.log(
@@ -263,16 +267,18 @@ async function setTaskMergeReady(args: string[]): Promise<void> {
 		throw new Error(`Nenhuma tarefa encontrada para ${input.id}`);
 	}
 
-	await dbTasks.update({
-		id: row.id,
-		merge_ready_at: Date.now(),
-		worktree_branch: input.branch,
-		merge_target_branch: input.targetBranch,
-		worktree_path: input.worktreePath,
-		worktree_pr_url: input.prUrl,
-		done: 0,
-		completed_at: null,
-	});
+	await withCliTaskStorageLock(row, () =>
+		dbTasks.update({
+			id: row.id,
+			merge_ready_at: Date.now(),
+			worktree_branch: input.branch,
+			merge_target_branch: input.targetBranch,
+			worktree_path: input.worktreePath,
+			worktree_pr_url: input.prUrl,
+			done: 0,
+			completed_at: null,
+		}),
+	);
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
 
 	console.log(`✅ Tarefa "${row.title ?? row.folder_path}" pronta para merge.`);
@@ -287,16 +293,18 @@ async function setTaskMergeCompleted(raw: string | undefined): Promise<void> {
 		throw new Error(`Nenhuma tarefa encontrada para ${raw}`);
 	}
 
-	await dbTasks.update({
-		id: row.id,
-		done: 1,
-		completed_at: Date.now(),
-		merge_ready_at: null,
-		worktree_branch: null,
-		merge_target_branch: null,
-		worktree_path: null,
-		worktree_pr_url: null,
-	});
+	await withCliTaskStorageLock(row, () =>
+		dbTasks.update({
+			id: row.id,
+			done: 1,
+			completed_at: Date.now(),
+			merge_ready_at: null,
+			worktree_branch: null,
+			merge_target_branch: null,
+			worktree_path: null,
+			worktree_pr_url: null,
+		}),
+	);
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
 
 	console.log(`✅ Merge concluído e tarefa "${row.title ?? row.folder_path}" finalizada.`);
@@ -313,12 +321,7 @@ async function runTaskRm(args: string[]): Promise<void> {
 		throw new Error(`Nenhuma tarefa encontrada para ${raw}`);
 	}
 
-	const project = await dbProjects.getById(row.project_id);
-
-	await dbTasks.softDelete(row.id);
-	if (project) {
-		await removeTaskFolder({ projectRoute: project.main_route, folderPath: row.folder_path });
-	}
+	await quarantineTaskStorage(row.id);
 	await notifyTasksChanged({ projectId: row.project_id, action: "deleted", taskId: row.id });
 
 	console.log(`🗑️  Tarefa "${row.title ?? row.folder_path}" removida.`);

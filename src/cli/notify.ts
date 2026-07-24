@@ -3,6 +3,10 @@ import { DEFAULT_KOWORK_PORT, KOWORK_PROD_PORT } from "@/lib/runtime-config";
 // A UI só atualiza ao vivo pelo PubSub in-process do servidor. A CLI é outro processo, então
 // avisa o servidor por HTTP — best-effort: se o app estiver fechado, o POST falha em silêncio e
 // a escrita no banco permanece. Tenta as portas de dev e prod (e KOWORK_PORT, se setado).
+// O aviso tem teto de tempo: um servidor no ar mas sem responder (event loop saturado) não pode
+// pendurar a CLI, que é o canal usado pelo agente dentro de uma execução.
+const NOTIFY_TIMEOUT_MS = 1500;
+
 export async function notifyTasksChanged(input: {
 	projectId: string;
 	action: "created" | "updated" | "deleted";
@@ -31,6 +35,7 @@ export async function notifyTasksChanged(input: {
 				method: "POST",
 				headers,
 				body,
+				signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
 			}).catch(() => {}),
 		),
 	);

@@ -1,7 +1,7 @@
 import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { RESERVED_KOWORKER_FOLDERS } from "@/constants/koworker";
 import { createFolderCache, invalidateFolderPrefix } from "./folder-cache";
-import { buildFolderPath } from "./task-folder";
 
 const KOWORKER_DIR = ".koworker";
 const PRIMARY_FILE = "index.md";
@@ -111,6 +111,10 @@ export async function getVaultFile(params: {
 // Path de uma pasta solta relativo ao project.main_route, ex: ".koworker/notas-antigas".
 // É o folder_path que a task adotada passa a apontar, sem mover nada.
 export function vaultFolderPath(folderName: string): string {
+	if (RESERVED_KOWORKER_FOLDERS.has(folderName)) {
+		throw new Error("Pasta reservada pelo storage de tarefas");
+	}
+
 	return join(KOWORKER_DIR, folderName);
 }
 
@@ -238,22 +242,14 @@ export async function writeVaultFile(params: {
 export async function promoteVaultFile(params: {
 	projectRoute: string;
 	name: string;
-	taskId: string;
-}): Promise<{ folderPath: string; title: string }> {
+	folderPath: string;
+}): Promise<void> {
 	const dir = join(params.projectRoute, KOWORKER_DIR);
 	const sourcePath = join(dir, params.name);
-
-	const content = await Bun.file(sourcePath).text();
-	const title = titleFromMarkdown(content, params.name.replace(/\.md$/, ""));
-	const folderPath = buildFolderPath(params.taskId);
-
-	await mkdir(join(params.projectRoute, folderPath), { recursive: true });
-	await rename(sourcePath, join(params.projectRoute, folderPath, PRIMARY_FILE));
+	await rename(sourcePath, join(params.projectRoute, params.folderPath, PRIMARY_FILE));
 
 	invalidateFolderPrefix(dir);
-	invalidateFolderPrefix(join(params.projectRoute, folderPath));
-
-	return { folderPath, title };
+	invalidateFolderPrefix(join(params.projectRoute, params.folderPath));
 }
 
 // Move um ou mais `.md` soltos do vault para a pasta de uma tarefa (rename atômico dentro

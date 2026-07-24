@@ -112,6 +112,38 @@ function MetaIndicator({
 	);
 }
 
+export function TaskMetaIndicators({
+	category,
+	priority,
+	complexity,
+	className,
+}: {
+	category: ColoredItem | null;
+	priority: ColoredItem | null;
+	complexity: TaskComplexity;
+	className?: string;
+}) {
+	return (
+		<span className={cn("pointer-events-none flex shrink-0 items-center gap-2", className)}>
+			<MetaIndicator
+				name={COMPLEXITY_LABELS[complexity]}
+				color={COMPLEXITY_COLORS[complexity]}
+				icon={Gauge}
+			/>
+			<MetaIndicator
+				name={category?.name ?? "Sem categoria"}
+				color={category?.color ?? "#6b7280"}
+				icon={Tag}
+			/>
+			<MetaIndicator
+				name={priority?.name ?? "Sem prioridade"}
+				color={priority?.color ?? "#6b7280"}
+				icon={Flag}
+			/>
+		</span>
+	);
+}
+
 // Placeholder do input de renome. Quando a task não tem título, o nome exibido é só o início do
 // 1º .md (titleFromContent) — o placeholder deixa explícito que não é um título de verdade, em vez
 // de só repetir o snippet e parecer que já existe um nome.
@@ -324,23 +356,7 @@ export function TaskMetaControls({
 					onComplexityChange={onComplexityChange}
 				/>
 			) : (
-				<>
-					<MetaIndicator
-						name={COMPLEXITY_LABELS[complexity]}
-						color={COMPLEXITY_COLORS[complexity]}
-						icon={Gauge}
-					/>
-					<MetaIndicator
-						name={category?.name ?? "Sem categoria"}
-						color={category?.color ?? "#6b7280"}
-						icon={Tag}
-					/>
-					<MetaIndicator
-						name={priority?.name ?? "Sem prioridade"}
-						color={priority?.color ?? "#6b7280"}
-						icon={Flag}
-					/>
-				</>
+				<TaskMetaIndicators category={category} priority={priority} complexity={complexity} />
 			)}
 			{!stacked && (
 				<TaskEditControls

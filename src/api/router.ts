@@ -21,6 +21,7 @@ import { skillCategoriesRouter } from "./routers/skill-categories";
 import { skillsRouter } from "./routers/skills";
 import { systemRouter } from "./routers/system";
 import { taskGroupsRouter } from "./routers/task-groups";
+import { taskStorageRouter } from "./routers/task-storage";
 import { tasksRouter } from "./routers/tasks";
 import { terminalRouter, terminalWsRouter } from "./routers/terminal";
 import { vaultRouter } from "./routers/vault";
@@ -43,6 +44,7 @@ export const router = {
 	projectRoutes: projectRoutesRouter,
 	tasks: tasksRouter,
 	taskGroups: taskGroupsRouter,
+	taskStorage: taskStorageRouter,
 	categories: categoriesRouter,
 	priorities: prioritiesRouter,
 	flow: flowRouter,

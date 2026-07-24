@@ -40,8 +40,9 @@ routes/
 │   │   └── index.tsx
 │   ├── tarefas/
 │   │   ├── index.tsx
-│   │   ├── $taskId/index.tsx   (só redirect → $file)
-│   │   ├── $taskId/$file.tsx   (detalhe da tarefa; arquivo .md ativo na URL)
+│   │   ├── $taskId/index.tsx   (dispatcher: feature ou overview legado)
+│   │   ├── $taskId/$file.tsx   (dispatcher: overview canônico ou arquivo legado)
+│   │   ├── $taskId/$file_/$canonicalFile.tsx (arquivo canônico desaninhado)
 │   │   ├── -components/
 │   │   └── -utils/
 │   └── projetos/
@@ -58,8 +59,10 @@ routes/
 - `/login`
 - `/`
 - `/tarefas`
-- `/tarefas/$taskId` (redirect → `/tarefas/$taskId/$file`)
-- `/tarefas/$taskId/$file`
+- `/tarefas/$featureId?projectId=<uuid>`
+- `/tarefas/$featureId/$taskId`
+- `/tarefas/$featureId/$taskId/$file`
+- Links legados `/tarefas/$taskId` e `/tarefas/$taskId/$file` redirecionam por `replace`.
 - `/projetos`
 - `/projetos/novo`
 - `/projetos/$projetoId`
@@ -81,7 +84,7 @@ routes/
 - `__root.tsx`: layout global + `ErrorBoundary`.
 - `_app.tsx`: layout autenticado (pathless), valida sessão (`orpc.auth.me`) e redireciona para `/login` sem autenticação.
 - Rotas internas usam `AppShell`; páginas usam `PageShell` quando aplicável.
-- Exceção: detalhe de tarefa (`/tarefas/$taskId/$file`) usa header próprio (sem `PageShell`); `/tarefas/$taskId` só redireciona para o arquivo ativo.
+- Detalhes usam header próprio; dispatchers por aridade evitam colisão entre shapes legado e canônico.
 
 ## REGRAS
 

@@ -19,6 +19,7 @@ const projectsSchema = type({
 	display_order: type("number.integer").configure({ default: 0 }),
 	main_route: "string",
 	hide_terminal: type("number.integer").configure({ default: 0 }),
+	task_layout_version: type("number.integer").configure({ default: 1 }),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 	"deleted_at?": "number.integer",
@@ -42,6 +43,8 @@ const tasksSchema = type({
 	// Pasta da task relativa ao project.main_route, ex: ".koworker/<id>-<slug>".
 	// O conteúdo canônico vive nos .md dessa pasta; esta linha é só o índice.
 	folder_path: "string",
+	"storage_key?": "string",
+	"storage_slug?": "string",
 	// Título editável da task. Nullable: a task pode nascer sem nome e cair no fallback
 	// do primeiro .md (resolveDisplayTitle). O H1 do index.md não é mais o título.
 	"title?": "string",
@@ -76,10 +79,40 @@ const taskGroupsSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	project_id: type("string").configure({ references: "projects.id", onDelete: "cascade" }),
 	name: "string",
+	"storage_key?": "string",
+	"storage_slug?": "string",
 	color: type("string").configure({ default: "#000000" }),
 	display_order: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
+});
+
+const task_storage_status = type.enumerated(
+	"planned",
+	"backed_up",
+	"applying_fs",
+	"committed_db",
+	"verified",
+	"completed",
+	"blocked",
+	"rollback_required",
+	"rolled_back",
+);
+
+const taskStorageRunsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	project_id: type("string").configure({ references: "projects.id", onDelete: "restrict" }),
+	plan_hash: "string",
+	from_layout_version: "number.integer",
+	to_layout_version: "number.integer",
+	status: task_storage_status,
+	manifest: "string",
+	"backup_path?": "string",
+	"lock_owner?": "string",
+	"error?": "string",
+	created_at: type("number.integer").configure({ default: "now" }),
+	updated_at: "number.integer",
+	"completed_at?": "number.integer",
 });
 
 const categoriesSchema = type({
@@ -217,6 +250,11 @@ const executionRunsSchema = type({
 	"task_id?": type("string").configure({ references: "tasks.id", onDelete: "set null" }),
 	"client_request_id?": "string",
 	"request_fingerprint?": "string",
+	"parent_run_id?": type("string").configure({
+		references: "execution_runs.id",
+		onDelete: "set null",
+	}),
+	"cli_session_id?": "string",
 	"create_task_title?": "string",
 	kind: execution_kind,
 	title: "string",
@@ -237,6 +275,7 @@ const executionRunsSchema = type({
 	"error?": "string",
 	started_at: "number.integer",
 	updated_at: "number.integer",
+	"heartbeat_at?": "number.integer",
 	"finished_at?": "number.integer",
 	"deleted_at?": "number.integer",
 });
@@ -262,6 +301,7 @@ const database = new Database({
 		project_routes: projectRoutesSchema,
 		task_groups: taskGroupsSchema,
 		tasks: tasksSchema,
+		task_storage_runs: taskStorageRunsSchema,
 		skill_categories: skillCategoriesSchema,
 		skill_settings: skillSettingsSchema,
 		skill_source_paths: skillSourcePathsSchema,
@@ -289,6 +329,7 @@ export type projects = DB["projects"];
 export type project_routes = DB["project_routes"];
 export type tasks = DB["tasks"];
 export type task_groups = DB["task_groups"];
+export type task_storage_runs = DB["task_storage_runs"];
 export type categories = DB["categories"];
 export type priorities = DB["priorities"];
 export type skill_categories = DB["skill_categories"];
@@ -307,6 +348,8 @@ export {
 	projectsSchema,
 	projectRoutesSchema,
 	taskGroupsSchema,
+	task_storage_status,
+	taskStorageRunsSchema,
 	tasksSchema,
 	categoriesSchema,
 	prioritiesSchema,

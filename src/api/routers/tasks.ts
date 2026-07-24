@@ -7,18 +7,17 @@ import { dbCategories } from "../db/categories";
 import type { tasks } from "../db/connection";
 import { dbPriorities } from "../db/priorities";
 import { dbProjects } from "../db/projects";
+import { dbTaskGroups } from "../db/task-groups";
 import { dbTasks } from "../db/tasks";
 import { listTaskAttachments } from "../helpers/koworker-assets";
 import { openFileInDefaultApp } from "../helpers/os-actions";
 import {
 	deleteTaskFile,
 	inferTaskStage,
-	moveTaskFolderToProject,
 	parseTaskFileOrder,
 	readFirstMarkdownContent,
 	readTaskFiles,
 	readTaskFolderMeta,
-	removeTaskFolder,
 	renameTaskFile,
 	resolveDisplayTitle,
 	setTaskFileEditedAt,
@@ -26,6 +25,11 @@ import {
 	writeTaskFile,
 } from "../helpers/task-folder";
 import { createTask } from "../helpers/task-creation";
+import {
+	quarantineTaskStorage,
+	relinkTasks,
+	withProjectStorageLock,
+} from "../helpers/task-storage-coordinator";
 import { createDiscoveredTasks, discoverTaskFolders } from "../helpers/task-sync";
 import { restartTasksWatcher } from "../helpers/tasks-watcher";
 import { PubSub } from "../pubsub";
@@ -189,6 +193,17 @@ async function publishTaskEvent(
 	await PubSub.publish("tasks", "global", { taskId, projectId, action, source: "api" });
 }
 
+async function withTaskStorageMutation<T>(
+	row: tasks,
+	operation: (project: NonNullable<Awaited<ReturnType<typeof dbProjects.getById>>>) => Promise<T>,
+) {
+	const project = await dbProjects.getById(row.project_id);
+	if (!project) throw new Error("Projeto não encontrado");
+	return withProjectStorageLock({ projectId: project.id, projectRoute: project.main_route }, () =>
+		operation(project),
+	);
+}
+
 export const tasksRouter = {
 	discoverSync: protectedProcedure
 		.input(TaskSyncDiscoverSchema)
@@ -217,6 +232,7 @@ export const tasksRouter = {
 		const rows = await dbTasks.getAll({
 			projectId: input.projectId ?? null,
 			includeCompleted: input.includeCompleted,
+			groupId: input.groupId,
 			taskTypeId: input.taskTypeId,
 			priorityId: input.priorityId,
 			priority: input.priority,
@@ -328,20 +344,24 @@ export const tasksRouter = {
 	}),
 
 	update: protectedProcedure.input(TaskUpdateSchema).handler(async ({ input }) => {
-		await dbTasks.update({
-			id: input.id,
-			title: input.title,
-			priority_id: input.priorityId,
-			category_id: input.categoryId,
-			complexity: input.complexity,
-			done: input.done === undefined ? undefined : input.done ? 1 : 0,
-			completed_at: input.done === undefined ? undefined : input.done ? Date.now() : null,
-			merge_ready_at: input.done ? null : undefined,
-			worktree_branch: input.done ? null : undefined,
-			merge_target_branch: input.done ? null : undefined,
-			worktree_path: input.done ? null : undefined,
-			worktree_pr_url: input.done ? null : undefined,
-		});
+		const current = await dbTasks.getById(input.id);
+		if (!current) throw new Error("Tarefa não encontrada");
+		await withTaskStorageMutation(current, () =>
+			dbTasks.update({
+				id: input.id,
+				title: input.title,
+				priority_id: input.priorityId,
+				category_id: input.categoryId,
+				complexity: input.complexity,
+				done: input.done === undefined ? undefined : input.done ? 1 : 0,
+				completed_at: input.done === undefined ? undefined : input.done ? Date.now() : null,
+				merge_ready_at: input.done ? null : undefined,
+				worktree_branch: input.done ? null : undefined,
+				merge_target_branch: input.done ? null : undefined,
+				worktree_path: input.done ? null : undefined,
+				worktree_pr_url: input.done ? null : undefined,
+			}),
+		);
 
 		const row = await dbTasks.getById(input.id);
 		if (row) {
@@ -351,20 +371,43 @@ export const tasksRouter = {
 	}),
 
 	setDone: protectedProcedure.input(TaskSetDoneSchema).handler(async ({ input }) => {
-		await dbTasks.update({
-			id: input.id,
-			done: input.done ? 1 : 0,
-			completed_at: input.done ? Date.now() : null,
-			// undefined cai fora do cleanUpdate e preserva o group_id atual.
-			group_id: input.groupId,
-			merge_ready_at: input.done ? null : undefined,
-			worktree_branch: input.done ? null : undefined,
-			merge_target_branch: input.done ? null : undefined,
-			worktree_path: input.done ? null : undefined,
-			worktree_pr_url: input.done ? null : undefined,
-		});
+		const current = await dbTasks.getById(input.id);
+		if (!current) throw new Error("Tarefa não encontrada");
+		const project = await dbProjects.getById(current.project_id);
+		if (!project) throw new Error("Projeto não encontrado");
 
-		const row = await dbTasks.getById(input.id);
+		let row;
+		if (input.groupId !== undefined && input.groupId !== current.group_id) {
+			[row] = await relinkTasks({
+				intents: [
+					{
+						taskId: current.id,
+						targetProjectId: current.project_id,
+						targetGroupId: input.groupId,
+						done: input.done,
+						completedAt: input.done ? Date.now() : null,
+						clearMergeMetadata: input.done,
+					},
+				],
+			});
+		} else {
+			await withProjectStorageLock(
+				{ projectId: project.id, projectRoute: project.main_route },
+				() =>
+					dbTasks.update({
+						id: input.id,
+						done: input.done ? 1 : 0,
+						completed_at: input.done ? Date.now() : null,
+						merge_ready_at: input.done ? null : undefined,
+						worktree_branch: input.done ? null : undefined,
+						merge_target_branch: input.done ? null : undefined,
+						worktree_path: input.done ? null : undefined,
+						worktree_pr_url: input.done ? null : undefined,
+					}),
+			);
+			row = await dbTasks.getById(input.id);
+		}
+
 		if (row) {
 			await publishTaskEvent(row.id, row.project_id, "updated");
 		}
@@ -375,18 +418,17 @@ export const tasksRouter = {
 		const row = await dbTasks.getById(input.id);
 		if (!row) throw new Error("Tarefa não encontrada");
 
-		const project = await dbProjects.getById(row.project_id);
-		if (!project) throw new Error("Projeto não encontrado");
-
-		await shiftTaskFolderEditedAt({
-			projectRoute: project.main_route,
-			folderPath: row.folder_path,
-			offsetMs: RECENCY_IGNORE_OFFSET_MS,
-		});
-		await dbTasks.ignoreRecency({
-			id: row.id,
-			createdAt: row.created_at - RECENCY_IGNORE_OFFSET_MS,
-			updatedAt: (row.updated_at ?? row.created_at) - RECENCY_IGNORE_OFFSET_MS,
+		await withTaskStorageMutation(row, async (project) => {
+			await shiftTaskFolderEditedAt({
+				projectRoute: project.main_route,
+				folderPath: row.folder_path,
+				offsetMs: RECENCY_IGNORE_OFFSET_MS,
+			});
+			await dbTasks.ignoreRecency({
+				id: row.id,
+				createdAt: row.created_at - RECENCY_IGNORE_OFFSET_MS,
+				updatedAt: (row.updated_at ?? row.created_at) - RECENCY_IGNORE_OFFSET_MS,
+			});
 		});
 		await publishTaskEvent(row.id, row.project_id, "updated");
 
@@ -399,56 +441,40 @@ export const tasksRouter = {
 		if (!row) throw new Error("Tarefa não encontrada");
 		if (row.project_id === input.targetProjectId) return mapTaskWithDisplay(row);
 
-		const [source, target] = await Promise.all([
-			dbProjects.getById(row.project_id),
-			dbProjects.getById(input.targetProjectId),
-		]);
-		if (!target) throw new Error("Projeto de destino não encontrado");
-
-		// Move a pasta primeiro (FS antes do banco). Sem `source` não há de onde mover.
-		if (source) {
-			await moveTaskFolderToProject({
-				fromRoute: source.main_route,
-				toRoute: target.main_route,
-				folderPath: row.folder_path,
-			});
-		}
-
-		// Grupos são por projeto: a tarefa cai em "Sem grupo" no destino. cleanUpdate só descarta
-		// undefined, então o group_id null é gravado de fato. Se a gravação falhar com a pasta já no
-		// destino, desfaz o movimento — senão a tarefa apontaria pra um caminho vazio (arquivos
-		// "sumidos"). O move é destrutivo, ao contrário de `create`, que só deixaria um órfão inócuo.
-		try {
-			await dbTasks.update({
-				id: row.id,
-				project_id: input.targetProjectId,
-				group_id: null,
-			});
-		} catch (err) {
-			if (source) {
-				await moveTaskFolderToProject({
-					fromRoute: target.main_route,
-					toRoute: source.main_route,
-					folderPath: row.folder_path,
-				});
-			}
-			throw err;
-		}
+		const [updated] = await relinkTasks({
+			intents: [
+				{
+					taskId: row.id,
+					targetProjectId: input.targetProjectId,
+					targetGroupId: null,
+				},
+			],
+		});
 
 		await publishTaskEvent(row.id, row.project_id, "deleted");
 		await publishTaskEvent(row.id, input.targetProjectId, "created");
-		// O `.koworker/` do destino pode ter acabado de nascer; ressintoniza o watcher.
 		restartTasksWatcher();
 
-		const updated = await dbTasks.getById(row.id);
 		return updated ? mapTaskWithDisplay(updated) : null;
 	}),
 
 	reorder: protectedProcedure.input(TaskReorderSchema).handler(async ({ input }) => {
-		await dbTasks.reorder({
-			groupId: input.groupId,
-			categoryId: input.categoryId,
-			orderedIds: input.orderedIds,
+		const rows = await Promise.all(input.orderedIds.map((id) => dbTasks.getById(id)));
+		if (rows.some((row) => !row)) throw new Error("Uma tarefa da ordenação não foi encontrada");
+		const tasks = rows.filter((row) => row !== undefined);
+		const targetGroup = input.groupId ? await dbTaskGroups.getById(input.groupId) : null;
+		const projectIds = new Set(tasks.map((task) => task.project_id));
+		if (projectIds.size !== 1) throw new Error("A ordenação mistura tarefas de projetos distintos");
+		const targetProjectId = targetGroup?.project_id || tasks[0].project_id;
+
+		await relinkTasks({
+			intents: tasks.map((task, displayOrder) => ({
+				taskId: task.id,
+				targetProjectId,
+				targetGroupId: input.groupId,
+				displayOrder,
+				categoryId: input.categoryId,
+			})),
 		});
 
 		const first = await dbTasks.getById(input.orderedIds[0]);
@@ -462,15 +488,14 @@ export const tasksRouter = {
 		const row = await dbTasks.getById(input.id);
 		if (!row) throw new Error("Tarefa não encontrada");
 
-		const project = await dbProjects.getById(row.project_id);
-		if (!project) throw new Error("Projeto não encontrado");
-
-		await writeTaskFile({
-			projectRoute: project.main_route,
-			folderPath: row.folder_path,
-			name: input.name,
-			content: input.content,
-		});
+		await withTaskStorageMutation(row, (project) =>
+			writeTaskFile({
+				projectRoute: project.main_route,
+				folderPath: row.folder_path,
+				name: input.name,
+				content: input.content,
+			}),
+		);
 
 		await publishTaskEvent(row.id, row.project_id, "updated");
 		return { id: row.id, name: input.name };
@@ -480,15 +505,14 @@ export const tasksRouter = {
 		const row = await dbTasks.getById(input.id);
 		if (!row) throw new Error("Tarefa não encontrada");
 
-		const project = await dbProjects.getById(row.project_id);
-		if (!project) throw new Error("Projeto não encontrado");
-
-		await setTaskFileEditedAt({
-			projectRoute: project.main_route,
-			folderPath: row.folder_path,
-			name: input.name,
-			editedAt: input.editedAt,
-		});
+		await withTaskStorageMutation(row, (project) =>
+			setTaskFileEditedAt({
+				projectRoute: project.main_route,
+				folderPath: row.folder_path,
+				name: input.name,
+				editedAt: input.editedAt,
+			}),
+		);
 
 		await publishTaskEvent(row.id, row.project_id, "updated");
 		return { id: row.id, name: input.name, editedAt: input.editedAt };
@@ -498,30 +522,27 @@ export const tasksRouter = {
 		const row = await dbTasks.getById(input.id);
 		if (!row) throw new Error("Tarefa não encontrada");
 
-		const project = await dbProjects.getById(row.project_id);
-		if (!project) throw new Error("Projeto não encontrado");
-
 		// Renomear não muda o tipo do arquivo: a extensão de newName tem de casar com a de oldName.
 		const extOf = (name: string) => name.slice(name.lastIndexOf(".")).toLowerCase();
 		if (extOf(input.oldName) !== extOf(input.newName)) {
 			throw new Error("O novo nome deve manter a mesma extensão do arquivo");
 		}
 
-		await renameTaskFile({
-			projectRoute: project.main_route,
-			folderPath: row.folder_path,
-			oldName: input.oldName,
-			newName: input.newName,
-		});
+		await withTaskStorageMutation(row, async (project) => {
+			await renameTaskFile({
+				projectRoute: project.main_route,
+				folderPath: row.folder_path,
+				oldName: input.oldName,
+				newName: input.newName,
+			});
 
-		// Renomear preserva a posição na aba: troca o nome no file_order in-place. Sem isso o
-		// arquivo cairia como leftover e pularia pra direita.
-		const order = parseTaskFileOrder(row.file_order);
-		const at = order.indexOf(input.oldName);
-		if (at >= 0) {
-			order[at] = input.newName;
-			await dbTasks.update({ id: row.id, file_order: JSON.stringify(order) });
-		}
+			const order = parseTaskFileOrder(row.file_order);
+			const at = order.indexOf(input.oldName);
+			if (at >= 0) {
+				order[at] = input.newName;
+				await dbTasks.update({ id: row.id, file_order: JSON.stringify(order) });
+			}
+		});
 
 		await publishTaskEvent(row.id, row.project_id, "updated");
 		return { id: row.id, oldName: input.oldName, newName: input.newName };
@@ -531,20 +552,19 @@ export const tasksRouter = {
 		const row = await dbTasks.getById(input.id);
 		if (!row) throw new Error("Tarefa não encontrada");
 
-		const project = await dbProjects.getById(row.project_id);
-		if (!project) throw new Error("Projeto não encontrado");
+		await withTaskStorageMutation(row, async (project) => {
+			await deleteTaskFile({
+				projectRoute: project.main_route,
+				folderPath: row.folder_path,
+				name: input.name,
+			});
 
-		await deleteTaskFile({
-			projectRoute: project.main_route,
-			folderPath: row.folder_path,
-			name: input.name,
+			const order = parseTaskFileOrder(row.file_order);
+			const next = order.filter((name) => name !== input.name);
+			if (next.length !== order.length) {
+				await dbTasks.update({ id: row.id, file_order: JSON.stringify(next) });
+			}
 		});
-
-		const order = parseTaskFileOrder(row.file_order);
-		const next = order.filter((name) => name !== input.name);
-		if (next.length !== order.length) {
-			await dbTasks.update({ id: row.id, file_order: JSON.stringify(next) });
-		}
 
 		await publishTaskEvent(row.id, row.project_id, "updated");
 		return { id: row.id, name: input.name };
@@ -554,26 +574,17 @@ export const tasksRouter = {
 		const row = await dbTasks.getById(input.id);
 		if (!row) throw new Error("Tarefa não encontrada");
 
-		await dbTasks.update({ id: input.id, file_order: JSON.stringify(input.orderedNames) });
+		await withTaskStorageMutation(row, () =>
+			dbTasks.update({ id: input.id, file_order: JSON.stringify(input.orderedNames) }),
+		);
 
 		await publishTaskEvent(row.id, row.project_id, "updated");
 		return { id: row.id, orderedNames: input.orderedNames };
 	}),
 
 	remove: protectedProcedure.input(TaskIdSchema).handler(async ({ input }) => {
-		const row = await dbTasks.getById(input.id);
-		await dbTasks.softDelete(input.id);
-
-		if (row) {
-			const project = await dbProjects.getById(row.project_id);
-			if (project) {
-				await removeTaskFolder({
-					projectRoute: project.main_route,
-					folderPath: row.folder_path,
-				});
-			}
-			await publishTaskEvent(row.id, row.project_id, "deleted");
-		}
+		const { task } = await quarantineTaskStorage(input.id);
+		await publishTaskEvent(task.id, task.project_id, "deleted");
 		return { id: input.id };
 	}),
 };

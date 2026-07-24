@@ -7,7 +7,9 @@ import { dbCategories } from "../db/categories";
 import { dbPriorities } from "../db/priorities";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
+import { createTaskStorage, rollbackCreatedTask } from "../helpers/task-creation";
 import { readFirstMarkdownContent, resolveDisplayTitle } from "../helpers/task-folder";
+import { allocateStorageKey, normalizeStorageSlug } from "../helpers/task-storage-path";
 import { restartTasksWatcher } from "../helpers/tasks-watcher";
 import {
 	deleteVaultFile,
@@ -161,37 +163,43 @@ export const vaultRouter = {
 			throw new Error("Defina ao menos uma prioridade e uma categoria antes de promover");
 		}
 
-		const id = crypto.randomUUID();
-		const { folderPath, title } = await promoteVaultFile({
+		const file = await getVaultFile({ projectRoute: project.main_route, name: input.name });
+		if (!file) throw new Error("Arquivo não encontrado");
+
+		const task = await createTaskStorage({
+			projectId: project.id,
+			title: file.title,
+			priorityId: priority.id,
+			categoryId: category.id,
+			complexity: "medio",
+			seed: false,
+		});
+		if (!task) throw new Error("Tarefa não encontrada após a criação");
+
+		await promoteVaultFile({
 			projectRoute: project.main_route,
 			name: input.name,
-			taskId: id,
-		});
-
-		await dbTasks.create({
-			id,
-			project_id: project.id,
-			folder_path: folderPath,
-			title,
-			priority_id: priority.id,
-			category_id: category.id,
+			folderPath: task.folder_path,
+		}).catch(async (error) => {
+			await rollbackCreatedTask(task);
+			throw error;
 		});
 
 		await PubSub.publish("tasks", project.id, {
-			taskId: id,
+			taskId: task.id,
 			projectId: project.id,
 			action: "created",
 			source: "api",
 		});
 		await PubSub.publish("tasks", "global", {
-			taskId: id,
+			taskId: task.id,
 			projectId: project.id,
 			action: "created",
 			source: "api",
 		});
 		restartTasksWatcher();
 
-		return { id, folderPath, title };
+		return { id: task.id, folderPath: task.folder_path, title: file.title };
 	}),
 
 	linkToTask: protectedProcedure.input(VaultLinkFilesToTaskSchema).handler(async ({ input }) => {
@@ -284,12 +292,14 @@ export const vaultRouter = {
 		});
 		if (!exists) throw new Error("Pasta não encontrada");
 
-		const existing = await dbTasks.getByFolderPath(folderPath);
+		const existing = await dbTasks.getByFolderPath({ projectId: project.id, folderPath });
 		if (existing) throw new Error("Essa pasta já pertence a uma tarefa");
 
-		const [priorities, categories] = await Promise.all([
+		const [priorities, categories, storageKeys, firstContent] = await Promise.all([
 			dbPriorities.getAll(),
 			dbCategories.getAll(),
+			dbTasks.listStorageKeys(),
+			readFirstMarkdownContent({ projectRoute: project.main_route, folderPath }),
 		]);
 		const priority = priorities[0];
 		const category = categories[0];
@@ -298,10 +308,19 @@ export const vaultRouter = {
 		}
 
 		const id = crypto.randomUUID();
+		const storageKey = allocateStorageKey({
+			id,
+			usedKeys: new Set(storageKeys.flatMap((row) => (row.storage_key ? [row.storage_key] : []))),
+		});
 		await dbTasks.create({
 			id,
 			project_id: project.id,
 			folder_path: folderPath,
+			storage_key: storageKey,
+			storage_slug: normalizeStorageSlug(
+				firstContent ? resolveDisplayTitle({ firstContent }).title : undefined,
+				"tarefa",
+			),
 			priority_id: priority.id,
 			category_id: category.id,
 		});

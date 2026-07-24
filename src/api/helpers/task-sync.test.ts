@@ -10,17 +10,21 @@ process.env.NODE_ENV = "development";
 let db: typeof import("../db/connection").db;
 let discoverTaskFolders: typeof import("./task-sync").discoverTaskFolders;
 let createDiscoveredTasks: typeof import("./task-sync").createDiscoveredTasks;
+let stopTasksWatcher: typeof import("./tasks-watcher").stopTasksWatcher;
 let projectRoute: string;
 let projectId: string;
+let groupId: string;
 
 beforeAll(async () => {
 	({ db } = await import("../db/connection"));
 	({ createDiscoveredTasks, discoverTaskFolders } = await import("./task-sync"));
+	({ stopTasksWatcher } = await import("./tasks-watcher"));
 });
 
 beforeEach(async () => {
 	projectRoute = await mkdtemp(join(tmpdir(), "kowork-task-sync-"));
 	projectId = crypto.randomUUID();
+	groupId = crypto.randomUUID();
 
 	await db
 		.insertInto("projects")
@@ -31,13 +35,29 @@ beforeEach(async () => {
 			display_order: 0,
 			main_route: projectRoute,
 			hide_terminal: 0,
+			task_layout_version: 1,
+			created_at: Date.now(),
+		})
+		.execute();
+	await db
+		.insertInto("task_groups")
+		.values({
+			id: groupId,
+			project_id: projectId,
+			name: "Feature",
+			storage_key: groupId.slice(0, 8),
+			storage_slug: "feature",
+			color: "#000000",
+			display_order: 0,
 			created_at: Date.now(),
 		})
 		.execute();
 });
 
 afterEach(async () => {
+	await stopTasksWatcher();
 	await db.deleteFrom("tasks").where("project_id", "=", projectId).execute();
+	await db.deleteFrom("task_groups").where("project_id", "=", projectId).execute();
 	await db.deleteFrom("projects").where("id", "=", projectId).execute();
 	await rm(projectRoute, { recursive: true, force: true });
 });
@@ -77,6 +97,7 @@ describe("sincronização de tarefas", () => {
 					projectId,
 					folderName: "importada",
 					title: "Título editado",
+					groupId,
 					complexity: "complexo",
 					done: true,
 				},
@@ -91,6 +112,7 @@ describe("sincronização de tarefas", () => {
 		expect(result).toEqual({ created: 1 });
 		expect(row.folder_path).toBe(".koworker/importada");
 		expect(row.title).toBe("Título editado");
+		expect(row.group_id).toBe(groupId);
 		expect(row.complexity).toBe("complexo");
 		expect(row.done).toBe(1);
 		expect(row.completed_at).toBeNumber();

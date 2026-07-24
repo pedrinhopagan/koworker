@@ -20,6 +20,7 @@ beforeAll(async () => {
 			display_order: 0,
 			main_route: "/tmp/project-worktree",
 			hide_terminal: 0,
+			task_layout_version: 1,
 			created_at: 1,
 		})
 		.execute();

@@ -20,6 +20,7 @@ import {
 import { hasFlag, parseArgs } from "../args";
 import { notifyTasksChanged } from "../notify";
 import { resolveTask } from "../resolve";
+import { withCliTaskStorageLock } from "../task-storage";
 
 export function runTaskFile(args: string[]): Promise<void> {
 	const [sub, ...rest] = args;
@@ -109,12 +110,14 @@ async function runFileWrite(args: string[], options: { createOnly: boolean }): P
 		throw new Error(`Arquivo "${input.name}" já existe nesta tarefa`);
 	}
 
-	await writeTaskFile({
-		projectRoute: project.main_route,
-		folderPath: row.folder_path,
-		name: input.name,
-		content: input.content,
-	});
+	await withCliTaskStorageLock(row, () =>
+		writeTaskFile({
+			projectRoute: project.main_route,
+			folderPath: row.folder_path,
+			name: input.name,
+			content: input.content,
+		}),
+	);
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
 
 	console.log(`✅ Arquivo "${input.name}" gravado em ${row.folder_path}.`);
@@ -123,7 +126,8 @@ async function runFileWrite(args: string[], options: { createOnly: boolean }): P
 async function runFileRename(args: string[]): Promise<void> {
 	const { positionals } = parseArgs(args);
 	const raw = positionals[0];
-	const inferredName = inferTaskFileName(raw);
+	const row = await requireTask(raw);
+	const inferredName = inferTaskFileName(raw, row.folder_path);
 	const oldName = inferredName ? inferredName : positionals[1];
 	const newName = inferredName ? positionals[1] : positionals[2];
 
@@ -133,23 +137,24 @@ async function runFileRename(args: string[]): Promise<void> {
 		);
 	}
 
-	const row = await requireTask(raw);
 	const input = TaskRenameFileSchema.parse({ id: row.id, oldName, newName });
 	const project = await requireProject(row.project_id);
 
-	await renameTaskFile({
-		projectRoute: project.main_route,
-		folderPath: row.folder_path,
-		oldName: input.oldName,
-		newName: input.newName,
-	});
+	await withCliTaskStorageLock(row, async () => {
+		await renameTaskFile({
+			projectRoute: project.main_route,
+			folderPath: row.folder_path,
+			oldName: input.oldName,
+			newName: input.newName,
+		});
 
-	const order = parseTaskFileOrder(row.file_order);
-	const index = order.indexOf(input.oldName);
-	if (index >= 0) {
-		order[index] = input.newName;
-		await dbTasks.update({ id: row.id, file_order: JSON.stringify(order) });
-	}
+		const order = parseTaskFileOrder(row.file_order);
+		const index = order.indexOf(input.oldName);
+		if (index >= 0) {
+			order[index] = input.newName;
+			await dbTasks.update({ id: row.id, file_order: JSON.stringify(order) });
+		}
+	});
 
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
 
@@ -161,17 +166,19 @@ async function runFileRm(args: string[]): Promise<void> {
 	const input = TaskDeleteFileSchema.parse({ id: row.id, name });
 	const project = await requireProject(row.project_id);
 
-	await deleteTaskFile({
-		projectRoute: project.main_route,
-		folderPath: row.folder_path,
-		name: input.name,
-	});
+	await withCliTaskStorageLock(row, async () => {
+		await deleteTaskFile({
+			projectRoute: project.main_route,
+			folderPath: row.folder_path,
+			name: input.name,
+		});
 
-	const order = parseTaskFileOrder(row.file_order);
-	const nextOrder = order.filter((fileName) => fileName !== input.name);
-	if (nextOrder.length !== order.length) {
-		await dbTasks.update({ id: row.id, file_order: JSON.stringify(nextOrder) });
-	}
+		const order = parseTaskFileOrder(row.file_order);
+		const nextOrder = order.filter((fileName) => fileName !== input.name);
+		if (nextOrder.length !== order.length) {
+			await dbTasks.update({ id: row.id, file_order: JSON.stringify(nextOrder) });
+		}
+	});
 
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
 
@@ -189,7 +196,9 @@ async function runFileReorder(args: string[]): Promise<void> {
 	const row = await requireTask(raw);
 	const input = TaskReorderFilesSchema.parse({ id: row.id, orderedNames });
 
-	await dbTasks.update({ id: input.id, file_order: JSON.stringify(input.orderedNames) });
+	await withCliTaskStorageLock(row, () =>
+		dbTasks.update({ id: input.id, file_order: JSON.stringify(input.orderedNames) }),
+	);
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
 
 	console.log(`✅ Ordem dos arquivos atualizada: ${input.orderedNames.join(", ")}`);
@@ -202,12 +211,14 @@ async function runFileDate(args: string[]): Promise<void> {
 	const input = TaskSetFileDateSchema.parse({ id: row.id, name, editedAt });
 	const project = await requireProject(row.project_id);
 
-	await setTaskFileEditedAt({
-		projectRoute: project.main_route,
-		folderPath: row.folder_path,
-		name: input.name,
-		editedAt: input.editedAt,
-	});
+	await withCliTaskStorageLock(row, () =>
+		setTaskFileEditedAt({
+			projectRoute: project.main_route,
+			folderPath: row.folder_path,
+			name: input.name,
+			editedAt: input.editedAt,
+		}),
+	);
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
 
 	console.log(`✅ Data de "${input.name}" atualizada para ${formatInstant(input.editedAt)}.`);
@@ -223,7 +234,7 @@ async function resolveTaskFileTarget(
 	}
 
 	const row = await requireTask(raw);
-	const inferredName = inferTaskFileName(raw);
+	const inferredName = inferTaskFileName(raw, row.folder_path);
 	const name = explicitName ?? inferredName;
 
 	if (!name) {
@@ -280,7 +291,7 @@ async function readContent(flags: Record<string, string>): Promise<string> {
 	return "";
 }
 
-function inferTaskFileName(raw: string | undefined): string | undefined {
+function inferTaskFileName(raw: string | undefined, folderPath: string): string | undefined {
 	if (!raw) {
 		return undefined;
 	}
@@ -292,13 +303,14 @@ function inferTaskFileName(raw: string | undefined): string | undefined {
 		return undefined;
 	}
 
-	const parts = normalized.slice(index + marker.length).split("/");
-	if (parts.length !== 2) {
+	const target = normalized.slice(index);
+	const prefix = `${folderPath}/`;
+	if (!target.startsWith(prefix)) {
 		return undefined;
 	}
 
-	const name = parts[1];
-	if (!name.endsWith(".md")) {
+	const name = target.slice(prefix.length);
+	if (!name.endsWith(".md") || name.includes("/")) {
 		return undefined;
 	}
 

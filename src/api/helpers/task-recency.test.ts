@@ -28,6 +28,7 @@ beforeAll(async () => {
 			display_order: 0,
 			main_route: projectRoute,
 			hide_terminal: 0,
+			task_layout_version: 1,
 			created_at: Date.now(),
 		})
 		.execute();

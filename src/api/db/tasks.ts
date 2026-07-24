@@ -25,6 +25,12 @@ const applyTaskListFilters = (
 		query = query.where("category_id", "=", filters.taskTypeId);
 	}
 
+	if (filters.groupId !== undefined) {
+		query = filters.groupId
+			? query.where("group_id", "=", filters.groupId)
+			: query.where("group_id", "is", null);
+	}
+
 	const priorityId = filters.priorityId ?? filters.priority;
 	if (priorityId) {
 		query = query.where("priority_id", "=", priorityId);
@@ -50,13 +56,29 @@ export const dbTasks = {
 			.where("deleted_at", "is", null)
 			.executeTakeFirst(),
 
-	getByFolderPath: (folderPath: string) =>
+	getByFolderPath: (input: { projectId: string; folderPath: string }) =>
 		db
-			.selectFrom("tasks")
-			.selectAll()
-			.where("folder_path", "=", folderPath)
-			.where("deleted_at", "is", null)
+			.selectFrom("tasks as t")
+			.selectAll("t")
+			.where("t.project_id", "=", input.projectId)
+			.where("t.folder_path", "=", input.folderPath)
+			.where("t.deleted_at", "is", null)
 			.executeTakeFirst(),
+
+	getByStorageKey: (storageKey: string) =>
+		db
+			.selectFrom("tasks as t")
+			.selectAll("t")
+			.where("t.storage_key", "=", storageKey)
+			.where("t.deleted_at", "is", null)
+			.executeTakeFirst(),
+
+	listStorageKeys: () =>
+		db
+			.selectFrom("tasks as t")
+			.select("t.storage_key")
+			.where("t.storage_key", "is not", null)
+			.execute(),
 
 	listByProject: (input: { projectId: string } & TaskListFiltersInput) => {
 		let query = db.selectFrom("tasks").selectAll().where("deleted_at", "is", null);
@@ -70,6 +92,47 @@ export const dbTasks = {
 			.selectFrom("tasks as t")
 			.select(["t.project_id", "t.folder_path"])
 			.where("t.project_id", "in", projectIds)
+			.execute(),
+
+	listFolderPathsByProject: (projectId: string) =>
+		db
+			.selectFrom("tasks as t")
+			.selectAll("t")
+			.where("t.project_id", "=", projectId)
+			.where("t.deleted_at", "is", null)
+			.execute(),
+
+	listStorageByProject: (projectId: string) =>
+		db
+			.selectFrom("tasks as t")
+			.leftJoin("task_groups as tg", "tg.id", "t.group_id")
+			.select([
+				"t.id",
+				"t.project_id",
+				"t.folder_path",
+				"t.storage_key",
+				"t.storage_slug",
+				"t.title",
+				"t.group_id",
+				"t.deleted_at",
+				"tg.project_id as group_project_id",
+				"tg.storage_key as group_storage_key",
+				"tg.storage_slug as group_storage_slug",
+			])
+			.where("t.project_id", "=", projectId)
+			.orderBy("t.created_at", "asc")
+			.orderBy("t.id", "asc")
+			.execute(),
+
+	listLivePathDuplicates: (projectId: string) =>
+		db
+			.selectFrom("tasks as t")
+			.select(["t.folder_path"])
+			.select(({ fn }) => fn.count<number>("t.id").as("count"))
+			.where("t.project_id", "=", projectId)
+			.where("t.deleted_at", "is", null)
+			.groupBy("t.folder_path")
+			.having(({ fn }) => fn.count("t.id"), ">", 1)
 			.execute(),
 
 	createMany: async (inputs: TaskDbCreateInput[]) => {
@@ -205,6 +268,26 @@ export const dbTasks = {
 			.where("deleted_at", "is", null)
 			.executeTakeFirst();
 	},
+
+	updateStorageLocation: (input: {
+		id: string;
+		projectId: string;
+		folderPath: string;
+		groupId: string | null;
+		storageSlug: string | null;
+	}) =>
+		db
+			.updateTable("tasks")
+			.set({
+				project_id: input.projectId,
+				folder_path: input.folderPath,
+				group_id: input.groupId,
+				storage_slug: input.storageSlug,
+				updated_at: Date.now(),
+			})
+			.where("id", "=", input.id)
+			.where("deleted_at", "is", null)
+			.executeTakeFirst(),
 
 	ignoreRecency: (input: { id: string; createdAt: number; updatedAt: number }) =>
 		db

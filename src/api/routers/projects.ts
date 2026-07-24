@@ -33,6 +33,7 @@ const mapProject = (row: projects & { routes?: project_routes[] }) => ({
 	mainRoute: row.main_route,
 	displayPath: toDisplayPath(row.main_route),
 	hideTerminal: row.hide_terminal === 1,
+	taskLayoutVersion: row.task_layout_version,
 	displayOrder: row.display_order,
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,

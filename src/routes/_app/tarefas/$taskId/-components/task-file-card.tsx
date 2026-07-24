@@ -130,8 +130,8 @@ type TaskFileCardProps = {
 	size: number;
 	timestamp: number;
 	hero?: boolean;
-	to?: "/tarefas/$taskId/$file";
-	params?: { taskId: string; file: string };
+	to?: "/tarefas/$taskId/$file/$canonicalFile";
+	params?: { taskId: string; file: string; canonicalFile: string };
 	onClick?: () => void;
 };
 

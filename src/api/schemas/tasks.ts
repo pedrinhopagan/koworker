@@ -8,6 +8,7 @@ export const TaskIdSchema = z.object({
 
 export const TaskListFiltersSchema = z.object({
 	q: z.string().trim().min(1).optional(),
+	groupId: z.string().min(1).nullable().optional(),
 	/**
 	 * Filter by the task type/category.
 	 *
@@ -82,6 +83,7 @@ export const TaskSyncCreateSchema = z.object({
 				projectId: z.string().trim().min(1),
 				folderName: taskSyncFolderName,
 				title: z.string().trim().min(1),
+				groupId: z.string().trim().min(1),
 				priorityId: z.string().trim().min(1).optional(),
 				categoryId: z.string().trim().min(1).optional(),
 				complexity: z.enum(TASK_COMPLEXITIES),
@@ -314,6 +316,8 @@ export const TaskDbCreateSchema = z.object({
 	id: z.string().min(1),
 	project_id: z.string().min(1),
 	folder_path: z.string().min(1),
+	storage_key: z.string().min(8).optional(),
+	storage_slug: z.string().min(1).optional(),
 	title: z.string().min(1).optional(),
 	priority_id: z.string().min(1).nullable().optional(),
 	category_id: z.string().min(1).nullable().optional(),
@@ -335,6 +339,10 @@ export const TaskDbCreateSchema = z.object({
 
 export const TaskDbUpdateSchema = TaskDbCreateSchema.omit({
 	id: true,
+	project_id: true,
+	folder_path: true,
+	storage_key: true,
+	storage_slug: true,
 	created_at: true,
 })
 	.partial()

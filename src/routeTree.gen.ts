@@ -31,8 +31,10 @@ import { Route as AppSkillsSlugIndexRouteImport } from './routes/_app/skills/$sl
 import { Route as AppProjetosNovoIndexRouteImport } from './routes/_app/projetos/novo/index'
 import { Route as AppProjetosProjetoIdIndexRouteImport } from './routes/_app/projetos/$projetoId/index'
 import { Route as AppMediaFileNameIndexRouteImport } from './routes/_app/media/$fileName/index'
+import { Route as AppExecutarExecutionIdIndexRouteImport } from './routes/_app/executar/$executionId/index'
 import { Route as AppAgentsSlugIndexRouteImport } from './routes/_app/agents/$slug/index'
 import { Route as AppTarefasTaskIdFileRouteImport } from './routes/_app/tarefas/$taskId/$file'
+import { Route as AppTarefasTaskIdFileCanonicalFileRouteImport } from './routes/_app/tarefas/$taskId/$file_/$canonicalFile'
 import { Route as AppProjetosProjetoIdDocsSplatRouteImport } from './routes/_app/projetos/$projetoId/docs/$'
 
 const LoginRoute = LoginRouteImport.update({
@@ -145,6 +147,12 @@ const AppMediaFileNameIndexRoute = AppMediaFileNameIndexRouteImport.update({
   path: '/media/$fileName/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppExecutarExecutionIdIndexRoute =
+  AppExecutarExecutionIdIndexRouteImport.update({
+    id: '/executar/$executionId/',
+    path: '/executar/$executionId/',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppAgentsSlugIndexRoute = AppAgentsSlugIndexRouteImport.update({
   id: '/agents/$slug/',
   path: '/agents/$slug/',
@@ -155,6 +163,12 @@ const AppTarefasTaskIdFileRoute = AppTarefasTaskIdFileRouteImport.update({
   path: '/tarefas/$taskId/$file',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTarefasTaskIdFileCanonicalFileRoute =
+  AppTarefasTaskIdFileCanonicalFileRouteImport.update({
+    id: '/tarefas/$taskId/$file_/$canonicalFile',
+    path: '/tarefas/$taskId/$file/$canonicalFile',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppProjetosProjetoIdDocsSplatRoute =
   AppProjetosProjetoIdDocsSplatRouteImport.update({
     id: '/projetos/$projetoId/docs/$',
@@ -180,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/vault/': typeof AppVaultIndexRoute
   '/tarefas/$taskId/$file': typeof AppTarefasTaskIdFileRoute
   '/agents/$slug/': typeof AppAgentsSlugIndexRoute
+  '/executar/$executionId/': typeof AppExecutarExecutionIdIndexRoute
   '/media/$fileName/': typeof AppMediaFileNameIndexRoute
   '/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo/': typeof AppProjetosNovoIndexRoute
@@ -187,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/vault/$fileName/': typeof AppVaultFileNameIndexRoute
   '/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
+  '/tarefas/$taskId/$file/$canonicalFile': typeof AppTarefasTaskIdFileCanonicalFileRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -206,6 +222,7 @@ export interface FileRoutesByTo {
   '/vault': typeof AppVaultIndexRoute
   '/tarefas/$taskId/$file': typeof AppTarefasTaskIdFileRoute
   '/agents/$slug': typeof AppAgentsSlugIndexRoute
+  '/executar/$executionId': typeof AppExecutarExecutionIdIndexRoute
   '/media/$fileName': typeof AppMediaFileNameIndexRoute
   '/projetos/$projetoId': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo': typeof AppProjetosNovoIndexRoute
@@ -213,6 +230,7 @@ export interface FileRoutesByTo {
   '/tarefas/$taskId': typeof AppTarefasTaskIdIndexRoute
   '/vault/$fileName': typeof AppVaultFileNameIndexRoute
   '/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
+  '/tarefas/$taskId/$file/$canonicalFile': typeof AppTarefasTaskIdFileCanonicalFileRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -234,6 +252,7 @@ export interface FileRoutesById {
   '/_app/vault/': typeof AppVaultIndexRoute
   '/_app/tarefas/$taskId/$file': typeof AppTarefasTaskIdFileRoute
   '/_app/agents/$slug/': typeof AppAgentsSlugIndexRoute
+  '/_app/executar/$executionId/': typeof AppExecutarExecutionIdIndexRoute
   '/_app/media/$fileName/': typeof AppMediaFileNameIndexRoute
   '/_app/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/_app/projetos/novo/': typeof AppProjetosNovoIndexRoute
@@ -241,6 +260,7 @@ export interface FileRoutesById {
   '/_app/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/_app/vault/$fileName/': typeof AppVaultFileNameIndexRoute
   '/_app/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
+  '/_app/tarefas/$taskId/$file_/$canonicalFile': typeof AppTarefasTaskIdFileCanonicalFileRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -262,6 +282,7 @@ export interface FileRouteTypes {
     | '/vault/'
     | '/tarefas/$taskId/$file'
     | '/agents/$slug/'
+    | '/executar/$executionId/'
     | '/media/$fileName/'
     | '/projetos/$projetoId/'
     | '/projetos/novo/'
@@ -269,6 +290,7 @@ export interface FileRouteTypes {
     | '/tarefas/$taskId/'
     | '/vault/$fileName/'
     | '/projetos/$projetoId/docs/$'
+    | '/tarefas/$taskId/$file/$canonicalFile'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -288,6 +310,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/tarefas/$taskId/$file'
     | '/agents/$slug'
+    | '/executar/$executionId'
     | '/media/$fileName'
     | '/projetos/$projetoId'
     | '/projetos/novo'
@@ -295,6 +318,7 @@ export interface FileRouteTypes {
     | '/tarefas/$taskId'
     | '/vault/$fileName'
     | '/projetos/$projetoId/docs/$'
+    | '/tarefas/$taskId/$file/$canonicalFile'
   id:
     | '__root__'
     | '/_app'
@@ -315,6 +339,7 @@ export interface FileRouteTypes {
     | '/_app/vault/'
     | '/_app/tarefas/$taskId/$file'
     | '/_app/agents/$slug/'
+    | '/_app/executar/$executionId/'
     | '/_app/media/$fileName/'
     | '/_app/projetos/$projetoId/'
     | '/_app/projetos/novo/'
@@ -322,6 +347,7 @@ export interface FileRouteTypes {
     | '/_app/tarefas/$taskId/'
     | '/_app/vault/$fileName/'
     | '/_app/projetos/$projetoId/docs/$'
+    | '/_app/tarefas/$taskId/$file_/$canonicalFile'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -485,6 +511,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMediaFileNameIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/executar/$executionId/': {
+      id: '/_app/executar/$executionId/'
+      path: '/executar/$executionId'
+      fullPath: '/executar/$executionId/'
+      preLoaderRoute: typeof AppExecutarExecutionIdIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/agents/$slug/': {
       id: '/_app/agents/$slug/'
       path: '/agents/$slug'
@@ -497,6 +530,13 @@ declare module '@tanstack/react-router' {
       path: '/tarefas/$taskId/$file'
       fullPath: '/tarefas/$taskId/$file'
       preLoaderRoute: typeof AppTarefasTaskIdFileRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tarefas/$taskId/$file_/$canonicalFile': {
+      id: '/_app/tarefas/$taskId/$file_/$canonicalFile'
+      path: '/tarefas/$taskId/$file/$canonicalFile'
+      fullPath: '/tarefas/$taskId/$file/$canonicalFile'
+      preLoaderRoute: typeof AppTarefasTaskIdFileCanonicalFileRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/projetos/$projetoId/docs/$': {
@@ -526,6 +566,7 @@ interface AppRouteChildren {
   AppVaultIndexRoute: typeof AppVaultIndexRoute
   AppTarefasTaskIdFileRoute: typeof AppTarefasTaskIdFileRoute
   AppAgentsSlugIndexRoute: typeof AppAgentsSlugIndexRoute
+  AppExecutarExecutionIdIndexRoute: typeof AppExecutarExecutionIdIndexRoute
   AppMediaFileNameIndexRoute: typeof AppMediaFileNameIndexRoute
   AppProjetosProjetoIdIndexRoute: typeof AppProjetosProjetoIdIndexRoute
   AppProjetosNovoIndexRoute: typeof AppProjetosNovoIndexRoute
@@ -533,6 +574,7 @@ interface AppRouteChildren {
   AppTarefasTaskIdIndexRoute: typeof AppTarefasTaskIdIndexRoute
   AppVaultFileNameIndexRoute: typeof AppVaultFileNameIndexRoute
   AppProjetosProjetoIdDocsSplatRoute: typeof AppProjetosProjetoIdDocsSplatRoute
+  AppTarefasTaskIdFileCanonicalFileRoute: typeof AppTarefasTaskIdFileCanonicalFileRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -552,6 +594,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppVaultIndexRoute: AppVaultIndexRoute,
   AppTarefasTaskIdFileRoute: AppTarefasTaskIdFileRoute,
   AppAgentsSlugIndexRoute: AppAgentsSlugIndexRoute,
+  AppExecutarExecutionIdIndexRoute: AppExecutarExecutionIdIndexRoute,
   AppMediaFileNameIndexRoute: AppMediaFileNameIndexRoute,
   AppProjetosProjetoIdIndexRoute: AppProjetosProjetoIdIndexRoute,
   AppProjetosNovoIndexRoute: AppProjetosNovoIndexRoute,
@@ -559,6 +602,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppTarefasTaskIdIndexRoute: AppTarefasTaskIdIndexRoute,
   AppVaultFileNameIndexRoute: AppVaultFileNameIndexRoute,
   AppProjetosProjetoIdDocsSplatRoute: AppProjetosProjetoIdDocsSplatRoute,
+  AppTarefasTaskIdFileCanonicalFileRoute:
+    AppTarefasTaskIdFileCanonicalFileRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

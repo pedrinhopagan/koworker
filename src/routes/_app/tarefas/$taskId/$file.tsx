@@ -14,10 +14,11 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, LayoutList, Loader2, MoreVertical, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { orpc } from "@/client";
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
@@ -52,18 +53,82 @@ import { FileDatePopover } from "./-components/file-date-popover";
 import { FlowRunButton } from "./-components/flow-run-button";
 import { TaskAttachments } from "./-components/task-attachments";
 import { useTaskShare } from "./-components/use-task-share";
+import { TaskOverviewPage } from "./index";
+import { canonicalTaskRoute, taskMatchesFeature } from "../-utils/task-route-resolution";
 
-export const Route = createFileRoute("/_app/tarefas/$taskId/$file")({
-	component: TaskFilePage,
+const routeSearchSchema = z.object({
+	projectId: z.string().optional(),
 });
 
-function TaskFilePage() {
-	const { taskId, file: activeFile } = Route.useParams();
+export const Route = createFileRoute("/_app/tarefas/$taskId/$file")({
+	validateSearch: routeSearchSchema,
+	component: TaskFileRoute,
+});
+
+function TaskFileRoute() {
+	const { taskId: firstSegment, file: secondSegment } = Route.useParams();
+	const { projectId } = Route.useSearch();
+	const legacyTaskQuery = useQuery(
+		orpc.tasks.getFull.queryOptions({ input: { id: firstSegment } }),
+	);
+	const canonicalTaskQuery = useQuery(
+		orpc.tasks.getFull.queryOptions({ input: { id: secondSegment } }),
+	);
+
+	if (legacyTaskQuery.isLoading || canonicalTaskQuery.isLoading) {
+		return (
+			<div className="flex h-full items-center justify-center">
+				<Loader2 className="size-5 animate-spin text-muted-foreground" />
+			</div>
+		);
+	}
+	if (legacyTaskQuery.data) {
+		const canonical = canonicalTaskRoute(legacyTaskQuery.data);
+		return (
+			<Navigate
+				to="/tarefas/$taskId/$file/$canonicalFile"
+				params={{
+					taskId: canonical.featureId,
+					file: canonical.taskId,
+					canonicalFile: secondSegment,
+				}}
+				replace
+			/>
+		);
+	}
+	if (canonicalTaskQuery.data) {
+		if (!taskMatchesFeature(canonicalTaskQuery.data, { featureId: firstSegment, projectId })) {
+			const canonical = canonicalTaskRoute(canonicalTaskQuery.data);
+			return (
+				<Navigate
+					to="/tarefas/$taskId/$file"
+					params={{ taskId: canonical.featureId, file: canonical.taskId }}
+					replace
+				/>
+			);
+		}
+		return <TaskOverviewPage taskId={canonicalTaskQuery.data.id} />;
+	}
+
+	return (
+		<div className="flex h-full flex-col items-center justify-center gap-4">
+			<Text size="sm" tone="muted">
+				Tarefa ou arquivo não encontrado.
+			</Text>
+			<Button variant="outline" asChild>
+				<Link to="/tarefas">Voltar para tarefas</Link>
+			</Button>
+		</div>
+	);
+}
+
+export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFile: string }) {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
 	const taskQuery = useQuery(orpc.tasks.getFull.queryOptions({ input: { id: taskId } }));
 	const task = taskQuery.data ?? null;
+	const route = task ? canonicalTaskRoute(task) : null;
 
 	const { pinned, togglePin } = useRecordDocSession(
 		task
@@ -74,7 +139,14 @@ function TaskFilePage() {
 					subtitle: activeFile,
 					projectName: task.project?.name,
 					projectId: task.project?.id,
-					nav: { to: "/tarefas/$taskId/$file", params: { taskId, file: activeFile } },
+					nav: {
+						to: "/tarefas/$taskId/$file/$canonicalFile",
+						params: {
+							taskId: canonicalTaskRoute(task).featureId,
+							file: canonicalTaskRoute(task).taskId,
+							canonicalFile: activeFile,
+						},
+					},
 				}
 			: null,
 		{ completed: task?.done ?? false },
@@ -88,9 +160,10 @@ function TaskFilePage() {
 	}
 
 	function openFile(name: string, options?: { replace?: boolean }) {
+		if (!route) return;
 		navigate({
-			to: "/tarefas/$taskId/$file",
-			params: { taskId, file: name },
+			to: "/tarefas/$taskId/$file/$canonicalFile",
+			params: { taskId: route.featureId, file: route.taskId, canonicalFile: name },
 			replace: options?.replace,
 		});
 	}
@@ -260,6 +333,7 @@ function TaskFilePage() {
 			</div>
 		);
 	}
+	const canonical = canonicalTaskRoute(task);
 
 	// Param sem arquivo correspondente (deep-link velho, ou a janela curta entre apagar/renomear
 	// o arquivo aberto e a URL acompanhar): cai no render normal com as abas e o painel vazio —
@@ -450,8 +524,8 @@ function TaskFilePage() {
 						className="mx-auto flex h-10 w-full max-w-6xl items-center gap-2 px-2"
 					>
 						<Link
-							to="/tarefas/$taskId"
-							params={{ taskId }}
+							to="/tarefas/$taskId/$file"
+							params={{ taskId: canonical.featureId, file: canonical.taskId }}
 							className="flex items-center px-2 text-muted-foreground transition-colors hover:text-foreground"
 							aria-label="Voltar para a tarefa"
 						>
@@ -500,8 +574,8 @@ function TaskFilePage() {
 									className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
 								>
 									<Link
-										to="/tarefas/$taskId"
-										params={{ taskId }}
+										to="/tarefas/$taskId/$file"
+										params={{ taskId: canonical.featureId, file: canonical.taskId }}
 										aria-label="Visão geral da tarefa"
 									>
 										<LayoutList className="h-3.5 w-3.5" />
@@ -660,7 +734,7 @@ function TaskFilePage() {
 				}
 				title="Deletar arquivo"
 				description={
-					deletingFile ? `“${deletingFile}” será apagado permanentemente do disco.` : undefined
+					deletingFile ? `“${deletingFile}” será movido para a quarentena recuperável.` : undefined
 				}
 				confirmLabel="Deletar"
 				variant="danger"

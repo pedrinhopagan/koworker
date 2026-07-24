@@ -62,6 +62,7 @@ export const ProjectDbCreateSchema = z.object({
 	display_order: z.number().int().optional(),
 	main_route: z.string().min(1),
 	hide_terminal: z.number().int().optional(),
+	task_layout_version: z.number().int().min(1).optional(),
 	created_at: z.number().int().optional(),
 	updated_at: z.number().int().optional(),
 	deleted_at: z.number().int().optional(),

@@ -13,13 +13,39 @@ beforeAll(async () => {
 
 	await db
 		.insertInto("projects")
+		.values([
+			{
+				id: "project-1",
+				name: "Projeto",
+				color: "#000000",
+				display_order: 0,
+				main_route: "/tmp/project-1",
+				hide_terminal: 0,
+				task_layout_version: 1,
+				created_at: 1,
+			},
+			{
+				id: "project-2",
+				name: "Outro projeto",
+				color: "#000000",
+				display_order: 1,
+				main_route: "/tmp/project-2",
+				hide_terminal: 0,
+				task_layout_version: 1,
+				created_at: 2,
+			},
+		])
+		.execute();
+	await db
+		.insertInto("tasks")
 		.values({
-			id: "project-1",
-			name: "Projeto",
-			color: "#000000",
+			id: "other-project-task",
+			project_id: "project-2",
+			folder_path: ".koworker/task-0",
+			title: "Mesmo path",
+			complexity: "medio",
 			display_order: 0,
-			main_route: "/tmp/project-1",
-			hide_terminal: 0,
+			done: 0,
 			created_at: 1,
 		})
 		.execute();
@@ -39,6 +65,27 @@ beforeAll(async () => {
 			})),
 		)
 		.execute();
+});
+
+describe("dbTasks.getByFolderPath", () => {
+	test("isola o mesmo path por projeto", async () => {
+		expect(
+			(
+				await dbTasks.getByFolderPath({
+					projectId: "project-1",
+					folderPath: ".koworker/task-0",
+				})
+			)?.id,
+		).toBe("task-0");
+		expect(
+			(
+				await dbTasks.getByFolderPath({
+					projectId: "project-2",
+					folderPath: ".koworker/task-0",
+				})
+			)?.id,
+		).toBe("other-project-task");
+	});
 });
 
 describe("dbTasks.getAll", () => {
