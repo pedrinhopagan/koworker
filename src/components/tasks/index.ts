@@ -10,5 +10,3 @@ export type { Priority, PriorityChipProps, PrioritySelectProps } from "./Priorit
 export { PriorityChip, PrioritySelect } from "./PrioritySelect";
 export type { TaskItemVariant } from "./TaskItem";
 export { TaskItem, taskItemVariants } from "./TaskItem";
-export type { TaskListVariant } from "./TaskList";
-export { TaskList } from "./TaskList";

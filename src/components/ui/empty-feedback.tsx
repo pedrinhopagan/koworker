@@ -1,6 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, type LucideIcon } from "lucide-react";
+import { ChevronRight, type LucideIcon, RotateCcw } from "lucide-react";
 import { memo } from "react";
+
+import { Text } from "@/components/typography";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type EmptyFeedbackProps = {
@@ -9,6 +12,8 @@ export type EmptyFeedbackProps = {
 	subtitle?: string;
 	href?: string;
 	hrefText?: string;
+	actionText?: string;
+	onAction?: () => void;
 	className?: string;
 	iconClassName?: string;
 };
@@ -19,6 +24,8 @@ export const EmptyFeedback = memo(function EmptyFeedback({
 	subtitle,
 	href,
 	hrefText,
+	actionText,
+	onAction,
 	className,
 	iconClassName,
 }: EmptyFeedbackProps) {
@@ -27,8 +34,20 @@ export const EmptyFeedback = memo(function EmptyFeedback({
 			<div className="p-3 bg-secondary/30 mb-3">
 				<Icon className={cn("size-5 text-muted-foreground", iconClassName)} />
 			</div>
-			<p className="text-foreground text-sm font-medium mb-1">{title}</p>
-			{subtitle && <p className="text-muted-foreground text-xs mb-2">{subtitle}</p>}
+			<Text size="sm" className="mb-1 font-medium">
+				{title}
+			</Text>
+			{subtitle && (
+				<Text size="xs" tone="muted" className="mb-2">
+					{subtitle}
+				</Text>
+			)}
+			{actionText && onAction && (
+				<Button variant="outline" size="sm" onClick={onAction} className="mb-2">
+					<RotateCcw className="size-3" />
+					{actionText}
+				</Button>
+			)}
 			{href && hrefText && (
 				<Link
 					to={href}

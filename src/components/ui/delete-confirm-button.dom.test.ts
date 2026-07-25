@@ -1,5 +1,3 @@
-import "../../../tests/web/setup-dom";
-
 import { describe, expect, it } from "bun:test";
 
 import {

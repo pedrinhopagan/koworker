@@ -1,8 +1,7 @@
-import * as LucideIcons from "lucide-react";
 import { ChevronDown, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { LucideIcon } from "@/lib/lucide-icon";
+import { LucideIcon, useIconesLucide } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
 
 import { Button } from "./button";
@@ -33,26 +32,13 @@ export function IconSelector({
 	const [isFetchingNextPage, setIsFetchingNextPage] = useState(false);
 	const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	const iconNames = useMemo(() => {
-		const exportedIcons = (LucideIcons as { icons?: Record<string, unknown> }).icons;
-		if (exportedIcons && Object.keys(exportedIcons).length > 0) {
-			return Object.keys(exportedIcons).sort((a, b) => a.localeCompare(b));
-		}
+	const icones = useIconesLucide();
 
-		const excluded = new Set(["default", "icons", "createLucideIcon", "Icon", "LucideIcon"]);
-		return Object.keys(LucideIcons)
-			.filter((name) => {
-				if (excluded.has(name)) return false;
-				if (name.startsWith("Lucide") || name.endsWith("Icon")) return false;
-				const value = (LucideIcons as Record<string, unknown>)[name];
-				return typeof value === "function";
-			})
-			.sort((a, b) => a.localeCompare(b));
-	}, []);
-	const fallbackIcon = iconNames.includes(DEFAULT_ICON)
-		? DEFAULT_ICON
-		: (iconNames[0] ?? DEFAULT_ICON);
-	const currentIcon = value && iconNames.includes(value) ? value : fallbackIcon;
+	const iconNames = useMemo(() => {
+		if (!icones) return [];
+		return Object.keys(icones).sort((a, b) => a.localeCompare(b));
+	}, [icones]);
+	const currentIcon = value || DEFAULT_ICON;
 	const normalizedSearch = search.trim().toLowerCase();
 
 	const filteredIcons = useMemo(() => {
@@ -146,7 +132,7 @@ export function IconSelector({
 					</div>
 					{filteredIcons.length === 0 ? (
 						<div className="p-6 text-center text-sm text-muted-foreground">
-							Nenhum ícone encontrado
+							{icones ? "Nenhum ícone encontrado" : "Carregando ícones..."}
 						</div>
 					) : (
 						<div className="grid grid-cols-6 gap-2 p-3 sm:grid-cols-7">

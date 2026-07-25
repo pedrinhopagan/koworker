@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import { MarkdownEditor, type MarkdownEditorHandle } from "@/components/markdown-doc";
 import { Text } from "@/components/typography";
+import { SaveStatus } from "@/components/ui/save-status";
 import { useDebouncedWrite } from "@/hooks/use-debounced-write";
 import { copyToClipboard } from "@/lib/build-prompt";
 import type { HeadingAnchor } from "@/lib/heading-anchor";
@@ -190,6 +191,11 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 
 		return (
 			<div className="relative flex min-h-0 flex-1 flex-col">
+				{!externalSave && localSave.status !== "idle" && (
+					<div className="pointer-events-none absolute right-4 bottom-3 z-20 border border-border/60 bg-chrome/90 px-2 py-0.5 backdrop-blur-sm">
+						<SaveStatus status={localSave.status} />
+					</div>
+				)}
 				<main
 					className={cn(
 						"mx-auto flex w-full flex-1 flex-col gap-4 overflow-y-auto",

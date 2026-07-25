@@ -1,6 +1,13 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+	type MouseEvent,
+	type PointerEvent,
+	type ReactNode,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 type TooltipProps = {
@@ -19,6 +26,9 @@ type TooltipProps = {
 	disabled?: boolean;
 };
 
+const LONG_PRESS_MS = 500;
+const TOUCH_AUTO_CLOSE_MS = 4000;
+
 export function Tooltip({
 	label,
 	children,
@@ -30,14 +40,25 @@ export function Tooltip({
 	disabled = false,
 }: TooltipProps) {
 	const [open, setOpen] = useState(false);
-	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const trigger = <span className={triggerClassName ?? "inline-flex"}>{children}</span>;
+	const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const autoCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const suppressClick = useRef(false);
+	const fromTouch = useRef(false);
 
-	function clearTimer() {
-		if (timer.current) {
-			clearTimeout(timer.current);
-			timer.current = null;
+	function clearTimers() {
+		for (const timer of [hoverTimer, pressTimer, autoCloseTimer]) {
+			if (timer.current) {
+				clearTimeout(timer.current);
+				timer.current = null;
+			}
 		}
+	}
+
+	function close() {
+		clearTimers();
+		suppressClick.current = false;
+		setOpen(false);
 	}
 
 	function openDelayed() {
@@ -48,31 +69,94 @@ export function Tooltip({
 			setOpen(true);
 			return;
 		}
-		clearTimer();
-		timer.current = setTimeout(() => setOpen(true), openDelay);
+		clearTimers();
+		hoverTimer.current = setTimeout(() => setOpen(true), openDelay);
 	}
 
-	function close() {
-		clearTimer();
-		setOpen(false);
+	function handlePointerEnter(event: PointerEvent) {
+		if (event.pointerType !== "mouse") {
+			return;
+		}
+		fromTouch.current = false;
+		openDelayed();
 	}
 
-	useEffect(() => clearTimer, []);
+	function handlePointerLeave(event: PointerEvent) {
+		if (event.pointerType !== "mouse") {
+			return;
+		}
+		close();
+	}
+
+	function handlePointerDown(event: PointerEvent) {
+		if (event.pointerType === "mouse") {
+			close();
+			return;
+		}
+		fromTouch.current = true;
+		close();
+		if (disabled) {
+			return;
+		}
+		pressTimer.current = setTimeout(() => {
+			suppressClick.current = true;
+			setOpen(true);
+			autoCloseTimer.current = setTimeout(() => setOpen(false), TOUCH_AUTO_CLOSE_MS);
+		}, LONG_PRESS_MS);
+	}
+
+	function cancelPress() {
+		if (pressTimer.current) {
+			clearTimeout(pressTimer.current);
+			pressTimer.current = null;
+		}
+	}
+
+	function handleFocus() {
+		if (fromTouch.current) {
+			return;
+		}
+		openDelayed();
+	}
+
+	function handleBlur() {
+		fromTouch.current = false;
+		close();
+	}
+
+	function handleClickCapture(event: MouseEvent) {
+		if (!suppressClick.current) {
+			return;
+		}
+		suppressClick.current = false;
+		event.preventDefault();
+		event.stopPropagation();
+	}
+
+	useEffect(() => clearTimers, []);
 
 	return (
 		<Popover open={open && !disabled} onOpenChange={setOpen}>
-			<PopoverTrigger
-				asChild
-				onMouseEnter={openDelayed}
-				onMouseLeave={close}
-				onFocus={openDelayed}
-				onBlur={close}
-			>
-				{trigger}
-			</PopoverTrigger>
+			<PopoverAnchor asChild>
+				<span
+					className={triggerClassName ?? "inline-flex"}
+					onPointerEnter={handlePointerEnter}
+					onPointerLeave={handlePointerLeave}
+					onPointerDown={handlePointerDown}
+					onPointerUp={cancelPress}
+					onPointerCancel={cancelPress}
+					onClickCapture={handleClickCapture}
+					onFocus={handleFocus}
+					onBlur={handleBlur}
+				>
+					{children}
+				</span>
+			</PopoverAnchor>
 			<PopoverContent
 				side={side}
 				align={align}
+				onOpenAutoFocus={(event) => event.preventDefault()}
+				onCloseAutoFocus={(event) => event.preventDefault()}
 				className={cn(
 					"px-2 py-1 text-xs text-foreground bg-background border border-border",
 					className,
