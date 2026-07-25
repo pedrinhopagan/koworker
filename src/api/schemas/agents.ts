@@ -1,10 +1,14 @@
 import { z } from "zod";
 
+import { SKILL_SLUG_PATTERN } from "@/constants/skill-slug";
+
+const AgentSlugSchema = z
+	.string()
+	.min(1)
+	.regex(SKILL_SLUG_PATTERN, "Slug deve conter apenas letras minúsculas, números e hífens");
+
 export const AgentCreateSchema = z.object({
-	slug: z
-		.string()
-		.min(1)
-		.regex(/^[a-z0-9-]+$/, "Slug deve conter apenas letras minúsculas, números e hífens"),
+	slug: AgentSlugSchema,
 	description: z.string().min(1),
 	content: z.string().optional(),
 	metadata: z.record(z.string(), z.unknown()).optional(),
@@ -18,11 +22,11 @@ export const AgentUpdateSchema = z.object({
 });
 
 export const AgentGetSchema = z.object({
-	slug: z.string().min(1),
+	slug: AgentSlugSchema,
 });
 
 export const AgentStandardizeSchema = z.object({
-	slug: z.string().min(1),
+	slug: AgentSlugSchema,
 	sourcePath: z.string().min(1),
 });
 
@@ -31,7 +35,7 @@ export const AgentDeleteSchema = z.object({
 });
 
 export const AgentDeleteAllSchema = z.object({
-	slug: z.string().min(1),
+	slug: AgentSlugSchema,
 });
 
 export const AgentInjectSchema = z.object({
@@ -51,7 +55,7 @@ export const AgentPathRemoveSchema = z.object({
 });
 
 export const AgentSettingsSchema = z.object({
-	slug: z.string().min(1),
+	slug: AgentSlugSchema,
 	label: z.string().min(1).optional(),
 	icon: z.string().min(1).optional(),
 	color: z.string().min(1).optional(),

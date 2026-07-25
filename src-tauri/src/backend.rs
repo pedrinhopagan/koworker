@@ -1,13 +1,14 @@
 use std::{
     fs,
+    io::{Read, Write},
     net::TcpStream,
     path::{Path, PathBuf},
     process::{id, Child, Command, Stdio},
     sync::{Mutex, OnceLock},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Url};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -168,6 +169,64 @@ fn server_is_running() -> bool {
     TcpStream::connect(format!("127.0.0.1:{}", backend_port())).is_ok()
 }
 
+fn server_answers_http() -> bool {
+    let port = backend_port();
+
+    let Ok(mut stream) = TcpStream::connect(format!("127.0.0.1:{}", port)) else {
+        return false;
+    };
+
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+
+    let request = format!(
+        "GET /healthz HTTP/1.1\r\nHost: localhost:{}\r\nConnection: close\r\n\r\n",
+        port
+    );
+
+    if stream.write_all(request.as_bytes()).is_err() {
+        return false;
+    }
+
+    let mut buffer = [0u8; 32];
+    let Ok(read) = stream.read(&mut buffer) else {
+        return false;
+    };
+
+    String::from_utf8_lossy(&buffer[..read]).starts_with("HTTP/1.1 200")
+}
+
+pub fn navigate_when_ready(app: &AppHandle) {
+    if !cfg!(debug_assertions) || server_is_running() {
+        return;
+    }
+
+    let app = app.clone();
+
+    std::thread::spawn(move || {
+        let Ok(url) = format!("http://localhost:{}/", backend_port()).parse::<Url>() else {
+            return;
+        };
+
+        for _ in 0..600 {
+            std::thread::sleep(Duration::from_millis(100));
+
+            if !server_answers_http() {
+                continue;
+            }
+
+            let handle = app.clone();
+            let target = url.clone();
+            let _ = app.run_on_main_thread(move || {
+                if let Some(window) = handle.get_webview_window("main") {
+                    let _ = window.navigate(target);
+                }
+            });
+
+            return;
+        }
+    });
+}
+
 pub fn start(app: &AppHandle) {
     let mut guard = state().lock().unwrap();
     if guard.is_some() {
@@ -192,6 +251,21 @@ pub fn start(app: &AppHandle) {
 pub fn stop() {
     let mut guard = state().lock().unwrap();
     if let Some(mut child) = guard.take() {
+        #[cfg(unix)]
+        {
+            let _ = Command::new("kill")
+                .arg("-TERM")
+                .arg(child.id().to_string())
+                .status();
+
+            for _ in 0..50 {
+                if let Ok(Some(_)) = child.try_wait() {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        }
+
         let _ = child.kill();
         let _ = child.wait();
     }

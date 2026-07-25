@@ -44,6 +44,7 @@ pub fn run() {
                 }
             }
 
+            backend::navigate_when_ready(app.handle());
             backend::start(app.handle());
             // Autostart cross-platform pelo plugin (grava .desktop no Linux, chave de registro no
             // Windows, LaunchAgent no macOS). Só em release: em dev o executavel é o binario de

@@ -59,10 +59,7 @@ export function useSkillsQuery(projectName?: string, options?: { enabled?: boole
 		[query.data, categoryColors],
 	);
 
-	return {
-		...query,
-		taskSkills,
-	};
+	return { taskSkills, isLoading: query.isLoading };
 }
 
 export function useSkillQuery(slug: string, projectName?: string, options?: { enabled?: boolean }) {

@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { readSkillFile } from "@/lib/skills/parser";
 import { dbSkillSourcePaths } from "../db/skill-source-paths";
-import { SYNCED_SKILL_TOOLS, type SkillTool } from "./skills-fs";
+import { invalidateSkillsFsCache, SYNCED_SKILL_TOOLS, type SkillTool } from "./skills-fs";
 import { expandTilde } from "./os-actions";
 import { inspectSkillDirectory, replaceSkillDirectories } from "./skill-directory";
 
@@ -301,11 +301,13 @@ export async function applySkillSyncInFs(input: {
 			expectedTargetContentHash: job.existing?.contentHash ?? null,
 			expectedTargetHash: job.existing?.hash ?? null,
 		})),
-	).catch((err: any) => {
-		throw new Error(`Sincronização interrompida: ${err.message}. Backup em ${backupPath}`, {
-			cause: err,
-		});
-	});
+	)
+		.catch((err: any) => {
+			throw new Error(`Sincronização interrompida: ${err.message}. Backup em ${backupPath}`, {
+				cause: err,
+			});
+		})
+		.finally(invalidateSkillsFsCache);
 	const created = jobs.filter((job) => !job.existing).length;
 	const updated = jobs.length - created;
 

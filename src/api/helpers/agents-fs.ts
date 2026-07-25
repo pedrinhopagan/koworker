@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 import { readSkillFile, type SkillFile, writeSkillFile } from "@/lib/skills/parser";
 import { dbAgentSourcePaths } from "../db/agent-source-paths";
 import { dbProjects } from "../db/projects";
-import { getSystemSettings } from "./system-settings";
 
 export type AgentTool = "claude-code" | "opencode" | "codex" | "koworker";
 export type AgentScope = "global" | "project" | "custom";
@@ -90,19 +89,10 @@ async function buildRoots(): Promise<AgentRoot[]> {
 
 async function assertAllowedPath(target: string) {
 	const resolved = resolve(target);
-	const [rows, projects, settings] = await Promise.all([
-		dbAgentSourcePaths.list(),
-		dbProjects.listRoots(),
-		getSystemSettings(),
-	]);
-	const prefixes = [
-		home,
-		STATIC_AGENTS_PATH,
-		settings.projectsBasePath,
-		...rows.map((row) => row.path),
-		...projects.map((project) => project.main_route),
-	];
-	const allowed = prefixes.some((prefix) => resolved.startsWith(resolve(prefix)));
+	const parent = dirname(resolved);
+	const roots = [...(await buildRoots()).map((root) => root.path), CREATE_ROOT];
+	const allowed = roots.some((root) => parent === resolve(root));
+
 	if (!allowed || !basename(resolved).endsWith(".md")) {
 		throw new Error("Caminho de agent inválido");
 	}

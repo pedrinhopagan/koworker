@@ -38,10 +38,7 @@ export function useAgentsQuery(options?: { enabled?: boolean }) {
 	});
 	const taskAgents = useMemo(() => (query.data ?? []).map(toTaskAgent), [query.data]);
 
-	return {
-		...query,
-		taskAgents,
-	};
+	return { taskAgents, isLoading: query.isLoading };
 }
 
 export function useAgentQuery(slug: string, options?: { enabled?: boolean }) {

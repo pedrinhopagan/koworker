@@ -20,6 +20,7 @@ test("deleteAll preserva a mensagem da falha no limite da API", async () => {
 						name: "Teste",
 						password: "teste",
 						user_type: "admin",
+						session_epoch: 0,
 					},
 				},
 			},

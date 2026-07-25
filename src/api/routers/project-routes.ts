@@ -1,6 +1,7 @@
 import { protectedProcedure } from "../auth/context";
 import type { project_routes } from "../db/connection";
 import { dbProjectRoutes } from "../db/project-routes";
+import { assertAdminUser } from "../helpers/redeploy";
 import {
 	ProjectRouteCreateSchema,
 	ProjectRouteIdSchema,
@@ -21,7 +22,11 @@ const mapProjectRoute = (row: project_routes) => ({
 });
 
 export const projectRoutesRouter = {
-	create: protectedProcedure.input(ProjectRouteCreateSchema).handler(async ({ input }) => {
+	create: protectedProcedure.input(ProjectRouteCreateSchema).handler(async ({ input, context }) => {
+		if (input.command) {
+			assertAdminUser(context.user.user_type);
+		}
+
 		const id = crypto.randomUUID();
 
 		await dbProjectRoutes.create({
@@ -37,7 +42,11 @@ export const projectRoutesRouter = {
 		return row ? mapProjectRoute(row) : null;
 	}),
 
-	update: protectedProcedure.input(ProjectRouteUpdateSchema).handler(async ({ input }) => {
+	update: protectedProcedure.input(ProjectRouteUpdateSchema).handler(async ({ input, context }) => {
+		if (input.command) {
+			assertAdminUser(context.user.user_type);
+		}
+
 		await dbProjectRoutes.update({
 			id: input.id,
 			name: input.name,

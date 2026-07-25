@@ -34,6 +34,35 @@ describe("listProjectDocs", () => {
 		expect(docs.some((doc) => "content" in doc)).toBe(false);
 	});
 
+	test("para na profundidade máxima em vez de varrer a árvore inteira", async () => {
+		const raso = join(projectRoute, "a", "b", "c", "d");
+		const fundo = join(raso, "e");
+		await mkdir(fundo, { recursive: true });
+		await Bun.write(join(raso, "AGENTS.md"), "no limite");
+		await Bun.write(join(fundo, "AGENTS.md"), "fundo demais");
+
+		const docs = await listProjectDocs(projectRoute);
+
+		expect(docs.map((doc) => doc.path)).toEqual(["a/b/c/d/AGENTS.md"]);
+	});
+
+	test("serve o cache e revalida depois de uma escrita", async () => {
+		await Bun.write(join(projectRoute, "README.md"), "raiz");
+
+		expect((await listProjectDocs(projectRoute)).map((doc) => doc.path)).toEqual(["README.md"]);
+
+		await Bun.write(join(projectRoute, "AGENTS.md"), "direto no disco");
+		expect((await listProjectDocs(projectRoute)).map((doc) => doc.path)).toEqual(["README.md"]);
+
+		await writeProjectDoc({ projectRoute, path: "CONTRIBUTING.md", content: "pela api" });
+
+		expect((await listProjectDocs(projectRoute)).map((doc) => doc.path)).toEqual([
+			"AGENTS.md",
+			"CONTRIBUTING.md",
+			"README.md",
+		]);
+	});
+
 	test("ignora pastas ocultas e diretórios de build ou dependências", async () => {
 		for (const dir of [".git", ".koworker", "node_modules", "dist", "coverage"]) {
 			await mkdir(join(projectRoute, dir), { recursive: true });

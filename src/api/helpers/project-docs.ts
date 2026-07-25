@@ -1,6 +1,10 @@
 import { readdir, realpath, stat } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
+import { mapWithConcurrency } from "./concurrency";
+import { createFolderCache, invalidateFolderPrefix } from "./folder-cache";
+import { isPathInside } from "./path-containment";
+
 export const PROJECT_DOC_NAMES = [
 	"CLAUDE.md",
 	"AGENTS.md",
@@ -10,6 +14,12 @@ export const PROJECT_DOC_NAMES = [
 ] as const;
 
 const SKIP_DIRS = new Set(["node_modules", "dist", "build", "out", "target", "vendor", "coverage"]);
+
+export const PROJECT_DOC_MAX_DEPTH = 4;
+const PROJECT_DOC_SCAN_CONCURRENCY = 8;
+const PROJECT_DOCS_TTL_MS = 30_000;
+
+const projectDocsCache = createFolderCache<ProjectDocMeta[]>(PROJECT_DOCS_TTL_MS);
 
 export type ProjectDocMeta = {
 	path: string;
@@ -50,16 +60,12 @@ function toProjectDocMeta(root: string, target: string): ProjectDocMeta {
 	return { path, name: basename(path), dirLabel: toDirLabel(path) };
 }
 
-function isInside(root: string, target: string) {
-	return target === root || target.startsWith(root + sep);
-}
-
 async function resolveConfinedFile(root: string, target: string) {
 	const [canonicalRoot, canonicalTarget] = await Promise.all([
 		realpath(root).catch(() => null),
 		realpath(target).catch(() => null),
 	]);
-	if (!canonicalRoot || !canonicalTarget || !isInside(canonicalRoot, canonicalTarget)) {
+	if (!canonicalRoot || !canonicalTarget || !isPathInside(canonicalRoot, canonicalTarget)) {
 		return null;
 	}
 
@@ -67,33 +73,45 @@ async function resolveConfinedFile(root: string, target: string) {
 	return targetStat?.isFile() ? canonicalTarget : null;
 }
 
-async function collectDocs(dir: string, matches: string[]): Promise<void> {
-	const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+async function collectDocs(root: string): Promise<string[]> {
+	const matches: string[] = [];
+	let level = [root];
 
-	await Promise.all(
-		entries.map(async (entry) => {
-			if (entry.isDirectory()) {
-				if (entry.name.startsWith(".") || SKIP_DIRS.has(entry.name)) {
-					return;
+	for (let depth = 0; depth <= PROJECT_DOC_MAX_DEPTH && level.length > 0; depth++) {
+		const scanned = await mapWithConcurrency(level, PROJECT_DOC_SCAN_CONCURRENCY, async (dir) => {
+			const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+			const children: string[] = [];
+
+			for (const entry of entries) {
+				if (entry.isDirectory()) {
+					if (!entry.name.startsWith(".") && !SKIP_DIRS.has(entry.name)) {
+						children.push(join(dir, entry.name));
+					}
+					continue;
 				}
 
-				await collectDocs(join(dir, entry.name), matches);
-				return;
+				if (entry.isFile() && (PROJECT_DOC_NAMES as readonly string[]).includes(entry.name)) {
+					matches.push(join(dir, entry.name));
+				}
 			}
 
-			if (entry.isFile() && (PROJECT_DOC_NAMES as readonly string[]).includes(entry.name)) {
-				matches.push(join(dir, entry.name));
-			}
-		}),
-	);
+			return children;
+		});
+
+		level = depth === PROJECT_DOC_MAX_DEPTH ? [] : scanned.flat();
+	}
+
+	return matches;
 }
 
-export async function listProjectDocs(projectRoute: string): Promise<ProjectDocMeta[]> {
+export function listProjectDocs(projectRoute: string): Promise<ProjectDocMeta[]> {
 	const root = resolve(projectRoute);
-	const matches: string[] = [];
-	await collectDocs(root, matches);
 
-	return matches
+	return projectDocsCache.get(root, () => loadProjectDocs(root));
+}
+
+async function loadProjectDocs(root: string): Promise<ProjectDocMeta[]> {
+	return (await collectDocs(root))
 		.map((target) => toProjectDocMeta(root, target))
 		.sort((a, b) => a.path.localeCompare(b.path));
 }
@@ -138,9 +156,10 @@ export async function writeProjectDoc(params: {
 	const canonicalParent = canonicalTarget
 		? dirname(canonicalTarget)
 		: await realpath(dirname(resolved.target)).catch(() => null);
-	if (!canonicalRoot || !canonicalParent || !isInside(canonicalRoot, canonicalParent)) {
+	if (!canonicalRoot || !canonicalParent || !isPathInside(canonicalRoot, canonicalParent)) {
 		throw new Error("Caminho fora do projeto");
 	}
 
 	await Bun.write(resolved.target, params.content);
+	invalidateFolderPrefix(resolved.root);
 }

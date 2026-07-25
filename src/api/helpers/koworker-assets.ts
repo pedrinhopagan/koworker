@@ -1,6 +1,6 @@
 import { mkdir, readdir, realpath, rename, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, sep } from "node:path";
+import { join } from "node:path";
 
 import {
 	DOC_MIME_BY_EXT,
@@ -10,6 +10,7 @@ import {
 } from "@/constants/koworker";
 import { djs } from "./dayjs";
 import { createFolderCache } from "./folder-cache";
+import { isPathInside } from "./path-containment";
 
 // No binário compilado (`bun build --compile`), o addon do sharp é embutido mas seu rpath relativo
 // não encontra o libvips fora do node_modules. Pré-carregar o .so do vendor (instalado pelos
@@ -137,10 +138,6 @@ function mediasDir(projectRoute: string): string {
 	return join(projectRoute, KOWORKER_DIR, MEDIAS_DIRNAME);
 }
 
-function isInside(root: string, target: string) {
-	return target === root || target.startsWith(root + sep);
-}
-
 async function resolveAssetDir(projectRoute: string, dir: string) {
 	const [projectRoot, koworkerRoot, assetDir] = await Promise.all([
 		realpath(projectRoute).catch(() => null),
@@ -152,8 +149,8 @@ async function resolveAssetDir(projectRoute: string, dir: string) {
 		!projectRoot ||
 		!koworkerRoot ||
 		!assetDir ||
-		!isInside(projectRoot, koworkerRoot) ||
-		!isInside(koworkerRoot, assetDir)
+		!isPathInside(projectRoot, koworkerRoot) ||
+		!isPathInside(koworkerRoot, assetDir)
 	) {
 		return null;
 	}
@@ -174,7 +171,7 @@ async function resolveAssetFile(
 	if (!assetDir) return null;
 
 	const path = await realpath(join(assetDir, name)).catch(() => null);
-	if (!path || !isInside(assetDir, path)) return null;
+	if (!path || !isPathInside(assetDir, path)) return null;
 
 	const stats = await stat(path).catch(() => null);
 	if (!stats?.isFile()) return null;

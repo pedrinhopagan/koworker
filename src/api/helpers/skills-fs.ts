@@ -1,4 +1,4 @@
-import { cp, lstat, mkdir, readdir, realpath, rename, rm } from "node:fs/promises";
+import { cp, lstat, mkdir, readdir, realpath, rename, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -211,6 +211,18 @@ export function skillContentHash(file: SkillFile): string {
 	return Bun.hash(canonical).toString();
 }
 
+const SKILL_LISTING_TTL_MS = 5_000;
+
+type CachedSkillSource = { file: SkillFile; hash: string; manifest: SkillDirectoryManifest };
+
+const skillSourceCache = new Map<string, { value: CachedSkillSource | null; expiresAt: number }>();
+const skillSlugsCache = new Map<string, { value: string[]; mtimeMs: number; expiresAt: number }>();
+
+export function invalidateSkillsFsCache() {
+	skillSourceCache.clear();
+	skillSlugsCache.clear();
+}
+
 async function listSlugs(root: SkillRoot): Promise<string[]> {
 	try {
 		const entries = await readdir(root.path, { withFileTypes: true });
@@ -225,6 +237,25 @@ async function listSlugs(root: SkillRoot): Promise<string[]> {
 	} catch {
 		return [];
 	}
+}
+
+async function listCachedSlugs(root: SkillRoot): Promise<string[]> {
+	const stats = await stat(root.path).catch(() => null);
+	const hit = skillSlugsCache.get(root.path);
+	if (hit && hit.expiresAt > Date.now() && stats && hit.mtimeMs === stats.mtimeMs) {
+		return hit.value;
+	}
+
+	const value = await listSlugs(root);
+	if (stats) {
+		skillSlugsCache.set(root.path, {
+			value,
+			mtimeMs: stats.mtimeMs,
+			expiresAt: Date.now() + SKILL_LISTING_TTL_MS,
+		});
+	}
+
+	return value;
 }
 
 function extractTitle(slug: string, frontmatter: Record<string, unknown>): string {
@@ -244,27 +275,56 @@ type LoadedSource = {
 	manifest: SkillDirectoryManifest;
 };
 
-// Lê o SKILL.md de cada root (na ordem de prioridade) que tenha o slug e consiga ser parseado.
+async function loadSkillSource(dir: string): Promise<CachedSkillSource | null> {
+	const path = join(dir, "SKILL.md");
+	const manifest = await inspectSkillDirectory(dir).catch((err: any) => {
+		if (err?.code === "ENOENT" || err?.code === "ENOTDIR") {
+			return null;
+		}
+		throw err;
+	});
+	if (!manifest || !manifest.files.some((file) => file.path === "SKILL.md")) {
+		return null;
+	}
+
+	const file = await readSkillFile(path);
+	if (!file) return null;
+
+	return { file, hash: skillContentHash(file), manifest };
+}
+
+async function loadCachedSkillSource(dir: string): Promise<CachedSkillSource | null> {
+	const hit = skillSourceCache.get(dir);
+	if (hit && hit.expiresAt > Date.now()) {
+		return hit.value;
+	}
+
+	const value = await loadSkillSource(dir);
+	skillSourceCache.set(dir, { value, expiresAt: Date.now() + SKILL_LISTING_TTL_MS });
+
+	return value;
+}
+
 async function loadSourcesForSlug(slug: string, roots: SkillRoot[]): Promise<LoadedSource[]> {
 	const loaded = await Promise.all(
 		roots.map(async (root) => {
 			const dir = join(root.path, slug);
-			const path = join(dir, "SKILL.md");
-			const manifest = await inspectSkillDirectory(dir).catch((err: any) => {
-				if (err?.code === "ENOENT" || err?.code === "ENOTDIR") {
-					return null;
-				}
-				throw err;
-			});
-			if (!manifest || !manifest.files.some((file) => file.path === "SKILL.md")) {
-				return null;
-			}
-			const file = await readSkillFile(path);
-			if (!file) return null;
-			return { root, dir, path, file, hash: skillContentHash(file), manifest };
+			const source = await loadSkillSource(dir);
+			return source && { root, dir, path: join(dir, "SKILL.md"), ...source };
 		}),
 	);
-	return loaded.filter((source): source is LoadedSource => source !== null);
+	return loaded.filter((source): source is LoadedSource => !!source);
+}
+
+async function loadCachedSourcesForSlug(slug: string, roots: SkillRoot[]): Promise<LoadedSource[]> {
+	const loaded = await Promise.all(
+		roots.map(async (root) => {
+			const dir = join(root.path, slug);
+			const source = await loadCachedSkillSource(dir);
+			return source && { root, dir, path: join(dir, "SKILL.md"), ...source };
+		}),
+	);
+	return loaded.filter((source): source is LoadedSource => !!source);
 }
 
 async function loadDetailedSourcesForSlug(slug: string, roots: SkillRoot[]) {
@@ -313,7 +373,7 @@ function buildRecord(slug: string, loaded: LoadedSource[]): SkillFsRecord {
 export async function listSkillsFromFs(projectName?: string): Promise<SkillFsRecord[]> {
 	const roots = await buildRoots(projectName);
 
-	const slugsPerRoot = await Promise.all(roots.map((root) => listSlugs(root)));
+	const slugsPerRoot = await Promise.all(roots.map((root) => listCachedSlugs(root)));
 
 	const rootsBySlug = new Map<string, SkillRoot[]>();
 	for (const [index, root] of roots.entries()) {
@@ -329,7 +389,7 @@ export async function listSkillsFromFs(projectName?: string): Promise<SkillFsRec
 
 	const records = await Promise.all(
 		[...rootsBySlug].map(async ([slug, slugRoots]) => {
-			const loaded = await loadDetailedSourcesForSlug(slug, slugRoots);
+			const loaded = await loadCachedSourcesForSlug(slug, slugRoots);
 			return loaded.length === 0 ? null : buildRecord(slug, loaded);
 		}),
 	);
@@ -410,7 +470,7 @@ export async function standardizeSkillInFs(input: {
 			expectedContentHash: preview.sourceContentHash,
 			expectedTargetContentHash: target.expectedContentHash,
 		})),
-	);
+	).finally(invalidateSkillsFsCache);
 
 	return {
 		updated: preview.updated,
@@ -489,6 +549,7 @@ export async function createSkillInFs(input: {
 	}
 
 	await mkdir(skillDir, { recursive: true });
+	invalidateSkillsFsCache();
 	await writeSkillFile(skillPath, {
 		frontmatter: { ...input.metadata, name: input.slug, description: input.description },
 		body: input.content ?? "",
@@ -543,6 +604,7 @@ export async function updateSkillInFs(input: {
 		body: input.content,
 	});
 	await Bun.write(temporary, content);
+	invalidateSkillsFsCache();
 	await rename(temporary, source.path).catch(async (err) => {
 		await rm(temporary, { force: true });
 		throw err;
@@ -610,6 +672,7 @@ export async function renameSkillInFs(input: {
 	}
 
 	const moved: typeof moves = [];
+	invalidateSkillsFsCache();
 	try {
 		for (const move of moves) {
 			await rename(move.source.dir, move.targetDir);
@@ -672,6 +735,7 @@ export async function deleteSkillInFs(input: {
 }): Promise<void> {
 	const source = await resolveKnownSkillVariant(input);
 	await rm(source.dir, { recursive: true, force: true });
+	invalidateSkillsFsCache();
 }
 
 // Remove a skill de TODAS as fontes onde ela existe (todas as cópias no disco).
@@ -730,6 +794,7 @@ export async function deleteAllSkillInFs(input: {
 		throw err;
 	}
 
+	invalidateSkillsFsCache();
 	for (const source of loaded) {
 		const current = await inspectSkillDirectory(source.dir);
 		if (current.hash !== source.manifest.hash) {

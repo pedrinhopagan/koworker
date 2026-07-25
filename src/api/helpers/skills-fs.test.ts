@@ -202,6 +202,49 @@ async function homeDir(): Promise<string> {
 }
 
 describe("listSkillsFromFs", () => {
+	test("serve o conteúdo em cache e revalida assim que uma mutation acontece", async () => {
+		const dir = await homeDir();
+		await writeSkill(dir, "cache-skill", "descricao original", "corpo original");
+		await addRow("agents", dir, "global", 1);
+
+		const first = (await listSkillsFromFs()).find((record) => record.slug === "cache-skill");
+		expect(first?.content.trim()).toBe("corpo original");
+
+		await writeSkill(dir, "cache-skill", "descricao original", "corpo direto no disco");
+		const stale = (await listSkillsFromFs()).find((record) => record.slug === "cache-skill");
+		expect(stale?.content.trim()).toBe("corpo original");
+
+		const variant = (await getSkillFromFs("cache-skill"))?.variants.at(0);
+		if (!variant) {
+			throw new Error("Variante não encontrada");
+		}
+		await updateSkillInFs({
+			slug: "cache-skill",
+			variantPath: variant.path,
+			description: "descricao nova",
+			content: "corpo pela ui",
+			metadata: {},
+			expectedSkillHash: variant.skillHash,
+		});
+
+		const fresh = (await listSkillsFromFs()).find((record) => record.slug === "cache-skill");
+		expect(fresh?.content.trim()).toBe("corpo pela ui");
+		expect(fresh?.description).toBe("descricao nova");
+	});
+
+	test("descobre skill nova criada direto no disco sem esperar o TTL", async () => {
+		const dir = await homeDir();
+		await writeSkill(dir, "cache-primeira", "descricao", "corpo");
+		await addRow("agents", dir, "global", 1);
+
+		expect((await listSkillsFromFs()).some((record) => record.slug === "cache-nova")).toBe(false);
+
+		await writeSkill(dir, "cache-nova", "descricao nova", "corpo novo");
+
+		const found = (await listSkillsFromFs()).find((record) => record.slug === "cache-nova");
+		expect(found?.content.trim()).toBe("corpo novo");
+	});
+
 	test("expande o til dos paths da tabela e lista a skill da fonte", async () => {
 		const dir = await homeDir();
 		await writeSkill(dir, "til-skill", "descricao til", "corpo til");
