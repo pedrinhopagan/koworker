@@ -62,12 +62,7 @@ export function TerminalShortcutMenu({
 			};
 			await runTerminalInBackground(project, taskInfo);
 		} else if (route) {
-			await runRouteInBackground(projectId, project.name, {
-				id: route.id,
-				name: route.name,
-				path: route.route,
-				command: route.command,
-			});
+			await runRouteInBackground(projectId, { id: route.id, name: route.name });
 		}
 		setIsOpen(false);
 	}
@@ -80,18 +75,13 @@ export function TerminalShortcutMenu({
 			};
 			await forceNewTerminalTab(project, taskInfo);
 		} else if (route) {
-			await forceNewRouteTab(projectId, project.name, {
-				id: route.id,
-				name: route.name,
-				path: route.route,
-				command: route.command,
-			});
+			await forceNewRouteTab(projectId, { id: route.id, name: route.name });
 		}
 		setIsOpen(false);
 	}
 
 	async function handleCloseAll() {
-		await closeProjectTerminal(projectId, project.name);
+		await closeProjectTerminal(projectId);
 		setIsOpen(false);
 	}
 

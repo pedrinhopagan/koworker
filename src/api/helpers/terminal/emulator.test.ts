@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 
 import { TERMINAL_PRESETS } from "@/constants/terminal";
-import { buildEmulatorArgv, buildNoneCommandArgv, tokenizeTemplate } from "./emulator";
+import { argvToShellCommand } from "@/lib/shell-argv";
+import { buildNoneCommandArgv } from "./command";
+import { buildEmulatorArgv, tokenizeTemplate } from "./emulator";
 
 test("tokenizeTemplate: quebra por espaços preservando strings citadas", () => {
 	expect(tokenizeTemplate(TERMINAL_PRESETS.alacritty.template)).toEqual([
@@ -48,12 +50,85 @@ test("buildEmulatorArgv: placeholder embutido num token é substituído como tex
 	).toEqual(["konsole", "-p", "tabtitle=Foo - Kowork", "-e", "fish"]);
 });
 
-test("buildNoneCommandArgv: mantém o shell aberto após o comando; sem comando abre o shell", () => {
-	expect(buildNoneCommandArgv("claude x", "/bin/fish")).toEqual([
-		"/bin/fish",
-		"-c",
-		"claude x; exec /bin/fish",
-	]);
-	expect(buildNoneCommandArgv(undefined, "/bin/sh")).toEqual(["/bin/sh"]);
-	expect(buildNoneCommandArgv("   ", "/bin/sh")).toEqual(["/bin/sh"]);
+function parseAppleScriptDoScript(source: string): string {
+	const prefix = 'tell application "Terminal" to do script "';
+	expect(source.startsWith(prefix)).toBe(true);
+
+	let value = "";
+	let index = prefix.length;
+
+	while (index < source.length) {
+		const char = source[index];
+		if (char === "\\") {
+			const escaped = source[index + 1];
+			expect(escaped).toBeDefined();
+			value += escaped === "n" ? "\n" : escaped;
+			index += 2;
+			continue;
+		}
+		if (char === '"') {
+			expect(source.slice(index)).toBe('"');
+			return value;
+		}
+
+		value += char;
+		index += 1;
+	}
+
+	throw new Error("string AppleScript não fechada");
+}
+
+const APPLESCRIPT_PAYLOADS = [
+	'diga "oi"',
+	'" & (do shell script "touch /tmp/kw-pwned") & "',
+	"rode $(rm -rf /)",
+	"rode `rm -rf /`",
+	"linha um\nlinha dois",
+];
+
+for (const payload of APPLESCRIPT_PAYLOADS) {
+	test(`buildEmulatorArgv: preset osascript não deixa o prompt escapar da string AppleScript (${JSON.stringify(payload)})`, () => {
+		const commandArgv = buildNoneCommandArgv(
+			{ kind: "argv", argv: ["claude", payload] },
+			"/bin/fish",
+		);
+
+		const argv = buildEmulatorArgv({
+			template: TERMINAL_PRESETS["macos-terminal"].template,
+			title: "Foo - Kowork",
+			commandArgv,
+		});
+
+		expect(argv.slice(0, 2)).toEqual(["osascript", "-e"]);
+		expect(argv).toHaveLength(3);
+		expect(parseAppleScriptDoScript(argv[2] ?? "")).toBe(argvToShellCommand(commandArgv));
+	});
+}
+
+for (const payload of APPLESCRIPT_PAYLOADS) {
+	test(`buildEmulatorArgv: o shell aberto pelo osascript recebe o prompt como argumento único (${JSON.stringify(payload)})`, async () => {
+		const argv = buildEmulatorArgv({
+			template: TERMINAL_PRESETS["macos-terminal"].template,
+			title: "Foo - Kowork",
+			commandArgv: ["printf", "%s", payload],
+		});
+
+		const shell = Bun.spawn(["/bin/sh", "-c", parseAppleScriptDoScript(argv[2] ?? "")], {
+			stdin: "ignore",
+			stdout: "pipe",
+			stderr: "ignore",
+		});
+
+		expect(await new Response(shell.stdout).text()).toBe(payload);
+	});
+}
+
+test("buildEmulatorArgv: {command} entre aspas duplas fora do AppleScript é rejeitado", () => {
+	expect(() =>
+		buildEmulatorArgv({
+			template: `foo -e 'bar "{command}"'`,
+			title: "Foo - Kowork",
+			commandArgv: ["claude", "oi"],
+		}),
+	).toThrow("Template de terminal inválido");
 });

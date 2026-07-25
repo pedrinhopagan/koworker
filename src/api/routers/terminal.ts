@@ -3,6 +3,7 @@ import { ORPCError } from "@orpc/server";
 import { protectedProcedure } from "../auth/context";
 import { dbProjectRoutes } from "../db/project-routes";
 import { dbProjects } from "../db/projects";
+import { dbTasks } from "../db/tasks";
 import { getSystemSettings } from "../helpers/system-settings";
 import { Terminal } from "../helpers/terminal/service";
 import { killStrayAgentBrowsers } from "../helpers/terminal/stray";
@@ -61,12 +62,31 @@ export const terminalRouter = {
 	closeProjectSession: protectedProcedure
 		.input(CloseProjectSessionSchema)
 		.handler(async ({ input }) => {
-			await Terminal.closeProjectSession({ config: await terminalConfig(), ...input });
+			const project = await projectOrThrow(input.projectId);
+			await Terminal.closeProjectSession({
+				config: await terminalConfig(),
+				projectId: project.id,
+				projectName: project.name,
+			});
 			return { ok: true };
 		}),
 
 	closeTaskWindow: protectedProcedure.input(CloseTaskWindowSchema).handler(async ({ input }) => {
-		await Terminal.closeTaskWindow({ config: await terminalConfig(), ...input });
+		const [project, task] = await Promise.all([
+			projectOrThrow(input.projectId),
+			dbTasks.getById(input.taskId),
+		]);
+		if (!task || task.project_id !== project.id) {
+			throw new ORPCError("NOT_FOUND", { message: "Tarefa não encontrada" });
+		}
+
+		await Terminal.closeTaskWindow({
+			config: await terminalConfig(),
+			projectId: project.id,
+			projectName: project.name,
+			taskId: task.id,
+			taskTitle: task.title ?? "",
+		});
 		return { ok: true };
 	}),
 

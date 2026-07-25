@@ -1,12 +1,9 @@
 import { spawnEnv } from "@/api/helpers/spawn";
+import { argvToShellCommand } from "@/lib/shell-argv";
 
-// Abre a janela do emulador a partir do template configurado (Fatia 1). O template é uma linha de
-// comando com os placeholders `{title}` e `{command}` — ex.: `alacritty --title {title} -e {command}`.
-// `{title}` vira UM argumento (preserva espaços); `{command}` standalone expande para a argv do
-// comando a rodar; embutido numa string (ex.: osascript) é substituído como texto.
+const TITLE_PLACEHOLDER = "{title}";
+const COMMAND_PLACEHOLDER = "{command}";
 
-// Tokeniza o template respeitando aspas simples/duplas (como o shell), pra que um preset com string
-// citada — `osascript -e 'tell ... "{command}"'` — vire um único token em vez de quebrar nos espaços.
 export function tokenizeTemplate(template: string): string[] {
 	const tokens: string[] = [];
 	let current = "";
@@ -45,43 +42,83 @@ export function tokenizeTemplate(template: string): string[] {
 	return tokens;
 }
 
+function escapeAppleScriptString(value: string): string {
+	return value
+		.replaceAll("\\", "\\\\")
+		.replaceAll('"', '\\"')
+		.replaceAll("\n", "\\n")
+		.replaceAll("\r", "\\r")
+		.replaceAll("\t", "\\t");
+}
+
+function substitutePlaceholders(params: {
+	token: string;
+	title: string;
+	commandArgv: string[];
+	isAppleScript: boolean;
+}): string {
+	const { token, title, commandArgv, isAppleScript } = params;
+	const shellCommand = argvToShellCommand(commandArgv);
+
+	let value = "";
+	let insideDoubleQuotes = false;
+	let index = 0;
+
+	while (index < token.length) {
+		if (token.startsWith(COMMAND_PLACEHOLDER, index)) {
+			if (insideDoubleQuotes && !isAppleScript) {
+				throw new Error(
+					"Template de terminal inválido: {command} dentro de aspas duplas só é suportado em templates osascript (AppleScript). Tire as aspas do placeholder ou escolha outro preset.",
+				);
+			}
+
+			value += insideDoubleQuotes ? escapeAppleScriptString(shellCommand) : shellCommand;
+			index += COMMAND_PLACEHOLDER.length;
+			continue;
+		}
+
+		if (token.startsWith(TITLE_PLACEHOLDER, index)) {
+			value += insideDoubleQuotes && isAppleScript ? escapeAppleScriptString(title) : title;
+			index += TITLE_PLACEHOLDER.length;
+			continue;
+		}
+
+		const char = token[index] ?? "";
+		if (char === '"') {
+			insideDoubleQuotes = !insideDoubleQuotes;
+		}
+
+		value += char;
+		index += 1;
+	}
+
+	return value;
+}
+
 export function buildEmulatorArgv(params: {
 	template: string;
 	title: string;
 	commandArgv: string[];
 }): string[] {
 	const { title, commandArgv } = params;
+	const tokens = tokenizeTemplate(params.template);
+	const isAppleScript = tokens[0]?.split("/").at(-1) === "osascript";
 	const argv: string[] = [];
 
-	for (const token of tokenizeTemplate(params.template)) {
-		if (token === "{title}") {
+	for (const token of tokens) {
+		if (token === TITLE_PLACEHOLDER) {
 			argv.push(title);
 			continue;
 		}
-		if (token === "{command}") {
+		if (token === COMMAND_PLACEHOLDER) {
 			argv.push(...commandArgv);
 			continue;
 		}
 
-		let value = token.replaceAll("{title}", title);
-		if (value.includes("{command}")) {
-			value = value.replaceAll("{command}", commandArgv.join(" "));
-		}
-		argv.push(value);
+		argv.push(substitutePlaceholders({ token, title, commandArgv, isAppleScript }));
 	}
 
 	return argv;
-}
-
-// A argv que o `{command}` do template representa no modo `none`: roda o comando num shell e mantém o
-// shell aberto depois (`exec`), pra a janela não fechar ao terminar. Sem comando, só abre o shell
-// interativo na pasta de trabalho.
-export function buildNoneCommandArgv(command: string | undefined, shell: string): string[] {
-	if (command && command.trim().length > 0) {
-		return [shell, "-c", `${command}; exec ${shell}`];
-	}
-
-	return [shell];
 }
 
 export function spawnEmulator(params: {

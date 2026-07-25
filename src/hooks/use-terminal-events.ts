@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { orpcWs } from "@/client";
+import { subscribeWithRetry } from "@/lib/realtime-subscription";
 import { useTerminalStatusStore } from "@/stores/terminal-status";
 
 export function useTerminalEvents() {
@@ -9,27 +10,13 @@ export function useTerminalEvents() {
 	useEffect(() => {
 		const controller = new AbortController();
 
-		async function subscribe() {
-			try {
-				const events = await orpcWs.terminal.events.call(undefined, {
-					signal: controller.signal,
-				});
+		subscribeWithRetry({
+			label: "Terminal Events",
+			signal: controller.signal,
+			subscribe: (signal) => orpcWs.terminal.events.call(undefined, { signal }),
+			onEvent: handleEvent,
+		});
 
-				for await (const event of events) {
-					handleEvent(event);
-				}
-			} catch (error) {
-				if (error instanceof Error && error.name === "AbortError") {
-					return;
-				}
-				console.error("[Terminal Events] Erro na subscription:", error);
-			}
-		}
-
-		subscribe();
-
-		return () => {
-			controller.abort();
-		};
+		return () => controller.abort();
 	}, [handleEvent]);
 }

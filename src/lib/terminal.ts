@@ -23,11 +23,9 @@ export type ProjectRef = {
 	name: string;
 };
 
-type Route = {
+type RouteRef = {
 	id: string;
 	name: string;
-	path: string;
-	command?: string;
 };
 
 type OpenTerminalResult = RouterOutputs["terminal"]["openForTask"];
@@ -99,15 +97,11 @@ export function executeInTerminal(
 	project: ProjectInfo,
 	task: TaskInfo,
 	prompt: string,
-	options: OpenTerminalOptions & {
-		cli?: "claude" | "codex";
-		agent?: string;
-		model?: string;
-		effort?: string;
-		permissionMode?: string;
-		forceNew?: boolean;
-		background?: boolean;
-	} = {},
+	options: OpenTerminalOptions &
+		Pick<
+			RouterInputs["terminal"]["openForTask"],
+			"cli" | "agent" | "model" | "effort" | "permissionMode" | "forceNew" | "background"
+		> = {},
 ): Promise<TerminalResult> {
 	const {
 		showToast = true,
@@ -148,20 +142,15 @@ export function executeInTerminal(
 // Abre/foca uma aba nomeada pelo apelido de uma rota personalizada do projeto.
 export function openProjectRoute(params: {
 	projectId: string;
-	projectName: string;
-	route: Route;
+	route: RouteRef;
 	options?: OpenTerminalOptions;
 }): Promise<TerminalResult> {
-	const { projectId, projectName, route, options = {} } = params;
+	const { projectId, route, options = {} } = params;
 
 	return openRoute(
 		{
 			projectId,
-			projectName,
 			routeId: route.id,
-			routeName: route.name,
-			routePath: route.path,
-			...(route.command ? { command: route.command } : {}),
 		},
 		options.showToast ?? true,
 		(result) =>
@@ -209,18 +198,13 @@ export function forceNewTerminalTab(
 
 export function runRouteInBackground(
 	projectId: string,
-	projectName: string,
-	route: Route,
+	route: RouteRef,
 	options: OpenTerminalOptions = {},
 ): Promise<TerminalResult> {
 	return openRoute(
 		{
 			projectId,
-			projectName,
 			routeId: route.id,
-			routeName: route.name,
-			routePath: route.path,
-			...(route.command ? { command: route.command } : {}),
 			background: true,
 		},
 		options.showToast ?? true,
@@ -230,18 +214,13 @@ export function runRouteInBackground(
 
 export function forceNewRouteTab(
 	projectId: string,
-	projectName: string,
-	route: Route,
+	route: RouteRef,
 	options: OpenTerminalOptions = {},
 ): Promise<TerminalResult> {
 	return openRoute(
 		{
 			projectId,
-			projectName,
 			routeId: route.id,
-			routeName: route.name,
-			routePath: route.path,
-			...(route.command ? { command: route.command } : {}),
 			forceNew: true,
 		},
 		options.showToast ?? true,
@@ -252,13 +231,12 @@ export function forceNewRouteTab(
 // Fecha o terminal inteiro do projeto (todas as abas).
 export async function closeProjectTerminal(
 	projectId: string,
-	projectName: string,
 	options: OpenTerminalOptions = {},
 ): Promise<boolean> {
 	const { showToast = true } = options;
 
 	try {
-		await orpc.terminal.closeProjectSession.call({ projectId, projectName });
+		await orpc.terminal.closeProjectSession.call({ projectId });
 		if (showToast) toast.success("Terminal do projeto encerrado");
 		return true;
 	} catch {

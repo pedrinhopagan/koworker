@@ -1,8 +1,14 @@
-import { buildClaudeCommand } from "@/lib/claude-command";
-import { buildCodexCommand } from "@/lib/codex-command";
+import { buildClaudeArgv } from "@/lib/claude-command";
+import { buildCodexArgv } from "@/lib/codex-command";
 import type { TerminalMultiplexer } from "@/constants/terminal";
 import { PubSub, type TerminalEvent } from "../../pubsub";
-import { buildNoneCommandArgv, type EmulatorProcess, spawnEmulator } from "./emulator";
+import {
+	buildNoneCommandArgv,
+	hasTerminalCommand,
+	type TerminalCommand,
+	terminalCommandText,
+} from "./command";
+import { type EmulatorProcess, spawnEmulator } from "./emulator";
 import { focusTerminalWindow } from "./focus";
 import {
 	ensureKwTerminalServer,
@@ -106,7 +112,7 @@ type OpenParams = {
 	workingDir: string;
 	taskId: string;
 	windowName: string;
-	command: string | undefined;
+	command: TerminalCommand | undefined;
 	forceNew: boolean;
 	background: boolean;
 	// Rota com força-nova mata a window homônima antes de recriá-la; tarefa reaproveita.
@@ -195,8 +201,8 @@ async function openKwTerminal(
 		});
 	}
 
-	if (params.command && params.command.trim().length > 0 && paneId) {
-		await kwTerminalPaneRun(paneId, params.command);
+	if (params.command && hasTerminalCommand(params.command) && paneId) {
+		await kwTerminalPaneRun(paneId, terminalCommandText(params.command));
 	}
 
 	// Foreground: primeiro foca no daemon (workspace + tab) pra o cliente renderizar já na tab certa;
@@ -307,8 +313,8 @@ async function openTmux(params: OpenParams & { sessionName: string }): Promise<O
 		});
 	}
 
-	if (params.command && params.command.trim().length > 0) {
-		await tmuxSendKeys(sessionName, windowName, params.command);
+	if (params.command && hasTerminalCommand(params.command)) {
+		await tmuxSendKeys(sessionName, windowName, terminalCommandText(params.command));
 	}
 
 	trackWindow({
@@ -669,6 +675,35 @@ async function invocationWindowNames(params: {
 	return names.filter(isInvocationWindow);
 }
 
+function invocationArgv(params: {
+	prompt: string;
+	cli?: "claude" | "codex";
+	agent?: string;
+	model?: string;
+	effort?: string;
+	permissionMode?: string;
+	background?: boolean;
+}): string[] {
+	if (params.cli === "codex") {
+		return buildCodexArgv({
+			prompt: params.prompt,
+			approvalMode: params.permissionMode ?? "bypass",
+			headless: params.background ?? false,
+			...(params.model ? { model: params.model } : {}),
+			...(params.effort ? { effort: params.effort } : {}),
+		});
+	}
+
+	return buildClaudeArgv({
+		prompt: params.prompt,
+		permissionMode: params.permissionMode ?? "bypass",
+		headless: params.background ?? false,
+		...(params.agent ? { agent: params.agent } : {}),
+		...(params.model ? { model: params.model } : {}),
+		...(params.effort ? { effort: params.effort } : {}),
+	});
+}
+
 export const Terminal = {
 	openForTask(params: {
 		config: TerminalConfig;
@@ -686,23 +721,8 @@ export const Terminal = {
 		forceNew?: boolean;
 		background?: boolean;
 	}): Promise<OpenTerminalResult> {
-		const command = params.prompt
-			? params.cli === "codex"
-				? buildCodexCommand({
-						prompt: params.prompt,
-						approvalMode: params.permissionMode ?? "bypass",
-						headless: params.background ?? false,
-						...(params.model ? { model: params.model } : {}),
-						...(params.effort ? { effort: params.effort } : {}),
-					})
-				: buildClaudeCommand({
-						prompt: params.prompt,
-						permissionMode: params.permissionMode ?? "bypass",
-						headless: params.background ?? false,
-						...(params.agent ? { agent: params.agent } : {}),
-						...(params.model ? { model: params.model } : {}),
-						...(params.effort ? { effort: params.effort } : {}),
-					})
+		const command: TerminalCommand | undefined = params.prompt
+			? { kind: "argv", argv: invocationArgv({ ...params, prompt: params.prompt }) }
 			: undefined;
 
 		return openTerminal({
@@ -737,7 +757,7 @@ export const Terminal = {
 			workingDir: params.routePath,
 			taskId: params.routeId,
 			windowName: sanitizeRouteName(params.routeName),
-			command: params.command,
+			command: params.command ? { kind: "script", script: params.command } : undefined,
 			forceNew: params.forceNew ?? false,
 			background: params.background ?? false,
 			killExistingOnForceNew: true,
