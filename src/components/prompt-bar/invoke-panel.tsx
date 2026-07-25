@@ -1,4 +1,15 @@
-import { Bot, ChevronRight, Copy, Cpu, Gauge, Play, ShieldCheck, Sparkles, X } from "lucide-react";
+import {
+	Bot,
+	ChevronRight,
+	Copy,
+	Cpu,
+	Gauge,
+	Loader2,
+	Play,
+	ShieldCheck,
+	Sparkles,
+	X,
+} from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -82,6 +93,7 @@ export function InvokePanel({
 		skillsLoading,
 		preview,
 		canInvoke,
+		invoking,
 		handleInvoke,
 	} = useInvocation({ projectId, projectName, routePath, nextStage, active: invokeOpen });
 
@@ -128,15 +140,17 @@ export function InvokePanel({
 
 				<Tooltip
 					label={
-						canInvoke
-							? "Invocar numa nova aba do terminal"
-							: "Escolha um agent ou skill pra invocar"
+						invoking
+							? "Aguarde o despacho da invocação atual"
+							: canInvoke
+								? "Invocar numa nova aba do terminal"
+								: "Escolha um agent ou skill pra invocar"
 					}
 					triggerClassName="ml-auto inline-flex shrink-0"
 				>
-					<Button size="sm" disabled={!canInvoke} onClick={handleInvoke}>
-						<Play size={14} />
-						Invocar{selection ? ` ${selection.kind}` : ""}
+					<Button size="sm" disabled={!canInvoke || invoking} onClick={handleInvoke}>
+						{invoking ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+						{invoking ? "Invocando…" : `Invocar${selection ? ` ${selection.kind}` : ""}`}
 					</Button>
 				</Tooltip>
 			</div>

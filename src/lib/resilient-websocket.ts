@@ -12,7 +12,9 @@ type SocketListener = {
 	options?: boolean | AddEventListenerOptions;
 };
 
-export type ResilientWebSocket = Pick<WebSocket, "addEventListener" | "send" | "readyState">;
+export type ResilientWebSocket = Pick<WebSocket, "addEventListener" | "send" | "readyState"> & {
+	forceReconnect: () => void;
+};
 
 export function createResilientWebSocket(url: string): ResilientWebSocket {
 	const listeners: SocketListener[] = [];
@@ -83,6 +85,20 @@ export function createResilientWebSocket(url: string): ResilientWebSocket {
 		connect();
 	}
 
+	function forceReconnect() {
+		const current = socket;
+		socket = null;
+
+		if (reconnectTimer) {
+			clearTimeout(reconnectTimer);
+			reconnectTimer = null;
+		}
+
+		current?.close();
+		retryDelay = RECONNECT_MIN_MS;
+		connect();
+	}
+
 	connect();
 
 	if (typeof document !== "undefined") {
@@ -118,5 +134,6 @@ export function createResilientWebSocket(url: string): ResilientWebSocket {
 		get readyState() {
 			return socket?.readyState ?? WebSocket.CLOSED;
 		},
+		forceReconnect,
 	};
 }

@@ -186,13 +186,80 @@ describe("dbExecutionRuns", () => {
 		const stale = (
 			await dbExecutionRuns.listStale({
 				heartbeatBefore: now - 90_000,
-				startedBefore: now - 45 * 60_000,
+				promptStartedBefore: now - 45 * 60_000,
+				flowStartedBefore: now - 225 * 60_000,
 			})
 		).map((run) => run.id);
 
 		expect(stale).toContain("run-heartbeat-morto");
 		expect(stale).toContain("run-estourado");
 		expect(stale).not.toContain("run-heartbeat-vivo");
+	});
+
+	test("reconcilia fluxo pelo mesmo critério de sinal de vida", async () => {
+		const now = Date.now();
+		await dbExecutionRuns.create({
+			id: "flow-heartbeat-vivo",
+			user_id: 1,
+			project_id: "project-execution-runs",
+			kind: "flow",
+			title: "Fluxo vivo",
+			status: "running",
+			started_at: now,
+			updated_at: now,
+			heartbeat_at: now,
+		});
+		await dbExecutionRuns.create({
+			id: "flow-heartbeat-morto",
+			user_id: 1,
+			project_id: "project-execution-runs",
+			kind: "flow",
+			title: "Fluxo sem sinal",
+			status: "running",
+			started_at: now,
+			updated_at: now,
+			heartbeat_at: now - 120_000,
+		});
+		await dbExecutionRuns.create({
+			id: "flow-longo-vivo",
+			user_id: 1,
+			project_id: "project-execution-runs",
+			kind: "flow",
+			title: "Fluxo de várias etapas",
+			status: "running",
+			started_at: now - 60 * 60_000,
+			updated_at: now,
+			heartbeat_at: now,
+		});
+
+		const stale = (
+			await dbExecutionRuns.listStale({
+				heartbeatBefore: now - 90_000,
+				promptStartedBefore: now - 45 * 60_000,
+				flowStartedBefore: now - 225 * 60_000,
+			})
+		).map((run) => run.id);
+
+		expect(stale).toContain("flow-heartbeat-morto");
+		expect(stale).not.toContain("flow-heartbeat-vivo");
+		expect(stale).not.toContain("flow-longo-vivo");
+	});
+
+	test("não ressuscita para em andamento um run já encerrado", async () => {
+		await dbExecutionRuns.finishIfRunning("flow-heartbeat-vivo", {
+			status: "cancelled",
+			error: "Cancelado",
+		});
+
+		expect(
+			await dbExecutionRuns.updateIfRunning("flow-heartbeat-vivo", {
+				status: "running",
+				stage: "grill",
+			}),
+		).toBe(false);
+		expect((await dbExecutionRuns.getByIdForUser("flow-heartbeat-vivo", 1))?.status).toBe(
+			"cancelled",
+		);
 	});
 
 	test("renova o sinal de vida apenas das execuções em andamento", async () => {

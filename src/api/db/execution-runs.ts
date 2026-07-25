@@ -145,12 +145,26 @@ export const dbExecutionRuns = {
 	// segundo a chegar sobrescreveria o resultado real.
 	async finishIfRunning(
 		id: string,
-		input: Pick<ExecutionRunUpdate, "status" | "output" | "error" | "cli_session_id">,
+		input: Pick<
+			ExecutionRunUpdate,
+			"status" | "output" | "error" | "cli_session_id" | "stage" | "agent"
+		>,
 	) {
 		const now = Date.now();
 		const result = await db
 			.updateTable("execution_runs")
 			.set({ ...input, finished_at: now, updated_at: now })
+			.where("id", "=", id)
+			.where("status", "=", "running")
+			.executeTakeFirst();
+
+		return Number(result.numUpdatedRows) > 0;
+	},
+
+	async updateIfRunning(id: string, input: ExecutionRunUpdate) {
+		const result = await db
+			.updateTable("execution_runs")
+			.set({ ...input, updated_at: Date.now() })
 			.where("id", "=", id)
 			.where("status", "=", "running")
 			.executeTakeFirst();
@@ -176,7 +190,11 @@ export const dbExecutionRuns = {
 	// Runs `running` sem sinal de vida: o executor que os iniciou morreu (crash, kill, deploy) ou o
 	// run passou do teto absoluto. Sem isso o registro fica "em andamento" para sempre, porque o
 	// controle do processo vive na memória do executor.
-	listStale(input: { heartbeatBefore: number; startedBefore: number }) {
+	listStale(input: {
+		heartbeatBefore: number;
+		promptStartedBefore: number;
+		flowStartedBefore: number;
+	}) {
 		return db
 			.selectFrom("execution_runs as er")
 			.selectAll("er")
@@ -186,7 +204,11 @@ export const dbExecutionRuns = {
 				eb.or([
 					eb("er.heartbeat_at", "is", null),
 					eb("er.heartbeat_at", "<", input.heartbeatBefore),
-					eb("er.started_at", "<", input.startedBefore),
+					eb.and([
+						eb("er.kind", "=", "prompt"),
+						eb("er.started_at", "<", input.promptStartedBefore),
+					]),
+					eb.and([eb("er.kind", "=", "flow"), eb("er.started_at", "<", input.flowStartedBefore)]),
 				]),
 			)
 			.execute();
@@ -202,6 +224,17 @@ export const dbExecutionRuns = {
 			.select("er.task_id")
 			.where("er.project_id", "=", projectId)
 			.where("er.task_id", "in", taskIds)
+			.where("er.status", "=", "running")
+			.where("er.deleted_at", "is", null)
+			.execute();
+	},
+
+	listRunningForTask(projectId: string, taskId: string) {
+		return db
+			.selectFrom("execution_runs as er")
+			.select(["er.id", "er.started_at"])
+			.where("er.project_id", "=", projectId)
+			.where("er.task_id", "=", taskId)
 			.where("er.status", "=", "running")
 			.where("er.deleted_at", "is", null)
 			.execute();

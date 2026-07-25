@@ -100,6 +100,7 @@ export {
 	TaskMergeReadySchema,
 	TaskMetricsSchema,
 	TaskMoveToProjectSchema,
+	TaskNotifySchema,
 	TaskPromoteSchema,
 	TaskRenameFileSchema,
 	TaskReorderFilesSchema,

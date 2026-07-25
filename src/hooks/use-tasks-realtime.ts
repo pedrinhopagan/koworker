@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { orpc, orpcWs } from "@/client";
+import { subscribeWithRetry } from "@/lib/realtime-subscription";
 import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 
 export function useTasksRealtime() {
@@ -10,25 +11,25 @@ export function useTasksRealtime() {
 	useEffect(() => {
 		const controller = new AbortController();
 
-		async function subscribe() {
-			try {
-				const events = await orpcWs.tasks.call(undefined, { signal: controller.signal });
-
-				for await (const event of events) {
-					invalidateTaskQueries(queryClient, event);
-					if (event.source !== "fs") {
-						queryClient.invalidateQueries({
-							queryKey: orpc.projects.overview.queryOptions().queryKey,
-						});
-					}
+		subscribeWithRetry({
+			label: "Tasks Realtime",
+			signal: controller.signal,
+			subscribe: (signal) => orpcWs.tasks.call(undefined, { signal }),
+			onEvent: (event) => {
+				invalidateTaskQueries(queryClient, event);
+				if (event.source !== "fs") {
+					queryClient.invalidateQueries({
+						queryKey: orpc.projects.overview.queryOptions().queryKey,
+					});
 				}
-			} catch (error) {
-				if (error instanceof Error && error.name === "AbortError") return;
-				console.error("[Tasks Realtime] Erro na subscription:", error);
-			}
-		}
-
-		subscribe();
+			},
+			onReconnect: () => {
+				invalidateTaskQueries(queryClient, { projectId: null });
+				queryClient.invalidateQueries({
+					queryKey: orpc.projects.overview.queryOptions().queryKey,
+				});
+			},
+		});
 
 		return () => controller.abort();
 	}, [queryClient]);

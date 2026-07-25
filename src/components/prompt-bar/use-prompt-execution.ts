@@ -16,12 +16,13 @@ import { newClientRequestId } from "@/lib/client-request-id";
 import { type InvokeTarget, planInvocation } from "@/lib/invoke";
 import { isNotFoundError } from "@/lib/orpc-errors";
 import { recordPromptHistory } from "@/lib/prompt-history";
+import { subscribeWithRetry } from "@/lib/realtime-subscription";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 import type { TaskStage } from "@/constants/complexity";
 
 type LiveEvent = {
 	runId: string;
-	status: "started" | "done" | "failed" | "timeout" | "cancelled";
+	status: "started" | "output" | "done" | "failed" | "timeout" | "cancelled";
 	output?: string;
 	error?: string;
 };
@@ -108,6 +109,7 @@ export function usePromptExecution(params: {
 		typeof window === "undefined" ? null : localStorage.getItem("kowork-active-run"),
 	);
 	const [live, setLive] = useState<LiveEvent | null>(null);
+	const [liveOutput, setLiveOutput] = useState("");
 	const [elapsedMs, setElapsedMs] = useState(0);
 	const startedAtRef = useRef<number | null>(null);
 	const lastNotified = useRef<LiveEvent["status"] | null>(null);
@@ -148,34 +150,34 @@ export function usePromptExecution(params: {
 			toast.error(err instanceof Error ? err.message : "Não foi possível iniciar a execução"),
 	});
 
+	const refetchStatus = statusQuery.refetch;
+
 	useEffect(() => {
 		if (!runId) {
 			return;
 		}
 		const activeRunId = runId;
 		lastNotified.current = null;
+		setLiveOutput("");
 		const controller = new AbortController();
 
-		async function subscribe() {
-			try {
-				const events = await orpcWs.promptRun.call(
-					{ runId: activeRunId },
-					{ signal: controller.signal },
-				);
-				for await (const event of events) {
-					setLive(event);
-				}
-			} catch (error) {
-				if (error instanceof Error && error.name === "AbortError") {
+		subscribeWithRetry({
+			label: "PromptRun",
+			signal: controller.signal,
+			subscribe: (signal) => orpcWs.promptRun.call({ runId: activeRunId }, { signal }),
+			onEvent: (event) => {
+				if (event.status === "output") {
+					setLiveOutput(event.output ?? "");
 					return;
 				}
-				console.error("[PromptRun] Erro na subscription:", error);
-			}
-		}
 
-		subscribe();
+				setLive(event);
+			},
+			onReconnect: () => void refetchStatus(),
+		});
+
 		return () => controller.abort();
-	}, [runId]);
+	}, [runId, refetchStatus]);
 
 	const record = statusQuery.data;
 	// Um run que o backend não reconhece mais é uma execução interrompida, não uma execução viva.
@@ -288,6 +290,7 @@ export function usePromptExecution(params: {
 		promptPreview,
 		canExecute,
 		isRunning,
+		liveOutput,
 		elapsedLabel: formatElapsed(elapsedMs),
 		output: resolvedStatus === "done" ? output : null,
 		error: resolvedStatus === "failed" || resolvedStatus === "timeout" ? error : null,

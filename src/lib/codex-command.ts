@@ -1,8 +1,3 @@
-import { shellEscape } from "@/lib/claude-command";
-
-// Monta o comando `codex` de uma invocação — o irmão de buildClaudeCommand, mesmo contrato: o preview
-// ao vivo no prompt-bar e a execução real no backend chamam esta mesma função. `approvalMode` traduz
-// pros flags de aprovação/sandbox do codex; `default` (ou valor desconhecido) não emite flag.
 export type CodexCommandParams = {
 	prompt: string;
 	approvalMode: string;
@@ -61,20 +56,21 @@ export function buildCodexExecArgs(params: CodexCommandParams & { cwd?: string }
 	return args;
 }
 
-export function buildCodexCommand(params: CodexCommandParams): string {
+export function buildCodexArgv(params: CodexCommandParams & { cwd?: string }): string[] {
 	if (params.headless) {
-		const args = buildCodexExecArgs(params);
-		const prompt = args.pop() ?? "";
-		return [...args, `"${shellEscape(prompt)}"`].join(" ");
+		return buildCodexExecArgs(params);
 	}
 
-	const flags = approvalArgs(params.approvalMode);
+	const argv = ["codex", ...approvalArgs(params.approvalMode)];
+
 	if (params.model) {
-		flags.push("-m", params.model);
+		argv.push("-m", params.model);
 	}
 	if (params.effort) {
-		flags.push("-c", `model_reasoning_effort=${params.effort}`);
+		argv.push("-c", `model_reasoning_effort=${params.effort}`);
 	}
 
-	return ["codex", ...flags, `"${shellEscape(params.prompt)}"`].join(" ");
+	argv.push(params.prompt);
+
+	return argv;
 }

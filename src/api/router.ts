@@ -33,7 +33,9 @@ export const router = {
 			.input(EndpointSchemas.authLogin)
 			.handler(({ input, context }) => Auth.login(input, context.resHeaders, context.reqHeaders)),
 
-		logout: protectedProcedure.handler(({ context }) => Auth.logout(context.resHeaders)),
+		logout: protectedProcedure.handler(({ context }) =>
+			Auth.logout(context.resHeaders, context.user.id),
+		),
 
 		me: protectedProcedure.handler(({ context }) => ({
 			id: context.user.id,

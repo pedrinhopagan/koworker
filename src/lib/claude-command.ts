@@ -1,8 +1,3 @@
-// Monta o comando `claude` de uma invocação. Ponto único de verdade: o preview ao vivo no prompt-bar
-// e a execução real no backend (send-keys no tmux ou spawn no modo none) chamam esta mesma função —
-// antes eram duas implementações espelhadas (Rust do terminal + front). `permissionMode` "bypass" vira
-// o atalho histórico `--dangerously-skip-permissions`; os demais viram `--permission-mode <x>` (os
-// dois flags são mutuamente exclusivos no `claude`).
 export type ClaudeCommandParams = {
 	prompt: string;
 	permissionMode: string;
@@ -15,63 +10,41 @@ export type ClaudeCommandParams = {
 };
 
 function permissionArgs(permissionMode: string) {
-	return permissionMode === "bypass"
-		? ["--dangerously-skip-permissions"]
-		: ["--permission-mode", permissionMode];
+	if (permissionMode === "bypass") {
+		return ["--dangerously-skip-permissions"];
+	}
+
+	return ["--permission-mode", permissionMode];
 }
 
-export function buildClaudePrintArgs(params: ClaudeCommandParams) {
-	const args = ["claude", "-p", ...permissionArgs(params.permissionMode)];
-	if (params.resumeSessionId) {
-		args.push("--resume", params.resumeSessionId);
-	} else if (params.sessionId) {
-		args.push("--session-id", params.sessionId);
-	}
-	if (params.agent) {
-		args.push("--agent", params.agent);
-	}
-	if (params.model) {
-		args.push("--model", params.model);
-	}
-	if (params.effort) {
-		args.push("--effort", params.effort);
-	}
-	args.push(params.prompt);
-	return args;
-}
+export function buildClaudeArgv(params: ClaudeCommandParams): string[] {
+	const argv = ["claude"];
 
-export function buildClaudeCommand(params: ClaudeCommandParams): string {
 	if (params.headless) {
-		const args = buildClaudePrintArgs(params);
-		const prompt = args.pop() ?? "";
-		return [...args, `"${shellEscape(prompt)}"`].join(" ");
+		argv.push("-p");
 	}
 
-	const flags =
-		params.permissionMode === "bypass"
-			? ["--dangerously-skip-permissions"]
-			: [`--permission-mode ${params.permissionMode}`];
+	argv.push(...permissionArgs(params.permissionMode));
+
+	if (params.headless) {
+		if (params.resumeSessionId) {
+			argv.push("--resume", params.resumeSessionId);
+		} else if (params.sessionId) {
+			argv.push("--session-id", params.sessionId);
+		}
+	}
 
 	if (params.agent) {
-		flags.push(`--agent ${params.agent}`);
+		argv.push("--agent", params.agent);
 	}
 	if (params.model) {
-		flags.push(`--model ${params.model}`);
+		argv.push("--model", params.model);
 	}
 	if (params.effort) {
-		flags.push(`--effort ${params.effort}`);
+		argv.push("--effort", params.effort);
 	}
 
-	return `claude ${flags.join(" ")} "${shellEscape(params.prompt)}"`;
-}
+	argv.push(params.prompt);
 
-// Escapa o prompt pra caber entre aspas duplas num comando de shell sem expandir `$`/crase — o mesmo
-// escape que o backend aplica antes de embutir o prompt, então o preview bate 1:1 com o comando real.
-// Compartilhado com o comando `codex`.
-export function shellEscape(value: string): string {
-	return value
-		.replaceAll("\\", "\\\\")
-		.replaceAll('"', '\\"')
-		.replaceAll("$", "\\$")
-		.replaceAll("`", "\\`");
+	return argv;
 }

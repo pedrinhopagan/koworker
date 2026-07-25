@@ -195,7 +195,7 @@ export function GlobalPromptBar() {
 				"border-t border-border bg-chrome",
 				// Na leitura a rota vira um overlay `fixed inset-0 z-50`; o footer precisa sair do fluxo
 				// e encostar no fim da janela (sobre o lugar da StatusBar), com z acima do overlay.
-				reading && "fixed inset-x-0 bottom-0 z-[60]",
+				reading && "fixed inset-x-0 bottom-0 z-[60] pb-[env(safe-area-inset-bottom)]",
 			)}
 		>
 			<div

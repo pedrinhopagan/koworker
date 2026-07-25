@@ -62,12 +62,14 @@ export function isIgnoredWatchPath(root: string, path: string): boolean {
 }
 
 function flushPending() {
-	const projectIds = [...pendingProjects];
-	pendingProjects.clear();
-	suppressedProjects.clear();
 	debounceTimer = null;
 
-	for (const projectId of projectIds) {
+	for (const projectId of pendingProjects) {
+		if (suppressedProjects.has(projectId)) {
+			continue;
+		}
+
+		pendingProjects.delete(projectId);
 		void PubSub.publish("tasks", projectId, { projectId, action: "updated", source: "fs" });
 		void PubSub.publish("tasks", "global", { projectId, action: "updated", source: "fs" });
 	}

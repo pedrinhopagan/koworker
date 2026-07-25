@@ -114,6 +114,8 @@ export function useTasksData(filters: TasksSearchFilters) {
 		prioritiesQuery.isLoading ||
 		tasksQuery.isLoading;
 
+	const isError = tasksQuery.isError;
+
 	return {
 		data: {
 			tasks: tasksWithMeta,
@@ -126,6 +128,8 @@ export function useTasksData(filters: TasksSearchFilters) {
 			executedCount,
 		},
 		loading,
+		isError,
+		refetch: tasksQuery.refetch,
 		hasMore: tasksQuery.hasNextPage,
 		loadingMore: tasksQuery.isFetchingNextPage,
 		loadMore: tasksQuery.fetchNextPage,

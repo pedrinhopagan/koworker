@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useDeferredValue, useEffect, useMemo } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
@@ -12,6 +12,7 @@ import {
 import { useAgentsQuery } from "@/hooks/use-agents";
 import { useSkillsQuery } from "@/hooks/use-skills";
 import { buildKoworkerPrompt, buildPromptBody, flattenPrompt } from "@/lib/build-prompt";
+import { newClientRequestId } from "@/lib/client-request-id";
 import { convertSkillCallsForCli } from "@/lib/build-prompt";
 import { type InvokeTarget, planInvocation, runInvocation } from "@/lib/invoke";
 import { usePromptBarStore } from "@/stores/prompt-bar";
@@ -70,6 +71,9 @@ export function useInvocation(params: {
 	const setSelection = usePromptBarStore((s) => s.setSelection);
 	const patchClaudeSession = usePromptBarStore((s) => s.patchClaudeSession);
 	const patchCodexSession = usePromptBarStore((s) => s.patchCodexSession);
+
+	const [invoking, setInvoking] = useState(false);
+	const requestId = useRef(newClientRequestId());
 
 	const projectsQuery = useQuery({
 		...orpc.projects.list.queryOptions(),
@@ -190,7 +194,13 @@ export function useInvocation(params: {
 			toast.error("Projeto da rota não encontrado");
 			return;
 		}
-		runInvocation({
+		if (invoking) {
+			return;
+		}
+
+		setInvoking(true);
+		void runInvocation({
+			clientRequestId: requestId.current,
 			project: {
 				id: project.id,
 				name: project.name,
@@ -205,6 +215,9 @@ export function useInvocation(params: {
 				text: effectiveText,
 				config: invoke,
 			},
+		}).finally(() => {
+			requestId.current = newClientRequestId();
+			setInvoking(false);
 		});
 	}
 
@@ -219,6 +232,7 @@ export function useInvocation(params: {
 		skillsLoading,
 		preview,
 		canInvoke: !!projectId && !!selection,
+		invoking,
 		handleInvoke,
 	};
 }

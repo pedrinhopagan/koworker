@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -7,7 +8,6 @@ import { envVariables } from "@/api/config/env";
 import { koworkerDataDir } from "@/lib/app-paths";
 
 const LOCK_MAX_AGE_MS = 15 * 60 * 1000;
-const DEFAULT_REPO_DIR = "/mnt/data/Projects/koworker";
 const REDEPLOY_SCRIPT = "scripts/desktop/remote-redeploy.ts";
 const REDEPLOY_UNIT = "kowork-redeploy";
 
@@ -21,7 +21,22 @@ function dataPaths() {
 }
 
 export function getRepoDir(): string {
-	return envVariables.KOWORK_REPO_DIR ?? DEFAULT_REPO_DIR;
+	const configured = envVariables.KOWORK_REPO_DIR?.trim();
+	const repoDir = configured || (envVariables.NODE_ENV === "production" ? null : process.cwd());
+
+	if (!repoDir) {
+		throw new Error(
+			"KOWORK_REPO_DIR nao configurado: defina o caminho do repositorio no servico do backend para habilitar o redeploy.",
+		);
+	}
+
+	if (!existsSync(join(repoDir, "package.json"))) {
+		throw new Error(
+			`Repositorio nao encontrado em ${repoDir}: ajuste KOWORK_REPO_DIR para o clone do koworker nesta maquina.`,
+		);
+	}
+
+	return repoDir;
 }
 
 async function lockAgeMs(lockPath: string): Promise<number | null> {
@@ -108,7 +123,7 @@ export async function getRedeployStatus(): Promise<{ inProgress: boolean; logTai
 export function assertAdminUser(userType: string | null | undefined): void {
 	if (userType !== "admin") {
 		throw new ORPCError("FORBIDDEN", {
-			message: "Apenas administradores podem gerenciar atualizações do aplicativo",
+			message: "Ação restrita a administradores",
 		});
 	}
 }

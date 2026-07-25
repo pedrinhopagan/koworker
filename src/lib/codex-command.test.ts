@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { buildCodexCommand, buildCodexExecArgs } from "./codex-command";
+import { buildCodexArgv, buildCodexExecArgs } from "./codex-command";
+import { argvToShellCommand } from "./shell-argv";
 
 describe("buildCodexExecArgs", () => {
 	test("monta execução headless com escrita e cwd", () => {
@@ -117,16 +118,42 @@ describe("buildCodexExecArgs", () => {
 	);
 });
 
-describe("buildCodexCommand", () => {
+describe("buildCodexArgv", () => {
 	test("mantém TUI no desktop", () => {
-		expect(buildCodexCommand({ prompt: "teste", approvalMode: "bypass" })).toBe(
-			'codex --dangerously-bypass-approvals-and-sandbox "teste"',
-		);
+		expect(buildCodexArgv({ prompt: "teste", approvalMode: "bypass" })).toEqual([
+			"codex",
+			"--dangerously-bypass-approvals-and-sandbox",
+			"teste",
+		]);
 	});
 
 	test("usa codex exec em background", () => {
-		expect(buildCodexCommand({ prompt: "teste", approvalMode: "readOnly", headless: true })).toBe(
-			'codex exec --ephemeral --skip-git-repo-check --sandbox read-only "teste"',
-		);
+		expect(buildCodexArgv({ prompt: "teste", approvalMode: "readOnly", headless: true })).toEqual([
+			"codex",
+			"exec",
+			"--ephemeral",
+			"--skip-git-repo-check",
+			"--sandbox",
+			"read-only",
+			"teste",
+		]);
+	});
+
+	test("o prompt é um argumento único, sem virar sintaxe de shell", () => {
+		const argv = buildCodexArgv({ prompt: "leia $HOME agora!", approvalMode: "fullAuto" });
+
+		expect(argv.at(-1)).toBe("leia $HOME agora!");
+		expect(argvToShellCommand(argv)).toBe("codex --full-auto 'leia $HOME agora!'");
+	});
+
+	test("metacaractere no modelo continua um único argumento", () => {
+		const argv = buildCodexArgv({
+			prompt: "oi",
+			approvalMode: "default",
+			model: "gpt; rm -rf /",
+		});
+
+		expect(argv).toEqual(["codex", "-m", "gpt; rm -rf /", "oi"]);
+		expect(argvToShellCommand(argv)).toBe("codex -m 'gpt; rm -rf /' oi");
 	});
 });

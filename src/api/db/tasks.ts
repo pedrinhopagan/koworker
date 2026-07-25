@@ -269,26 +269,6 @@ export const dbTasks = {
 			.executeTakeFirst();
 	},
 
-	updateStorageLocation: (input: {
-		id: string;
-		projectId: string;
-		folderPath: string;
-		groupId: string | null;
-		storageSlug: string | null;
-	}) =>
-		db
-			.updateTable("tasks")
-			.set({
-				project_id: input.projectId,
-				folder_path: input.folderPath,
-				group_id: input.groupId,
-				storage_slug: input.storageSlug,
-				updated_at: Date.now(),
-			})
-			.where("id", "=", input.id)
-			.where("deleted_at", "is", null)
-			.executeTakeFirst(),
-
 	ignoreRecency: (input: { id: string; createdAt: number; updatedAt: number }) =>
 		db
 			.updateTable("tasks")

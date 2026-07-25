@@ -31,6 +31,7 @@ import {
 	withProjectStorageLock,
 } from "../helpers/task-storage-coordinator";
 import { createDiscoveredTasks, discoverTaskFolders } from "../helpers/task-sync";
+import { CLEARED_TASK_WORKTREE_METADATA } from "../helpers/task-worktree";
 import { restartTasksWatcher } from "../helpers/tasks-watcher";
 import { PubSub } from "../pubsub";
 import {
@@ -199,8 +200,9 @@ async function withTaskStorageMutation<T>(
 ) {
 	const project = await dbProjects.getById(row.project_id);
 	if (!project) throw new Error("Projeto não encontrado");
-	return withProjectStorageLock({ projectId: project.id, projectRoute: project.main_route }, () =>
-		operation(project),
+	return withProjectStorageLock(
+		{ projectId: project.id, projectRoute: project.main_route, task: row },
+		() => operation(project),
 	);
 }
 
@@ -355,11 +357,7 @@ export const tasksRouter = {
 				complexity: input.complexity,
 				done: input.done === undefined ? undefined : input.done ? 1 : 0,
 				completed_at: input.done === undefined ? undefined : input.done ? Date.now() : null,
-				merge_ready_at: input.done ? null : undefined,
-				worktree_branch: input.done ? null : undefined,
-				merge_target_branch: input.done ? null : undefined,
-				worktree_path: input.done ? null : undefined,
-				worktree_pr_url: input.done ? null : undefined,
+				...(input.done ? CLEARED_TASK_WORKTREE_METADATA : {}),
 			}),
 		);
 
@@ -398,11 +396,7 @@ export const tasksRouter = {
 						id: input.id,
 						done: input.done ? 1 : 0,
 						completed_at: input.done ? Date.now() : null,
-						merge_ready_at: input.done ? null : undefined,
-						worktree_branch: input.done ? null : undefined,
-						merge_target_branch: input.done ? null : undefined,
-						worktree_path: input.done ? null : undefined,
-						worktree_pr_url: input.done ? null : undefined,
+						...(input.done ? CLEARED_TASK_WORKTREE_METADATA : {}),
 					}),
 			);
 			row = await dbTasks.getById(input.id);

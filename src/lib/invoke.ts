@@ -2,9 +2,9 @@ import { type InvokeCli, INVOKE_INHERIT } from "@/constants/invoke";
 import { toast } from "sonner";
 import { orpc } from "@/client";
 import { buildKoworkerPrompt, convertSkillCallsForCli, flattenPrompt } from "@/lib/build-prompt";
-import { buildClaudeCommand } from "@/lib/claude-command";
-import { buildCodexCommand } from "@/lib/codex-command";
-import { newClientRequestId } from "@/lib/client-request-id";
+import { buildClaudeArgv } from "@/lib/claude-command";
+import { buildCodexArgv } from "@/lib/codex-command";
+import { argvToShellCommand } from "@/lib/shell-argv";
 import { recordPromptHistory } from "@/lib/prompt-history";
 import { isTauri } from "@/lib/tauri";
 import { executeInTerminal, type ProjectInfo } from "@/lib/terminal";
@@ -70,31 +70,39 @@ export function planInvocation(request: InvokeRequest): InvokePlan {
 	if (cli === "codex") {
 		const model = withoutInherit(config.codex.model);
 		const effort = withoutInherit(config.codex.effort);
-		const command = buildCodexCommand({
-			prompt,
-			approvalMode: config.codex.approvalMode,
-			headless: config.background || !isTauri(),
-			...(model ? { model } : {}),
-			...(effort ? { effort } : {}),
-		});
+		const command = argvToShellCommand(
+			buildCodexArgv({
+				prompt,
+				approvalMode: config.codex.approvalMode,
+				headless: config.background || !isTauri(),
+				...(model ? { model } : {}),
+				...(effort ? { effort } : {}),
+			}),
+		);
 		return { prompt, model, effort, command };
 	}
 
 	const model = withoutInherit(config.claude.model);
 	const effort = withoutInherit(config.claude.effort);
-	const command = buildClaudeCommand({
-		prompt,
-		permissionMode: config.claude.permissionMode,
-		headless: config.background || !isTauri(),
-		...(target.kind === "agent" ? { agent: target.slug } : {}),
-		...(model ? { model } : {}),
-		...(effort ? { effort } : {}),
-	});
+	const command = argvToShellCommand(
+		buildClaudeArgv({
+			prompt,
+			permissionMode: config.claude.permissionMode,
+			headless: config.background || !isTauri(),
+			...(target.kind === "agent" ? { agent: target.slug } : {}),
+			...(model ? { model } : {}),
+			...(effort ? { effort } : {}),
+		}),
+	);
 
 	return { prompt, model, effort, command };
 }
 
-export function runInvocation(params: { project: ProjectInfo; request: InvokeRequest }) {
+export async function runInvocation(params: {
+	project: ProjectInfo;
+	request: InvokeRequest;
+	clientRequestId: string;
+}) {
 	const { project, request } = params;
 	const { target, cli, routePath, text, config } = request;
 	const { prompt, model, effort } = planInvocation(request);
@@ -102,7 +110,7 @@ export function runInvocation(params: { project: ProjectInfo; request: InvokeReq
 	const background = config.background || !isTauri();
 
 	if (isTauri()) {
-		void executeInTerminal(
+		await executeInTerminal(
 			project,
 			{ id: `${target.kind}_${target.slug}`, title: target.label },
 			prompt,
@@ -117,9 +125,9 @@ export function runInvocation(params: { project: ProjectInfo; request: InvokeReq
 			},
 		);
 	} else {
-		void orpc.prompt.execute
+		await orpc.prompt.execute
 			.call({
-				clientRequestId: newClientRequestId(),
+				clientRequestId: params.clientRequestId,
 				projectId: project.id,
 				...(request.taskId ? { taskId: request.taskId } : {}),
 				prompt,

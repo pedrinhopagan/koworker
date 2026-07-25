@@ -30,13 +30,40 @@ function killProcessTree(proc: ReturnType<typeof Bun.spawn>) {
 // ganha um teto próprio e devolve o que já chegou, em vez de pendurar o run inteiro.
 const STREAM_DRAIN_MS = 5_000;
 
-function collectStream(stream: ReadableStream<Uint8Array> | undefined) {
-	const chunks: Uint8Array[] = [];
+export const STREAM_TAIL_MAX_BYTES = 1_000_000;
+
+export const STREAM_TRUNCATION_NOTICE = "… (início truncado)\n";
+
+export function collectStream(
+	stream: ReadableStream<Uint8Array> | undefined,
+	onChunk?: (text: string) => void,
+) {
 	if (!stream) {
 		return { drained: Promise.resolve(), text: () => "" };
 	}
 
+	const chunks: Uint8Array[] = [];
 	const reader = stream.getReader();
+	const liveDecoder = new TextDecoder();
+	let bufferedBytes = 0;
+	let truncated = false;
+
+	function keepTail(value: Uint8Array) {
+		chunks.push(value);
+		bufferedBytes += value.byteLength;
+
+		while (bufferedBytes > STREAM_TAIL_MAX_BYTES && chunks.length > 1) {
+			bufferedBytes -= chunks.shift()?.byteLength ?? 0;
+			truncated = true;
+		}
+
+		const [only] = chunks;
+		if (only && bufferedBytes > STREAM_TAIL_MAX_BYTES) {
+			chunks[0] = only.subarray(only.byteLength - STREAM_TAIL_MAX_BYTES);
+			bufferedBytes = STREAM_TAIL_MAX_BYTES;
+			truncated = true;
+		}
+	}
 
 	async function read() {
 		while (true) {
@@ -44,15 +71,22 @@ function collectStream(stream: ReadableStream<Uint8Array> | undefined) {
 			if (done) {
 				return;
 			}
-			if (value) {
-				chunks.push(value);
+			if (!value) {
+				continue;
 			}
+
+			keepTail(value);
+			onChunk?.(liveDecoder.decode(value, { stream: true }));
 		}
 	}
 
 	return {
 		drained: read().catch(() => {}),
-		text: () => new TextDecoder().decode(Buffer.concat(chunks)),
+		text: () => {
+			const text = new TextDecoder().decode(Buffer.concat(chunks));
+
+			return truncated ? `${STREAM_TRUNCATION_NOTICE}${text}` : text;
+		},
 	};
 }
 
@@ -65,6 +99,7 @@ export async function spawnCapture(params: {
 	timeoutMs: number;
 	env?: Record<string, string>;
 	signal?: AbortSignal;
+	onStdout?: (text: string) => void;
 }): Promise<{
 	stdout: string;
 	stderr: string;
@@ -101,7 +136,7 @@ export async function spawnCapture(params: {
 	};
 	params.signal?.addEventListener("abort", handleAbort, { once: true });
 
-	const stdout = collectStream(proc.stdout);
+	const stdout = collectStream(proc.stdout, params.onStdout);
 	const stderr = collectStream(proc.stderr);
 	const exitCode = await proc.exited;
 	await Promise.race([Promise.all([stdout.drained, stderr.drained]), Bun.sleep(STREAM_DRAIN_MS)]);

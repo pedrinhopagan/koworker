@@ -1,27 +1,26 @@
 import { type InvokeCli } from "@/constants/invoke";
-import { buildClaudePrintArgs } from "@/lib/claude-command";
+import { buildClaudeArgv } from "@/lib/claude-command";
 import { buildCodexExecArgs } from "@/lib/codex-command";
+import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { execution_runs } from "../db/connection";
 import { dbExecutionRuns } from "../db/execution-runs";
+import { dbProjects } from "../db/projects";
+import { dbTasks } from "../db/tasks";
 import { PubSub, type PromptRunEvent } from "../pubsub";
+import { finishFlowRunExternally, FLOW_TIMEOUT_MS } from "./flow";
 import { PushNotifications } from "./push-notifications";
+import { getActiveRun, HEARTBEAT_STALE_MS, releaseRun, trackRun } from "./run-registry";
 import { spawnCapture } from "./spawn";
 import { createTask, rollbackCreatedTask } from "./task-creation";
+import { withProjectStorageLock } from "./task-storage-coordinator";
 
 const RUN_TIMEOUT_MS = 45 * 60_000;
 const MAX_OUTPUT_CHARS = 20_000;
 const MAX_ERROR_DETAIL_CHARS = 1_200;
-// O controle do processo vive na memória deste executor, então o banco precisa de um sinal de vida
-// próprio: enquanto o run está no ar, o executor marca `heartbeat_at`. Quem vê um run `running` com
-// heartbeat velho sabe que o executor morreu — sem isso o registro ficava "em andamento" para
-// sempre, e a alternativa anterior (marcar todo run `running` como falho no boot) matava o registro
-// de execuções vivas sempre que qualquer outro processo subia sobre o mesmo banco.
-const HEARTBEAT_INTERVAL_MS = 30_000;
-const HEARTBEAT_STALE_MS = 3 * HEARTBEAT_INTERVAL_MS;
 const RECONCILE_INTERVAL_MS = 60_000;
-const activeRuns = new Map<string, AbortController>();
-let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+const LIVE_OUTPUT_INTERVAL_MS = 500;
+const LIVE_OUTPUT_MAX_CHARS = 4_000;
 
 // A execução roda sem TTY e sem ninguém pra responder um prompt: qualquer subprocesso que o agente
 // dispare (git, editor, pager) precisa falhar rápido em vez de bloquear esperando entrada que nunca
@@ -94,27 +93,6 @@ function failureMessage(exitCode: number, stderr: string): string {
 	return `A execução falhou (código ${exitCode}): ${tail}`;
 }
 
-function trackRun(runId: string, controller: AbortController) {
-	activeRuns.set(runId, controller);
-	if (heartbeatTimer) {
-		return;
-	}
-
-	heartbeatTimer = setInterval(() => {
-		const ids = [...activeRuns.keys()];
-		if (ids.length === 0 && heartbeatTimer) {
-			clearInterval(heartbeatTimer);
-			heartbeatTimer = null;
-			return;
-		}
-
-		void dbExecutionRuns.touchHeartbeat(ids).catch((error) => {
-			console.error("[PromptRun] Falha ao registrar o sinal de vida da execução:", error);
-		});
-	}, HEARTBEAT_INTERVAL_MS);
-	heartbeatTimer.unref();
-}
-
 async function emit(event: PromptRunEvent): Promise<void> {
 	await PubSub.publish("promptRun", event.runId, event);
 }
@@ -180,6 +158,109 @@ export function parseCodexOutput(stdout: string) {
 	};
 }
 
+function liveTextFromCodexLine(line: string): string {
+	if (!line.trim()) {
+		return "";
+	}
+
+	let json: unknown;
+	try {
+		json = JSON.parse(line);
+	} catch {
+		return "";
+	}
+	const event = CodexEventSchema.safeParse(json);
+	if (!event.success) {
+		return "";
+	}
+
+	return `${event.data.item?.text ?? event.data.type}\n`;
+}
+
+function createOutputStreamer(runId: string, cli: InvokeCli) {
+	let pendingLine = "";
+	let tail = "";
+	let dirty = false;
+
+	const timer = setInterval(() => {
+		if (!dirty) {
+			return;
+		}
+		dirty = false;
+		void emit({ runId, status: "output", output: tail });
+	}, LIVE_OUTPUT_INTERVAL_MS);
+	timer.unref();
+
+	function append(text: string) {
+		if (!text) {
+			return;
+		}
+		tail = `${tail}${text}`.slice(-LIVE_OUTPUT_MAX_CHARS);
+		dirty = true;
+	}
+
+	return {
+		push(chunk: string) {
+			if (cli !== "codex") {
+				append(chunk);
+				return;
+			}
+
+			const lines = `${pendingLine}${chunk}`.split("\n");
+			pendingLine = lines.pop() ?? "";
+			append(lines.map(liveTextFromCodexLine).join(""));
+		},
+		stop() {
+			clearInterval(timer);
+		},
+	};
+}
+
+async function assertNoRunningExecution(projectId: string, taskId: string) {
+	const running = await dbExecutionRuns.listRunningTaskIds(projectId, [taskId]);
+	if (running.length > 0) {
+		throw new ORPCError("CONFLICT", {
+			message:
+				"Esta tarefa já tem uma execução em andamento. Aguarde ela terminar ou cancele antes de disparar outra.",
+		});
+	}
+}
+
+async function claimTaskExecution(input: { projectId: string; taskId: string; runId: string }) {
+	const competing = await dbExecutionRuns.listRunningForTask(input.projectId, input.taskId);
+	const own = competing.find((run) => run.id === input.runId);
+	if (!own) {
+		return;
+	}
+
+	const loses = competing.some(
+		(run) =>
+			run.id !== own.id &&
+			(run.started_at < own.started_at || (run.started_at === own.started_at && run.id < own.id)),
+	);
+	if (loses) {
+		throw new ORPCError("CONFLICT", {
+			message:
+				"Esta tarefa já tem uma execução em andamento. Aguarde ela terminar ou cancele antes de disparar outra.",
+		});
+	}
+}
+
+async function assertTaskStorageStable(projectId: string, taskId: string) {
+	const [project, task] = await Promise.all([
+		dbProjects.getById(projectId),
+		dbTasks.getById(taskId),
+	]);
+	if (!project || !task) {
+		throw new Error("A tarefa desta execução não existe mais");
+	}
+
+	return withProjectStorageLock(
+		{ projectId: project.id, projectRoute: project.main_route, task },
+		() => dbTasks.getById(task.id),
+	);
+}
+
 async function finishRun(params: {
 	runId: string;
 	userId: number;
@@ -229,6 +310,7 @@ async function runInBackground(params: {
 	cli: InvokeCli;
 }): Promise<void> {
 	const { runId, cwd, cmd } = params;
+	const streamer = createOutputStreamer(runId, params.cli);
 
 	try {
 		const { stdout, stderr, exitCode, timedOut, cancelled } = await spawnCapture({
@@ -237,6 +319,7 @@ async function runInBackground(params: {
 			timeoutMs: RUN_TIMEOUT_MS,
 			env: HEADLESS_ENV,
 			signal: params.controller.signal,
+			onStdout: streamer.push,
 		});
 
 		if (cancelled) {
@@ -293,7 +376,8 @@ async function runInBackground(params: {
 			error: err instanceof Error ? err.message : "Erro inesperado na execução",
 		});
 	} finally {
-		activeRuns.delete(runId);
+		streamer.stop();
+		releaseRun(runId);
 	}
 }
 
@@ -347,6 +431,10 @@ export async function startPromptRun(params: {
 		}
 
 		return { runId: existing.id };
+	}
+
+	if (params.taskId) {
+		await assertNoRunningExecution(params.projectId, params.taskId);
 	}
 
 	const runId = crypto.randomUUID();
@@ -407,8 +495,23 @@ export async function startPromptRun(params: {
 		}
 		return { runId: created.id };
 	}
-	const controller = new AbortController();
-	trackRun(runId, controller);
+	if (params.taskId) {
+		await claimTaskExecution({
+			projectId: params.projectId,
+			taskId: params.taskId,
+			runId,
+		}).catch(async (error) => {
+			await finishRun({
+				runId,
+				userId: params.userId,
+				title: params.title,
+				status: "failed",
+				error: error instanceof Error ? error.message : "Não foi possível iniciar a execução",
+			});
+			throw error;
+		});
+	}
+	const controller = trackRun(runId);
 
 	let taskId = params.taskId;
 	let title = params.title;
@@ -422,7 +525,7 @@ export async function startPromptRun(params: {
 				status: "cancelled",
 				error: "A execução foi cancelada.",
 			});
-			activeRuns.delete(runId);
+			releaseRun(runId);
 			return { runId };
 		}
 		const task = await createTask({
@@ -441,7 +544,7 @@ export async function startPromptRun(params: {
 			return null;
 		});
 		if (!task) {
-			activeRuns.delete(runId);
+			releaseRun(runId);
 			return { runId };
 		}
 
@@ -470,7 +573,7 @@ export async function startPromptRun(params: {
 				return null;
 			});
 		if (!linked) {
-			activeRuns.delete(runId);
+			releaseRun(runId);
 			return { runId };
 		}
 		if (controller.signal.aborted) {
@@ -489,7 +592,7 @@ export async function startPromptRun(params: {
 						? `A execução foi cancelada, mas a tarefa não pôde ser removida: ${compensationError.message}`
 						: "A execução foi cancelada.",
 			});
-			activeRuns.delete(runId);
+			releaseRun(runId);
 			return { runId };
 		}
 	}
@@ -501,8 +604,28 @@ export async function startPromptRun(params: {
 			status: "cancelled",
 			error: "A execução foi cancelada.",
 		});
-		activeRuns.delete(runId);
+		releaseRun(runId);
 		return { runId };
+	}
+
+	if (taskId) {
+		const stable = await assertTaskStorageStable(params.projectId, taskId).catch(async (error) => {
+			await finishRun({
+				runId,
+				userId: params.userId,
+				title,
+				status: "failed",
+				error:
+					error instanceof Error
+						? error.message
+						: "O storage da tarefa não pôde ser verificado antes da execução",
+			});
+			return null;
+		});
+		if (!stable) {
+			releaseRun(runId);
+			return { runId };
+		}
 	}
 
 	void emit({ runId, status: "started" });
@@ -519,8 +642,9 @@ export async function startPromptRun(params: {
 					structuredOutput: true,
 					...(params.resumeSessionId ? { resumeSessionId: params.resumeSessionId } : {}),
 				})
-			: buildClaudePrintArgs({
+			: buildClaudeArgv({
 					prompt,
+					headless: true,
 					permissionMode: params.permissionMode ?? "acceptEdits",
 					agent: params.agent,
 					model: params.model,
@@ -543,51 +667,59 @@ export async function startPromptRun(params: {
 	return { runId };
 }
 
-// Fecha os runs `running` que nenhum executor sustenta mais: o que perdeu o sinal de vida (o
-// executor morreu antes de escrever o desfecho) e o que passou do teto absoluto sem terminar. Roda
-// no boot e em intervalo fixo, então um run nunca fica "em andamento" para sempre — nem quando o
-// travamento acontece antes do spawn, fora do alcance do timeout do processo.
-export async function reconcileStalePromptRuns() {
+export async function reconcileStaleRuns() {
 	const now = Date.now();
 	const stale = await dbExecutionRuns.listStale({
 		heartbeatBefore: now - HEARTBEAT_STALE_MS,
-		startedBefore: now - RUN_TIMEOUT_MS,
+		promptStartedBefore: now - RUN_TIMEOUT_MS,
+		flowStartedBefore: now - FLOW_TIMEOUT_MS,
 	});
 
 	for (const run of stale) {
-		const overdue = run.started_at < now - RUN_TIMEOUT_MS;
-		const tracked = activeRuns.get(run.id);
+		const timeoutMs = run.kind === "flow" ? FLOW_TIMEOUT_MS : RUN_TIMEOUT_MS;
+		const overdue = run.started_at < now - timeoutMs;
+		const tracked = getActiveRun(run.id);
 		if (tracked && !overdue) {
 			continue;
 		}
 
 		tracked?.abort();
-		activeRuns.delete(run.id);
+		releaseRun(run.id);
+		const status = overdue ? "timeout" : "failed";
+		const error = overdue
+			? `A execução excedeu o tempo limite de ${Math.round(timeoutMs / 60_000)} minutos.`
+			: "O executor caiu durante a execução. O agente pode ter continuado a trabalhar no repositório: confira o projeto antes de repetir.";
+
+		if (run.kind === "flow") {
+			await finishFlowRunExternally(run, { status, message: error }).catch((caught) => {
+				console.error("[PromptRun] Falha ao encerrar fluxo sem sinal de vida:", caught);
+			});
+			continue;
+		}
+
 		await finishRun({
 			runId: run.id,
 			userId: run.user_id,
 			title: run.title,
-			status: overdue ? "timeout" : "failed",
-			error: overdue
-				? "A execução excedeu o tempo limite de 45 minutos."
-				: "O executor caiu durante a execução. O agente pode ter continuado a trabalhar no repositório — confira o projeto antes de repetir.",
-		}).catch((error) => {
-			console.error("[PromptRun] Falha ao encerrar execução sem sinal de vida:", error);
+			status,
+			error,
+		}).catch((caught) => {
+			console.error("[PromptRun] Falha ao encerrar execução sem sinal de vida:", caught);
 		});
 	}
 
 	return stale.length;
 }
 
-export function startPromptRunReconciler() {
+export function startRunReconciler() {
 	const timer = setInterval(() => {
-		void reconcileStalePromptRuns().catch((error) => {
+		void reconcileStaleRuns().catch((error) => {
 			console.error("[PromptRun] Falha ao reconciliar execuções:", error);
 		});
 	}, RECONCILE_INTERVAL_MS);
 	timer.unref();
 
-	return reconcileStalePromptRuns();
+	return reconcileStaleRuns();
 }
 
 export async function getPromptRun(runId: string, userId: number) {
@@ -621,7 +753,7 @@ export async function cancelPromptRun(runId: string, userId: number) {
 		return toPromptRunRecord(run);
 	}
 
-	const tracked = activeRuns.get(runId);
+	const tracked = getActiveRun(runId);
 	if (tracked) {
 		tracked.abort();
 		return toPromptRunRecord(run);
@@ -629,6 +761,15 @@ export async function cancelPromptRun(runId: string, userId: number) {
 
 	// Sem processo neste executor o abort não tem efeito: o run pertencia a um executor que morreu.
 	// Encerrar o registro na hora evita um "Cancelar" que não muda nada na tela.
+	if (run.kind === "flow") {
+		await finishFlowRunExternally(run, {
+			status: "cancelled",
+			message: "O fluxo foi cancelado: o executor que o iniciou não está mais no ar.",
+		});
+
+		return toPromptRunRecord((await dbExecutionRuns.getByIdForUser(runId, userId)) ?? run);
+	}
+
 	await finishRun({
 		runId,
 		userId,

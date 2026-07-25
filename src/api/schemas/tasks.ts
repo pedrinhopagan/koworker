@@ -359,3 +359,16 @@ export const TaskMetricsSchema = z.object({
 export const TaskFocusSchema = z.object({
 	projectId: z.string().min(1).nullable().optional(),
 });
+
+export const TaskNotifySchema = z
+	.object({
+		project_id: z.string().trim().min(1),
+		task_id: z.string().trim().min(1).optional(),
+		action: z.enum(["created", "updated", "deleted"]),
+	})
+	.strict()
+	.transform((raw) => ({
+		projectId: raw.project_id,
+		taskId: raw.task_id,
+		action: raw.action,
+	}));
