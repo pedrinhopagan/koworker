@@ -14,16 +14,9 @@ import {
 	SKILL_METADATA_FIELDS,
 	type SkillMetadataField,
 } from "@/constants/skills";
-import type { SkillDocumentSaveStatus } from "@/routes/_app/skills/-utils/use-skill-document-autosave";
+import { type DocSaveStatus, SaveStatus } from "@/components/ui/save-status";
 
 type Metadata = Record<string, unknown>;
-
-const SAVE_STATUS_LABEL: Record<SkillDocumentSaveStatus, string> = {
-	idle: "Sem alterações",
-	saving: "Salvando…",
-	saved: "Salvo",
-	error: "Erro ao salvar",
-};
 
 function valueType(value: unknown): SkillMetadataField["type"] {
 	if (typeof value === "boolean") {
@@ -351,7 +344,7 @@ export function SkillDocumentFrontmatter({
 	slug: string;
 	description: string;
 	metadata: Metadata;
-	status: SkillDocumentSaveStatus;
+	status: DocSaveStatus;
 	renaming: boolean;
 	onSlugCommit: (slug: string) => Promise<void>;
 	onDescriptionChange: (description: string) => void;
@@ -419,16 +412,7 @@ export function SkillDocumentFrontmatter({
 				<Title as="span" size="sm" className="flex-1">
 					Frontmatter
 				</Title>
-				<Text
-					as="span"
-					size="xs"
-					tone={status === "error" ? "destructive" : status === "saved" ? "success" : "muted"}
-					data-slot="save-status"
-					data-state={status}
-					aria-live="polite"
-				>
-					{SAVE_STATUS_LABEL[status]}
-				</Text>
+				<SaveStatus status={status} />
 			</button>
 
 			{open && (

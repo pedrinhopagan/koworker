@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import type { DocSaveStatus } from "@/components/ui/save-status";
+
 export type SkillDocumentSnapshot = {
 	variantPath: string;
 	description: string;
 	metadata: Record<string, unknown>;
 	content: string;
 };
-
-export type SkillDocumentSaveStatus = "idle" | "saving" | "saved" | "error";
 
 type SaveResult = {
 	skillHash: string;
@@ -28,7 +28,7 @@ export function useSkillDocumentAutosave({
 	debounceMs = 500,
 }: SkillDocumentAutosaveOptions) {
 	const [document, setDocument] = useState(initialDocument);
-	const [status, setStatus] = useState<SkillDocumentSaveStatus>("idle");
+	const [status, setStatus] = useState<DocSaveStatus>("idle");
 	const [pending, setPending] = useState(false);
 	const documentRef = useRef(initialDocument);
 	const skillHashRef = useRef(initialSkillHash);

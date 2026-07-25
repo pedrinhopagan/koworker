@@ -26,6 +26,7 @@ import { TaskItem } from "@/components/tasks";
 import { Text } from "@/components/typography";
 import { RECENCY_FRESH_WINDOW_MS, TASK_RECENCY_HIGHLIGHT_DEPTH } from "@/constants/tasks";
 import type { TaskSortMode } from "@/constants/tasks";
+import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { sortTasksByMode } from "@/lib/task-sorting";
 import { cn } from "@/lib/utils";
 import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
@@ -248,8 +249,10 @@ export function GroupedTaskList({
 				queryClient.setQueryData(key, data);
 			}
 		},
-		onSettled: () => {
-			queryClient.invalidateQueries({ predicate: (q) => isTasksQueryKey(q.queryKey) });
+		onSettled: (_data, _error, input) => {
+			void invalidateTaskQueries(queryClient, {
+				projectId: taskMap.get(input.orderedIds[0])?.projectId ?? null,
+			});
 		},
 	});
 

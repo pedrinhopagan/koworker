@@ -65,7 +65,7 @@ const AppFontesRoute = AppFontesRouteImport.update({
   id: '/fontes',
   path: '/fontes',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() => import('./routes/_app/fontes.lazy').then((d) => d.Route))
 const AppConfiguracoesRoute = AppConfiguracoesRouteImport.update({
   id: '/configuracoes',
   path: '/configuracoes',
@@ -75,7 +75,9 @@ const AppVaultIndexRoute = AppVaultIndexRouteImport.update({
   id: '/vault/',
   path: '/vault/',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app/vault/index.lazy').then((d) => d.Route),
+)
 const AppTarefasIndexRoute = AppTarefasIndexRouteImport.update({
   id: '/tarefas/',
   path: '/tarefas/',
@@ -100,17 +102,23 @@ const AppMostruarioIndexRoute = AppMostruarioIndexRouteImport.update({
   id: '/mostruario/',
   path: '/mostruario/',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app/mostruario/index.lazy').then((d) => d.Route),
+)
 const AppMediaIndexRoute = AppMediaIndexRouteImport.update({
   id: '/media/',
   path: '/media/',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app/media/index.lazy').then((d) => d.Route),
+)
 const AppExecutarIndexRoute = AppExecutarIndexRouteImport.update({
   id: '/executar/',
   path: '/executar/',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app/executar/index.lazy').then((d) => d.Route),
+)
 const AppAgentsIndexRoute = AppAgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
@@ -120,17 +128,23 @@ const AppVaultFileNameIndexRoute = AppVaultFileNameIndexRouteImport.update({
   id: '/vault/$fileName/',
   path: '/vault/$fileName/',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app/vault/$fileName/index.lazy').then((d) => d.Route),
+)
 const AppTarefasTaskIdIndexRoute = AppTarefasTaskIdIndexRouteImport.update({
   id: '/tarefas/$taskId/',
   path: '/tarefas/$taskId/',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app/tarefas/$taskId/index.lazy').then((d) => d.Route),
+)
 const AppSkillsSlugIndexRoute = AppSkillsSlugIndexRouteImport.update({
   id: '/skills/$slug/',
   path: '/skills/$slug/',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app/skills/$slug/index.lazy').then((d) => d.Route),
+)
 const AppProjetosNovoIndexRoute = AppProjetosNovoIndexRouteImport.update({
   id: '/projetos/novo/',
   path: '/projetos/novo/',
@@ -146,35 +160,53 @@ const AppMediaFileNameIndexRoute = AppMediaFileNameIndexRouteImport.update({
   id: '/media/$fileName/',
   path: '/media/$fileName/',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app/media/$fileName/index.lazy').then((d) => d.Route),
+)
 const AppExecutarExecutionIdIndexRoute =
   AppExecutarExecutionIdIndexRouteImport.update({
     id: '/executar/$executionId/',
     path: '/executar/$executionId/',
     getParentRoute: () => AppRoute,
-  } as any)
+  } as any).lazy(() =>
+    import('./routes/_app/executar/$executionId/index.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 const AppAgentsSlugIndexRoute = AppAgentsSlugIndexRouteImport.update({
   id: '/agents/$slug/',
   path: '/agents/$slug/',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app/agents/$slug/index.lazy').then((d) => d.Route),
+)
 const AppTarefasTaskIdFileRoute = AppTarefasTaskIdFileRouteImport.update({
   id: '/tarefas/$taskId/$file',
   path: '/tarefas/$taskId/$file',
   getParentRoute: () => AppRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_app/tarefas/$taskId/$file.lazy').then((d) => d.Route),
+)
 const AppTarefasTaskIdFileCanonicalFileRoute =
   AppTarefasTaskIdFileCanonicalFileRouteImport.update({
     id: '/tarefas/$taskId/$file_/$canonicalFile',
     path: '/tarefas/$taskId/$file/$canonicalFile',
     getParentRoute: () => AppRoute,
-  } as any)
+  } as any).lazy(() =>
+    import('./routes/_app/tarefas/$taskId/$file_/$canonicalFile.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 const AppProjetosProjetoIdDocsSplatRoute =
   AppProjetosProjetoIdDocsSplatRouteImport.update({
     id: '/projetos/$projetoId/docs/$',
     path: '/projetos/$projetoId/docs/$',
     getParentRoute: () => AppRoute,
-  } as any)
+  } as any).lazy(() =>
+    import('./routes/_app/projetos/$projetoId/docs/$.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute

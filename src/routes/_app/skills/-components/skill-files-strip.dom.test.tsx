@@ -1,5 +1,3 @@
-import "../../../../../tests/web/setup-dom";
-
 import { afterEach, describe, expect, test } from "bun:test";
 import {
 	cleanup,

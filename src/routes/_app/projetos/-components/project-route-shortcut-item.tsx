@@ -62,13 +62,7 @@ export function ProjectRouteShortcutItem({
 
 			await openProjectRoute({
 				projectId: project.id,
-				projectName: project.name,
-				route: {
-					id: route.id,
-					name: route.name,
-					path: route.route,
-					command: route.command ?? undefined,
-				},
+				route: { id: route.id, name: route.name },
 			});
 		} finally {
 			setIsOpening(false);

@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/client";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { orpc } from "@/client";
 import { AppShell } from "@/components/layout/app-shell";
@@ -7,7 +8,13 @@ import { useTerminalEvents } from "@/hooks/use-terminal-events";
 export const Route = createFileRoute("/_app")({
 	beforeLoad: async ({ context }) => {
 		try {
-			const user = await context.queryClient.ensureQueryData(orpc.auth.me.queryOptions());
+			const user = await context.queryClient.ensureQueryData({
+				...orpc.auth.me.queryOptions(),
+				retry: (failureCount, error) =>
+					failureCount < 10 && !(error instanceof ORPCError && error.code === "UNAUTHORIZED"),
+				retryDelay: 300,
+			});
+
 			return { user };
 		} catch {
 			throw redirect({ to: "/login" });

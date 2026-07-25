@@ -45,6 +45,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Switch } from "@/components/ui/switch";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { TaskSortMode } from "@/constants/tasks";
+import { useDebouncedSearch } from "@/hooks/use-debounced-search";
 import { cn } from "@/lib/utils";
 import type { TaskGroup } from "@/types/tasks";
 
@@ -333,6 +334,9 @@ export function TaskListControls({
 	const [creating, setCreating] = useState(false);
 	const [name, setName] = useState("");
 	const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+	const [searchDraft, setSearchDraft] = useDebouncedSearch(search.value.q ?? "", (next) => {
+		search.onChange({ ...search.value, q: next.trim().length > 0 ? next : undefined });
+	});
 
 	const groupsQuery = orpc.taskGroups.list.queryOptions({ input: { projectId: projectId ?? "" } });
 	const createMutation = useMutation({
@@ -367,11 +371,8 @@ export function TaskListControls({
 				<Search className="-translate-y-1/2 absolute top-1/2 left-2.5 size-4 text-muted-foreground" />
 				<Input
 					placeholder="Buscar tarefas..."
-					value={search.value.q ?? ""}
-					onChange={(event) => {
-						const next = event.target.value;
-						search.onChange({ ...search.value, q: next.trim().length > 0 ? next : undefined });
-					}}
+					value={searchDraft}
+					onChange={(event) => setSearchDraft(event.target.value)}
 					className="h-9 pl-8"
 				/>
 			</div>

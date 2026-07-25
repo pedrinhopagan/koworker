@@ -1,6 +1,6 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { ChevronRight, FileText, Folder, FolderOpen } from "lucide-react";
-import { type MouseEvent, type ReactNode, useState } from "react";
+import { ChevronRight, FileText, Folder, FolderOpen, GripVertical } from "lucide-react";
+import { memo, type MouseEvent, type ReactNode, useState } from "react";
 
 import { Text } from "@/components/typography";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -54,7 +54,11 @@ export function Tree(props: TreeProps) {
 	);
 }
 
-function TreeRow({ node, depth, ...props }: TreeProps & { node: TreeNode; depth: number }) {
+const TreeRow = memo(function TreeRow({
+	node,
+	depth,
+	...props
+}: TreeProps & { node: TreeNode; depth: number }) {
 	const {
 		expanded,
 		selectedKeys,
@@ -83,8 +87,6 @@ function TreeRow({ node, depth, ...props }: TreeProps & { node: TreeNode; depth:
 	// tardia). O ref vai num wrapper que envolve cabeçalho + filhos, então o drop pega a pasta
 	// inteira mesmo expandida. O highlight respeita `canDrop`; drop inválido é no-op no dono.
 	const droppable = useDroppable({ id: node.key, disabled: node.kind !== "taskFolder" });
-	const dragHandle =
-		node.kind === "fileLeaf" ? { ...draggable.listeners, ...draggable.attributes } : {};
 	const showDropTarget = droppable.isOver && !!canDrop?.(node);
 
 	function activate(event: MouseEvent) {
@@ -105,10 +107,8 @@ function TreeRow({ node, depth, ...props }: TreeProps & { node: TreeNode; depth:
 		}
 	}
 
-	const row = (
+	const rowButton = (
 		<button
-			ref={node.kind === "fileLeaf" ? draggable.setNodeRef : undefined}
-			{...dragHandle}
 			type="button"
 			aria-disabled={inert || undefined}
 			aria-expanded={folder ? open : undefined}
@@ -117,7 +117,7 @@ function TreeRow({ node, depth, ...props }: TreeProps & { node: TreeNode; depth:
 			onClick={activate}
 			style={{ paddingLeft: depth * 16 + 8 }}
 			className={cn(
-				"group flex h-8 w-full items-center gap-1.5 pr-2 text-left transition-colors",
+				"group flex h-11 w-full items-center gap-1.5 pr-2 text-left transition-colors sm:h-8",
 				selected ? "bg-primary/15 hover:bg-primary/20" : "hover:bg-secondary/60",
 				node.kind === "fileLeaf" && draggable.isDragging && "opacity-40",
 				inert && !selected && "cursor-default",
@@ -141,6 +141,25 @@ function TreeRow({ node, depth, ...props }: TreeProps & { node: TreeNode; depth:
 			</span>
 		</button>
 	);
+
+	const row =
+		node.kind === "fileLeaf" ? (
+			<div ref={draggable.setNodeRef} className="group/row flex w-full min-w-0 items-center">
+				<div className="min-w-0 flex-1">{rowButton}</div>
+				<span
+					ref={draggable.setActivatorNodeRef}
+					{...draggable.listeners}
+					{...draggable.attributes}
+					aria-label={`Arrastar ${node.label}`}
+					title="Arraste para mover o arquivo"
+					className="flex h-11 w-10 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground/50 transition-colors hover:text-foreground sm:h-8 sm:w-7 sm:opacity-0 sm:group-hover/row:opacity-100 sm:focus-visible:opacity-100"
+				>
+					<GripVertical className="size-4" />
+				</span>
+			</div>
+		) : (
+			rowButton
+		);
 
 	const base = wrapNode ? wrapNode(node, row, setMenuOpen) : row;
 	// Tooltip rica em pasta de tarefa (prioridade/categoria/edição), agent e skill (infos básicas).
@@ -213,7 +232,7 @@ function TreeRow({ node, depth, ...props }: TreeProps & { node: TreeNode; depth:
 	}
 
 	return content;
-}
+});
 
 function MetaRow({ color, label, value }: { color: string | null; label: string; value: string }) {
 	return (

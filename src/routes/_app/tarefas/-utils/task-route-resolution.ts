@@ -1,5 +1,11 @@
 export const NO_FEATURE_ROUTE_ID = "sem-feature";
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isTaskIdSegment(segment: string) {
+	return UUID_PATTERN.test(segment);
+}
+
 export function taskFeatureRouteId(groupId: string | null | undefined) {
 	return groupId || NO_FEATURE_ROUTE_ID;
 }

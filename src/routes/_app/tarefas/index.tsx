@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, WifiOff } from "lucide-react";
 import { z } from "zod";
 
 import { PageShell } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { EmptyFeedback } from "@/components/ui/empty-feedback";
 import { TASK_COMPLEXITIES, type TaskComplexity } from "@/constants/complexity";
 import { useTaskSortMode } from "@/hooks/use-task-sort-mode";
 import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
@@ -78,7 +79,7 @@ export const Route = createFileRoute("/_app/tarefas/")({
 function TarefasPage() {
 	const search = Route.useSearch();
 	const navigate = Route.useNavigate();
-	const { data, loading, hasMore, loadingMore, loadMore } = useTasksData(search);
+	const { data, loading, isError, refetch, hasMore, loadingMore, loadMore } = useTasksData(search);
 	const { createTask, loading: createLoading } = useCreateTask();
 	const [sortMode, setSortMode] = useTaskSortMode();
 	// Colapso por grupo (chaveado por `id ?? NO_GROUP`) e ordem do "Sem grupo" vivem no store
@@ -142,7 +143,15 @@ function TarefasPage() {
 				/>
 
 				<div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-2 pb-6">
-					{data.selectedProjectId === undefined ? (
+					{isError ? (
+						<EmptyFeedback
+							icon={WifiOff}
+							title="Não foi possível carregar as tarefas"
+							subtitle="A lista abaixo não reflete o que está salvo. Verifique a conexão com o servidor."
+							actionText="Tentar de novo"
+							onAction={() => void refetch()}
+						/>
+					) : data.selectedProjectId === undefined ? (
 						<GroupedTaskListByProject
 							tasks={data.tasks}
 							groups={data.groups}

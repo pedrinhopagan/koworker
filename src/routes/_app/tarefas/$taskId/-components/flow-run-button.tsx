@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { orpc, orpcWs, type RouterOutputs } from "@/client";
 import { DocSheetActionButton } from "@/components/doc-mobile-actions-drawer";
 import { Tooltip } from "@/components/ui/tooltip";
+import { subscribeWithRetry } from "@/lib/realtime-subscription";
 import { cn } from "@/lib/utils";
 
 type FlowEvent = NonNullable<RouterOutputs["flow"]["status"]["event"]>;
@@ -52,28 +53,22 @@ export function FlowRunButton({
 }) {
 	const statusQuery = useQuery(orpc.flow.status.queryOptions({ input: { taskId } }));
 	const [live, setLive] = useState<FlowEvent | null>(null);
+	const refetchStatus = statusQuery.refetch;
 
 	useEffect(() => {
 		setLive(null);
 		const controller = new AbortController();
 
-		async function subscribe() {
-			try {
-				const events = await orpcWs.flow.call({ taskId }, { signal: controller.signal });
-				for await (const event of events) {
-					setLive(event);
-				}
-			} catch (error) {
-				if (error instanceof Error && error.name === "AbortError") {
-					return;
-				}
-				console.error("[Flow] Erro na subscription:", error);
-			}
-		}
+		subscribeWithRetry({
+			label: "Flow",
+			signal: controller.signal,
+			subscribe: (signal) => orpcWs.flow.call({ taskId }, { signal }),
+			onEvent: setLive,
+			onReconnect: () => void refetchStatus(),
+		});
 
-		subscribe();
 		return () => controller.abort();
-	}, [taskId]);
+	}, [taskId, refetchStatus]);
 
 	const event = live ?? statusQuery.data?.event ?? null;
 	const isRunning = event?.status === "running" || (statusQuery.data?.running ?? false);

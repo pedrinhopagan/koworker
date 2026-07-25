@@ -1,5 +1,3 @@
-import "../../../../../tests/web/setup-dom";
-
 import { afterEach, describe, expect, test } from "bun:test";
 import { act, cleanup, renderHook, waitFor } from "../../../../../tests/web/testing-library";
 import {
