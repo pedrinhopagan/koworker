@@ -14,14 +14,17 @@ process.env.NODE_ENV = "development";
 const successRoute = join(root, "success");
 const obsoleteRoute = join(root, "obsolete");
 const resumeRoute = join(root, "resume");
+const missingRoute = join(root, "missing");
 await Promise.all([
 	mkdir(join(successRoute, ".koworker", "task-success"), { recursive: true }),
 	mkdir(join(obsoleteRoute, ".koworker", "task-obsolete"), { recursive: true }),
 	mkdir(join(resumeRoute, ".koworker", "task-resume"), { recursive: true }),
+	mkdir(join(missingRoute, ".koworker", "task-missing"), { recursive: true }),
 ]);
 await Bun.write(join(successRoute, ".koworker", "task-success", "index.md"), "# Conteúdo\n");
 await Bun.write(join(obsoleteRoute, ".koworker", "task-obsolete", "index.md"), "# Antes\n");
 await Bun.write(join(resumeRoute, ".koworker", "task-resume", "index.md"), "# Retomar\n");
+await Bun.write(join(missingRoute, ".koworker", "task-missing", "index.md"), "# Sumido\n");
 
 const { db } = await import("../db/connection");
 const { ensureDbSchema } = await import("../db/migrate");
@@ -64,6 +67,16 @@ await db
 			task_layout_version: 1,
 			created_at: 3,
 		},
+		{
+			id: "aaaaaaaa-0000-4000-8000-000000000044",
+			name: "Sumido",
+			color: "#000000",
+			display_order: 3,
+			main_route: missingRoute,
+			hide_terminal: 0,
+			task_layout_version: 1,
+			created_at: 4,
+		},
 	])
 	.execute();
 await db
@@ -98,6 +111,16 @@ await db
 			color: "#000000",
 			display_order: 0,
 			created_at: 3,
+		},
+		{
+			id: "eeeeeeee-0000-4000-8000-000000000044",
+			name: "/Sumidos",
+			project_id: "aaaaaaaa-0000-4000-8000-000000000044",
+			storage_key: "eeeeeeee",
+			storage_slug: "sumidos",
+			color: "#000000",
+			display_order: 0,
+			created_at: 4,
 		},
 	])
 	.execute();
@@ -142,6 +165,19 @@ await db
 			display_order: 0,
 			done: 0,
 			created_at: 3,
+		},
+		{
+			id: "44444444-aaaa-4000-8000-000000000044",
+			project_id: "aaaaaaaa-0000-4000-8000-000000000044",
+			folder_path: ".koworker/task-missing",
+			storage_key: "44444444",
+			storage_slug: "sumido",
+			title: "Sumido",
+			group_id: "eeeeeeee-0000-4000-8000-000000000044",
+			complexity: "medio",
+			display_order: 0,
+			done: 0,
+			created_at: 4,
 		},
 	])
 	.execute();
@@ -239,6 +275,38 @@ const resumedTask = await db
 	.where("t.id", "=", "33333333-aaaa-4000-8000-000000000043")
 	.executeTakeFirstOrThrow();
 
+const missingPreview = await previewTaskStorage("aaaaaaaa-0000-4000-8000-000000000044");
+await sql`CREATE TRIGGER skip_task_commit
+	BEFORE UPDATE OF folder_path ON tasks
+	WHEN NEW.id = '44444444-aaaa-4000-8000-000000000044'
+	BEGIN SELECT RAISE(IGNORE); END`.execute(db);
+let missingError: string | undefined;
+try {
+	await applyTaskStorage({
+		projectId: "aaaaaaaa-0000-4000-8000-000000000044",
+		planHash: missingPreview.planHash,
+		confirmed: true,
+	});
+} catch (error) {
+	missingError = error instanceof Error ? error.message : String(error);
+}
+await sql`DROP TRIGGER skip_task_commit`.execute(db);
+const missingTask = await db
+	.selectFrom("tasks as t")
+	.selectAll("t")
+	.where("t.id", "=", "44444444-aaaa-4000-8000-000000000044")
+	.executeTakeFirstOrThrow();
+const missingRun = await db
+	.selectFrom("task_storage_runs as tsr")
+	.selectAll("tsr")
+	.where("tsr.project_id", "=", "aaaaaaaa-0000-4000-8000-000000000044")
+	.executeTakeFirstOrThrow();
+const missingProject = await db
+	.selectFrom("projects as p")
+	.selectAll("p")
+	.where("p.id", "=", "aaaaaaaa-0000-4000-8000-000000000044")
+	.executeTakeFirstOrThrow();
+
 await db.destroy();
 
 console.log(
@@ -248,6 +316,10 @@ console.log(
 		destinationContent: successArtifacts.destinationContent,
 		manifestExists: successArtifacts.manifestExists,
 		injectedError,
+		missingError,
+		missingFolderPath: missingTask.folder_path,
+		missingProjectVersion: missingProject.task_layout_version,
+		missingRunStatus: missingRun.status,
 		obsoleteError,
 		obsoleteRuns: obsoleteRuns.length,
 		projectVersion: successProject.task_layout_version,

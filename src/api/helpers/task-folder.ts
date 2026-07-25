@@ -20,6 +20,10 @@ const taskFolderMetaCache = createFolderCache<{
 
 const taskFirstContentCache = createFolderCache<string | undefined>(TASK_FOLDER_META_TTL_MS);
 
+function taskFolderCacheKey(params: { projectRoute: string; folderPath: string }) {
+	return `${params.projectRoute}\u0000${params.folderPath}`;
+}
+
 // Garante que `.koworker/` está no `.gitignore` do projeto. O conteúdo das tasks é
 // canônico no FS mas nunca deve ir pro git. Idempotente: só faz append se faltar.
 async function ensureKoworkerGitignored(projectRoute: string): Promise<void> {
@@ -180,12 +184,14 @@ export async function readTaskFolderMeta(params: {
 	projectRoute: string;
 	folderPath: string;
 }): Promise<{ fileNames: string[]; artifactNames: string[]; lastEditedAt?: number }> {
-	const dir = await resolveExistingTaskFolder(params).catch(() => null);
-	if (!dir) {
-		return { fileNames: [], artifactNames: [] };
-	}
+	return await taskFolderMetaCache.getResolved(taskFolderCacheKey(params), async () => {
+		const dir = await resolveExistingTaskFolder(params).catch(() => null);
+		if (!dir) {
+			return { value: { fileNames: [], artifactNames: [] }, path: null };
+		}
 
-	return await taskFolderMetaCache.get(dir, () => loadTaskFolderMeta(dir));
+		return { value: await loadTaskFolderMeta(dir), path: dir };
+	});
 }
 
 async function loadTaskFolderMeta(
@@ -260,12 +266,14 @@ export async function readFirstMarkdownContent(params: {
 	projectRoute: string;
 	folderPath: string;
 }): Promise<string | undefined> {
-	const dir = await resolveExistingTaskFolder(params).catch(() => null);
-	if (!dir) {
-		return undefined;
-	}
+	return await taskFirstContentCache.getResolved(taskFolderCacheKey(params), async () => {
+		const dir = await resolveExistingTaskFolder(params).catch(() => null);
+		if (!dir) {
+			return { value: undefined, path: null };
+		}
 
-	return await taskFirstContentCache.get(dir, () => loadFirstMarkdownContent(dir));
+		return { value: await loadFirstMarkdownContent(dir), path: dir };
+	});
 }
 
 async function loadFirstMarkdownContent(dir: string): Promise<string | undefined> {

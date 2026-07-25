@@ -1,9 +1,21 @@
-import { cp, lstat, mkdir, open, readFile, rename, stat, statfs } from "node:fs/promises";
+import {
+	cp,
+	link,
+	lstat,
+	mkdir,
+	readdir,
+	readFile,
+	rename,
+	rm,
+	stat,
+	statfs,
+	writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import Database from "bun:sqlite";
 
 import { envVariables } from "../config/env";
-import { db } from "../db/connection";
+import { db, type tasks } from "../db/connection";
 import { dbExecutionRuns } from "../db/execution-runs";
 import { dbProjects } from "../db/projects";
 import { dbTaskGroups } from "../db/task-groups";
@@ -17,6 +29,7 @@ import {
 } from "./task-storage-scan";
 import { resolveExistingTaskFolder, resolveTaskFolderDestination } from "./task-storage-path";
 import { buildExpectedTaskFolderPath, normalizeStorageSlug } from "./task-storage-path";
+import { CLEARED_TASK_WORKTREE_METADATA } from "./task-worktree";
 import { releaseTaskWatcher, suppressTaskWatcher } from "./tasks-watcher";
 
 type TaskStoragePlan = Awaited<ReturnType<typeof previewTaskStorage>>;
@@ -34,98 +47,283 @@ function lockPath(projectRoute: string, projectId: string) {
 }
 
 function processIsAlive(pid: number) {
+	if (!Number.isInteger(pid) || pid <= 0) {
+		return false;
+	}
+
 	try {
 		process.kill(pid, 0);
 		return true;
-	} catch {
-		return false;
+	} catch (error: any) {
+		return error?.code === "EPERM";
 	}
+}
+
+const MUTATION_LOCK_WAIT_MS = 10_000;
+const MUTATION_LOCK_RETRY_MS = 25;
+const UNREADABLE_LOCK_GRACE_MS = 30_000;
+const TEMPORARY_LOCK_GRACE_MS = 60_000;
+const ORPHAN_LOCK_RECLAIM_LIMIT = 5;
+const LINK_UNSUPPORTED_CODES = new Set([
+	"EPERM",
+	"ENOSYS",
+	"EOPNOTSUPP",
+	"ENOTSUP",
+	"EXDEV",
+	"EMLINK",
+]);
+
+type ProjectLockKind = "reconciliation" | "mutation";
+
+type ProjectLockPayload = { pid?: number; owner?: string; kind?: ProjectLockKind };
+
+function readProjectLock(path: string) {
+	return readFile(path, "utf8")
+		.then((content) => JSON.parse(content) as ProjectLockPayload)
+		.catch(() => null);
+}
+
+async function inspectProjectLock(path: string) {
+	const payload = await readProjectLock(path);
+	if (payload?.pid) {
+		return { payload, orphan: !processIsAlive(payload.pid) };
+	}
+
+	const entry = await lstat(path).catch(() => null);
+	if (!entry) {
+		return { payload: null, orphan: true };
+	}
+
+	return { payload, orphan: Date.now() - entry.mtimeMs >= UNREADABLE_LOCK_GRACE_MS };
+}
+
+function lockBusyMessage(holder: ProjectLockPayload) {
+	if (holder.kind === "mutation") {
+		return "Outra alteração de tarefas deste projeto está em andamento: tente novamente em instantes";
+	}
+
+	return "O storage de tarefas deste projeto está em reconciliação: aguarde a conclusão para alterar tarefas";
 }
 
 async function acquireProjectLock(input: {
 	projectRoute: string;
 	projectId: string;
 	runId: string;
+	kind: ProjectLockKind;
+	waitMs?: number;
 }) {
 	const path = lockPath(input.projectRoute, input.projectId);
 	await mkdir(dirname(path), { recursive: true });
 	const payload = {
 		pid: process.pid,
 		runId: input.runId,
+		kind: input.kind,
 		createdAt: Date.now(),
 		owner: crypto.randomUUID(),
 	};
+	const deadline = Date.now() + (input.waitMs || 0);
+
+	const serialized = JSON.stringify(payload);
 
 	async function create() {
-		const handle = await open(path, "wx");
-		await handle.writeFile(JSON.stringify(payload));
-		await handle.close();
+		const temporary = `${path}.tmp.${crypto.randomUUID()}`;
+		await writeFile(temporary, serialized, { flag: "wx" });
+
+		try {
+			await link(temporary, path);
+		} catch (error: any) {
+			if (error?.code === "EEXIST" || !LINK_UNSUPPORTED_CODES.has(error?.code)) {
+				throw error;
+			}
+
+			console.error(
+				`O filesystem do projeto não suporta hardlink: o lock de storage caiu para criação exclusiva em ${path}`,
+				error,
+			);
+			await writeFile(path, serialized, { flag: "wx" });
+		} finally {
+			await rm(temporary, { force: true });
+		}
 	}
 
-	try {
-		await create();
-	} catch (error: any) {
-		if (error?.code !== "EEXIST") {
-			throw error;
-		}
+	async function claim(): Promise<void> {
+		let reclaims = 0;
 
-		const current = await readFile(path, "utf8")
-			.then((content) => JSON.parse(content) as { pid?: number })
-			.catch((): { pid?: number } => ({}));
-		if (current.pid && processIsAlive(current.pid)) {
-			throw new Error("Já existe uma reconciliação ativa neste projeto", { cause: error });
-		}
+		for (;;) {
+			try {
+				return await create();
+			} catch (error: any) {
+				if (error?.code !== "EEXIST") {
+					throw error;
+				}
 
-		await rename(path, `${path}.abandoned.${crypto.randomUUID()}`);
-		await create();
+				const current = await inspectProjectLock(path);
+				if (current.orphan) {
+					if (reclaims >= ORPHAN_LOCK_RECLAIM_LIMIT) {
+						throw new Error(
+							"O lock de storage deste projeto continua sendo recriado por um dono órfão",
+							{ cause: error },
+						);
+					}
+
+					reclaims += 1;
+					await rm(path, { force: true });
+					await Bun.sleep(MUTATION_LOCK_RETRY_MS);
+					continue;
+				}
+
+				const holder: ProjectLockPayload = current.payload || { kind: "mutation" };
+				if (holder.kind !== "mutation" || Date.now() >= deadline) {
+					throw new Error(lockBusyMessage(holder), { cause: error });
+				}
+
+				await Bun.sleep(MUTATION_LOCK_RETRY_MS);
+			}
+		}
 	}
+
+	await claim();
 
 	return {
 		owner: payload.owner,
 		async release() {
-			const current = await readFile(path, "utf8")
-				.then((content) => JSON.parse(content) as { owner?: string })
-				.catch(() => null);
-			if (current?.owner !== payload.owner) {
-				throw new Error("O lock da reconciliação mudou de dono");
+			const current = await readProjectLock(path);
+
+			if (current && current.owner !== payload.owner) {
+				console.error(`O lock de storage mudou de dono antes da liberação: ${path}`);
+				return;
 			}
 
-			await rename(path, `${path}.released.${crypto.randomUUID()}`);
+			await rm(path, { force: true }).catch((error) => {
+				console.error(`Falha ao remover o lock de storage: ${path}`, error);
+			});
 		},
 	};
 }
 
-export async function assertProjectStorageAvailable(input: {
-	projectId: string;
-	projectRoute: string;
-}) {
-	const [activeRun, lock] = await Promise.all([
-		dbTaskStorageRuns.getActiveByProject(input.projectId),
-		lstat(lockPath(input.projectRoute, input.projectId)).catch(() => null),
-	]);
-	if (activeRun || lock) {
-		throw new Error("O storage de tarefas deste projeto está em reconciliação");
+const projectMutationQueues = new Map<string, Promise<void>>();
+
+function enqueueProjectMutation<T>(projectId: string, operation: () => Promise<T>) {
+	const previous = projectMutationQueues.get(projectId) || Promise.resolve();
+	const result = previous.then(operation, operation);
+	const tail = result.then(
+		() => {},
+		() => {},
+	);
+	projectMutationQueues.set(projectId, tail);
+	void tail.then(() => {
+		if (projectMutationQueues.get(projectId) === tail) {
+			projectMutationQueues.delete(projectId);
+		}
+	});
+
+	return result;
+}
+
+function enqueueProjectsMutation<T>(projectIds: string[], operation: () => Promise<T>): Promise<T> {
+	const [first, ...rest] = [...new Set(projectIds)].sort((left, right) =>
+		left.localeCompare(right),
+	);
+	if (!first) {
+		return operation();
+	}
+
+	return enqueueProjectMutation(first, () => enqueueProjectsMutation(rest, operation));
+}
+
+async function assertNoActiveReconciliation(projectId: string) {
+	if (await dbTaskStorageRuns.getActiveByProject(projectId)) {
+		throw new Error(
+			"O storage de tarefas deste projeto está em reconciliação: aguarde a conclusão para alterar tarefas",
+		);
+	}
+}
+
+async function assertTaskStorageUnchanged(task: Pick<tasks, "id" | "project_id" | "folder_path">) {
+	const current = await dbTasks.getById(task.id);
+	if (
+		!current ||
+		current.project_id !== task.project_id ||
+		current.folder_path !== task.folder_path
+	) {
+		throw new Error(
+			"O storage desta tarefa mudou enquanto a operação aguardava a vez: refaça a operação",
+		);
+	}
+}
+
+async function withMutationLocks<T>(
+	projects: { id: string; main_route: string }[],
+	operation: () => Promise<T>,
+) {
+	const runId = crypto.randomUUID();
+	const acquired: Awaited<ReturnType<typeof acquireProjectLock>>[] = [];
+
+	try {
+		for (const project of projects) {
+			await assertNoActiveReconciliation(project.id);
+			acquired.push(
+				await acquireProjectLock({
+					projectRoute: project.main_route,
+					projectId: project.id,
+					runId,
+					kind: "mutation",
+					waitMs: MUTATION_LOCK_WAIT_MS,
+				}),
+			);
+		}
+
+		return await operation();
+	} finally {
+		for (const lock of acquired.toReversed()) {
+			await lock.release();
+		}
 	}
 }
 
 export async function withProjectStorageLock<T>(
-	input: { projectId: string; projectRoute: string },
+	input: {
+		projectId: string;
+		projectRoute: string;
+		task?: Pick<tasks, "id" | "project_id" | "folder_path">;
+	},
 	operation: () => Promise<T>,
 ) {
-	const runId = crypto.randomUUID();
-	const lock = await acquireProjectLock({
-		projectRoute: input.projectRoute,
-		projectId: input.projectId,
-		runId,
-	});
-	try {
-		const activeRun = await dbTaskStorageRuns.getActiveByProject(input.projectId);
-		if (activeRun) {
-			throw new Error("O storage de tarefas deste projeto está em reconciliação");
+	return await enqueueProjectMutation(input.projectId, () =>
+		withMutationLocks([{ id: input.projectId, main_route: input.projectRoute }], async () => {
+			if (input.task) {
+				await assertTaskStorageUnchanged(input.task);
+			}
+
+			return await operation();
+		}),
+	);
+}
+
+export async function purgeOrphanStorageLocks() {
+	for (const project of await dbProjects.listRoots()) {
+		const directory = join(project.main_route, ".koworker", ".staging", "locks");
+		const entries = await readdir(directory).catch((): string[] => []);
+
+		for (const entry of entries) {
+			const path = join(directory, entry);
+			if (entry.endsWith(".lock")) {
+				if (!(await inspectProjectLock(path)).orphan) {
+					continue;
+				}
+			} else if (entry.includes(".lock.tmp.")) {
+				const temporary = await lstat(path).catch(() => null);
+				if (!temporary || Date.now() - temporary.mtimeMs < TEMPORARY_LOCK_GRACE_MS) {
+					continue;
+				}
+			} else if (!entry.includes(".lock.")) {
+				continue;
+			}
+
+			await rm(path, { recursive: true, force: true }).catch((error) => {
+				console.error(`Falha ao remover lock órfão de storage: ${path}`, error);
+			});
 		}
-		return await operation();
-	} finally {
-		await lock.release();
 	}
 }
 
@@ -306,7 +504,7 @@ async function commitDatabase(input: { runId: string; plan: TaskStoragePlan }) {
 				throw new Error("Item do plano sem identidade materializável");
 			}
 
-			await trx
+			const updated = await trx
 				.updateTable("tasks")
 				.set({
 					folder_path: item.destinationPath,
@@ -314,14 +512,22 @@ async function commitDatabase(input: { runId: string; plan: TaskStoragePlan }) {
 					updated_at: Date.now(),
 				})
 				.where("id", "=", item.taskId)
-				.executeTakeFirstOrThrow();
+				.returning("id")
+				.executeTakeFirst();
+			if (!updated) {
+				throw new Error(`A tarefa ${item.taskId} do plano não existe mais para receber o commit`);
+			}
 		}
 
-		await trx
+		const project = await trx
 			.updateTable("projects")
 			.set({ task_layout_version: input.plan.toLayoutVersion, updated_at: Date.now() })
 			.where("id", "=", input.plan.projectId)
-			.executeTakeFirstOrThrow();
+			.returning("id")
+			.executeTakeFirst();
+		if (!project) {
+			throw new Error("O projeto do plano não existe mais para receber o commit");
+		}
 		const run = await trx
 			.updateTable("task_storage_runs")
 			.set({ status: "committed_db", updated_at: Date.now() })
@@ -484,33 +690,40 @@ export async function applyTaskStorage(input: {
 	if (!project) {
 		throw new Error("Projeto não encontrado");
 	}
-	const runId = crypto.randomUUID();
-	const lock = await acquireProjectLock({
-		projectRoute: project.main_route,
-		projectId: project.id,
-		runId,
+	return await enqueueProjectMutation(project.id, async () => {
+		const runId = crypto.randomUUID();
+		const lock = await acquireProjectLock({
+			projectRoute: project.main_route,
+			projectId: project.id,
+			runId,
+			kind: "reconciliation",
+		});
+
+		try {
+			suppressTaskWatcher(project.id);
+			try {
+				const plan = await previewTaskStorage(input.projectId);
+				if (plan.planHash !== input.planHash) {
+					throw new Error("O plano de reconciliação ficou obsoleto");
+				}
+				if (plan.totals.blocked > 0) {
+					throw new Error("O plano possui conflitos bloqueantes");
+				}
+				if (plan.orphans.length > 0) {
+					throw new Error("Importe ou trate as pastas órfãs antes de aplicar o layout");
+				}
+				const run = await applyLocked({ project, plan, runId, lockOwner: lock.owner });
+				if (!run) {
+					throw new Error("O journal não confirmou a conclusão da reconciliação");
+				}
+				return run;
+			} finally {
+				releaseTaskWatcher(project.id);
+			}
+		} finally {
+			await lock.release();
+		}
 	});
-	suppressTaskWatcher(project.id);
-	try {
-		const plan = await previewTaskStorage(input.projectId);
-		if (plan.planHash !== input.planHash) {
-			throw new Error("O plano de reconciliação ficou obsoleto");
-		}
-		if (plan.totals.blocked > 0) {
-			throw new Error("O plano possui conflitos bloqueantes");
-		}
-		if (plan.orphans.length > 0) {
-			throw new Error("Importe ou trate as pastas órfãs antes de aplicar o layout");
-		}
-		const run = await applyLocked({ project, plan, runId, lockOwner: lock.owner });
-		if (!run) {
-			throw new Error("O journal não confirmou a conclusão da reconciliação");
-		}
-		return run;
-	} finally {
-		releaseTaskWatcher(project.id);
-		await lock.release();
-	}
 }
 
 export async function resumeTaskStorage(runId: string) {
@@ -538,30 +751,36 @@ export async function resumeTaskStorage(runId: string) {
 		runId: run.id,
 	});
 
-	const lock = await acquireProjectLock({
-		projectRoute: project.main_route,
-		projectId: project.id,
-		runId: run.id,
-	});
-	const claimed = await dbTaskStorageRuns.claimLock({ id: run.id, lockOwner: lock.owner });
-	if (!claimed) {
-		await lock.release();
-		throw new Error("O run não pode ser retomado neste estado");
-	}
-	suppressTaskWatcher(project.id);
-	try {
-		const resumed = await continueTaskStorageRun({ project, plan, runId: run.id });
-		if (!resumed) {
-			throw new Error("O journal não confirmou a retomada da reconciliação");
+	return await enqueueProjectMutation(project.id, async () => {
+		const lock = await acquireProjectLock({
+			projectRoute: project.main_route,
+			projectId: project.id,
+			runId: run.id,
+			kind: "reconciliation",
+		});
+		try {
+			const claimed = await dbTaskStorageRuns.claimLock({ id: run.id, lockOwner: lock.owner });
+			if (!claimed) {
+				throw new Error("O run não pode ser retomado neste estado");
+			}
+
+			suppressTaskWatcher(project.id);
+			try {
+				const resumed = await continueTaskStorageRun({ project, plan, runId: run.id });
+				if (!resumed) {
+					throw new Error("O journal não confirmou a retomada da reconciliação");
+				}
+				return resumed;
+			} catch (error) {
+				await blockTaskStorageRun(run.id, error);
+				throw error;
+			} finally {
+				releaseTaskWatcher(project.id);
+			}
+		} finally {
+			await lock.release();
 		}
-		return resumed;
-	} catch (error) {
-		await blockTaskStorageRun(run.id, error);
-		throw error;
-	} finally {
-		releaseTaskWatcher(project.id);
-		await lock.release();
-	}
+	});
 }
 
 async function prepareRollback(input: {
@@ -677,18 +896,26 @@ async function commitRollback(input: {
 }) {
 	await db.transaction().execute(async (trx) => {
 		for (const item of input.restored) {
-			await trx
+			const updated = await trx
 				.updateTable("tasks")
 				.set({ folder_path: item.folderPath, updated_at: Date.now() })
 				.where("id", "=", item.taskId)
-				.executeTakeFirstOrThrow();
+				.returning("id")
+				.executeTakeFirst();
+			if (!updated) {
+				throw new Error(`A tarefa ${item.taskId} não existe mais para receber o rollback`);
+			}
 		}
 
-		await trx
+		const project = await trx
 			.updateTable("projects")
 			.set({ task_layout_version: input.plan.fromLayoutVersion, updated_at: Date.now() })
 			.where("id", "=", input.plan.projectId)
-			.executeTakeFirstOrThrow();
+			.returning("id")
+			.executeTakeFirst();
+		if (!project) {
+			throw new Error("O projeto do plano não existe mais para receber o rollback");
+		}
 		const run = await trx
 			.updateTable("task_storage_runs")
 			.set({ status: "rolled_back", updated_at: Date.now(), completed_at: Date.now() })
@@ -721,44 +948,51 @@ export async function rollbackTaskStorage(runId: string) {
 		runId: run.id,
 	});
 
-	const lock = await acquireProjectLock({
-		projectRoute: project.main_route,
-		projectId: project.id,
-		runId: run.id,
-	});
-	suppressTaskWatcher(project.id);
-	try {
-		const current = await dbTaskStorageRuns.getById(run.id);
-		if (!current) {
-			throw new Error("Run de storage não encontrado");
-		}
-		if (current.status === "planned") {
-			await dbTaskStorageRuns.transition({ id: run.id, transition: "block" });
-		}
-		const rollbackRequired = await dbTaskStorageRuns.transition({
-			id: run.id,
-			transition: "requireRollback",
-		});
-		if (!rollbackRequired) {
-			throw new Error("O run não pode iniciar rollback neste estado");
-		}
-
-		const restored = await prepareRollback({
+	return await enqueueProjectMutation(project.id, async () => {
+		const lock = await acquireProjectLock({
 			projectRoute: project.main_route,
-			plan,
+			projectId: project.id,
 			runId: run.id,
+			kind: "reconciliation",
 		});
-		await commitRollback({ plan, restored, runId: run.id });
+		try {
+			suppressTaskWatcher(project.id);
+			try {
+				const current = await dbTaskStorageRuns.getById(run.id);
+				if (!current) {
+					throw new Error("Run de storage não encontrado");
+				}
+				if (current.status === "planned") {
+					await dbTaskStorageRuns.transition({ id: run.id, transition: "block" });
+				}
+				const rollbackRequired = await dbTaskStorageRuns.transition({
+					id: run.id,
+					transition: "requireRollback",
+				});
+				if (!rollbackRequired) {
+					throw new Error("O run não pode iniciar rollback neste estado");
+				}
 
-		const rolledBack = await dbTaskStorageRuns.getById(run.id);
-		if (!rolledBack) {
-			throw new Error("O journal não confirmou o rollback");
+				const restored = await prepareRollback({
+					projectRoute: project.main_route,
+					plan,
+					runId: run.id,
+				});
+				await commitRollback({ plan, restored, runId: run.id });
+
+				const rolledBack = await dbTaskStorageRuns.getById(run.id);
+				if (!rolledBack) {
+					throw new Error("O journal não confirmou o rollback");
+				}
+
+				return rolledBack;
+			} finally {
+				releaseTaskWatcher(project.id);
+			}
+		} finally {
+			await lock.release();
 		}
-		return rolledBack;
-	} finally {
-		releaseTaskWatcher(project.id);
-		await lock.release();
-	}
+	});
 }
 
 export type TaskRelinkIntent = {
@@ -815,47 +1049,14 @@ async function loadRelinkContext(intent: TaskRelinkIntent) {
 	return { destinationPath, group, intent, sourceProject, storageSlug, targetProject, task };
 }
 
-async function acquireProjectLocks(input: {
-	contexts: Awaited<ReturnType<typeof loadRelinkContext>>[];
-	runId: string;
-}) {
+function relinkProjects(contexts: Awaited<ReturnType<typeof loadRelinkContext>>[]) {
 	const projects = new Map<string, { id: string; main_route: string }>();
-	for (const context of input.contexts) {
+	for (const context of contexts) {
 		projects.set(context.sourceProject.id, context.sourceProject);
 		projects.set(context.targetProject.id, context.targetProject);
 	}
-	const ordered = [...projects.values()].sort((left, right) => left.id.localeCompare(right.id));
-	const locks: Awaited<ReturnType<typeof acquireProjectLock>>[] = [];
 
-	try {
-		for (const project of ordered) {
-			const active = await dbTaskStorageRuns.getActiveByProject(project.id);
-			if (active) {
-				throw new Error("O storage de tarefas deste projeto está em reconciliação");
-			}
-			locks.push(
-				await acquireProjectLock({
-					projectRoute: project.main_route,
-					projectId: project.id,
-					runId: input.runId,
-				}),
-			);
-		}
-	} catch (error) {
-		for (const lock of locks.toReversed()) {
-			await lock.release();
-		}
-		throw error;
-	}
-
-	return {
-		projects: ordered,
-		async release() {
-			for (const lock of locks.toReversed()) {
-				await lock.release();
-			}
-		},
-	};
+	return [...projects.values()].sort((left, right) => left.id.localeCompare(right.id));
 }
 
 async function restoreFailedRelinks(input: {
@@ -927,136 +1128,148 @@ export async function relinkTasks(input: {
 		throw new Error("O relink produziria destinos duplicados");
 	}
 	const runId = crypto.randomUUID();
-	const locks = await acquireProjectLocks({ contexts, runId });
-	for (const project of locks.projects) {
-		suppressTaskWatcher(project.id);
-	}
-	const moved: {
-		backup: string;
-		context: (typeof contexts)[number];
-		fingerprint: TaskStorageFingerprint;
-		published: boolean;
-	}[] = [];
+	const projects = relinkProjects(contexts);
 
-	try {
-		const activeExecutions = await Promise.all(
-			locks.projects.map((project) =>
-				dbExecutionRuns.listRunningTaskIds(
-					project.id,
-					contexts
-						.filter((context) => context.sourceProject.id === project.id)
-						.map((context) => context.task.id),
-				),
-			),
-		);
-		if (activeExecutions.some((rows) => rows.length > 0)) {
-			throw new Error("Há tarefas do relink com execução ativa");
-		}
+	return await enqueueProjectsMutation(
+		projects.map((project) => project.id),
+		() =>
+			withMutationLocks(projects, async () => {
+				for (const context of contexts) {
+					await assertTaskStorageUnchanged(context.task);
+				}
+				for (const project of projects) {
+					suppressTaskWatcher(project.id);
+				}
+				const moved: {
+					backup: string;
+					context: (typeof contexts)[number];
+					fingerprint: TaskStorageFingerprint;
+					published: boolean;
+				}[] = [];
 
-		for (const context of contexts) {
-			if (
-				context.sourceProject.id === context.targetProject.id &&
-				context.task.folder_path === context.destinationPath
-			) {
-				continue;
-			}
-			await mkdir(join(context.targetProject.main_route, ".koworker"), { recursive: true });
-			const source = await resolveExistingTaskFolder({
-				projectRoute: context.sourceProject.main_route,
-				folderPath: context.task.folder_path,
-			});
-			const fingerprint = await fingerprintTaskStorageDirectory(source);
-			const destination = await resolveExistingTaskFolder({
-				projectRoute: context.targetProject.main_route,
-				folderPath: context.destinationPath,
-			}).catch(() => null);
-			if (destination) {
-				await verifyFingerprint(destination, fingerprint);
-			}
+				try {
+					const activeExecutions = await Promise.all(
+						projects.map((project) =>
+							dbExecutionRuns.listRunningTaskIds(
+								project.id,
+								contexts
+									.filter((context) => context.sourceProject.id === project.id)
+									.map((context) => context.task.id),
+							),
+						),
+					);
+					if (activeExecutions.some((rows) => rows.length > 0)) {
+						throw new Error("Há tarefas do relink com execução ativa");
+					}
 
-			const backup = join(
-				context.sourceProject.main_route,
-				".koworker",
-				".backups",
-				"relinks",
-				runId,
-				context.task.id,
-			);
-			await mkdir(dirname(backup), { recursive: true });
-			await rename(source, backup);
-			await verifyFingerprint(backup, fingerprint);
-			const record = { backup, context, fingerprint, published: false };
-			moved.push(record);
+					for (const context of contexts) {
+						if (
+							context.sourceProject.id === context.targetProject.id &&
+							context.task.folder_path === context.destinationPath
+						) {
+							continue;
+						}
+						await mkdir(join(context.targetProject.main_route, ".koworker"), { recursive: true });
+						const source = await resolveExistingTaskFolder({
+							projectRoute: context.sourceProject.main_route,
+							folderPath: context.task.folder_path,
+						});
+						const fingerprint = await fingerprintTaskStorageDirectory(source);
+						const destination = await resolveExistingTaskFolder({
+							projectRoute: context.targetProject.main_route,
+							folderPath: context.destinationPath,
+						}).catch(() => null);
+						if (destination) {
+							await verifyFingerprint(destination, fingerprint);
+						}
 
-			if (!destination) {
-				const staging = join(
-					context.targetProject.main_route,
-					".koworker",
-					".staging",
-					runId,
-					context.task.id,
-				);
-				await mkdir(dirname(staging), { recursive: true });
-				await cp(backup, staging, { recursive: true, errorOnExist: true, force: false });
-				await verifyFingerprint(staging, fingerprint);
-				const target = await resolveTaskFolderDestination({
-					projectRoute: context.targetProject.main_route,
-					folderPath: context.destinationPath,
-				});
-				await mkdir(dirname(target), { recursive: true });
-				await rename(staging, target);
-				record.published = true;
-			}
-		}
+						const backup = join(
+							context.sourceProject.main_route,
+							".koworker",
+							".backups",
+							"relinks",
+							runId,
+							context.task.id,
+						);
+						await mkdir(dirname(backup), { recursive: true });
+						await rename(source, backup);
+						await verifyFingerprint(backup, fingerprint);
+						const record = { backup, context, fingerprint, published: false };
+						moved.push(record);
 
-		await db.transaction().execute(async (trx) => {
-			for (const context of contexts) {
-				await trx
-					.updateTable("tasks")
-					.set({
-						project_id: context.targetProject.id,
-						group_id: context.intent.targetGroupId,
-						folder_path: context.destinationPath,
-						storage_slug: context.storageSlug,
-						...(context.intent.displayOrder === undefined
-							? {}
-							: { display_order: context.intent.displayOrder }),
-						...(context.intent.categoryId === undefined
-							? {}
-							: { category_id: context.intent.categoryId }),
-						...(context.intent.done === undefined ? {} : { done: context.intent.done ? 1 : 0 }),
-						...(context.intent.completedAt === undefined
-							? {}
-							: { completed_at: context.intent.completedAt }),
-						...(context.intent.clearMergeMetadata
-							? {
-									merge_ready_at: null,
-									worktree_branch: null,
-									merge_target_branch: null,
-									worktree_path: null,
-									worktree_pr_url: null,
-								}
-							: {}),
-						updated_at: Date.now(),
-					})
-					.where("id", "=", context.task.id)
-					.executeTakeFirstOrThrow();
-			}
-			if (input.deleteGroupIdAfter) {
-				await trx.deleteFrom("task_groups").where("id", "=", input.deleteGroupIdAfter).execute();
-			}
-		});
+						if (!destination) {
+							const staging = join(
+								context.targetProject.main_route,
+								".koworker",
+								".staging",
+								runId,
+								context.task.id,
+							);
+							await mkdir(dirname(staging), { recursive: true });
+							await cp(backup, staging, { recursive: true, errorOnExist: true, force: false });
+							await verifyFingerprint(staging, fingerprint);
+							const target = await resolveTaskFolderDestination({
+								projectRoute: context.targetProject.main_route,
+								folderPath: context.destinationPath,
+							});
+							await mkdir(dirname(target), { recursive: true });
+							await rename(staging, target);
+							record.published = true;
+						}
+					}
 
-		return await Promise.all(contexts.map((context) => dbTasks.getById(context.task.id)));
-	} catch (error) {
-		await restoreFailedRelinks({ moved, runId });
-		throw error;
-	} finally {
-		for (const project of locks.projects) {
-			releaseTaskWatcher(project.id);
-		}
-		await locks.release();
-	}
+					await db.transaction().execute(async (trx) => {
+						for (const context of contexts) {
+							const updated = await trx
+								.updateTable("tasks")
+								.set({
+									project_id: context.targetProject.id,
+									group_id: context.intent.targetGroupId,
+									folder_path: context.destinationPath,
+									storage_slug: context.storageSlug,
+									...(context.intent.displayOrder === undefined
+										? {}
+										: { display_order: context.intent.displayOrder }),
+									...(context.intent.categoryId === undefined
+										? {}
+										: { category_id: context.intent.categoryId }),
+									...(context.intent.done === undefined
+										? {}
+										: { done: context.intent.done ? 1 : 0 }),
+									...(context.intent.completedAt === undefined
+										? {}
+										: { completed_at: context.intent.completedAt }),
+									...(context.intent.clearMergeMetadata ? CLEARED_TASK_WORKTREE_METADATA : {}),
+									updated_at: Date.now(),
+								})
+								.where("id", "=", context.task.id)
+								.returning("id")
+								.executeTakeFirst();
+							if (!updated) {
+								throw new Error(
+									`A tarefa ${context.task.id} não existe mais para receber o relink`,
+								);
+							}
+						}
+						if (input.deleteGroupIdAfter) {
+							await trx
+								.deleteFrom("task_groups")
+								.where("id", "=", input.deleteGroupIdAfter)
+								.execute();
+						}
+					});
+
+					return await Promise.all(contexts.map((context) => dbTasks.getById(context.task.id)));
+				} catch (error) {
+					await restoreFailedRelinks({ moved, runId });
+					throw error;
+				} finally {
+					for (const project of projects) {
+						releaseTaskWatcher(project.id);
+					}
+				}
+			}),
+	);
 }
 
 export async function quarantineTaskStorage(taskId: string) {
@@ -1069,67 +1282,63 @@ export async function quarantineTaskStorage(taskId: string) {
 		throw new Error("Projeto não encontrado");
 	}
 	const runId = crypto.randomUUID();
-	const lock = await acquireProjectLock({
-		projectRoute: project.main_route,
-		projectId: project.id,
-		runId,
-	});
-	suppressTaskWatcher(project.id);
-	let backup: string | null = null;
-	let fingerprint: TaskStorageFingerprint | null = null;
 
-	try {
-		const activeRun = await dbTaskStorageRuns.getActiveByProject(project.id);
-		if (activeRun) {
-			throw new Error("O storage de tarefas deste projeto está em reconciliação");
-		}
-		const running = await dbExecutionRuns.listRunningTaskIds(project.id, [task.id]);
-		if (running.length > 0) {
-			throw new Error("A tarefa possui execução ativa");
-		}
-		const source = await resolveExistingTaskFolder({
-			projectRoute: project.main_route,
-			folderPath: task.folder_path,
-		});
-		fingerprint = await fingerprintTaskStorageDirectory(source);
-		backup = join(project.main_route, ".koworker", ".backups", "deleted-tasks", runId, task.id);
-		await mkdir(dirname(backup), { recursive: true });
-		await rename(source, backup);
-		await verifyFingerprint(backup, fingerprint);
+	return await withProjectStorageLock(
+		{ projectId: project.id, projectRoute: project.main_route, task },
+		async () => {
+			suppressTaskWatcher(project.id);
+			let backup: string | null = null;
+			let fingerprint: TaskStorageFingerprint | null = null;
 
-		await db.transaction().execute(async (trx) => {
-			const updated = await trx
-				.updateTable("tasks")
-				.set({ deleted_at: Date.now(), updated_at: Date.now() })
-				.where("id", "=", task.id)
-				.where("deleted_at", "is", null)
-				.returning("id")
-				.executeTakeFirst();
-			if (!updated) {
-				throw new Error("A tarefa não pôde ser marcada como removida");
-			}
-		});
-
-		return { task, backup, fingerprint };
-	} catch (error) {
-		if (backup && fingerprint) {
-			const source = await resolveExistingTaskFolder({
-				projectRoute: project.main_route,
-				folderPath: task.folder_path,
-			}).catch(() => null);
-			if (!source) {
-				const destination = await resolveTaskFolderDestination({
+			try {
+				const running = await dbExecutionRuns.listRunningTaskIds(project.id, [task.id]);
+				if (running.length > 0) {
+					throw new Error("A tarefa possui execução ativa");
+				}
+				const source = await resolveExistingTaskFolder({
 					projectRoute: project.main_route,
 					folderPath: task.folder_path,
 				});
-				await mkdir(dirname(destination), { recursive: true });
-				await rename(backup, destination);
-				await verifyFingerprint(destination, fingerprint);
+				fingerprint = await fingerprintTaskStorageDirectory(source);
+				backup = join(project.main_route, ".koworker", ".backups", "deleted-tasks", runId, task.id);
+				await mkdir(dirname(backup), { recursive: true });
+				await rename(source, backup);
+				await verifyFingerprint(backup, fingerprint);
+
+				await db.transaction().execute(async (trx) => {
+					const updated = await trx
+						.updateTable("tasks")
+						.set({ deleted_at: Date.now(), updated_at: Date.now() })
+						.where("id", "=", task.id)
+						.where("deleted_at", "is", null)
+						.returning("id")
+						.executeTakeFirst();
+					if (!updated) {
+						throw new Error("A tarefa não pôde ser marcada como removida");
+					}
+				});
+
+				return { task, backup, fingerprint };
+			} catch (error) {
+				if (backup && fingerprint) {
+					const source = await resolveExistingTaskFolder({
+						projectRoute: project.main_route,
+						folderPath: task.folder_path,
+					}).catch(() => null);
+					if (!source) {
+						const destination = await resolveTaskFolderDestination({
+							projectRoute: project.main_route,
+							folderPath: task.folder_path,
+						});
+						await mkdir(dirname(destination), { recursive: true });
+						await rename(backup, destination);
+						await verifyFingerprint(destination, fingerprint);
+					}
+				}
+				throw error;
+			} finally {
+				releaseTaskWatcher(project.id);
 			}
-		}
-		throw error;
-	} finally {
-		releaseTaskWatcher(project.id);
-		await lock.release();
-	}
+		},
+	);
 }

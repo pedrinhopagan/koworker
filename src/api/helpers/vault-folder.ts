@@ -1,10 +1,78 @@
-import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { lstat, mkdir, readdir, realpath, rename, rm, stat } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { RESERVED_KOWORKER_FOLDERS } from "@/constants/koworker";
 import { createFolderCache, invalidateFolderPrefix } from "./folder-cache";
+import { isPathInside } from "./path-containment";
+import {
+	resolveExistingTaskFile,
+	resolveExistingTaskFolder,
+	resolveTaskFileDestination,
+	resolveTaskFolderDestination,
+} from "./task-storage-path";
 
 const KOWORKER_DIR = ".koworker";
 const PRIMARY_FILE = "index.md";
+
+function assertVaultEntryName(name: string) {
+	if (!name || name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
+		throw new Error("Nome inválido no vault");
+	}
+}
+
+async function resolveVaultRoot(projectRoute: string) {
+	const projectRoot = await realpath(projectRoute).catch(() => null);
+	if (!projectRoot) {
+		throw new Error("Raiz do projeto não encontrada");
+	}
+
+	const vaultPath = join(projectRoot, KOWORKER_DIR);
+	const stats = await lstat(vaultPath).catch(() => null);
+	if (!stats || stats.isSymbolicLink() || !stats.isDirectory()) {
+		throw new Error("Diretório .koworker inválido");
+	}
+
+	const root = await realpath(vaultPath);
+	if (!isPathInside(projectRoot, root)) {
+		throw new Error("Diretório .koworker fora do projeto");
+	}
+
+	return root;
+}
+
+async function ensureVaultRoot(projectRoute: string) {
+	await mkdir(join(projectRoute, KOWORKER_DIR), { recursive: true });
+
+	return resolveVaultRoot(projectRoute);
+}
+
+async function resolveVaultFile(root: string, name: string) {
+	assertVaultEntryName(name);
+
+	const path = join(root, name);
+	const stats = await lstat(path).catch(() => null);
+	if (!stats || stats.isSymbolicLink() || !stats.isFile()) {
+		throw new Error(`Arquivo "${name}" não encontrado no vault`);
+	}
+
+	const target = await realpath(path);
+	if (!isPathInside(root, target)) {
+		throw new Error(`Arquivo "${name}" fora do vault`);
+	}
+
+	return target;
+}
+
+async function resolveVaultFileDestination(root: string, name: string) {
+	assertVaultEntryName(name);
+
+	const path = join(root, name);
+	const stats = await lstat(path).catch(() => null);
+	if (stats?.isSymbolicLink()) {
+		throw new Error(`Arquivo "${name}" aponta para link simbólico`);
+	}
+
+	return path;
+}
 
 // Pastas soltas do vault podem viver fora do alcance do watcher (não são pastas de task), então
 // aqui o TTL é curto: a invalidação por evento cobre o comum e o TTL garante que nada obsoleto
@@ -53,8 +121,10 @@ async function readMdMeta(path: string, name: string): Promise<VaultFileMeta> {
 
 // Vault = `.md` soltos direto em `.koworker/`, fora de pasta de task. Pastas de task
 // (e seus `.md`) ficam de fora porque só listamos arquivos no nível raiz. Metadata-only.
-export function listVaultFiles(projectRoute: string): Promise<VaultFileMeta[]> {
-	const dir = join(projectRoute, KOWORKER_DIR);
+export async function listVaultFiles(projectRoute: string): Promise<VaultFileMeta[]> {
+	const dir = await resolveVaultRoot(projectRoute).catch(() => null);
+	if (!dir) return [];
+
 	return vaultFilesCache.get(dir, () => loadVaultFiles(dir));
 }
 
@@ -75,11 +145,13 @@ async function loadVaultFiles(dir: string): Promise<VaultFileMeta[]> {
 
 // Metadados (nome, título, mtime) dos `.md` de uma pasta qualquer relativa ao projeto — usado
 // pelo vault pra montar as entries dos arquivos dentro das pastas das tasks, sem ler conteúdo.
-export function listMdMeta(params: {
+export async function listMdMeta(params: {
 	projectRoute: string;
 	folderPath: string;
 }): Promise<VaultFileMeta[]> {
-	const dir = join(params.projectRoute, params.folderPath);
+	const dir = await resolveExistingTaskFolder(params).catch(() => null);
+	if (!dir) return [];
+
 	return vaultMdMetaCache.get(dir, () => loadMdMeta(dir));
 }
 
@@ -94,7 +166,11 @@ export async function getVaultFile(params: {
 	projectRoute: string;
 	name: string;
 }): Promise<{ name: string; title: string; content: string } | null> {
-	const path = join(params.projectRoute, KOWORKER_DIR, params.name);
+	const root = await resolveVaultRoot(params.projectRoute).catch(() => null);
+	if (!root) return null;
+
+	const path = await resolveVaultFile(root, params.name).catch(() => null);
+	if (!path) return null;
 
 	const content = await Bun.file(path)
 		.text()
@@ -125,7 +201,7 @@ export async function readFolderMarkdown(params: {
 	projectRoute: string;
 	folderPath: string;
 }): Promise<{ name: string; content: string }[]> {
-	const dir = join(params.projectRoute, params.folderPath);
+	const dir = await resolveExistingTaskFolder(params);
 	const names = [...(await listMdNames(dir))].sort((a, b) => {
 		if (a === PRIMARY_FILE) return -1;
 		if (b === PRIMARY_FILE) return 1;
@@ -144,24 +220,35 @@ export async function readFolderMarkdown(params: {
 
 // True se a pasta solta existe no disco — guarda da adoção contra nome que não corresponde a
 // nenhuma pasta real.
-export function vaultFolderExists(params: {
+export async function vaultFolderExists(params: {
 	projectRoute: string;
 	folderName: string;
 }): Promise<boolean> {
-	return stat(join(params.projectRoute, KOWORKER_DIR, params.folderName))
-		.then((s) => s.isDirectory())
-		.catch(() => false);
+	const root = await resolveVaultRoot(params.projectRoute).catch(() => null);
+	if (!root) return false;
+
+	try {
+		assertVaultEntryName(params.folderName);
+	} catch {
+		return false;
+	}
+
+	const stats = await lstat(join(root, params.folderName)).catch(() => null);
+
+	return !!stats && !stats.isSymbolicLink() && stats.isDirectory();
 }
 
 // Pastas soltas = subdiretórios de `.koworker/` que não pertencem a nenhuma task (os nomes em
 // `knownFolderNames` são as pastas das tasks vivas). Cada uma traz os metadados dos seus `.md`
 // (nome, título, mtime); pastas sem `.md` ficam de fora, como na seção "Em tarefas". Devolve
 // ordenado por nome.
-export function listVaultFolders(params: {
+export async function listVaultFolders(params: {
 	projectRoute: string;
 	knownFolderNames: Set<string>;
 }): Promise<{ name: string; files: VaultFileMeta[] }[]> {
-	const dir = join(params.projectRoute, KOWORKER_DIR);
+	const dir = await resolveVaultRoot(params.projectRoute).catch(() => null);
+	if (!dir) return [];
+
 	const knownFolders = params.knownFolderNames;
 	// A chave carrega o conjunto de pastas de task (elas mudam quando uma task nasce/some), pra não
 	// servir uma pasta de task como "pasta solta". O prefixo da invalidação é `dir`, que casa aqui.
@@ -205,15 +292,16 @@ export async function renameVaultFile(params: {
 	oldName: string;
 	newName: string;
 }): Promise<void> {
-	const dir = join(params.projectRoute, KOWORKER_DIR);
-	const destPath = join(dir, params.newName);
+	const dir = await resolveVaultRoot(params.projectRoute);
+	const sourcePath = await resolveVaultFile(dir, params.oldName);
+	const destPath = await resolveVaultFileDestination(dir, params.newName);
 
-	const exists = await stat(destPath)
+	const exists = await lstat(destPath)
 		.then(() => true)
 		.catch(() => false);
 	if (exists) throw new Error(`Arquivo "${params.newName}" já existe no vault`);
 
-	await rename(join(dir, params.oldName), destPath);
+	await rename(sourcePath, destPath);
 	invalidateFolderPrefix(dir);
 }
 
@@ -222,8 +310,12 @@ export async function deleteVaultFile(params: {
 	projectRoute: string;
 	name: string;
 }): Promise<void> {
-	await rm(join(params.projectRoute, KOWORKER_DIR, params.name), { force: true });
-	invalidateFolderPrefix(join(params.projectRoute, KOWORKER_DIR));
+	const root = await resolveVaultRoot(params.projectRoute);
+	const path = await resolveVaultFile(root, params.name).catch(() => null);
+	if (!path) return;
+
+	await rm(path, { force: true });
+	invalidateFolderPrefix(root);
 }
 
 export async function writeVaultFile(params: {
@@ -231,9 +323,8 @@ export async function writeVaultFile(params: {
 	name: string;
 	content: string;
 }): Promise<void> {
-	const dir = join(params.projectRoute, KOWORKER_DIR);
-	await mkdir(dir, { recursive: true });
-	await Bun.write(join(dir, params.name), params.content);
+	const dir = await ensureVaultRoot(params.projectRoute);
+	await Bun.write(await resolveVaultFileDestination(dir, params.name), params.content);
 	invalidateFolderPrefix(dir);
 }
 
@@ -244,12 +335,18 @@ export async function promoteVaultFile(params: {
 	name: string;
 	folderPath: string;
 }): Promise<void> {
-	const dir = join(params.projectRoute, KOWORKER_DIR);
-	const sourcePath = join(dir, params.name);
-	await rename(sourcePath, join(params.projectRoute, params.folderPath, PRIMARY_FILE));
+	const dir = await resolveVaultRoot(params.projectRoute);
+	const sourcePath = await resolveVaultFile(dir, params.name);
+	const destPath = await resolveTaskFileDestination({
+		projectRoute: params.projectRoute,
+		folderPath: params.folderPath,
+		name: PRIMARY_FILE,
+	});
+
+	await rename(sourcePath, destPath);
 
 	invalidateFolderPrefix(dir);
-	invalidateFolderPrefix(join(params.projectRoute, params.folderPath));
+	invalidateFolderPrefix(dirname(destPath));
 }
 
 // Move um ou mais `.md` soltos do vault para a pasta de uma tarefa (rename atômico dentro
@@ -261,7 +358,11 @@ export async function linkVaultFilesToTask(params: {
 	taskFolderPath: string;
 	files: { name: string; targetName: string }[];
 }): Promise<{ name: string; finalName: string }[]> {
-	const taskDir = join(params.projectRoute, params.taskFolderPath);
+	const root = await resolveVaultRoot(params.projectRoute);
+	const taskDir = await resolveTaskFolderDestination({
+		projectRoute: params.projectRoute,
+		folderPath: params.taskFolderPath,
+	});
 	await mkdir(taskDir, { recursive: true });
 
 	const taken = await listMdNames(taskDir);
@@ -270,11 +371,19 @@ export async function linkVaultFilesToTask(params: {
 	for (const { name, targetName } of params.files) {
 		const finalName = uniqueName(targetName, taken);
 		taken.add(finalName);
-		await rename(join(params.projectRoute, KOWORKER_DIR, name), join(taskDir, finalName));
+
+		const sourcePath = await resolveVaultFile(root, name);
+		const destPath = await resolveTaskFileDestination({
+			projectRoute: params.projectRoute,
+			folderPath: params.taskFolderPath,
+			name: finalName,
+		});
+
+		await rename(sourcePath, destPath);
 		results.push({ name: targetName, finalName });
 	}
 
-	invalidateFolderPrefix(join(params.projectRoute, KOWORKER_DIR));
+	invalidateFolderPrefix(root);
 	invalidateFolderPrefix(taskDir);
 
 	return results;
@@ -288,14 +397,19 @@ export async function moveFilesToTask(params: {
 	targetFolderPath: string;
 	files: { sourceFolderPath: string; name: string }[];
 }): Promise<void> {
-	const targetDir = join(params.projectRoute, params.targetFolderPath);
+	const targetDir = await resolveTaskFolderDestination({
+		projectRoute: params.projectRoute,
+		folderPath: params.targetFolderPath,
+	});
 	await mkdir(targetDir, { recursive: true });
 
 	const taken = new Set<string>();
 	for (const { name } of params.files) {
+		assertVaultEntryName(name);
+
 		const collides =
 			taken.has(name) ||
-			(await stat(join(targetDir, name))
+			(await lstat(join(targetDir, name))
 				.then(() => true)
 				.catch(() => false));
 		if (collides) throw new Error(`Arquivo "${name}" já existe na tarefa de destino`);
@@ -303,10 +417,21 @@ export async function moveFilesToTask(params: {
 	}
 
 	for (const { sourceFolderPath, name } of params.files) {
-		await rename(join(params.projectRoute, sourceFolderPath, name), join(targetDir, name));
+		const sourcePath = await resolveExistingTaskFile({
+			projectRoute: params.projectRoute,
+			folderPath: sourceFolderPath,
+			name,
+		});
+		const destPath = await resolveTaskFileDestination({
+			projectRoute: params.projectRoute,
+			folderPath: params.targetFolderPath,
+			name,
+		});
+
+		await rename(sourcePath, destPath);
 	}
 
-	invalidateFolderPrefix(join(params.projectRoute, KOWORKER_DIR));
+	invalidateFolderPrefix(await resolveVaultRoot(params.projectRoute));
 }
 
 // Nomes dos `.md` direto numa pasta (não recursivo). Pasta inexistente vira conjunto vazio.
@@ -337,8 +462,7 @@ export async function unlinkFilesToVault(params: {
 	projectRoute: string;
 	files: { sourceFolderPath: string; name: string }[];
 }): Promise<{ name: string; finalName: string }[]> {
-	const rootDir = join(params.projectRoute, KOWORKER_DIR);
-	await mkdir(rootDir, { recursive: true });
+	const rootDir = await ensureVaultRoot(params.projectRoute);
 
 	const taken = await listMdNames(rootDir);
 
@@ -346,7 +470,14 @@ export async function unlinkFilesToVault(params: {
 	for (const { sourceFolderPath, name } of params.files) {
 		const finalName = uniqueName(name, taken);
 		taken.add(finalName);
-		await rename(join(params.projectRoute, sourceFolderPath, name), join(rootDir, finalName));
+
+		const sourcePath = await resolveExistingTaskFile({
+			projectRoute: params.projectRoute,
+			folderPath: sourceFolderPath,
+			name,
+		});
+
+		await rename(sourcePath, await resolveVaultFileDestination(rootDir, finalName));
 		results.push({ name, finalName });
 	}
 

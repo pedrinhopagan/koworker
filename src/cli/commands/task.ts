@@ -5,6 +5,7 @@ import { dbTasks } from "@/api/db/tasks";
 import { TaskMergeReadySchema, type TaskDbUpdateInput } from "@/api/schemas/tasks";
 import { parseTaskFileOrder, readTaskFiles } from "@/api/helpers/task-folder";
 import { quarantineTaskStorage } from "@/api/helpers/task-storage-coordinator";
+import { CLEARED_TASK_WORKTREE_METADATA } from "@/api/helpers/task-worktree";
 import { COMPLEXITY_LABELS, TASK_COMPLEXITIES } from "@/constants/complexity";
 import { hasFlag, parseArgs } from "../args";
 import { notifyTasksChanged } from "../notify";
@@ -194,11 +195,7 @@ async function runTaskSet(args: string[]): Promise<void> {
 	if (hasFlag(flags, "done")) {
 		update.done = 1;
 		update.completed_at = Date.now();
-		update.merge_ready_at = null;
-		update.worktree_branch = null;
-		update.merge_target_branch = null;
-		update.worktree_path = null;
-		update.worktree_pr_url = null;
+		Object.assign(update, CLEARED_TASK_WORKTREE_METADATA);
 	}
 	if (hasFlag(flags, "pending")) {
 		update.done = 0;
@@ -231,11 +228,7 @@ export async function setTaskDone(raw: string | undefined, done: boolean): Promi
 			id: row.id,
 			done: done ? 1 : 0,
 			completed_at: done ? Date.now() : null,
-			merge_ready_at: done ? null : undefined,
-			worktree_branch: done ? null : undefined,
-			merge_target_branch: done ? null : undefined,
-			worktree_path: done ? null : undefined,
-			worktree_pr_url: done ? null : undefined,
+			...(done ? CLEARED_TASK_WORKTREE_METADATA : {}),
 		}),
 	);
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
@@ -298,11 +291,7 @@ async function setTaskMergeCompleted(raw: string | undefined): Promise<void> {
 			id: row.id,
 			done: 1,
 			completed_at: Date.now(),
-			merge_ready_at: null,
-			worktree_branch: null,
-			merge_target_branch: null,
-			worktree_path: null,
-			worktree_pr_url: null,
+			...CLEARED_TASK_WORKTREE_METADATA,
 		}),
 	);
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });

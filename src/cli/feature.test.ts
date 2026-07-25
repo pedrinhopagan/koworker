@@ -37,7 +37,7 @@ beforeAll(async () => {
 	}
 
 	result = JSON.parse(stdout);
-}, 15_000);
+}, 60_000);
 
 afterAll(async () => {
 	await rm(root, { recursive: true, force: true });

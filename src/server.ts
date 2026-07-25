@@ -4,10 +4,13 @@ import type { Server } from "bun";
 
 import "./api/arktype";
 import { rpcHandler, wsRpcHandler } from "./api/app";
-import { getUser, type User } from "./api/auth/context";
+import { resolveSession } from "./api/auth/context";
+import { registerWsSession, unregisterWsSession, type WsSessionData } from "./api/auth/ws-sessions";
 import { envVariables } from "./api/config/env";
 import { DbUsers } from "./api/db/users";
+import { isNotifyAuthorized } from "./api/helpers/notify-auth";
 import { PubSub } from "./api/pubsub";
+import { TaskNotifySchema } from "./api/schemas";
 import homepage from "./index.html";
 import { DEFAULT_KOWORK_PORT } from "./lib/runtime-config";
 
@@ -16,33 +19,6 @@ const isProduction = envVariables.NODE_ENV === "production";
 const distDir = isProduction ? (envVariables.KOWORK_DIST_DIR ?? "./dist") : null;
 
 const NOTIFY_MAX_BODY_BYTES = 8192;
-
-function isLocalRequest(request: Request, server: Server<WsData>): boolean {
-	const ip = server.requestIP(request);
-	if (ip?.address === "127.0.0.1" || ip?.address === "::1") {
-		return true;
-	}
-
-	const host = request.headers.get("host");
-	if (!host) {
-		return false;
-	}
-
-	return host.startsWith("localhost:") || host === "localhost" || host.startsWith("127.0.0.1:");
-}
-
-function isNotifyAuthorized(request: Request, server: Server<WsData>): boolean {
-	const notifyToken = envVariables.KOWORK_NOTIFY_TOKEN;
-	if (notifyToken) {
-		const authHeader = request.headers.get("authorization");
-		const customToken = request.headers.get("x-kowork-token");
-		const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-		const token = bearerToken ?? customToken;
-		return token === notifyToken;
-	}
-
-	return isLocalRequest(request, server);
-}
 
 async function serveStatic(pathname: string) {
 	if (!distDir) return null;
@@ -82,16 +58,6 @@ async function serveStatic(pathname: string) {
 
 const port = Number(envVariables.KOWORK_PORT) || DEFAULT_KOWORK_PORT;
 
-interface WsData {
-	user: User | null;
-}
-
-function getCookieValue(cookieHeader: string | null, name: string) {
-	if (!cookieHeader) return;
-
-	return cookieHeader.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`))?.[1];
-}
-
 await DbUsers.ensureDefaultUser();
 
 // Keep local DB schema compatible with current code (idempotent).
@@ -105,15 +71,40 @@ await migrateTerminalMultiplexerRename();
 await ensureDefaultSettings();
 await ensureDefaultCategories();
 
+const { purgeOrphanStorageLocks } = await import("./api/helpers/task-storage-coordinator");
+await purgeOrphanStorageLocks().catch((error) => {
+	console.error("Falha ao limpar locks órfãos de storage:", error);
+});
+
 // Observa as pastas `.koworker/` dos projetos pra refletir edições do agente na UI.
 const { startTasksWatcher } = await import("./api/helpers/tasks-watcher");
 await startTasksWatcher();
 
 // Fecha execuções que perderam o executor e vigia o teto de tempo dos runs em andamento.
-const { startPromptRunReconciler } = await import("./api/helpers/prompt-run");
-await startPromptRunReconciler();
+const { startRunReconciler } = await import("./api/helpers/prompt-run");
+const { abortActiveRuns } = await import("./api/helpers/run-registry");
+await startRunReconciler();
 
-Bun.serve<WsData>({
+let shuttingDown = false;
+
+async function shutdown(signal: string) {
+	if (shuttingDown) {
+		return;
+	}
+	shuttingDown = true;
+
+	const aborted = await abortActiveRuns();
+	if (aborted > 0) {
+		console.log(`[${signal}] ${aborted} execução(ões) encerrada(s) junto com o servidor`);
+	}
+
+	process.exit(0);
+}
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
+
+Bun.serve<WsSessionData>({
 	port,
 	...(isProduction
 		? {}
@@ -133,12 +124,17 @@ Bun.serve<WsData>({
 
 			return response ?? new Response("Not Found", { status: 404 });
 		},
-		"/api/tasks/notify": async (request: Request, server: Server<WsData>) => {
+		"/api/tasks/notify": async (request: Request, server: Server<WsSessionData>) => {
 			if (request.method !== "POST") {
 				return new Response("Method Not Allowed", { status: 405 });
 			}
 
-			if (!isNotifyAuthorized(request, server)) {
+			const authorized = isNotifyAuthorized({
+				headers: request.headers,
+				remoteAddress: server.requestIP(request)?.address,
+				notifyToken: envVariables.KOWORK_NOTIFY_TOKEN,
+			});
+			if (!authorized) {
 				return new Response("Unauthorized", { status: 401 });
 			}
 
@@ -158,37 +154,30 @@ Bun.serve<WsData>({
 				return new Response("Payload Too Large", { status: 413 });
 			}
 
+			let payload: unknown;
 			try {
-				const body = JSON.parse(rawBody) as {
-					project_id: string;
-					task_id?: string;
-					action: "created" | "updated" | "deleted";
-				};
-
-				// A CLI escreve direto no banco (outro processo) e avisa por aqui. O cliente só
-				// assina o canal `tasks` global, então publica nos dois (per-projeto + global),
-				// igual ao publishTaskEvent do router.
-				const event = {
-					taskId: body.task_id,
-					projectId: body.project_id,
-					action: body.action,
-					source: "cli" as const,
-				};
-				await PubSub.publish("tasks", body.project_id, event);
-				await PubSub.publish("tasks", "global", event);
-
-				return Response.json({ ok: true });
+				payload = JSON.parse(rawBody);
 			} catch {
 				return new Response("Bad Request", { status: 400 });
 			}
+
+			const parsed = TaskNotifySchema.safeParse(payload);
+			if (!parsed.success) {
+				return new Response("Bad Request", { status: 400 });
+			}
+
+			const event = { ...parsed.data, source: "cli" as const };
+			await PubSub.publish("tasks", parsed.data.projectId, event);
+			await PubSub.publish("tasks", "global", event);
+
+			return Response.json({ ok: true });
 		},
-		"/ws": async (request: Request, server: Server<WsData>) => {
+		"/ws": async (request: Request, server: Server<WsSessionData>) => {
 			const cookieHeader = request.headers.get("cookie");
-			const token = getCookieValue(cookieHeader, "session");
-			const user = await getUser(token);
+			const session = await resolveSession(cookieHeader);
 
 			const upgraded = server.upgrade(request, {
-				data: { user: user ?? null },
+				data: { user: session?.user ?? null, cookieHeader },
 			});
 
 			if (!upgraded) {
@@ -205,12 +194,16 @@ Bun.serve<WsData>({
 			: homepage,
 	},
 	websocket: {
+		open(ws) {
+			registerWsSession(ws);
+		},
 		message(ws, message) {
 			wsRpcHandler.message(ws, message, {
 				context: { user: ws.data?.user ?? null },
 			});
 		},
 		close(ws) {
+			unregisterWsSession(ws);
 			wsRpcHandler.close(ws);
 		},
 	},

@@ -10,6 +10,10 @@ let result: {
 	destinationContent: string;
 	manifestExists: boolean;
 	injectedError?: string;
+	missingError?: string;
+	missingFolderPath: string;
+	missingProjectVersion: number;
+	missingRunStatus: string;
 	obsoleteError?: string;
 	obsoleteRuns: number;
 	projectVersion: number;
@@ -74,6 +78,13 @@ describe("applyTaskStorage", () => {
 		expect(result.rollbackPath).toBe(".koworker/task-success");
 		expect(result.rollbackContent).toBe("# Conteúdo\n");
 		expect(result.backupContent).toBe("# Conteúdo\n");
+	});
+
+	test("aborta o commit quando o update da tarefa não atinge nenhuma linha", () => {
+		expect(result.missingError).toContain("não existe mais para receber o commit");
+		expect(result.missingFolderPath).toBe(".koworker/task-missing");
+		expect(result.missingProjectVersion).toBe(1);
+		expect(result.missingRunStatus).toBe("blocked");
 	});
 
 	test("retoma pelo journal após falha entre publicação e commit", () => {

@@ -1,5 +1,8 @@
 import { lstat, realpath } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
+
+import { createFolderCache } from "./folder-cache";
+import { isPathInside } from "./path-containment";
 
 export const TASK_STORAGE_LAYOUT_V1 = 1;
 export const TASK_STORAGE_LAYOUT_V2 = 2;
@@ -9,10 +12,6 @@ export const TASK_STORAGE_NO_FEATURE = "_sem-feature";
 const KOWORKER_DIR = ".koworker";
 const STORAGE_SLUG_MAX_LENGTH = 48;
 const STORAGE_KEY_LENGTHS = [8, 12, 16, 20, 24, 28, 32] as const;
-
-function isInside(root: string, target: string) {
-	return target === root || target.startsWith(`${root}${sep}`);
-}
 
 function storageIdentityHex(id: string) {
 	const hex = id.replaceAll("-", "").toLowerCase();
@@ -47,7 +46,23 @@ function assertFileName(name: string) {
 	}
 }
 
+const KOWORKER_ROOT_TTL_MS = 30_000;
+
+const koworkerRootCache = createFolderCache<string | null>(KOWORKER_ROOT_TTL_MS);
+
 async function resolveKoworkerRoot(projectRoute: string) {
+	const cached = await koworkerRootCache.getResolved(projectRoute, async () => {
+		const root = await loadKoworkerRoot(projectRoute).catch(() => null);
+		return root ? { value: root, path: root } : { value: null, path: null };
+	});
+	if (!cached) {
+		return await loadKoworkerRoot(projectRoute);
+	}
+
+	return cached;
+}
+
+async function loadKoworkerRoot(projectRoute: string) {
 	const projectRoot = await realpath(projectRoute).catch(() => null);
 	if (!projectRoot) {
 		throw new Error("Raiz do projeto não encontrada");
@@ -60,7 +75,7 @@ async function resolveKoworkerRoot(projectRoute: string) {
 	}
 
 	const koworkerRoot = await realpath(koworkerPath);
-	if (!isInside(projectRoot, koworkerRoot)) {
+	if (!isPathInside(projectRoot, koworkerRoot)) {
 		throw new Error("Diretório .koworker fora do projeto");
 	}
 
@@ -162,7 +177,7 @@ export async function resolveExistingTaskFolder(input: {
 	}
 
 	const target = await realpath(current);
-	if (!isInside(koworkerRoot, target)) {
+	if (!isPathInside(koworkerRoot, target)) {
 		throw new Error("Pasta da tarefa fora de .koworker");
 	}
 	if (!(await lstat(target)).isDirectory()) {
@@ -180,7 +195,7 @@ export async function resolveTaskFolderDestination(input: {
 	const koworkerRoot = await resolveKoworkerRoot(input.projectRoute);
 	const target = resolve(koworkerRoot, ...segments.slice(1));
 
-	if (!isInside(koworkerRoot, target) || relative(koworkerRoot, target).startsWith("..")) {
+	if (!isPathInside(koworkerRoot, target) || relative(koworkerRoot, target).startsWith("..")) {
 		throw new Error("Destino da tarefa fora de .koworker");
 	}
 
@@ -213,7 +228,7 @@ export async function resolveExistingTaskFile(input: {
 	}
 
 	const target = await realpath(path);
-	if (!isInside(folder, target)) {
+	if (!isPathInside(folder, target)) {
 		throw new Error("Arquivo fora da pasta da tarefa");
 	}
 

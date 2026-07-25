@@ -1,6 +1,7 @@
 import { lstat, readFile, readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
 
+import { mapWithConcurrency } from "./concurrency";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
 import { readFirstMarkdownContent, resolveDisplayTitle } from "./task-folder";
@@ -13,6 +14,8 @@ import {
 	TASK_STORAGE_LAYOUT_V2,
 	TASK_STORAGE_NAMESPACE,
 } from "./task-storage-path";
+
+const TASK_STORAGE_SCAN_CONCURRENCY = 12;
 
 type TaskStorageEntryFingerprint = {
 	path: string;
@@ -235,10 +238,15 @@ async function scanTask(input: {
 	let source: Awaited<ReturnType<typeof inspectFolder>>;
 	let destination: Awaited<ReturnType<typeof inspectFolder>>;
 	try {
-		[source, destination] = await Promise.all([
-			inspectFolder(input.project.main_route, input.task.folder_path),
-			inspectFolder(input.project.main_route, destinationPath),
-		]);
+		if (input.task.folder_path === destinationPath) {
+			source = await inspectFolder(input.project.main_route, input.task.folder_path);
+			destination = source;
+		} else {
+			[source, destination] = await Promise.all([
+				inspectFolder(input.project.main_route, input.task.folder_path),
+				inspectFolder(input.project.main_route, destinationPath),
+			]);
+		}
 	} catch {
 		return {
 			taskId: input.task.id,
@@ -390,25 +398,27 @@ async function listMaterializedFolderPaths(projectRoute: string) {
 }
 
 async function scanOrphans(input: { projectRoute: string; knownPaths: ReadonlySet<string> }) {
-	return await Promise.all(
-		(await listMaterializedFolderPaths(input.projectRoute))
-			.filter((folderPath) => !input.knownPaths.has(folderPath))
-			.map(async (folderPath): Promise<TaskStorageOrphan> => {
-				try {
-					const folder = await resolveExistingTaskFolder({
-						projectRoute: input.projectRoute,
-						folderPath,
-					});
+	return await mapWithConcurrency(
+		(await listMaterializedFolderPaths(input.projectRoute)).filter(
+			(folderPath) => !input.knownPaths.has(folderPath),
+		),
+		TASK_STORAGE_SCAN_CONCURRENCY,
+		async (folderPath): Promise<TaskStorageOrphan> => {
+			try {
+				const folder = await resolveExistingTaskFolder({
+					projectRoute: input.projectRoute,
+					folderPath,
+				});
 
-					return {
-						folderPath,
-						fingerprint: await fingerprintTaskStorageDirectory(folder),
-						unsafe: false,
-					};
-				} catch {
-					return { folderPath, unsafe: true };
-				}
-			}),
+				return {
+					folderPath,
+					fingerprint: await fingerprintTaskStorageDirectory(folder),
+					unsafe: false,
+				};
+			} catch {
+				return { folderPath, unsafe: true };
+			}
+		},
 	);
 }
 
@@ -433,7 +443,9 @@ export async function previewTaskStorage(projectId: string) {
 		dbTasks.listLivePathDuplicates(projectId),
 	]);
 	const duplicatePaths = new Set(duplicates.map((row) => row.folder_path));
-	const items = await Promise.all(tasks.map((task) => scanTask({ project, task, duplicatePaths })));
+	const items = await mapWithConcurrency(tasks, TASK_STORAGE_SCAN_CONCURRENCY, (task) =>
+		scanTask({ project, task, duplicatePaths }),
+	);
 	items.sort((left, right) => left.taskId.localeCompare(right.taskId));
 	const orphans = await scanOrphans({
 		projectRoute: project.main_route,

@@ -7,6 +7,7 @@ import { dbCategories } from "../db/categories";
 import { dbPriorities } from "../db/priorities";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
+import { mapWithConcurrency } from "../helpers/concurrency";
 import { createTaskStorage, rollbackCreatedTask } from "../helpers/task-creation";
 import { readFirstMarkdownContent, resolveDisplayTitle } from "../helpers/task-folder";
 import { allocateStorageKey, normalizeStorageSlug } from "../helpers/task-storage-path";
@@ -44,6 +45,9 @@ import {
 	VaultWriteFileSchema,
 } from "../schemas";
 
+const VAULT_PROJECT_CONCURRENCY = 4;
+const VAULT_TASK_CONCURRENCY = 12;
+
 type VaultEntry = {
 	projectId: string;
 	name: string;
@@ -80,7 +84,9 @@ export const vaultRouter = {
 		}
 
 		const projects = await dbProjects.getAll();
-		const parts = await Promise.all(projects.map((project) => readProjectVault(project)));
+		const parts = await mapWithConcurrency(projects, VAULT_PROJECT_CONCURRENCY, (project) =>
+			readProjectVault(project),
+		);
 
 		return {
 			entries: parts.flatMap((part) => part.entries),
@@ -385,7 +391,9 @@ async function readProjectVault(project: { id: string; main_route: string }): Pr
 	const [looseFiles, folders, taskGroups] = await Promise.all([
 		listVaultFiles(route),
 		listVaultFolders({ projectRoute: route, knownFolderNames }),
-		Promise.all(tasks.map((task) => readTaskGroup({ projectRoute: route, task }))),
+		mapWithConcurrency(tasks, VAULT_TASK_CONCURRENCY, (task) =>
+			readTaskGroup({ projectRoute: route, task }),
+		),
 	]);
 
 	const entries: VaultEntry[] = [
