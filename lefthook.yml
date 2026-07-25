@@ -7,3 +7,6 @@ pre-commit:
         bun oxlint --fix --fix-suggestions --fix-dangerously {staged_files} || true
         git add {staged_files}
         bun oxlint {staged_files}
+    typecheck:
+      glob: "*.{ts,tsx}"
+      run: bun run typecheck

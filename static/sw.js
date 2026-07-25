@@ -3,11 +3,37 @@ const STATIC_CACHE = "kowork-static-" + CACHE_VERSION;
 const SHELL_CACHE = "kowork-shell-" + CACHE_VERSION;
 
 const STATIC_PREFIX = "/static/";
-const NETWORK_FIRST_ASSETS = new Set(["/main.js", "/index.css"]);
+const PRECACHE_ASSETS = ["/index.html", "/main.js", "/index.css"];
+const APP_ASSETS = new Set(["/main.js", "/index.css"]);
 const NEVER_CACHE_PREFIXES = ["/rpc", "/ws"];
 
-self.addEventListener("install", function onInstall() {
-	self.skipWaiting();
+self.addEventListener("install", function onInstall(event) {
+	event.waitUntil(
+		caches
+			.open(STATIC_CACHE)
+			.then(function precache(cache) {
+				return Promise.all(
+					PRECACHE_ASSETS.map(function precacheOne(asset) {
+						return fetch(asset, { cache: "reload" })
+							.then(function storeAsset(response) {
+								if (!response.ok) {
+									return;
+								}
+								if (asset === "/index.html") {
+									return caches.open(SHELL_CACHE).then(function storeShell(shell) {
+										return shell.put("/index.html", response);
+									});
+								}
+								return cache.put(asset, response);
+							})
+							.catch(function ignorePrecacheFailure() {});
+					}),
+				);
+			})
+			.then(function activateNow() {
+				return self.skipWaiting();
+			}),
+	);
 });
 
 self.addEventListener("activate", function onActivate(event) {
@@ -56,8 +82,8 @@ self.addEventListener("fetch", function onFetch(event) {
 		return;
 	}
 
-	if (NETWORK_FIRST_ASSETS.has(url.pathname)) {
-		event.respondWith(networkFirst(request));
+	if (APP_ASSETS.has(url.pathname) || isBuildChunk(url.pathname)) {
+		event.respondWith(staleWhileRevalidate(request, event));
 		return;
 	}
 
@@ -122,24 +148,37 @@ self.addEventListener("notificationclick", function onNotificationClick(event) {
 	);
 });
 
-function networkFirst(request) {
-	return fetch(request)
-		.then(function useNetwork(response) {
-			if (response.ok) {
-				return response;
+function isBuildChunk(pathname) {
+	return pathname.endsWith(".js") && !pathname.includes("/", 1);
+}
+
+function staleWhileRevalidate(request, event) {
+	return caches.open(STATIC_CACHE).then(function readCache(cache) {
+		return cache.match(request).then(function decide(cached) {
+			const network = fetch(request)
+				.then(function storeAndReturn(response) {
+					if (response.ok) {
+						return cache.put(request, response.clone()).then(function done() {
+							return response;
+						});
+					}
+					return response;
+				})
+				.catch(function useCacheOnly(error) {
+					if (cached) {
+						return cached;
+					}
+					throw error;
+				});
+
+			if (cached) {
+				event.waitUntil(network);
+				return cached;
 			}
-			return caches.match(request).then(function fallback(cached) {
-				return cached || response;
-			});
-		})
-		.catch(function useCache() {
-			return caches.match(request).then(function fallback(cached) {
-				if (cached) {
-					return cached;
-				}
-				throw new Error("Network error and no cache for " + request.url);
-			});
+
+			return network;
 		});
+	});
 }
 
 function cacheFirst(request, cacheName) {

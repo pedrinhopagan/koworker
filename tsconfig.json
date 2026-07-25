@@ -1,6 +1,6 @@
 {
-	"include": ["src/**/*.ts", "src/**/*.tsx"],
-	"exclude": ["workopilot-front-end", "scripts", "node_modules", "dist"],
+	"include": ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.ts", "tests/**/*.ts", "tests/**/*.tsx"],
+	"exclude": ["workopilot-front-end", "node_modules", "dist"],
 	"compilerOptions": {
 		"target": "ESNext",
 		"jsx": "react-jsx",

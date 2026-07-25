@@ -19,10 +19,18 @@ import { koworkerDataDir } from "../../src/lib/app-paths";
 import { buildProductionIndexHtml } from "./inject-prod-index";
 import { buildProductionServiceWorker } from "./inject-prod-sw";
 import { installSharpVendor } from "./install-sharp-vendor";
+import { requireReplace } from "./require-replace";
 
 type BumpType = "patch" | "minor" | "major";
 
 const rootDir = process.cwd();
+
+const VERSION_FILES = [
+	"package.json",
+	"src-tauri/tauri.conf.json",
+	"src-tauri/Cargo.toml",
+	"src-tauri/Cargo.lock",
+];
 
 function run(command: string[], cwd = rootDir, env?: Record<string, string>) {
 	const result = Bun.spawnSync(command, {
@@ -143,17 +151,61 @@ async function updateVersions(worktreeDir: string, nextVersion: string) {
 	tauriConfig.version = nextVersion;
 	await writeFile(tauriConfigPath, `${JSON.stringify(tauriConfig, null, "\t")}\n`);
 
-	const cargoToml = await readFile(cargoTomlPath, "utf8");
-	const nextCargoToml = cargoToml.replace(
-		/(\[package\][\s\S]*?\nversion\s*=\s*")([^"]+)(")/,
-		`$1${nextVersion}$3`,
+	await writeFile(
+		cargoTomlPath,
+		requireReplace(
+			await readFile(cargoTomlPath, "utf8"),
+			/(\[package\][\s\S]*?\nversion\s*=\s*")([^"]+)(")/,
+			`$1${nextVersion}$3`,
+			"atualizar a versao em src-tauri/Cargo.toml",
+		),
 	);
 
-	if (nextCargoToml === cargoToml) {
-		throw new Error("Nao foi possivel atualizar a versao em src-tauri/Cargo.toml");
+	const cargoLockPath = join(worktreeDir, "src-tauri", "Cargo.lock");
+	await writeFile(
+		cargoLockPath,
+		requireReplace(
+			await readFile(cargoLockPath, "utf8"),
+			/(\[\[package\]\]\nname = "kowork"\nversion = ")([^"]+)(")/,
+			`$1${nextVersion}$3`,
+			"atualizar a versao do pacote kowork em src-tauri/Cargo.lock",
+		),
+	);
+}
+
+function releaseTagExists(tag: string): boolean {
+	return (
+		Bun.spawnSync(["git", "-C", rootDir, "rev-parse", "--verify", "--quiet", `refs/tags/${tag}`], {
+			stdio: ["ignore", "ignore", "ignore"],
+		}).exitCode === 0
+	);
+}
+
+function commitVersionBump(worktreeDir: string, nextVersion: string) {
+	const tag = `v${nextVersion}`;
+
+	if (releaseTagExists(tag)) {
+		throw new Error(`A tag ${tag} ja existe: escolha outro tipo de bump ou remova a tag antiga.`);
 	}
 
-	await writeFile(cargoTomlPath, nextCargoToml);
+	run(["git", "-C", worktreeDir, "add", ...VERSION_FILES]);
+	run(["git", "-C", worktreeDir, "commit", "-m", `chore: release ${tag}`]);
+	run(["git", "-C", worktreeDir, "tag", "-a", tag, "-m", `Release ${tag}`]);
+
+	return tag;
+}
+
+function publishRelease(worktreeDir: string, branch: string, tag: string) {
+	try {
+		run(["git", "-C", worktreeDir, "push", "origin", `HEAD:refs/heads/${branch}`]);
+		run(["git", "-C", worktreeDir, "push", "origin", `refs/tags/${tag}`]);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(
+			`Artefatos instalados, mas o push da release falhou (${message}). O commit segue preservado na tag local ${tag}: rode "git push origin ${tag}" e "git push origin ${tag}^{commit}:refs/heads/${branch}".`,
+			{ cause: error },
+		);
+	}
 }
 
 async function pathExists(path: string): Promise<boolean> {
@@ -319,6 +371,7 @@ async function main() {
 		const nextVersion = bumpVersion(currentVersion, bumpType);
 
 		await updateVersions(worktreeDir, nextVersion);
+		const releaseTag = commitVersionBump(worktreeDir, nextVersion);
 
 		run(["bun", "install", "--frozen-lockfile", "--cwd", worktreeDir]);
 
@@ -379,12 +432,16 @@ async function main() {
 		await rm(latestLink, { force: true, recursive: true });
 		await symlink(releaseDir, latestLink);
 
+		publishRelease(worktreeDir, target.branch, releaseTag);
+
 		const backendStopped = stopRunningBackend();
 
 		console.log(`\nDeploy concluido com sucesso.`);
 		console.log(`Branch base: ${target.ref}`);
 		console.log(`Versao anterior: ${currentVersion}`);
-		console.log(`Nova versao: ${nextVersion}`);
+		console.log(
+			`Nova versao: ${nextVersion} (commit e tag ${releaseTag} em origin/${target.branch})`,
+		);
 		console.log(`Instalacao: ${installMessage}`);
 		console.log(
 			backendStopped

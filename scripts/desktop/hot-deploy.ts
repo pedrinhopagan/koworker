@@ -41,6 +41,20 @@ function run(command: string[], env?: Record<string, string>) {
 	}
 }
 
+function runAllowingFailure(command: string[]): string | null {
+	const result = Bun.spawnSync(command, {
+		cwd: rootDir,
+		env: process.env,
+		stdio: ["ignore", "inherit", "inherit"],
+	});
+
+	if (result.exitCode === 0) {
+		return null;
+	}
+
+	return `${command.join(" ")} saiu com codigo ${result.exitCode}`;
+}
+
 async function pathExists(path: string): Promise<boolean> {
 	try {
 		await access(path);
@@ -171,6 +185,9 @@ async function restoreInstalledTargets() {
 	}
 }
 
+const backendManagedBySystemd = systemdBackendUnitExists();
+const warnings: string[] = [];
+
 console.log("→ Gerando route tree (TanStack Router)...");
 run(["bunx", "tsr", "generate"]);
 
@@ -183,12 +200,27 @@ run(["bun", "run", "build:backend"]);
 console.log("→ Build da CLI (binario standalone)...");
 run(["bun", "build", "src/cli/index.ts", "--compile", "--outfile", cliSource]);
 
-console.log("→ cargo tauri build (re-embute o frontend novo na GUI)...");
-run(["cargo", "tauri", "build", "--no-bundle"]);
+let guiAvailable = false;
 
-if (!(await pathExists(guiSource))) {
-	throw new Error(`cargo nao gerou a GUI em ${guiSource}`);
+if (backendManagedBySystemd) {
+	warnings.push(
+		`Backend gerenciado por systemd (${systemdBackendUnit}): build e relancamento da GUI foram pulados nesta maquina.`,
+	);
+} else {
+	console.log("→ cargo tauri build (re-embute o frontend novo na GUI)...");
+	const cargoError = runAllowingFailure(["cargo", "tauri", "build", "--no-bundle"]);
+
+	if (cargoError) {
+		warnings.push(`Build da GUI falhou (${cargoError}); dist, backend e CLI seguiram mesmo assim.`);
+	} else if (await pathExists(guiSource)) {
+		guiAvailable = true;
+	} else {
+		warnings.push(
+			`cargo nao gerou a GUI em ${guiSource}; dist, backend e CLI seguiram mesmo assim.`,
+		);
+	}
 }
+
 if (!(await pathExists(backendSource))) {
 	throw new Error("build:backend nao gerou src-tauri/bin/kowork-backend");
 }
@@ -200,23 +232,25 @@ if (!(await pathExists(join(distSource, "index.html")))) {
 }
 
 // Instala com prod antigo ainda no ar; os renames atomicos so trocam tudo no fim.
-const backendManagedBySystemd = systemdBackendUnitExists();
-
 try {
-	console.log("→ Instalando GUI, backend, CLI, dist e vendor do sharp...");
-	await installFile(guiSource, guiTarget);
+	console.log("→ Instalando backend, CLI, dist e vendor do sharp...");
+	if (guiAvailable) {
+		await installFile(guiSource, guiTarget);
+	}
 	await installFile(backendSource, backendTarget);
 	await installFile(cliSource, cliTarget);
 	await installDir(distSource, distTarget);
 	await installSharpVendor(rootDir);
 
 	console.log("→ Reiniciando o app de prod...");
-	kill(guiTarget);
+	if (guiAvailable) {
+		kill(guiTarget);
 
-	const guiDead = await waitFor(guiGone, 5000, 100);
-	if (!guiDead) {
-		kill(guiTarget, "-KILL");
-		await waitFor(guiGone, 3000, 100);
+		const guiDead = await waitFor(guiGone, 5000, 100);
+		if (!guiDead) {
+			kill(guiTarget, "-KILL");
+			await waitFor(guiGone, 3000, 100);
+		}
 	}
 
 	if (backendManagedBySystemd) {
@@ -228,7 +262,7 @@ try {
 				`Backend systemd nao respondeu 200 em ${healthUrl} apos restart de ${systemdBackendUnit}.`,
 			);
 		}
-	} else {
+	} else if (guiAvailable) {
 		kill(backendTarget);
 
 		const freed = await waitFor(async () => !(await portOccupied()), 6000, 200);
@@ -241,20 +275,30 @@ try {
 				);
 			}
 		}
-	}
 
-	launchGui();
-	const live = backendManagedBySystemd ? true : await waitForBackendHealth(40000, 500);
-	if (!live) {
-		throw new Error(`Prod nao respondeu 200 em ${healthUrl} apos relancar a GUI.`);
+		launchGui();
+		const live = await waitForBackendHealth(40000, 500);
+		if (!live) {
+			throw new Error(`Prod nao respondeu 200 em ${healthUrl} apos relancar a GUI.`);
+		}
+	} else {
+		warnings.push(
+			`Sem GUI e sem unidade systemd (${systemdBackendUnit}): os artefatos novos ficaram instalados, mas o backend antigo segue no ar. Reinicie o backend manualmente.`,
+		);
 	}
 } catch (error) {
 	await restoreInstalledTargets();
 	if (backendManagedBySystemd) {
 		restartBackendViaSystemd();
 	}
-	launchGui();
+	if (guiAvailable) {
+		launchGui();
+	}
 	throw error;
+}
+
+for (const warning of warnings) {
+	console.warn(`⚠️  ${warning}`);
 }
 
 console.log(

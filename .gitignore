@@ -44,7 +44,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 CLAUDE.md
 .claude
 .opencode
-db.sqliteworkopilot-front-end/
+db.sqlite
+workopilot-front-end/
 example_**.png
 
 *.sqlite
