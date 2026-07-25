@@ -29,9 +29,13 @@ const httpLink = new FetchLink({
 const wsBase = new URL(apiOrigin);
 wsBase.protocol = wsBase.protocol.replace("http", "ws");
 
-const wsLink = new WsLink({
-	websocket: createResilientWebSocket(new URL("/ws", wsBase).href),
-});
+const realtimeSocket = createResilientWebSocket(new URL("/ws", wsBase).href);
+
+const wsLink = new WsLink({ websocket: realtimeSocket });
+
+export function reconnectRealtime() {
+	realtimeSocket.forceReconnect();
+}
 
 const httpClient: RouterClient<API> = createORPCClient(httpLink);
 const wsClient: RouterClient<WsAPI> = createORPCClient(wsLink);

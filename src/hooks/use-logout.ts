@@ -1,12 +1,19 @@
-import { useMutation } from "@tanstack/react-query";
-import { orpc } from "@/client";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { orpc, reconnectRealtime } from "@/client";
 
 export function useLogout() {
+	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 	const { mutateAsync } = useMutation(orpc.auth.logout.mutationOptions());
 
 	async function logout() {
 		await mutateAsync({});
-		window.location.href = "/login";
+
+		queryClient.clear();
+		reconnectRealtime();
+
+		await navigate({ to: "/login" });
 	}
 
 	return { logout };

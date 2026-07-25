@@ -126,6 +126,10 @@ export function ensureDbSchema() {
 	sqlite.run("PRAGMA busy_timeout = 5000");
 	sqlite.run("PRAGMA synchronous = NORMAL");
 
+	if (!hasColumn(tableInfo(sqlite, "users"), "session_epoch")) {
+		ensureColumn(sqlite, "users", "session_epoch INTEGER NOT NULL DEFAULT 0");
+	}
+
 	// projects
 	{
 		const cols = tableInfo(sqlite, "projects");

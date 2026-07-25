@@ -1,12 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { FormProvider, type SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { orpc } from "@/client";
+import { orpc, reconnectRealtime } from "@/client";
 import { loginSchema } from "@/lib/schemas";
 import type { LoginInput } from "@/types/auth";
 
 export function useLogin() {
+	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 	const { mutateAsync } = useMutation(orpc.auth.login.mutationOptions());
 
 	const methods = useForm({
@@ -20,14 +23,19 @@ export function useLogin() {
 	const onSubmit: SubmitHandler<LoginInput> = async (data) => {
 		try {
 			await mutateAsync(data);
-
-			window.location.href = "/";
 		} catch {
-			toast.error("Login failed", {
-				description: "Invalid name or password",
+			toast.error("Não foi possível entrar", {
+				description: "Nome ou senha inválidos",
 				position: "bottom-left",
 			});
+
+			return;
 		}
+
+		queryClient.clear();
+		reconnectRealtime();
+
+		await navigate({ to: "/" });
 	};
 
 	return {

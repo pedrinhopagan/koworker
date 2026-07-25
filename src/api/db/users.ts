@@ -1,3 +1,4 @@
+import { sql } from "kysely";
 import { envVariables } from "@/api/config/env";
 import { db } from "./connection";
 
@@ -8,6 +9,14 @@ export const DbUsers = {
 
 	getByName(name: string) {
 		return db.selectFrom("users").where("name", "=", name).selectAll().executeTakeFirst();
+	},
+
+	bumpSessionEpoch(id: number) {
+		return db
+			.updateTable("users")
+			.set({ session_epoch: sql<number>`session_epoch + 1` })
+			.where("id", "=", id)
+			.execute();
 	},
 
 	async ensureDefaultUser() {

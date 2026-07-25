@@ -9,6 +9,7 @@ const usersSchema = type({
 	name: "string",
 	password: "string",
 	"user_type?": user_type.configure({ default: "user" }),
+	"session_epoch?": type("number.integer").configure({ default: 0 }),
 });
 
 const projectsSchema = type({
