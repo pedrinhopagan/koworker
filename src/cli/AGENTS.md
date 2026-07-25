@@ -10,14 +10,21 @@ ou no layout v2 por feature; callers tratam `folder_path` como opaco.
 
 ```
 cli/
-├── index.ts            # Entry point: bootstrap de env + dispatch de comando
+├── index.ts            # Entry point: bootstrap de env + dispatch de comando + help canônico
+├── args.ts             # Parser de positionals e flags
+├── notify.ts           # Aviso HTTP ao servidor após escrita (best-effort)
 ├── resolve.ts          # Resolve por cwd + UUID, storage_key ou maior prefixo de folder_path
-├── task-storage.ts     # Lock compartilhado das mutations da CLI
+├── task-storage.ts     # Resolve o projeto da task e delega ao lock de storage da API
 └── commands/
     ├── create.ts       # Cria pela mesma boundary de storage da API
-    ├── feature.ts      # Lista, busca e cria features com identidade de storage
-	├── storage.ts      # Preview e reconciliação com backup global
-    ├── task.ts         # Metadados, status, merge e quarentena
+    ├── done.ts         # Conclui a tarefa resolvida
+    ├── feature.ts      # Lista, busca e cria features (task_groups) com identidade de storage
+    ├── storage.ts      # Preview e reconciliação com backup global
+    ├── backup.ts       # Backup global de storage
+    ├── project.ts      # Lista, cria e edita projetos
+    ├── route.ts        # Rotas do projeto
+    ├── skill.ts        # Estilo e listagem de skills
+    ├── task.ts         # Metadados, conclusão, merge e quarentena
     └── task-file.ts    # Operações de conteúdo sobre path validado
 ```
 
@@ -27,7 +34,11 @@ cli/
 - A CLI roda no cwd de outro projeto, então o entry point define `DATABASE_URL`
   (app data dir do Tauri) antes de importar a camada de DB.
 - Erros em pt-BR e exit code != 0.
-- Toda mutation adquire o lock de storage do projeto.
+- Mutations que tocam storage de tarefa (`create`, `done`, `task set/done/reopen/rm/merge-*`,
+  `task file *`, `feature create`) rodam sob `withProjectStorageLock` (`api/helpers/task-storage-coordinator.ts`),
+  o mesmo caminho da API. `project` e `route` não tocam storage e não pegam lock.
+- `withCliTaskStorageLock` só carrega o projeto da task e repassa a linha para o coordinator,
+  que revalida `project_id` e `folder_path` depois de entrar na fila.
 - Remoção move conteúdo para `.koworker/.backups`; nunca apaga a pasta diretamente.
 - `kw-cli version --json` expõe a release de storage instalada.
 

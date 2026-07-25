@@ -1,236 +1,135 @@
 # KOWORK ROADMAP
 
-**Status:** v2 em desenvolvimento
-**Objetivo:** Atingir paridade funcional com WorkOpilot v1, com arquitetura simplificada
+**Status:** v2 em uso, paridade com o WorkOpilot v1 alcançada e ultrapassada
+**Atualizado:** 2026-07-24 (cada linha conferida contra o código)
+
+Este arquivo descreve o que existe e o que falta. Quando divergir do código, o código vence e este
+arquivo é o errado. Schema e convenções ficam no `AGENTS.md` da raiz.
 
 ---
 
-## Comparativo v1 → v2
+## O QUE JÁ EXISTE
 
-### O que v1 tinha e v2 precisa
+### Infraestrutura
 
-| Funcionalidade | v1 (WorkOpilot) | v2 (Kowork) | Status |
-|---------------|-----------------|-------------|--------|
-| **Infraestrutura** ||||
-| Tauri + shortcut global | ✅ Completo | ✅ Implementado | ✅ Done |
-| System tray | ✅ Completo | ✅ Implementado | ✅ Done |
-| SQLite local | ✅ via Rust | ✅ via Bun + Kysely | ✅ Done |
-| ORPC/tRPC API | ✅ tRPC + sidecar | ✅ ORPC direto | ✅ Done |
-| WebSocket real-time | ✅ via IPC | ✅ ORPC WS | ✅ Done |
-| **Backend** ||||
-| CRUD Projects | ✅ Completo | ✅ Routers prontos | ✅ Done |
-| CRUD Tasks | ✅ Completo | ✅ Routers prontos | ✅ Done |
-| CRUD Subtasks | ✅ Completo | ✅ Routers prontos | ✅ Done |
-| Categories/Priorities | ✅ Completo | ✅ Routers prontos | ✅ Done |
-| Task Executions | ✅ Tracking completo | ❌ Não implementado | 🔴 P1 |
-| Terminal linking (tmux) | ✅ Completo | ⚠️ Estrutura existe | 🟡 P2 |
-| **Frontend** ||||
-| Home dashboard | ✅ Com métricas | ⚠️ Skeleton | 🟡 P2 |
-| Lista de projetos | ✅ Cards + CRUD | ⚠️ Skeleton | 🟡 P2 |
-| Lista de tarefas | ✅ Filtros, status | ⚠️ Skeleton | 🔴 P1 |
-| Detalhe de tarefa | ✅ Completo | ❌ Não existe | 🔴 P1 |
-| Subtasks com drag | ✅ Reordenação | ❌ Não existe | 🔴 P1 |
-| Agenda/Calendar | ✅ Básico | ⚠️ Skeleton | 🟢 P3 |
-| Settings | ✅ Hotkey config | ❌ Não existe | 🟢 P3 |
-| **Integração AI** ||||
-| OpenCode connection | ✅ WebSocket API | ❌ Não implementado | 🔴 P1 |
-| Action System | ✅ 6 actions | ❌ Não implementado | 🔴 P1 |
-| Skills (7 total) | ✅ Completo | ❌ Não existe | 🔴 P1 |
-| Quickfix | ✅ Prompt inline | ❌ Não existe | 🟡 P2 |
-| **CLI** ||||
-| CLI completa | ✅ 15+ comandos | ⚠️ Estrutura vazia | 🟡 P2 |
+| Item | Estado | Onde |
+|---|---|---|
+| Tauri: janela, tray, sidecar do backend | Pronto | `src-tauri/src/{lib,tray,window,backend}.rs` |
+| SQLite via `@lobomfz/db` + Kysely | Pronto | `src/api/db/connection.ts` |
+| API ORPC, um router por domínio | Pronto | `src/api/router.ts`, `src/api/routers/` |
+| WebSocket ORPC (`wsRouter`) | Pronto | `src/api/router.ts` + `src/api/pubsub/` |
+| Build e deploy do desktop | Pronto | `scripts/desktop/` |
+| PWA + push (web-push) | Pronto | `src/api/helpers/push-notifications.ts`, `push_subscriptions` |
 
----
+### Backend
 
-## Fases de Implementação
+| Item | Estado | Onde |
+|---|---|---|
+| CRUD de projetos e rotas de projeto | Pronto | `routers/projects.ts`, `routers/project-routes.ts` |
+| CRUD de tarefas (conteúdo em `.md` no disco) | Pronto | `routers/tasks.ts`, `helpers/task-*.ts` |
+| Features (`task_groups`) | Pronto | `routers/task-groups.ts` |
+| Categorias e prioridades | Pronto | `routers/categories.ts`, `routers/priorities.ts` |
+| Storage v1/v2, plano, backup e reconciliação | Pronto | `routers/task-storage.ts`, `helpers/task-storage-coordinator.ts` |
+| Execuções (`execution_runs`) | Pronto | `db/execution-runs.ts`, `routers/prompt.ts`, `routers/flow.ts` |
+| Watcher de FS que sincroniza tarefas | Pronto | `helpers/tasks-watcher.ts`, `helpers/task-sync.ts` |
+| Terminal (tmux / kw-terminal / none) | Pronto | `routers/terminal.ts`, `routers/kw-terminal.ts`, `docs/TERMINAL.md` |
+| Skills e agents lidos do disco, com sync entre ferramentas | Pronto | `helpers/skills-fs.ts`, `helpers/skills-sync.ts`, `helpers/agents-fs.ts` |
+| Vault, mídias e docs de projeto | Pronto | `routers/vault.ts`, `routers/media.ts`, `helpers/project-docs.ts` |
+| Transcrição de áudio | Pronto | `helpers/audio-transcription.ts` |
+| Configuração de SO chave-valor | Pronto | `helpers/system-settings.ts`, tabela `settings` |
 
-### Fase 1: Core Task Management (P1) 🔴
-**Objetivo:** Ter um app funcional para gerenciar tarefas
+### Frontend
 
-#### 1.1 Página de Lista de Tarefas
-- [ ] Componente TaskList com dados reais
-- [ ] Filtros funcionais (projeto, status, prioridade, categoria)
-- [ ] TaskItem com status visual
-- [ ] Criar tarefa inline
-- [ ] Busca por texto
+| Item | Estado | Onde |
+|---|---|---|
+| Home com projeto em foco | Pronto | `routes/_app/index.tsx` |
+| Projetos: lista, criação, detalhe, docs | Pronto | `routes/_app/projetos/` |
+| Tarefas: lista, feature, detalhe e abas de arquivo | Pronto | `routes/_app/tarefas/` |
+| Editor de documento com CodeMirror | Pronto | `components/doc-editor-pane.tsx` |
+| Prompt bar global com undo de prompt | Pronto | `components/prompt-bar/` |
+| Execuções: composer, histórico, continuação, resultado | Pronto | `routes/_app/executar/` |
+| Skills e agents: lista e detalhe | Pronto | `routes/_app/skills/`, `routes/_app/agents/` |
+| Vault e mídias | Pronto | `routes/_app/vault/`, `routes/_app/media/` |
+| Configurações, fontes, sistema, kw-terminal | Pronto | `routes/_app/configuracoes.tsx` e irmãos |
+| Mostruário de componentes | Pronto | `routes/_app/mostruario/` |
 
-#### 1.2 Página de Detalhe de Tarefa
-- [ ] Rota `/tarefas/$taskId`
-- [ ] Header: título editável, categoria, prioridade
-- [ ] Seção descrição (rich text ou markdown)
-- [ ] Seção notas técnicas
-- [ ] Status com transições visuais
+### CLI
 
-#### 1.3 Sistema de Subtasks
-- [ ] Lista de subtasks com checkbox
-- [ ] Criar subtask inline
-- [ ] Editar título/descrição
-- [ ] Reordenar com drag-and-drop
-- [ ] Status individual (pending → in_execution → executed)
-
-#### 1.4 Backend: Executions
-- [ ] Tabela `task_executions` no schema
-- [ ] Router ORPC para executions
-- [ ] Start/end execution
-- [ ] Heartbeat tracking
+`kw-cli` com `create`, `done`, `task` (create/list/show/set/done/reopen/rm/options/merge-ready/
+merge-completed/file), `feature`, `storage`, `project`, `route`, `skill`, `backup` e `version`.
+O help impresso por `kw-cli` sem argumento é a lista canônica.
 
 ---
 
-### Fase 2: Integração OpenCode (P1) 🔴
-**Objetivo:** Conectar com coding agents
+## O QUE O v1 TINHA E O v2 NÃO TEM
 
-#### 2.1 OpenCode Service
-- [ ] Conexão WebSocket com OpenCode API
-- [ ] Listeners: session.idle, file.change
-- [ ] Estado de conexão no UI
-
-#### 2.2 Sistema de Actions
-- [ ] Action Registry (structure, execute, review, commit)
-- [ ] Componente ActionButtons
-- [ ] Geração de prompts por action
-- [ ] Estado: suggested action baseado em progress
-
-#### 2.3 Terminal Integration
-- [ ] Tabela `task_terminals`
-- [ ] Link tmux session à task
-- [ ] Focus terminal action
-- [ ] Criar window tmux com nome da task
-
-#### 2.4 Skills
-- [ ] Copiar/adaptar skills do v1
-- [ ] `kowork-structure`
-- [ ] `kowork-execute-all`
-- [ ] `kowork-execute-subtask`
-- [ ] `kowork-review`
-- [ ] `kowork-commit`
-- [ ] Sync skills para ~/.config/opencode/skills/
+- **Subtasks como entidade.** Foi abandonado de propósito. Não existe tabela `subtasks` nem router.
+  Subtarefa hoje é um arquivo `.md` dentro da pasta da tarefa, ordenado por `tasks.file_order`.
+- **Agenda / calendário.** Não existe rota nem router. Nunca foi implementado no v2.
+- **Atalho global registrado pelo app.** O tray anuncia `Alt+K` (`Alt+L` em dev), mas não há plugin
+  `global-shortcut`: a combinação é registrada fora do app, no gerenciador de janelas. Não há tela
+  para configurar hotkey.
+- **Integração com OpenCode via WebSocket.** O v2 não conversa com o OpenCode por socket. Ele
+  apenas reconhece `.opencode/skills` como fonte de skills e despacha CLIs (`claude`, `codex`)
+  por spawn.
 
 ---
 
-### Fase 3: UI Completa (P2) 🟡
-**Objetivo:** Interface polida e funcional
+## PENDÊNCIAS REAIS
 
-#### 3.1 Projetos
-- [ ] Lista de projetos com cards
-- [ ] CRUD projeto (criar, editar, arquivar)
-- [ ] Cores customizáveis
-- [ ] Rotas do projeto
-- [ ] Contagem de tarefas por status
+Itens confirmados como ausentes ou incompletos hoje. Sem estimativa: entram quando forem prioridade.
 
-#### 3.2 Home Dashboard
-- [ ] Métricas: tarefas pendentes, em execução, revisão
-- [ ] Tarefas recentes
-- [ ] Próximas tarefas agendadas
-- [ ] Atalhos para ações frequentes
+### P1
 
-#### 3.3 Componentes Reutilizáveis
-- [ ] CategorySelect
-- [ ] PrioritySelect
-- [ ] ProjectSelect
-- [ ] StatusSelect
-- [ ] TaskItem (compacto e expandido)
-- [ ] SubtaskItem
+- [ ] Achados abertos da auditoria de qualidade, com arquivo e linha em
+      `.koworker/tasks/geral--5e959edc/auditoria-profunda-da-codebase--3d1e1ded/auditoria-completa.md`
+      (o que já foi corrigido está em `correcoes-aplicadas.md`, na mesma pasta).
 
-#### 3.4 CLI Kowork
-- [ ] `kowork list-tasks`
-- [ ] `kowork get-task <id>`
-- [ ] `kowork update-task <id> --status`
-- [ ] `kowork create-subtask <taskId>`
-- [ ] `kowork start-execution <taskId>`
-- [ ] `kowork end-execution <taskId>`
+### P2
+
+- [ ] Agenda / visualização por data, se ainda fizer sentido no produto.
+- [ ] Configuração de atalho global dentro do app (hoje depende do WM).
+- [ ] Métricas na home além do projeto em foco.
+
+### P3
+
+- [ ] Export/import de tarefas.
+- [ ] Revisar a regra de comentários proibidos contra a base real (há comentário de decisão em
+      arquivos centrais, incluindo `db/connection.ts`).
 
 ---
 
-### Fase 4: Polish & Extras (P3) 🟢
-**Objetivo:** Funcionalidades secundárias
+## DECISÕES DE ARQUITETURA
 
-#### 4.1 Agenda
-- [ ] Visualização calendário
-- [ ] Tarefas agendadas
-- [ ] Drag para reagendar
+### Abandonado do v1
 
-#### 4.2 Settings
-- [ ] Configurar hotkey global
-- [ ] Tema (dark/light/system)
-- [ ] Configuração de terminal preset
+- Sidecar tRPC separado, DDD no core, múltiplos packages, lógica de negócio em Rust.
+- Estado da tarefa em colunas (`status`, `description`, `notes`, `acceptance_criteria`).
+  O conteúdo canônico é o `.md` no disco; o banco é índice.
 
-#### 4.3 Quickfix
-- [ ] Input inline para ajustes rápidos
-- [ ] Skill `kowork-quickfix`
-- [ ] Feedback visual durante execução
+### Mantido
 
-#### 4.4 Extras
-- [ ] Business rules na task
-- [ ] Acceptance criteria
-- [ ] Imagens/screenshots na task
-- [ ] Export/import de tasks
+- Tauri para janela, tray e empacotamento.
+- SQLite local, TypeScript para toda lógica, React + TanStack Router/Query.
+- Integração com terminal (tmux / kw-terminal).
+
+### Novo no v2
+
+- ORPC em vez de tRPC, Bun sem Node, Kysely + `@lobomfz/db`.
+- Storage de tarefas versionado (`task_layout_version`) com plano, lock, backup e reconciliação.
+- Execuções persistidas em `execution_runs`, com reconexão realtime e undo de prompt.
+- Skills e agents lidos de múltiplos roots do disco e sincronizados entre ferramentas.
 
 ---
 
-## Arquitetura Simplificada (v2 vs v1)
+## NOTAS DE IMPLEMENTAÇÃO
 
-### Removido/Simplificado
-- ❌ Sidecar process (tRPC server separado)
-- ❌ DDD no core package
-- ❌ Múltiplos packages (core/sdk/cli/sidecar)
-- ❌ Rust para lógica de negócio
+### CLI escreve direto no DB
 
-### Mantido/Adaptado
-- ✅ Tauri para shortcut + window + tray
-- ✅ SQLite para persistência
-- ✅ TypeScript para toda lógica
-- ✅ React + TanStack Router/Query
-- ✅ Integração tmux/OpenCode
+`kw-cli` não passa pela API. Depois de escrever, avisa o servidor por HTTP (`src/cli/notify.ts`),
+best-effort. O servidor republica no PubSub com `source: "cli"` e o front revalida.
 
-### Novo
-- ✅ ORPC em vez de tRPC (mais simples)
-- ✅ Bun nativo (sem Node)
-- ✅ Kysely + @lobomfz/db (schema tipado)
-- ✅ Estrutura flat (tudo em src/)
+### Watcher de disco
 
----
-
-## Definição de Pronto
-
-### MVP (Fases 1-2)
-- [ ] Criar/editar/deletar tasks
-- [ ] Subtasks com reordenação
-- [ ] Conectar com OpenCode
-- [ ] Executar actions (structure, execute, review, commit)
-- [ ] Ver status de execução
-
-### v1 Parity (Fases 1-4)
-- [ ] Todas funcionalidades do WorkOpilot v1
-- [ ] CLI funcional
-- [ ] Skills completas
-- [ ] UI polida
-
----
-
-## Notas de Implementação
-
-### CLI → DB Direto
-A CLI do kowork acessa o DB diretamente (sem API). Para manter o front atualizado:
-- Opção 1: CLI dispara evento via socket local
-- Opção 2: Front faz polling periódico
-- Opção 3: Tauri event system
-
-### PubSub
-Mudanças feitas via API já disparam PubSub. O front consome via `orpcWs`.
-
-### OpenCode Plugin
-Criar plugin similar ao workopilot.js que notifica o Clawdbot quando sessão fica idle.
-
----
-
-## Próximos Passos Imediatos
-
-1. **Implementar TaskList** - componente com dados reais
-2. **Criar rota /tarefas/$taskId** - página de detalhe
-3. **SubtaskList com drag** - reordenação funcional
-4. **Conectar OpenCode** - service básico
-5. **Action buttons** - structure/execute/review/commit
-
----
-
-*Última atualização: 2026-01-29*
+Alterações feitas fora do app (o agente editando `.md`) chegam pelo watcher e publicam evento de
+task com `source: "fs"` e sem `taskId`.

@@ -16,9 +16,10 @@ Padronizar ORPC, validação e regras de auth para o backend.
 ## NOMENCLATURA
 
 - `router.projects.create` / `router.tasks.update`
-- `wsRouter.tasks.events` para streams em tempo real
+- `wsRouter.tasks` para o stream de eventos de task; os demais streams são `notifications`, `flow`, `promptRun` e `terminal`
 
 ## STATUS DE TASK
 
-- `pending | in_execution | executed` (não criar estados extras na coluna)
-- `completed_at` é separado do `status`
+- `tasks` não tem coluna `status`. A conclusão é `done` (0/1) mais `completed_at`.
+- Execução vive em `execution_runs` (`kind`: `prompt | flow`; `status`: `running | done | failed | timeout | waiting_user | cancelled`).
+- A etapa do fluxo é inferida dos artefatos da pasta da task (`inferTaskStage`), não persistida.
