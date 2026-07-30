@@ -43,15 +43,15 @@ export class ErrorBoundary extends Component<Props, State> {
 							</div>
 							<div className="space-y-2">
 								<Title as="h3" size="lg">
-									Something went wrong
+									Algo deu errado
 								</Title>
 								<Text size="sm" tone="muted" className="max-w-md">
-									An error occurred while loading this content. Please try again.
+									Um erro ocorreu ao carregar este conteúdo. Tente novamente.
 								</Text>
 							</div>
 							<Button variant="outline" onClick={this.handleRetry} className="gap-2">
 								<RefreshCw className="size-4" />
-								Try again
+								Tentar de novo
 							</Button>
 						</div>
 					</CardContent>

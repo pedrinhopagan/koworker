@@ -42,9 +42,9 @@ import { RECENCY_HIGHLIGHT_DEPTH, recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
+import { useRemoveTaskMutation, useUpdateTaskMutation } from "@/hooks/use-task-mutations";
 import { reflowMarkdown } from "@/lib/reflow-markdown";
 import { relativeTimeFrom } from "@/lib/relative-time";
-import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
@@ -153,13 +153,6 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 		{ completed: task?.done ?? false },
 	);
 
-	function invalidateTasks() {
-		void invalidateTaskQueries(queryClient, {
-			taskId,
-			projectId: task?.projectId,
-		});
-	}
-
 	function openFile(name: string, options?: { replace?: boolean }) {
 		if (!route) return;
 		navigate({
@@ -235,17 +228,10 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 
 	const setDoneMutation = useSetDoneMutation(task?.projectId);
 
-	const updateMutation = useMutation({
-		...orpc.tasks.update.mutationOptions(),
-		onSuccess: invalidateTasks,
-	});
+	const updateMutation = useUpdateTaskMutation(task?.projectId);
 
-	const removeTaskMutation = useMutation({
-		...orpc.tasks.remove.mutationOptions(),
-		onSuccess: () => {
-			invalidateTasks();
-			navigate({ to: "/tarefas" });
-		},
+	const removeTaskMutation = useRemoveTaskMutation(task?.projectId, {
+		onRemoved: () => navigate({ to: "/tarefas" }),
 	});
 
 	const share = useTaskShare(task);
@@ -522,7 +508,7 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 				<div className="w-full border-b border-border">
 					<div
 						ref={headerRef}
-						className="mx-auto flex h-10 w-full max-w-6xl items-center gap-2 px-2"
+						className="mx-auto flex h-13 w-full max-w-6xl items-center gap-2 px-2 md:h-10"
 					>
 						<Link
 							to="/tarefas/$taskId/$file"
@@ -572,14 +558,14 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 									asChild
 									variant="ghost"
 									size="icon-sm"
-									className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+									className="size-12 p-0 text-muted-foreground hover:text-foreground md:size-6"
 								>
 									<Link
 										to="/tarefas/$taskId/$file"
 										params={{ taskId: canonical.featureId, file: canonical.taskId }}
 										aria-label="Visão geral da tarefa"
 									>
-										<LayoutList className="h-3.5 w-3.5" />
+										<LayoutList className="size-4 md:size-3.5" />
 									</Link>
 								</Button>
 							</Tooltip>
@@ -589,9 +575,9 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 								size="icon-sm"
 								onClick={() => setActionsOpen(true)}
 								aria-label="Ações do documento"
-								className="h-8 w-8 md:hidden"
+								className="size-12 md:hidden"
 							>
-								<MoreVertical className="h-4 w-4" />
+								<MoreVertical className="size-5" />
 							</Button>
 							<Popover open={moreOpen} onOpenChange={setMoreOpen}>
 								<PopoverAnchor asChild>

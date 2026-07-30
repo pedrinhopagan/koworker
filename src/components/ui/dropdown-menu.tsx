@@ -3,6 +3,7 @@ import { Check, ChevronRight, Circle } from "lucide-react";
 import * as React from "react";
 import { tv } from "tailwind-variants";
 
+import { useThemeRootContainer } from "@/hooks/use-theme-root";
 import { cn } from "@/lib/utils";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
@@ -76,13 +77,7 @@ const DropdownMenuContent = React.forwardRef<
 	React.ElementRef<typeof DropdownMenuPrimitive.Content>,
 	React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
 >(({ className, sideOffset = 8, style, ...props }, ref) => {
-	const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
-
-	React.useEffect(() => {
-		if (portalContainer) return;
-		const themeRoot = document.querySelector<HTMLElement>("[data-theme-root]");
-		setPortalContainer(themeRoot);
-	}, [portalContainer]);
+	const portalContainer = useThemeRootContainer();
 
 	const contentStyle: React.CSSProperties = {
 		backgroundColor: "var(--card)",

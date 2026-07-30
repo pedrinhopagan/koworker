@@ -282,11 +282,11 @@ export function TaskEditControls({
 					aria-label={editing ? "Concluir edição" : "Editar tarefa"}
 					aria-pressed={editing}
 					className={cn(
-						"pointer-events-auto h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground",
+						"pointer-events-auto size-12 p-0 text-muted-foreground hover:text-foreground md:size-6",
 						editing && "text-foreground",
 					)}
 				>
-					<PencilLine className="h-3 w-3" />
+					<PencilLine className="size-4 md:size-3" />
 				</Button>
 			</Tooltip>
 			<DeleteConfirmButton

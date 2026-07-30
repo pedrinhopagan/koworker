@@ -3,6 +3,7 @@ import { Check, ChevronRight, Circle } from "lucide-react";
 import * as React from "react";
 import { tv } from "tailwind-variants";
 
+import { useThemeRootContainer } from "@/hooks/use-theme-root";
 import { cn } from "@/lib/utils";
 
 const ContextMenu = ContextMenuPrimitive.Root;
@@ -77,20 +78,6 @@ const ContextMenuSubContent = React.forwardRef<
 	);
 });
 ContextMenuSubContent.displayName = ContextMenuPrimitive.SubContent.displayName;
-
-// Portal para dentro do [data-theme-root]: o conteúdo do menu vive fora da árvore por padrão,
-// onde as variáveis de tema não resolvem (bg transparente, texto preto). Portar pra raiz do tema
-// + fixar bg/cor inline garante o mesmo visual dos outros menus em qualquer lugar.
-function useThemeRootContainer(): HTMLElement | null {
-	const [container, setContainer] = React.useState<HTMLElement | null>(null);
-
-	React.useEffect(() => {
-		if (container) return;
-		setContainer(document.querySelector<HTMLElement>("[data-theme-root]"));
-	}, [container]);
-
-	return container;
-}
 
 const contextMenuContentVariants = tv({
 	base: "z-[100] min-w-[160px] overflow-hidden rounded-md border border-border bg-card py-1 text-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",

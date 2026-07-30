@@ -1,6 +1,16 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Flag, Palette, RefreshCw, Settings, SlidersHorizontal, Tags, Type } from "lucide-react";
+import {
+	Flag,
+	MonitorSmartphone,
+	Palette,
+	QrCode,
+	RefreshCw,
+	Settings,
+	SlidersHorizontal,
+	Tags,
+	Type,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
@@ -11,6 +21,7 @@ import { PriorityManagerDrawer } from "@/components/tasks/PriorityManagerDrawer"
 import { Text, Title } from "@/components/typography";
 import { Icon } from "@/components/ui/icon";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useDevices } from "@/hooks/use-devices";
 import { useManageDrawerStore } from "@/stores/manage-drawers";
 import { PageShell } from "../../components/layout/page-shell";
 
@@ -28,10 +39,10 @@ function isRedeployConflict(error: unknown): boolean {
 }
 
 function RedeployAppCard() {
-	const redeployMutation = useMutation({
+	const { isPending, mutate } = useMutation({
 		...orpc.system.redeploy.mutationOptions(),
 		onSuccess: () => {
-			toast.success("Atualização iniciada — o app vai reiniciar em alguns minutos");
+			toast.success("Build iniciado no PC. O aplicativo vai reiniciar em alguns minutos.");
 		},
 		onError: (error) => {
 			if (isRedeployConflict(error)) {
@@ -46,10 +57,31 @@ function RedeployAppCard() {
 	return (
 		<ConfigCard
 			icon={RefreshCw}
-			title="Atualizar aplicativo"
-			description="Baixa a versão mais recente do repositório e publica no PC."
-			onClick={() => redeployMutation.mutate({})}
-			className={redeployMutation.isPending ? "opacity-60 pointer-events-none" : undefined}
+			title={isPending ? "Iniciando build" : "Atualizar aplicativo"}
+			description={
+				isPending
+					? "Enviando a solicitação de build para o PC."
+					: "Dispara no PC o build da versão mais recente e publica a atualização."
+			}
+			onClick={() => mutate({})}
+			className={isPending ? "pointer-events-none opacity-60" : undefined}
+		/>
+	);
+}
+
+function DevicesCard() {
+	const navigate = useNavigate();
+	const { devices } = useDevices();
+
+	const pending = devices.filter((device) => device.status === "pending").length;
+
+	return (
+		<ConfigCard
+			icon={MonitorSmartphone}
+			title={pending > 0 ? `Dispositivos (${pending} aguardando)` : "Dispositivos"}
+			description="Libere ou revogue cada aparelho que acessa o Kowork de fora."
+			onClick={() => navigate({ to: "/dispositivos" })}
+			className={pending > 0 ? "border-accent/60" : undefined}
 		/>
 	);
 }
@@ -140,6 +172,13 @@ function ConfiguracoesPage() {
 							title="Terminal e fontes"
 							description="Emulador, multiplexador, pasta base e fontes de agents/skills."
 							onClick={() => navigate({ to: "/sistema" })}
+						/>
+						<DevicesCard />
+						<ConfigCard
+							icon={QrCode}
+							title="Entrar pelo celular"
+							description="Abra sua conta pelo QR, sem digitar usuário e senha."
+							onClick={() => navigate({ to: "/parear" })}
 						/>
 						<RedeployAppCard />
 					</div>

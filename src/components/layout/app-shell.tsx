@@ -1,3 +1,4 @@
+import { useRouterState } from "@tanstack/react-router";
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { AppContextMenu } from "@/components/layout/app-context-menu";
 import { AppSidebar } from "@/components/layout/app-sidebar";
@@ -7,8 +8,11 @@ import { GlobalProjectSelectDialog } from "@/components/layout/project-select-di
 import { StatusBar } from "@/components/layout/status-bar";
 import { TabBar } from "@/components/layout/tab-bar";
 import { GlobalPromptBar } from "@/components/prompt-bar/global-prompt-bar";
+import { MobilePromptBar } from "@/components/prompt-bar/mobile-prompt-bar";
 import { MobileExecutionShortcut } from "@/components/layout/mobile-execution-shortcut";
-import { usePrimaryColor, useProjectFocus, useUser } from "@/hooks";
+import { useIsMobileViewport, usePrimaryColor, useProjectFocus, useUser } from "@/hooks";
+import { cn } from "@/lib/utils";
+import { useReadingModeStore } from "@/stores/reading-mode";
 
 type AppShellProps = {
 	children: ReactNode;
@@ -27,6 +31,14 @@ export function AppShell({ children }: AppShellProps) {
 	useUser();
 	usePrimaryColor();
 	const { accent } = useProjectFocus();
+	const isMobile = useIsMobileViewport();
+	const reading = useReadingModeStore((s) => s.reading);
+	// A rota da sessão é o cliente daquela conversa: ela tem composer próprio, que fala com o agente
+	// já de pé. A barra global despacharia uma execução nova, no projeto da rota — duas caixas de
+	// texto lado a lado com destinos diferentes.
+	const inSession = useRouterState({
+		select: (state) => /^\/executar\/[^/]+/.test(state.location.pathname),
+	});
 
 	const baseAccentStyle = {
 		"--project-accent-soft": "color-mix(in oklab, var(--primary) 12%, transparent)",
@@ -68,10 +80,20 @@ export function AppShell({ children }: AppShellProps) {
 						{children}
 					</main>
 
-					<div className="hidden md:block">
-						<GlobalPromptBar />
-					</div>
-					<MobileExecutionShortcut />
+					{!isMobile && !inSession && <GlobalPromptBar />}
+
+					{isMobile && !inSession && (
+						<div
+							className={cn(
+								"flex items-stretch gap-2 border-t border-border bg-chrome px-2 py-1.5",
+								reading &&
+									"fixed inset-x-0 bottom-0 z-[60] pb-[calc(0.375rem+env(safe-area-inset-bottom))]",
+							)}
+						>
+							<MobilePromptBar />
+							<MobileExecutionShortcut />
+						</div>
+					)}
 
 					<StatusBar />
 				</div>

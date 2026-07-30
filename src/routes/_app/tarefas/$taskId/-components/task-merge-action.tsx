@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { newClientRequestId } from "@/lib/client-request-id";
+import { errorMessage } from "@/lib/orpc-errors";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { withoutInvokeInherit } from "@/constants/invoke";
@@ -31,14 +32,13 @@ export function TaskMergeAction({
 	const mergeMutation = useMutation({
 		...orpc.prompt.execute.mutationOptions(),
 		onSuccess: ({ runId }) => {
-			localStorage.setItem("kowork-active-run", runId);
 			toast.success("Merge despachado");
 			void navigate({
 				to: "/executar/$executionId",
 				params: { executionId: runId },
 			});
 		},
-		onError: (error: Error) => toast.error(error.message),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível despachar o merge")),
 	});
 
 	function merge() {

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams } from "@tanstack/react-router";
+import { useParams, useSearch } from "@tanstack/react-router";
 
 import { orpc } from "@/client";
 import type { TaskStage } from "@/constants/complexity";
@@ -20,7 +20,17 @@ export type RouteDocTarget = {
 
 export function useRouteDocTarget(): RouteDocTarget {
 	const params = useParams({ strict: false });
-	const { selectedProject } = useProjectFocus();
+	const search: { projectId?: string } = useSearch({ strict: false });
+
+	// Rotas que carregam o projeto na URL (`/projetos/$projetoId`, `/tarefas?projectId=`) mandam mais
+	// que o último projeto do store: é esse o projeto que a tela está mostrando.
+	const routeProjectId = params.projetoId ?? search.projectId ?? null;
+	// O prompt é disparado no diretório deste projeto: sem escolha explícita ele fica sem alvo e o
+	// painel de execução pede o projeto, em vez de mandar o agente para o primeiro da lista.
+	const { selectedProject, explicitProject } = useProjectFocus({
+		preferredProjectId: routeProjectId,
+		syncToStore: !routeProjectId,
+	});
 
 	const firstTaskSegment = params.taskId;
 	const secondTaskSegment = params.file;
@@ -62,8 +72,8 @@ export function useRouteDocTarget(): RouteDocTarget {
 		return {
 			kind: nonTaskKind,
 			path: `.koworker/${fileName}`,
-			projectName: selectedProject?.name,
-			projectId: selectedProject?.id,
+			projectName: explicitProject?.name,
+			projectId: explicitProject?.id,
 		};
 	}
 
@@ -71,8 +81,8 @@ export function useRouteDocTarget(): RouteDocTarget {
 		return {
 			kind: nonTaskKind,
 			path: splat ?? null,
-			projectName: selectedProject?.name,
-			projectId: selectedProject?.id,
+			projectName: explicitProject?.name,
+			projectId: explicitProject?.id,
 		};
 	}
 
@@ -81,15 +91,15 @@ export function useRouteDocTarget(): RouteDocTarget {
 		return {
 			kind: nonTaskKind,
 			path: dir ? `${dir}/SKILL.md` : null,
-			projectName: selectedProject?.name,
-			projectId: selectedProject?.id,
+			projectName: explicitProject?.name,
+			projectId: explicitProject?.id,
 		};
 	}
 
 	return {
 		kind: "none",
 		path: null,
-		projectName: selectedProject?.name,
-		projectId: selectedProject?.id,
+		projectName: explicitProject?.name,
+		projectId: explicitProject?.id,
 	};
 }

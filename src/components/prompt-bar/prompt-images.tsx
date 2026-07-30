@@ -10,35 +10,21 @@ import { IMAGE_MIME_BY_EXT } from "@/constants/koworker";
 import { useObjectUrl } from "@/hooks/use-object-url";
 import { imagePlaceholder } from "@/lib/build-prompt";
 import { isTauri, readClipboardImageFile } from "@/lib/tauri";
-import { type PromptImage, usePromptBarStore } from "@/stores/prompt-bar";
+import { cn } from "@/lib/utils";
+import type { PromptImage } from "@/stores/prompt-bar";
 
 const ACCEPTED_IMAGE_MIMES = new Set(Object.values(IMAGE_MIME_BY_EXT));
 
 // Cola de imagem no textarea do prompt: sobe cada imagem pro `.koworker/medias/` do projeto da rota
-// e insere `[Imagem N]` no ponto do caret — o marcador que a composição do prompt troca pelo path.
-// Colar sem projeto resolvido não tem onde gravar, então vira toast e a cola é ignorada.
+// e entrega os arquivos gravados a quem chamou, que numera os marcadores `[Imagem N]` e os insere no
+// caret. Colar sem projeto resolvido não tem onde gravar, então vira toast e a cola é ignorada.
 export function usePromptImagePaste(params: {
 	projectName?: string;
-	textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+	onUploaded: (images: { projectId: string; name: string }[]) => void;
 }) {
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
 	const queryClient = useQueryClient();
 	const [uploading, setUploading] = useState(false);
-
-	function insertAtCaret(snippet: string) {
-		const node = params.textareaRef.current;
-		const { text, setText } = usePromptBarStore.getState();
-		const start = node?.selectionStart ?? text.length;
-		const end = node?.selectionEnd ?? start;
-
-		setText(text.slice(0, start) + snippet + text.slice(end));
-
-		const caret = start + snippet.length;
-		requestAnimationFrame(() => {
-			node?.focus();
-			node?.setSelectionRange(caret, caret);
-		});
-	}
 
 	async function handlePaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
 		// No navegador a imagem colada chega nos `items` via `getAsFile()` (síncrono de propósito: depois
@@ -71,13 +57,12 @@ export function usePromptImagePaste(params: {
 
 		setUploading(true);
 		try {
+			const uploaded: { projectId: string; name: string }[] = [];
 			for (const file of files) {
 				const saved = await orpc.media.uploadFile.call({ projectId: project.id, file });
-				const index = usePromptBarStore
-					.getState()
-					.addImage({ projectId: project.id, name: saved.name });
-				insertAtCaret(imagePlaceholder(index));
+				uploaded.push({ projectId: project.id, name: saved.name });
 			}
+			params.onUploaded(uploaded);
 			queryClient.invalidateQueries({ queryKey: orpc.media.list.key() });
 		} catch (err: any) {
 			toast.error(err?.message ?? "Não foi possível salvar a imagem");
@@ -95,19 +80,25 @@ export function usePromptImagePaste(params: {
 // nunca sumir com o texto. `scrollRef` deixa o pai sincronizar a rolagem com a do textarea.
 export function PromptInputBackdrop({
 	text,
+	images,
 	scrollRef,
+	className,
 }: {
 	text: string;
+	images: PromptImage[];
 	scrollRef: React.RefObject<HTMLDivElement | null>;
+	className?: string;
 }) {
-	const images = usePromptBarStore((s) => s.images);
 	const tokens = new Set(images.map((image) => imagePlaceholder(image.index)));
 
 	return (
 		<div
 			ref={scrollRef}
 			aria-hidden
-			className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-none border border-transparent bg-card px-3 py-2 pr-9 text-base text-transparent"
+			className={cn(
+				"pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-none border border-transparent bg-card text-transparent",
+				className,
+			)}
 		>
 			{renderPromptChips(text, tokens)}
 		</div>
@@ -147,23 +138,31 @@ function renderPromptChips(text: string, tokens: Set<string>): React.ReactNode {
 // Faixa de chips das imagens anexadas ao rascunho, logo abaixo do textarea: miniatura + `Imagem N`
 // + soltar. Clicar na miniatura abre a imagem na /media; soltar só desanexa (o arquivo fica lá). O
 // loading da gravação em si mora no overlay do input, não aqui.
-export function PromptImageChips() {
-	const images = usePromptBarStore((s) => s.images);
-
+export function PromptImageChips({
+	images,
+	onRemove,
+}: {
+	images: PromptImage[];
+	onRemove: (index: number) => void;
+}) {
 	if (images.length === 0) return null;
 
 	return (
 		<div className="mt-2 flex flex-wrap items-center gap-1.5">
 			{images.map((image) => (
-				<PromptImageChip key={image.index} image={image} />
+				<PromptImageChip key={image.index} image={image} onRemove={onRemove} />
 			))}
 		</div>
 	);
 }
 
-function PromptImageChip({ image }: { image: PromptImage }) {
-	const removeImage = usePromptBarStore((s) => s.removeImage);
-
+function PromptImageChip({
+	image,
+	onRemove,
+}: {
+	image: PromptImage;
+	onRemove: (index: number) => void;
+}) {
 	const fileQuery = useQuery(
 		orpc.media.readFile.queryOptions({
 			input: { projectId: image.projectId, name: image.name },
@@ -191,7 +190,7 @@ function PromptImageChip({ image }: { image: PromptImage }) {
 			<Tooltip label="Remover do prompt">
 				<button
 					type="button"
-					onClick={() => removeImage(image.index)}
+					onClick={() => onRemove(image.index)}
 					aria-label={`Remover ${imagePlaceholder(image.index)} do prompt`}
 					className="flex size-5 items-center justify-center text-muted-foreground/60 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 				>

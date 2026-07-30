@@ -93,13 +93,13 @@ export function DocToolbar({
 						aria-label={pinned ? "Desafixar sessão de leitura" : "Fixar sessão de leitura"}
 						aria-pressed={pinned}
 						className={cn(
-							"h-6 w-6 min-h-6 min-w-6 p-0",
+							"size-12 p-0 md:size-6",
 							pinned
 								? "text-[var(--project-accent,var(--primary))]"
 								: "text-muted-foreground hover:text-foreground",
 						)}
 					>
-						<Pin className={cn("h-3.5 w-3.5", pinned && "fill-current")} />
+						<Pin className={cn("size-4 md:size-3.5", pinned && "fill-current")} />
 					</Button>
 				</Tooltip>
 			) : null}
@@ -110,9 +110,9 @@ export function DocToolbar({
 					size="icon-sm"
 					onClick={onReading}
 					aria-label="Modo leitura"
-					className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+					className="size-12 p-0 md:size-6 text-muted-foreground hover:text-foreground"
 				>
-					<BookOpen className="h-3.5 w-3.5" />
+					<BookOpen className="size-4 md:size-3.5" />
 				</Button>
 			</Tooltip>
 			<Tooltip label="Recolher todos os títulos">
@@ -122,9 +122,9 @@ export function DocToolbar({
 					size="icon-sm"
 					onClick={onCollapse}
 					aria-label="Recolher todos os títulos"
-					className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+					className="size-12 p-0 md:size-6 text-muted-foreground hover:text-foreground"
 				>
-					<ChevronsDownUp className="h-3.5 w-3.5" />
+					<ChevronsDownUp className="size-4 md:size-3.5" />
 				</Button>
 			</Tooltip>
 			<Tooltip label="Expandir todos os títulos">
@@ -134,9 +134,9 @@ export function DocToolbar({
 					size="icon-sm"
 					onClick={onExpand}
 					aria-label="Expandir todos os títulos"
-					className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+					className="size-12 p-0 md:size-6 text-muted-foreground hover:text-foreground"
 				>
-					<ChevronsUpDown className="h-3.5 w-3.5" />
+					<ChevronsUpDown className="size-4 md:size-3.5" />
 				</Button>
 			</Tooltip>
 			{onCopyContent && (
@@ -147,9 +147,9 @@ export function DocToolbar({
 						size="icon-sm"
 						onClick={onCopyContent}
 						aria-label="Copiar conteúdo do arquivo"
-						className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+						className="size-12 p-0 md:size-6 text-muted-foreground hover:text-foreground"
 					>
-						<ClipboardCopy className="h-3.5 w-3.5" />
+						<ClipboardCopy className="size-4 md:size-3.5" />
 					</Button>
 				</Tooltip>
 			)}
@@ -160,9 +160,9 @@ export function DocToolbar({
 					size="icon-sm"
 					onClick={onCopyPath}
 					aria-label="Copiar caminho do arquivo"
-					className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+					className="size-12 p-0 md:size-6 text-muted-foreground hover:text-foreground"
 				>
-					<Link2 className="h-3.5 w-3.5" />
+					<Link2 className="size-4 md:size-3.5" />
 				</Button>
 			</Tooltip>
 			{share ? <DocShareControls {...share} /> : null}

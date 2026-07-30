@@ -117,7 +117,7 @@ const TreeRow = memo(function TreeRow({
 			onClick={activate}
 			style={{ paddingLeft: depth * 16 + 8 }}
 			className={cn(
-				"group flex h-11 w-full items-center gap-1.5 pr-2 text-left transition-colors sm:h-8",
+				"group flex h-12 w-full items-center gap-1.5 pr-2 text-left transition-colors sm:h-8",
 				selected ? "bg-primary/15 hover:bg-primary/20" : "hover:bg-secondary/60",
 				node.kind === "fileLeaf" && draggable.isDragging && "opacity-40",
 				inert && !selected && "cursor-default",
@@ -152,7 +152,7 @@ const TreeRow = memo(function TreeRow({
 					{...draggable.attributes}
 					aria-label={`Arrastar ${node.label}`}
 					title="Arraste para mover o arquivo"
-					className="flex h-11 w-10 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground/50 transition-colors hover:text-foreground sm:h-8 sm:w-7 sm:opacity-0 sm:group-hover/row:opacity-100 sm:focus-visible:opacity-100"
+					className="flex h-12 w-10 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground/50 transition-colors hover:text-foreground sm:h-8 sm:w-7 sm:opacity-0 sm:group-hover/row:opacity-100 sm:focus-visible:opacity-100"
 				>
 					<GripVertical className="size-4" />
 				</span>

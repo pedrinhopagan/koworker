@@ -13,6 +13,11 @@ import { COMPLEXITY_COLORS } from "@/constants/complexity";
 import { recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
+import {
+	useMoveTaskToProjectMutation,
+	useRemoveTaskMutation,
+	useUpdateTaskMutation,
+} from "@/hooks/use-task-mutations";
 import { copyToClipboard } from "@/lib/build-prompt";
 import { copyMarkdown, joinPath, openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { relativeTimeFrom } from "@/lib/relative-time";
@@ -89,28 +94,9 @@ function TaskActionSurface({
 	const projects = projectsQuery.data ?? [];
 	const canonical = canonicalTaskRoute(task);
 
-	const updateMutation = useMutation({
-		...orpc.tasks.update.mutationOptions(),
-		onSuccess: () => {
-			void invalidateTaskQueries(queryClient, { taskId: task.id, projectId: task.projectId });
-		},
-	});
-	const removeTaskMutation = useMutation({
-		...orpc.tasks.remove.mutationOptions(),
-		onSuccess: () => {
-			void invalidateTaskQueries(queryClient, { taskId: task.id, projectId: task.projectId });
-		},
-	});
-	const moveToProjectMutation = useMutation({
-		...orpc.tasks.moveToProject.mutationOptions(),
-		onSuccess: (_data, variables) => {
-			void invalidateTaskQueries(queryClient, { taskId: task.id, projectId: task.projectId });
-			void invalidateTaskQueries(queryClient, {
-				taskId: task.id,
-				projectId: variables.targetProjectId,
-			});
-		},
-	});
+	const updateMutation = useUpdateTaskMutation(task.projectId);
+	const removeTaskMutation = useRemoveTaskMutation(task.projectId);
+	const moveToProjectMutation = useMoveTaskToProjectMutation(task.projectId);
 	const ignoreRecencyMutation = useMutation({
 		...orpc.tasks.ignoreRecency.mutationOptions(),
 		onSuccess: () => {
@@ -214,7 +200,6 @@ function TaskActionSurface({
 
 function TaskItemImpl({ task, variant = "default", highlight, features }: TaskItemProps) {
 	const canonical = canonicalTaskRoute(task);
-	const queryClient = useQueryClient();
 	const isDone = task.done;
 	const [editing, setEditing] = useState(false);
 	const [linkingFeature, setLinkingFeature] = useState(false);
@@ -243,19 +228,8 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 		);
 	}
 
-	const updateMutation = useMutation({
-		...orpc.tasks.update.mutationOptions(),
-		onSuccess: () => {
-			void invalidateTaskQueries(queryClient, { taskId: task.id, projectId: task.projectId });
-		},
-	});
-
-	const removeTaskMutation = useMutation({
-		...orpc.tasks.remove.mutationOptions(),
-		onSuccess: () => {
-			void invalidateTaskQueries(queryClient, { taskId: task.id, projectId: task.projectId });
-		},
-	});
+	const updateMutation = useUpdateTaskMutation(task.projectId);
+	const removeTaskMutation = useRemoveTaskMutation(task.projectId);
 
 	const isMutating =
 		setDoneMutation.isPending || removeTaskMutation.isPending || updateMutation.isPending;
@@ -427,9 +401,9 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 					}}
 					disabled={isMutating}
 					aria-label="Ações da tarefa"
-					className="pointer-events-auto relative z-10 flex shrink-0 items-center justify-center p-1 text-muted-foreground hover:text-foreground md:hidden"
+					className="pointer-events-auto relative z-10 -my-2 flex size-12 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground md:hidden"
 				>
-					<MoreVertical className="size-4" />
+					<MoreVertical className="size-5" />
 				</button>
 
 				{mobileActionsOpen && (

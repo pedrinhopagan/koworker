@@ -28,12 +28,14 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
+import { SaveStatus } from "@/components/ui/save-status";
 import { Textarea } from "@/components/ui/textarea";
 import { AGENT_TOOL_LABEL } from "@/constants/agents";
 import { useAgentQuery } from "@/hooks/use-agents";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { LucideIcon } from "@/lib/lucide-icon";
+import { openFolderInOs } from "@/lib/os-share";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
@@ -83,6 +85,7 @@ function AgentPage() {
 		<AgentEditor
 			key={agentQuery.agent.slug}
 			agent={agentQuery.agent}
+			content={agentQuery.content}
 			variants={agentQuery.variants}
 			project={selectedProject}
 		/>
@@ -108,10 +111,12 @@ function scopeSuffix(scope: AgentVariant["scope"]): string {
 // editor markdown só lê `initialContent` no mount — sem o remount o corpo do agent anterior vazaria.
 function AgentEditor({
 	agent,
+	content,
 	variants,
 	project,
 }: {
 	agent: TaskAgent;
+	content: string;
 	variants: AgentVariant[];
 	project: { name: string; mainRoute: string } | null;
 }) {
@@ -142,6 +147,7 @@ function AgentEditor({
 	const settingsMutation = useAgentSettingsMutation();
 	const {
 		updateContent,
+		saveStatus,
 		standardize,
 		standardizing,
 		removeAgent,
@@ -247,16 +253,18 @@ function AgentEditor({
 	const alreadyInProject = agent.sources.some((source) => source.path === injectTargetDir);
 
 	function deleteActiveCopy() {
-		setConfirmingDelete(false);
-		removeAgent(activeVariantPath);
-		// Última (ou única) cópia → o agent some de vez; senão fica nas fontes restantes.
-		if (!multiSource) navigate({ to: "/agents" });
+		removeAgent(activeVariantPath, () => {
+			setConfirmingDelete(false);
+			// Última (ou única) cópia → o agent some de vez; senão fica nas fontes restantes.
+			if (!multiSource) void navigate({ to: "/agents" });
+		});
 	}
 
 	function deleteEverywhere() {
-		setConfirmingDelete(false);
-		removeAllAgent({ slug: agent.slug });
-		navigate({ to: "/agents" });
+		removeAllAgent({ slug: agent.slug }, () => {
+			setConfirmingDelete(false);
+			void navigate({ to: "/agents" });
+		});
 	}
 
 	function confirmStandardize() {
@@ -267,6 +275,10 @@ function AgentEditor({
 	function injectIntoProject() {
 		if (!project) return;
 		inject({ sourcePath: agent.primaryPath, projectName: project.name });
+	}
+
+	function openAgentFolder() {
+		void openFolderInOs(activeVariant?.dir ?? agent.primaryDir);
 	}
 
 	const closeActions = () => setActionsOpen(false);
@@ -364,6 +376,7 @@ function AgentEditor({
 									onReading={() => setReading(true)}
 									pinned={pinned}
 									onTogglePin={togglePin}
+									share={{ onOpenInOs: openAgentFolder }}
 								/>
 								<Button
 									type="button"
@@ -444,6 +457,7 @@ function AgentEditor({
 							onReading={() => setReading(true)}
 							pinned={pinned}
 							onTogglePin={togglePin}
+							share={{ onOpenInOs: openAgentFolder }}
 							layout="stacked"
 							onAction={closeActions}
 						/>
@@ -460,15 +474,18 @@ function AgentEditor({
 					</DocMobileActionsDrawer>
 
 					<div className="w-full border-b border-border">
-						<div className="mx-auto w-full max-w-6xl px-2 py-1.5">
+						<div className="mx-auto flex w-full max-w-6xl items-start gap-2 px-2 py-1.5">
 							<Textarea
 								value={description}
 								onChange={(event) => setDescription(event.target.value)}
 								onBlur={saveDescription}
 								placeholder="Descrição do agent"
 								rows={1}
-								className="min-h-0 max-h-32 resize-none border-0 bg-transparent px-2 py-1 text-sm leading-relaxed shadow-none field-sizing-content focus-visible:ring-0"
+								className="min-h-0 max-h-32 flex-1 resize-none border-0 bg-transparent px-2 py-1 text-sm leading-relaxed shadow-none field-sizing-content focus-visible:ring-0"
 							/>
+							<div className="shrink-0 py-1">
+								<SaveStatus status={saveStatus} />
+							</div>
 						</div>
 					</div>
 
@@ -533,7 +550,7 @@ function AgentEditor({
 					ref={paneRef}
 					fileName={`${agent.slug}.md`}
 					sessionKey={docSessionKey({ kind: "agent", variantPath: activeVariantPath })}
-					content={activeVariant?.content ?? agent.instructions}
+					content={activeVariant?.content ?? content}
 					folderPath={activeVariant?.dir ?? agent.primaryDir}
 					writeFile={({ content }) => persist({ description, content, metadata })}
 					onPasteFrontmatter={applyPastedFrontmatter}
@@ -562,7 +579,7 @@ function AgentEditor({
 				description={
 					multiSource
 						? `“${agent.label}” existe em ${agent.sources.length} fontes. Escolha o que apagar do disco.`
-						: `O arquivo de “${agent.label}” será apagado permanentemente do disco.`
+						: `“${agent.label}” será salvo no backup e removido de todas as fontes configuradas.`
 				}
 				className="max-w-md"
 				footer={
@@ -595,7 +612,7 @@ function AgentEditor({
 							<Button
 								variant="destructive"
 								size="sm"
-								onClick={deleteActiveCopy}
+								onClick={deleteEverywhere}
 								disabled={removing}
 							>
 								Remover
@@ -606,8 +623,8 @@ function AgentEditor({
 			>
 				<Text size="sm" tone="muted">
 					{multiSource
-						? "“Só esta cópia” remove apenas o arquivo da fonte selecionada; “todas as fontes” apaga o agent de todos os lugares."
-						: "Esta ação não pode ser desfeita."}
+						? "“Só esta cópia” remove apenas o arquivo da fonte selecionada, sem backup; “todas as fontes” cria um backup e apaga o agent de todos os lugares."
+						: "Uma cópia do arquivo será salva em ~/Documentos/backups/koworker/agents/ antes da remoção."}
 				</Text>
 			</Dialog>
 

@@ -221,14 +221,33 @@ export function taskMenuItems(
 				</ContextMenuSubContent>
 			</ContextMenuSub>
 			<ContextMenuSeparator />
-			<ContextMenuItem
-				onSelect={() => actions.onDelete(target)}
-				className="px-3 py-2 text-destructive focus:text-destructive"
-			>
-				<Trash2 className="mr-2 size-4" />
-				Excluir tarefa
-			</ContextMenuItem>
+			<DeleteItem onDelete={() => actions.onDelete(target)} />
 		</>
+	);
+}
+
+function DeleteItem({ onDelete }: { onDelete: () => void }) {
+	const [confirming, setConfirming] = useState(false);
+
+	return (
+		<ContextMenuItem
+			onSelect={(event) => {
+				if (!confirming) {
+					event.preventDefault();
+					setConfirming(true);
+					return;
+				}
+
+				onDelete();
+			}}
+			className={cn(
+				"px-3 py-2 text-destructive focus:text-destructive",
+				confirming && "bg-destructive/10 font-medium",
+			)}
+		>
+			{confirming ? <Check className="mr-2 size-4" /> : <Trash2 className="mr-2 size-4" />}
+			{confirming ? "Confirmar exclusão" : "Excluir tarefa"}
+		</ContextMenuItem>
 	);
 }
 

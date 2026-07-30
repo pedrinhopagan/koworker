@@ -6,3 +6,11 @@ import { ORPCError } from "@orpc/client";
 export function isNotFoundError(error: unknown): boolean {
 	return error instanceof ORPCError && error.code === "NOT_FOUND";
 }
+
+export function errorMessage(error: unknown, fallback: string) {
+	if (error instanceof ORPCError && error.code !== "INTERNAL_SERVER_ERROR" && error.message) {
+		return error.message;
+	}
+
+	return fallback;
+}

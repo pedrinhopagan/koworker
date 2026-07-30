@@ -4,12 +4,15 @@ import { useMemo } from "react";
 import { orpc } from "@/client";
 import { useSkillCategoriesQuery } from "@/hooks/use-skill-categories";
 import { deriveSkillColor } from "@/lib/skill-color";
-import type { SkillRecord, TaskSkill } from "@/types/skills";
+import type { SkillDetail, SkillRecord, TaskSkill } from "@/types/skills";
 
 const DEFAULT_SKILL_ICON = "FolderOpen";
 const DEFAULT_SKILL_COLOR = "#94a3b8";
 
-function toTaskSkill(skill: SkillRecord, categoryColors: Map<string, string>): TaskSkill {
+function toTaskSkill(
+	skill: SkillRecord | SkillDetail,
+	categoryColors: Map<string, string>,
+): TaskSkill {
 	const metadata = (skill.metadata ?? {}) as Record<string, unknown>;
 	const metadataIcon = typeof metadata.icon === "string" ? metadata.icon : undefined;
 	const metadataColor = typeof metadata.color === "string" ? metadata.color : undefined;
@@ -26,7 +29,7 @@ function toTaskSkill(skill: SkillRecord, categoryColors: Map<string, string>): T
 		slug: skill.slug,
 		label: skill.settings.label ?? skill.name,
 		description: skill.description,
-		instructions: skill.content,
+		findings: skill.findings,
 		icon: skill.settings.icon ?? metadataIcon ?? DEFAULT_SKILL_ICON,
 		color: skill.settings.color ?? metadataColor ?? categoryTone ?? DEFAULT_SKILL_COLOR,
 		categoryId: skill.settings.categoryId ?? null,
@@ -78,6 +81,7 @@ export function useSkillQuery(slug: string, projectName?: string, options?: { en
 	return {
 		...query,
 		skill,
+		content: query.data?.content ?? "",
 		variants,
 		missingTools,
 	};

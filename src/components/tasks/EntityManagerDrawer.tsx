@@ -2,6 +2,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,8 @@ import {
 	SortableList,
 } from "@/components/ui/sortable-list";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useDebouncedSearch } from "@/hooks/use-debounced-search";
+import { errorMessage } from "@/lib/orpc-errors";
 import { cn } from "@/lib/utils";
 import type { ManageDrawerKey } from "@/stores/manage-drawers";
 
@@ -47,6 +50,103 @@ type EntityManagerDrawerProps<T extends BaseEntity> = {
 	renderItemExtra?: (item: T) => ReactNode;
 };
 
+type EntityPatch = { name?: string; color?: string; level?: number };
+
+function EntityRow({
+	item,
+	hasLevel,
+	removeLabel,
+	removeDisabled,
+	isDragging,
+	dragHandleProps,
+	extra,
+	onCommit,
+	onRequestRemove,
+}: {
+	item: BaseEntity & { level?: number };
+	hasLevel: boolean;
+	removeLabel: string;
+	removeDisabled: boolean;
+	isDragging: boolean;
+	dragHandleProps: SortableItemRenderProps["dragHandleProps"];
+	extra: ReactNode;
+	onCommit: (patch: EntityPatch) => void;
+	onRequestRemove: () => void;
+}) {
+	const [name, setName] = useDebouncedSearch(item.name, (next) => {
+		const trimmed = next.trim();
+		if (!trimmed || trimmed === item.name) {
+			return;
+		}
+
+		onCommit({ name: trimmed });
+	});
+
+	const [color, setColor] = useDebouncedSearch(item.color ?? "#000000", (next) => {
+		if (next === item.color) {
+			return;
+		}
+
+		onCommit({ color: next });
+	});
+
+	const [level, setLevel] = useDebouncedSearch(String(item.level ?? 1), (next) => {
+		const parsed = Number.parseInt(next, 10);
+		if (Number.isNaN(parsed) || parsed < 1 || parsed === (item.level ?? 1)) {
+			return;
+		}
+
+		onCommit({ level: parsed });
+	});
+
+	return (
+		<div
+			className={cn(
+				"flex items-center gap-2 rounded-md border border-border bg-card px-2 py-2",
+				isDragging && "opacity-60",
+			)}
+		>
+			<DragHandle attributes={dragHandleProps.attributes} listeners={dragHandleProps.listeners} />
+			<input
+				type="color"
+				value={color}
+				onChange={(e) => setColor(e.target.value)}
+				className="h-8 w-8 shrink-0 cursor-pointer border border-border bg-transparent"
+				aria-label="Cor"
+			/>
+			<Input
+				value={name}
+				onChange={(e) => setName(e.target.value)}
+				onBlur={() => setName(name.trim() || item.name)}
+				className="h-9"
+			/>
+			{hasLevel && (
+				<Input
+					type="number"
+					min={1}
+					value={level}
+					onChange={(e) => setLevel(e.target.value)}
+					className="h-9 w-20"
+				/>
+			)}
+
+			{extra}
+
+			<Tooltip label={removeLabel}>
+				<Button
+					variant="ghost"
+					size="icon"
+					disabled={removeDisabled}
+					onClick={onRequestRemove}
+					aria-label={removeLabel}
+				>
+					<Trash2 className="h-4 w-4" />
+				</Button>
+			</Tooltip>
+		</div>
+	);
+}
+
 export function EntityManagerDrawer<T extends BaseEntity>({
 	config,
 	hooks,
@@ -71,6 +171,8 @@ export function EntityManagerDrawer<T extends BaseEntity>({
 			setNewLevel("1");
 			await queryClient.invalidateQueries({ queryKey });
 		},
+		onError: (error) =>
+			toast.error(errorMessage(error, `Não foi possível criar a ${config.entityName}`)),
 	});
 
 	// biome-ignore lint/suspicious/noExplicitAny: ORPC mutations have complex types
@@ -83,6 +185,8 @@ export function EntityManagerDrawer<T extends BaseEntity>({
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey });
 		},
+		onError: (error) =>
+			toast.error(errorMessage(error, `Não foi possível salvar a ${config.entityName}`)),
 	});
 
 	// biome-ignore lint/suspicious/noExplicitAny: ORPC mutations have complex types
@@ -92,11 +196,17 @@ export function EntityManagerDrawer<T extends BaseEntity>({
 			setPendingDelete(null);
 			await queryClient.invalidateQueries({ queryKey });
 		},
+		onError: (error) =>
+			toast.error(errorMessage(error, `Não foi possível remover a ${config.entityName}`)),
 	});
 
-	const hasTasksMutation = useMutation<boolean, Error, { id: string }>(
-		hooks.hasAssociatedTasks.mutationOptions(),
-	);
+	const hasTasksMutation = useMutation<boolean, Error, { id: string }>({
+		...hooks.hasAssociatedTasks.mutationOptions(),
+		onError: (error) =>
+			toast.error(
+				errorMessage(error, `Não foi possível checar as tarefas da ${config.entityName}`),
+			),
+	});
 	// biome-ignore lint/suspicious/noExplicitAny: ORPC mutations have complex types
 	const migrateAndDeleteMutation = useMutation<any, Error, { sourceId: string; targetId: string }>({
 		...hooks.migrateAndDelete.mutationOptions(),
@@ -108,6 +218,10 @@ export function EntityManagerDrawer<T extends BaseEntity>({
 				predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "tasks",
 			});
 		},
+		onError: (error) =>
+			toast.error(
+				errorMessage(error, `Não foi possível migrar as tarefas da ${config.entityName}`),
+			),
 	});
 
 	const invalidateTimeoutRef = useRef<number | null>(null);
@@ -144,8 +258,9 @@ export function EntityManagerDrawer<T extends BaseEntity>({
 
 			return { previous };
 		},
-		onError: (_err, _vars, ctx: { previous: T[] | undefined } | undefined) => {
+		onError: (error, _vars, ctx: { previous: T[] | undefined } | undefined) => {
 			if (ctx?.previous) queryClient.setQueryData(queryKey, ctx.previous);
+			toast.error(errorMessage(error, `Não foi possível reordenar as ${config.entityNamePlural}`));
 		},
 		onSettled: () => {
 			if (invalidateTimeoutRef.current) window.clearTimeout(invalidateTimeoutRef.current);
@@ -179,64 +294,33 @@ export function EntityManagerDrawer<T extends BaseEntity>({
 	}
 
 	function renderItem(item: T, props: SortableItemRenderProps) {
-		const deleting = deleteMutation.isPending || migrateAndDeleteMutation.isPending;
-		const itemWithLevel = item as T & { level?: number };
+		const removeLabel = sorted.length <= 1 ? config.minOneMessage : `Remover ${config.entityName}`;
 
 		return (
-			<div
-				className={cn(
-					"flex items-center gap-2 rounded-md border border-border bg-card px-2 py-2",
-					props.isDragging && "opacity-60",
-				)}
-			>
-				<DragHandle
-					attributes={props.dragHandleProps.attributes}
-					listeners={props.dragHandleProps.listeners}
-				/>
-				<input
-					type="color"
-					value={item.color ?? "#000000"}
-					onChange={(e) => updateMutation.mutate({ id: item.id, color: e.target.value })}
-					className="h-8 w-8 shrink-0 cursor-pointer border border-border bg-transparent"
-					aria-label="Cor"
-				/>
-				<Input
-					value={item.name}
-					onChange={(e) => updateMutation.mutate({ id: item.id, name: e.target.value })}
-					className="h-9"
-				/>
-				{config.hasLevel && (
-					<Input
-						type="number"
-						min={1}
-						value={itemWithLevel.level ?? 1}
-						onChange={(e) => {
-							const next = Number.parseInt(e.target.value, 10);
-							if (Number.isNaN(next) || next < 1) return;
-							updateMutation.mutate({ id: item.id, level: next });
-						}}
-						className="h-9 w-20"
-					/>
-				)}
-
-				{renderItemExtra?.(item)}
-
-				<Tooltip label={sorted.length <= 1 ? config.minOneMessage : `Remover ${config.entityName}`}>
-					<Button
-						variant="ghost"
-						size="icon"
-						disabled={deleting || hasTasksMutation.isPending || sorted.length <= 1}
-						onClick={async () => {
-							const hasTasks = await hasTasksMutation.mutateAsync({ id: item.id });
+			<EntityRow
+				item={item}
+				hasLevel={!!config.hasLevel}
+				removeLabel={removeLabel}
+				removeDisabled={
+					deleteMutation.isPending ||
+					migrateAndDeleteMutation.isPending ||
+					hasTasksMutation.isPending ||
+					sorted.length <= 1
+				}
+				isDragging={props.isDragging}
+				dragHandleProps={props.dragHandleProps}
+				extra={renderItemExtra?.(item)}
+				onCommit={(patch) => updateMutation.mutate({ id: item.id, ...patch })}
+				onRequestRemove={() => {
+					void hasTasksMutation.mutateAsync({ id: item.id }).then(
+						(hasTasks) => {
 							setMigrateTargetId("");
 							setPendingDelete({ item, hasTasks });
-						}}
-						aria-label={sorted.length <= 1 ? config.minOneMessage : `Remover ${config.entityName}`}
-					>
-						<Trash2 className="h-4 w-4" />
-					</Button>
-				</Tooltip>
-			</div>
+						},
+						() => null,
+					);
+				}}
+			/>
 		);
 	}
 

@@ -26,6 +26,7 @@ import {
 	offsetOfLine,
 } from "@/lib/heading-anchor";
 import { extractFrontmatter } from "@/lib/skills/parser";
+import { useThemeStore } from "@/stores/theme";
 
 // Lê o ponto de leitura atual a partir do scroll do CodeMirror e o traduz em âncora resiliente
 // (heading + offset). A matemática de heading mora no lib; aqui só tocamos o `view`.
@@ -86,18 +87,15 @@ const highlightStyle = HighlightStyle.define([
 	{ tag: t.quote, color: "var(--muted-foreground)", fontStyle: "italic" },
 	{ tag: t.list, color: "var(--muted-foreground)" },
 	{ tag: t.heading, fontWeight: "700" },
-	// Tokens de código nas fences (```js, ```python…). Paleta `oklch` afinada às hues do tema
-	// (earthy/terminal): verde oliva, âmbar e vermelho terroso, em lightness alta pra ler sobre
-	// o fundo escuro do bloco. Cada tom mapeia um papel semântico do token.
 	// Palavras-chave / controle de fluxo → vermelho terroso (mesma hue do destructive).
 	{
 		tag: [t.keyword, t.moduleKeyword, t.operatorKeyword, t.controlKeyword],
-		color: "oklch(0.7 0.12 25)",
+		color: "var(--syntax-keyword)",
 	},
 	// Strings → verde oliva (hue do primary), o "conteúdo literal" do tema.
-	{ tag: [t.string, t.special(t.string), t.regexp], color: "oklch(0.74 0.11 130)" },
+	{ tag: [t.string, t.special(t.string), t.regexp], color: "var(--syntax-string)" },
 	// Números, booleanos e átomos → âmbar (hue do warning).
-	{ tag: [t.number, t.bool, t.null, t.atom], color: "oklch(0.78 0.11 70)" },
+	{ tag: [t.number, t.bool, t.null, t.atom], color: "var(--syntax-number)" },
 	// Comentários → cinza apagado do tema, em itálico.
 	{
 		tag: [t.comment, t.lineComment, t.blockComment],
@@ -107,13 +105,16 @@ const highlightStyle = HighlightStyle.define([
 	// Variáveis e propriedades → texto base.
 	{ tag: [t.variableName, t.propertyName], color: "var(--foreground)" },
 	// Funções → ciano dessaturado, único tom frio pra destacar a chamada sem brigar com o verde.
-	{ tag: [t.function(t.variableName), t.function(t.propertyName)], color: "oklch(0.78 0.08 210)" },
+	{
+		tag: [t.function(t.variableName), t.function(t.propertyName)],
+		color: "var(--syntax-function)",
+	},
 	// Tipos, classes e namespaces → teal esverdeado.
-	{ tag: [t.typeName, t.className, t.namespace], color: "oklch(0.8 0.09 175)" },
+	{ tag: [t.typeName, t.className, t.namespace], color: "var(--syntax-type)" },
 	// Tags HTML/JSX e colchetes angulares → verde oliva, como as strings.
-	{ tag: [t.tagName, t.angleBracket], color: "oklch(0.74 0.11 130)" },
+	{ tag: [t.tagName, t.angleBracket], color: "var(--syntax-string)" },
 	// Atributos → âmbar, igual aos valores literais.
-	{ tag: [t.attributeName], color: "oklch(0.78 0.11 70)" },
+	{ tag: [t.attributeName], color: "var(--syntax-number)" },
 	// Operadores e pontuação → texto base levemente apagado.
 	{
 		tag: [t.operator, t.punctuation, t.separator, t.derefOperator],
@@ -121,7 +122,7 @@ const highlightStyle = HighlightStyle.define([
 	},
 ]);
 
-const createEditorTheme = (fontSize: string, proseMaxWidth?: string) =>
+const createEditorTheme = (dark: boolean, fontSize: string, proseMaxWidth?: string) =>
 	EditorView.theme(
 		{
 			"&": {
@@ -164,7 +165,7 @@ const createEditorTheme = (fontSize: string, proseMaxWidth?: string) =>
 			".cm-scroller": { fontFamily: "inherit" },
 			".cm-placeholder": { color: "var(--muted-foreground)", fontStyle: "italic" },
 		},
-		{ dark: true },
+		{ dark },
 	);
 
 // `==texto==` não faz parte do CommonMark. Espelha o Strikethrough do GFM: um delimitador
@@ -329,6 +330,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 		},
 		ref,
 	) {
+		const dark = useThemeStore((state) => state.theme) === "dark";
 		const [draft, setDraft] = useState(initialContent);
 		const cmRef = useRef<ReactCodeMirrorRef>(null);
 		// View vinda do `onCreateEditor` (garantida no momento da criação). O `cmRef.current.view`
@@ -452,11 +454,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 				syntaxHighlighting(highlightStyle),
 				markdownLivePreview(stableCallbacks),
 				formattingKeymap,
-				createEditorTheme(fontSize, proseMaxWidth),
+				createEditorTheme(dark, fontSize, proseMaxWidth),
 				EditorView.lineWrapping,
 				placeholder("Comece a escrever…"),
 			],
-			[stableCallbacks, fontSize, proseMaxWidth, pasteHandler, readOnly],
+			[stableCallbacks, dark, fontSize, proseMaxWidth, pasteHandler, readOnly],
 		);
 
 		useImperativeHandle(ref, () => ({

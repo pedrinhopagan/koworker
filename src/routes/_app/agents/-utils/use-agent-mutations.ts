@@ -1,7 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { orpc } from "@/client";
+import { orpc, type RouterInputs } from "@/client";
+import type { DocSaveStatus } from "@/components/ui/save-status";
+import { errorMessage } from "@/lib/orpc-errors";
 
 // Mutations da página de agent: gravar o arquivo (autosave do corpo + descrição), padronizar as
 // variantes divergentes e remover. `updateContent` é silencioso no sucesso (dispara via debounce do
@@ -19,7 +21,7 @@ export function useAgentMutations() {
 	const updateMutation = useMutation({
 		...orpc.agents.update.mutationOptions(),
 		onSuccess: invalidateAll,
-		onError: (error: Error) => toast.error(`Erro ao salvar agent: ${error.message}`),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível salvar o agent")),
 	});
 
 	const standardizeMutation = useMutation({
@@ -30,7 +32,7 @@ export function useAgentMutations() {
 				`Padronizado em ${result.written} ${result.written === 1 ? "cópia" : "cópias"}`,
 			);
 		},
-		onError: (error: Error) => toast.error(`Erro ao padronizar: ${error.message}`),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível padronizar o agent")),
 	});
 
 	const deleteMutation = useMutation({
@@ -39,7 +41,7 @@ export function useAgentMutations() {
 			invalidateAll();
 			toast.success("Cópia removida");
 		},
-		onError: (error: Error) => toast.error(`Erro ao remover agent: ${error.message}`),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível remover a cópia")),
 	});
 
 	const deleteAllMutation = useMutation({
@@ -47,10 +49,10 @@ export function useAgentMutations() {
 		onSuccess: (result) => {
 			invalidateAll();
 			toast.success(
-				`Agent removido de ${result.removed} ${result.removed === 1 ? "fonte" : "fontes"}`,
+				`Agent removido de ${result.removed} ${result.removed === 1 ? "fonte" : "fontes"}. Backup em ${result.backupPath}`,
 			);
 		},
-		onError: (error: Error) => toast.error(`Erro ao remover agent: ${error.message}`),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível remover o agent")),
 	});
 
 	const injectMutation = useMutation({
@@ -59,22 +61,35 @@ export function useAgentMutations() {
 			invalidateAll();
 			toast.success("Agent injetado no projeto");
 		},
-		onError: (error: Error) => toast.error(`Erro ao injetar agent: ${error.message}`),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível injetar o agent")),
 	});
 
 	return {
-		updateContent: (input: {
-			path: string;
-			description: string;
-			content: string;
-			metadata: Record<string, unknown>;
-		}) => updateMutation.mutateAsync(input),
-		standardize: (input: { slug: string; sourcePath: string }) => standardizeMutation.mutate(input),
+		updateContent: (input: RouterInputs["agents"]["update"]) => updateMutation.mutateAsync(input),
+		saveStatus: updateStatus(updateMutation.status),
+		standardize: (input: RouterInputs["agents"]["standardize"]) =>
+			standardizeMutation.mutate(input),
 		standardizing: standardizeMutation.isPending,
-		removeAgent: (path: string) => deleteMutation.mutate({ path }),
-		removeAllAgent: (input: { slug: string }) => deleteAllMutation.mutate(input),
+		removeAgent: (path: string, onSuccess?: () => void) =>
+			deleteMutation.mutate({ path }, { onSuccess }),
+		removeAllAgent: (input: RouterInputs["agents"]["deleteAll"], onSuccess?: () => void) =>
+			deleteAllMutation.mutate(input, { onSuccess }),
 		removing: deleteMutation.isPending || deleteAllMutation.isPending,
-		inject: (input: { sourcePath: string; projectName: string }) => injectMutation.mutate(input),
+		inject: (input: RouterInputs["agents"]["inject"]) => injectMutation.mutate(input),
 		injecting: injectMutation.isPending,
 	};
+}
+
+function updateStatus(status: "idle" | "pending" | "success" | "error"): DocSaveStatus {
+	if (status === "pending") {
+		return "saving";
+	}
+	if (status === "success") {
+		return "saved";
+	}
+	if (status === "error") {
+		return "error";
+	}
+
+	return "idle";
 }

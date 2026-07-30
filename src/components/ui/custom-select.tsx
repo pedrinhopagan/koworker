@@ -3,6 +3,7 @@ import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
 import * as React from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
+import { useThemeRootContainer } from "@/hooks/use-theme-root";
 import { cn } from "@/lib/utils";
 import { Text } from "../typography";
 
@@ -128,17 +129,11 @@ function CustomSelect<T extends { id: string }>({
 
 	const isDisabled = disabled || loading;
 	const isEmpty = items.length === 0;
-	const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
+	const portalContainer = useThemeRootContainer();
 	const contentStyle: React.CSSProperties = {
 		backgroundColor: "var(--card)",
 		color: "var(--card-foreground)",
 	};
-
-	React.useEffect(() => {
-		if (portalContainer) return;
-		const themeRoot = document.querySelector<HTMLElement>("[data-theme-root]");
-		setPortalContainer(themeRoot);
-	}, [portalContainer]);
 
 	return (
 		<div className={cn("flex flex-col gap-0.5", fitContent ? "w-fit" : "flex-1")}>

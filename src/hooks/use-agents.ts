@@ -2,12 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { orpc } from "@/client";
-import type { AgentRecord, TaskAgent } from "@/types/agents";
+import type { AgentDetail, AgentRecord, TaskAgent } from "@/types/agents";
 
 const DEFAULT_AGENT_ICON = "Bot";
 const DEFAULT_AGENT_COLOR = "#94a3b8";
 
-function toTaskAgent(agent: AgentRecord): TaskAgent {
+function toTaskAgent(agent: AgentRecord | AgentDetail): TaskAgent {
 	const metadata = (agent.metadata ?? {}) as Record<string, unknown>;
 	const metadataIcon = typeof metadata.icon === "string" ? metadata.icon : undefined;
 	const metadataColor = typeof metadata.color === "string" ? metadata.color : undefined;
@@ -19,7 +19,7 @@ function toTaskAgent(agent: AgentRecord): TaskAgent {
 		slug: agent.slug,
 		label: agent.settings.label ?? agent.name,
 		description: agent.description,
-		instructions: agent.content,
+		findings: agent.findings,
 		icon: agent.settings.icon ?? metadataIcon ?? DEFAULT_AGENT_ICON,
 		color: agent.settings.color ?? metadataColor ?? DEFAULT_AGENT_COLOR,
 		sources: agent.sources,
@@ -52,6 +52,7 @@ export function useAgentQuery(slug: string, options?: { enabled?: boolean }) {
 	return {
 		...query,
 		agent,
+		content: query.data?.content ?? "",
 		variants,
 	};
 }

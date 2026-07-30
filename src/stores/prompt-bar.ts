@@ -10,7 +10,7 @@ import {
 } from "@/constants/invoke";
 import type { PromptTemplateSlug } from "@/constants/prompt-templates";
 import type { PromptEngine, PromptEngineEffort } from "@/api/schemas/prompt";
-import { imagePlaceholder } from "@/lib/build-prompt";
+import { nextImageIndex } from "@/lib/build-prompt";
 
 // Imagem colada no textarea, já gravada em `.koworker/medias/` do projeto de origem. O `index` é a
 // identidade do marcador `[Imagem N]` no texto: nasce na cola, nunca é renumerado (apagar a 1 não
@@ -58,13 +58,13 @@ const DEFAULT_INVOKE: InvokeConfig = {
 	forceNew: true,
 	background: false,
 	claude: {
-		model: INVOKE_INHERIT,
-		effort: INVOKE_INHERIT,
+		model: "opus",
+		effort: "medium",
 		permissionMode: "bypass",
 	},
 	codex: {
-		model: INVOKE_INHERIT,
-		effort: INVOKE_INHERIT,
+		model: "gpt-5.6-sol",
+		effort: "medium",
 		approvalMode: "bypass",
 	},
 };
@@ -152,12 +152,8 @@ interface PromptBarState {
 	patchCodexSession: (patch: Partial<CodexSessionConfig>) => void;
 	// Registra uma imagem já salva em medias/ e devolve o índice do marcador que a referencia.
 	addImage: (image: { projectId: string; name: string }) => number;
-	// Solta a imagem do rascunho (o arquivo fica em medias/) e apaga os marcadores dela do texto.
-	removeImage: (index: number) => void;
-	// Descarta imagens cujo marcador não está mais no texto — o texto é o dono da presença do token,
-	// então recortar/selecionar-apagar/editar o marcador tira a imagem junto. O arquivo fica em medias/.
-	reconcileImages: (text: string) => void;
-	restoreDraft: (draft: { text: string; images: PromptImage[] }) => void;
+	// Lista de imagens do rascunho — o `PromptField` é quem a mantém em dia com os marcadores do texto.
+	setImages: (images: PromptImage[]) => void;
 	clear: () => void;
 	// Insere `text` em nova linha no fim do rascunho e abre o footer (mention de título do .md).
 	appendMention: (text: string) => void;
@@ -283,24 +279,12 @@ export const usePromptBarStore = create<PromptBarState>()(
 					invoke: { ...state.invoke, codex: { ...state.invoke.codex, ...patch } },
 				})),
 			addImage: (image) => {
-				const index = get().images.reduce((max, entry) => Math.max(max, entry.index), 0) + 1;
+				const index = nextImageIndex(get().images);
 				set((state) => ({ images: [...state.images, { ...image, index }] }));
 				return index;
 			},
 
-			removeImage: (index) =>
-				set((state) => ({
-					images: state.images.filter((image) => image.index !== index),
-					text: state.text.replaceAll(imagePlaceholder(index), "").trim(),
-				})),
-
-			reconcileImages: (text) =>
-				set((state) => {
-					const kept = state.images.filter((image) => text.includes(imagePlaceholder(image.index)));
-					return kept.length === state.images.length ? state : { images: kept };
-				}),
-
-			restoreDraft: ({ text, images }) => set({ text, images }),
+			setImages: (images) => set({ images }),
 
 			// A borracha limpa o rascunho inteiro: texto e imagens anexadas caem juntos (os marcadores
 			// morariam no texto apagado). Os arquivos ficam em medias/ — remover mídia é ação da /media.
@@ -317,6 +301,30 @@ export const usePromptBarStore = create<PromptBarState>()(
 		}),
 		{
 			name: "kowork-prompt-bar",
+			version: 1,
+			migrate: (persisted) => {
+				const saved = (persisted ?? {}) as Partial<PromptBarState>;
+				if (!saved.invoke) {
+					return saved;
+				}
+
+				const claude = { ...saved.invoke.claude };
+				const codex = { ...saved.invoke.codex };
+				if (!claude.model || claude.model === INVOKE_INHERIT) {
+					claude.model = DEFAULT_INVOKE.claude.model;
+				}
+				if (!claude.effort || claude.effort === INVOKE_INHERIT) {
+					claude.effort = DEFAULT_INVOKE.claude.effort;
+				}
+				if (!codex.model || codex.model === INVOKE_INHERIT) {
+					codex.model = DEFAULT_INVOKE.codex.model;
+				}
+				if (!codex.effort || codex.effort === INVOKE_INHERIT) {
+					codex.effort = DEFAULT_INVOKE.codex.effort;
+				}
+
+				return { ...saved, invoke: { ...saved.invoke, claude, codex } };
+			},
 			storage: createJSONStorage(() => draftStorage),
 			partialize: (state) => ({
 				text: state.text,

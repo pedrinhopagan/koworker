@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import * as React from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
+import { useThemeRootContainer } from "@/hooks/use-theme-root";
 import { cn } from "@/lib/utils";
 
 const Sheet = SheetPrimitive.Root;
@@ -30,18 +31,6 @@ const sheetContentVariants = tv({
 		side: "right",
 	},
 });
-
-function useThemeRootContainer() {
-	const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
-
-	React.useEffect(() => {
-		if (portalContainer) return;
-		const themeRoot = document.querySelector<HTMLElement>("[data-theme-root]");
-		setPortalContainer(themeRoot);
-	}, [portalContainer]);
-
-	return portalContainer;
-}
 
 const SheetOverlay = React.forwardRef<
 	React.ComponentRef<typeof SheetPrimitive.Overlay>,

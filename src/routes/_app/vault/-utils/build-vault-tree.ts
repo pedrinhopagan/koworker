@@ -63,7 +63,6 @@ export type TreeNode =
 			sourceCount: number;
 			conflict: boolean;
 			primaryDir: string;
-			instructions: string;
 			children: TreeNode[];
 	  }
 	| {
@@ -77,7 +76,6 @@ export type TreeNode =
 			sourceCount: number;
 			conflict: boolean;
 			primaryDir: string;
-			instructions: string;
 			children: TreeNode[];
 	  }
 	| { kind: "fileLeaf"; key: string; label: string; title: string; entry: VaultEntry }
@@ -224,7 +222,6 @@ export function buildVaultTree({
 			sourceCount: skill.sources.length,
 			conflict: skill.conflict,
 			primaryDir: skill.primaryDir,
-			instructions: skill.instructions,
 			children: skill.sources.map((source, index) => ({
 				kind: "skillSourceLeaf",
 				key: `${keyPrefix}skillsrc:${skill.slug}:${source.tool}:${source.scope}:${index}`,
@@ -246,7 +243,6 @@ export function buildVaultTree({
 			sourceCount: agent.sources.length,
 			conflict: agent.conflict,
 			primaryDir: agent.primaryDir,
-			instructions: agent.instructions,
 			children: agent.sources.map((source, index) => ({
 				kind: "agentSourceLeaf",
 				key: `${keyPrefix}agentsrc:${agent.slug}:${source.tool}:${source.scope}:${index}`,

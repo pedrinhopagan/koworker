@@ -4,6 +4,7 @@ import { orpc } from "@/client";
 import { buildKoworkerPrompt, convertSkillCallsForCli, flattenPrompt } from "@/lib/build-prompt";
 import { buildClaudeArgv } from "@/lib/claude-command";
 import { buildCodexArgv } from "@/lib/codex-command";
+import { errorMessage } from "@/lib/orpc-errors";
 import { argvToShellCommand } from "@/lib/shell-argv";
 import { recordPromptHistory } from "@/lib/prompt-history";
 import { isTauri } from "@/lib/tauri";
@@ -141,12 +142,13 @@ export async function runInvocation(params: {
 				...(model ? { model } : {}),
 				...(effort ? { effort } : {}),
 			})
-			.then(({ runId }) => {
-				localStorage.setItem("kowork-active-run", runId);
-				toast.success(`Executando em background: ${target.label}`);
+			.then(() => {
+				toast.success(`Executando em background: ${target.label}`, {
+					description: "Acompanhe o resultado na tela Executar.",
+				});
 			})
 			.catch((error) => {
-				toast.error(error instanceof Error ? error.message : "Não foi possível iniciar a execução");
+				toast.error(errorMessage(error, "Não foi possível iniciar a execução"));
 			});
 	}
 

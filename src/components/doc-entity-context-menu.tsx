@@ -1,10 +1,12 @@
 import {
 	FileArchive,
 	FolderOpen,
+	Link2,
 	Pin,
 	PinOff,
 	SlidersHorizontal,
 	SquareArrowOutUpRight,
+	Trash2,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -33,8 +35,10 @@ export function DocEntityContextMenu({
 		onTogglePin: () => void;
 		onOpen: () => void;
 		onOpenInOs: () => void;
-		onShareZip: () => void;
+		onCopyPath?: () => void;
+		onShareZip?: () => void;
 		onAppearance: () => void;
+		onDelete?: () => void;
 	};
 	children: ReactNode;
 }) {
@@ -57,15 +61,35 @@ export function DocEntityContextMenu({
 					<FolderOpen className="mr-2 size-4" />
 					Abrir no sistema
 				</ContextMenuItem>
-				<ContextMenuItem onSelect={actions.onShareZip} className="px-3 py-2">
-					<FileArchive className="mr-2 size-4" />
-					Compartilhar zip
-				</ContextMenuItem>
+				{actions.onCopyPath && (
+					<ContextMenuItem onSelect={actions.onCopyPath} className="px-3 py-2">
+						<Link2 className="mr-2 size-4" />
+						Copiar caminho
+					</ContextMenuItem>
+				)}
+				{actions.onShareZip && (
+					<ContextMenuItem onSelect={actions.onShareZip} className="px-3 py-2">
+						<FileArchive className="mr-2 size-4" />
+						Compartilhar zip
+					</ContextMenuItem>
+				)}
 				<ContextMenuSeparator />
 				<ContextMenuItem onSelect={actions.onAppearance} className="px-3 py-2">
 					<SlidersHorizontal className="mr-2 size-4" />
 					Aparência
 				</ContextMenuItem>
+				{actions.onDelete && (
+					<>
+						<ContextMenuSeparator />
+						<ContextMenuItem
+							onSelect={actions.onDelete}
+							className="px-3 py-2 text-destructive data-[highlighted]:text-destructive"
+						>
+							<Trash2 className="mr-2 size-4" />
+							Deletar
+						</ContextMenuItem>
+					</>
+				)}
 			</ContextMenuContent>
 		</ContextMenu>
 	);

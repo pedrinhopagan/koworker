@@ -245,6 +245,17 @@ type Callbacks = {
 	onHeadingMention?: (text: string) => void;
 };
 
+function bindWidgetTap(el: HTMLElement, run: () => void) {
+	function handleTap(event: Event) {
+		event.preventDefault();
+		event.stopPropagation();
+		run();
+	}
+
+	el.addEventListener("mousedown", handleTap);
+	el.addEventListener("touchend", handleTap);
+}
+
 // Chevron à esquerda do heading: dispara o toggle de collapse. Aparece rotacionado
 // quando o heading está recolhido para indicar o estado.
 class HeadingChevronWidget extends WidgetType {
@@ -268,11 +279,7 @@ class HeadingChevronWidget extends WidgetType {
 		el.title = this.collapsed ? "Expandir" : "Recolher";
 		el.innerHTML =
 			'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
-		el.addEventListener("mousedown", (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			view.dispatch({ effects: toggleHeadingCollapse.of(this.pos) });
-		});
+		bindWidgetTap(el, () => view.dispatch({ effects: toggleHeadingCollapse.of(this.pos) }));
 		return el;
 	}
 
@@ -302,11 +309,7 @@ class HeadingMentionWidget extends WidgetType {
 		el.textContent = "↪";
 		el.title = "Mencionar este título no prompt";
 		el.tabIndex = -1;
-		el.addEventListener("mousedown", (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			this.onClick?.(this.text);
-		});
+		bindWidgetTap(el, () => this.onClick?.(this.text));
 		return el;
 	}
 
@@ -340,11 +343,7 @@ class CodeBlockCopyWidget extends WidgetType {
 		// SVG inline: ícone "copy" estilo lucide, herdando currentColor.
 		el.innerHTML =
 			'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
-		el.addEventListener("mousedown", (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			this.onClick?.(this.text);
-		});
+		bindWidgetTap(el, () => this.onClick?.(this.text));
 		return el;
 	}
 
@@ -376,11 +375,7 @@ class BlockquoteCopyWidget extends WidgetType {
 		el.setAttribute("aria-label", "Copiar bloco de citação");
 		el.innerHTML =
 			'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
-		el.addEventListener("mousedown", (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			this.onClick?.(this.text);
-		});
+		bindWidgetTap(el, () => this.onClick?.(this.text));
 		return el;
 	}
 
@@ -1225,6 +1220,44 @@ const baseTheme = EditorView.baseTheme({
 		overflow: "hidden",
 		whiteSpace: "pre-wrap",
 		overflowWrap: "anywhere",
+	},
+	"@media (hover: none)": {
+		".cm-md-code-copy, .cm-md-blockquote-copy, .cm-md-heading-ref": { opacity: "1" },
+		".cm-md-code-copy, .cm-md-blockquote-copy": {
+			width: "2.4em",
+			height: "2.4em",
+			top: "0.3em",
+			right: "0.3em",
+		},
+		".cm-md-code-copy svg, .cm-md-blockquote-copy svg": { width: "18px", height: "18px" },
+		".cm-md-heading-ref": {
+			position: "relative",
+			padding: "0.2em 0.6em",
+			fontSize: "0.85em",
+		},
+		".cm-md-heading-chevron": {
+			position: "relative",
+			width: "1.4em",
+			height: "1.4em",
+		},
+		".cm-md-code-copy::after, .cm-md-blockquote-copy::after, .cm-md-heading-ref::after": {
+			content: '""',
+			position: "absolute",
+			top: "50%",
+			left: "50%",
+			width: "44px",
+			height: "44px",
+			transform: "translate(-50%, -50%)",
+		},
+		".cm-md-heading-chevron::after": {
+			content: '""',
+			position: "absolute",
+			top: "50%",
+			left: "50%",
+			width: "40px",
+			height: "44px",
+			transform: "translate(-62%, -50%)",
+		},
 	},
 });
 

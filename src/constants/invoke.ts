@@ -158,7 +158,9 @@ export const INVOKE_PERMISSION_OPTIONS: {
 
 // Aprovação/sandbox do `codex` — o equivalente funcional do permission mode do claude, com os flags
 // próprios do codex. Ordem = ordem no select.
-export type CodexApprovalMode = "bypass" | "fullAuto" | "readOnly" | "default";
+export const CODEX_APPROVAL_MODES = ["bypass", "fullAuto", "readOnly", "default"] as const;
+
+export type CodexApprovalMode = (typeof CODEX_APPROVAL_MODES)[number];
 
 export const CODEX_APPROVAL_OPTIONS: {
 	value: CodexApprovalMode;

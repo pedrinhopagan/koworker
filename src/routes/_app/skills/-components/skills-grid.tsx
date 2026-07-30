@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
 import { useDocEntityPin } from "@/hooks/use-doc-entity-pin";
 import { openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
-import { lintPrinciples } from "@/lib/principles/lint";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
 import type { SkillCategory, TaskSkill } from "@/types/skills";
@@ -32,10 +31,17 @@ type SkillsGridProps = {
 	skills: TaskSkill[];
 	categories: SkillCategory[];
 	loading: boolean;
+	search: string;
+	onSearchChange: (value: string) => void;
 };
 
-export function SkillsGrid({ skills, categories, loading }: SkillsGridProps) {
-	const [search, setSearch] = useState("");
+export function SkillsGrid({
+	skills,
+	categories,
+	loading,
+	search,
+	onSearchChange,
+}: SkillsGridProps) {
 	const [categoryFilter, setCategoryFilter] = useState<string>("all");
 	const [appearanceSlug, setAppearanceSlug] = useState<string | null>(null);
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -156,7 +162,7 @@ export function SkillsGrid({ skills, categories, loading }: SkillsGridProps) {
 					<Input
 						type="search"
 						value={search}
-						onChange={(event) => setSearch(event.target.value)}
+						onChange={(event) => onSearchChange(event.target.value)}
 						placeholder="Buscar skill por nome, slug ou descrição"
 						className="w-full pl-9 font-mono"
 					/>
@@ -272,18 +278,6 @@ function SkillTile({ skill, index, categories, onAppearance }: SkillTileProps) {
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [confirmDelete, setConfirmDelete] = useState(false);
 	const { removeAllSkill, removing } = useSkillMutations();
-	const findings = useMemo(
-		() =>
-			lintPrinciples({
-				kind: "skill",
-				slug: skill.slug,
-				name: skill.label,
-				description: skill.description,
-				body: skill.instructions,
-				metadata: skill.metadata,
-			}),
-		[skill.slug, skill.label, skill.description, skill.instructions, skill.metadata],
-	);
 
 	const { pinned, togglePin } = useDocEntityPin({
 		kind: "skill",
@@ -386,7 +380,7 @@ function SkillTile({ skill, index, categories, onAppearance }: SkillTileProps) {
 							</Chip>
 						)}
 						<span className="pointer-events-auto">
-							<PrinciplesFindings findings={findings} />
+							<PrinciplesFindings findings={skill.findings} />
 						</span>
 					</div>
 				</div>

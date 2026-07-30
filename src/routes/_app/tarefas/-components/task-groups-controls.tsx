@@ -14,6 +14,7 @@ import {
 	X,
 } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { orpc, type RouterOutputs } from "@/client";
 import { TaskGroupLabel } from "@/components/tasks/task-group-label";
@@ -46,6 +47,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { TaskSortMode } from "@/constants/tasks";
 import { useDebouncedSearch } from "@/hooks/use-debounced-search";
+import { errorMessage } from "@/lib/orpc-errors";
 import { cn } from "@/lib/utils";
 import type { TaskGroup } from "@/types/tasks";
 
@@ -346,6 +348,7 @@ export function TaskListControls({
 			setName("");
 			setCreating(false);
 		},
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível criar a feature")),
 	});
 
 	function submit() {
@@ -662,6 +665,7 @@ export function TaskGroupHeader({
 			invalidateGroups(queryClient);
 			setEditing(false);
 		},
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível renomear a feature")),
 	});
 
 	const deleteMutation = useMutation({
@@ -672,6 +676,7 @@ export function TaskGroupHeader({
 				predicate: (q) => Array.isArray(q.queryKey?.[0]) && q.queryKey[0][0] === "tasks",
 			});
 		},
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível remover a feature")),
 	});
 
 	const ChevronIcon = collapsed ? ChevronRight : ChevronDown;

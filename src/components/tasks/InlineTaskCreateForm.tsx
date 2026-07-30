@@ -54,7 +54,7 @@ export type InlineTaskCreateFormProps = {
 	 * If the selected-project store already has a projectId, the store value takes precedence.
 	 */
 	projectId?: string;
-	onSubmit: (data: InlineTaskCreateFormSubmitInput) => void;
+	onSubmit: (data: InlineTaskCreateFormSubmitInput) => void | Promise<unknown>;
 	loading?: boolean;
 	className?: string;
 	autoFocus?: boolean;
@@ -157,18 +157,22 @@ export function InlineTaskCreateForm({
 
 	const submitWithProjectId =
 		(pid: string): SubmitHandler<InlineTaskCreateFormValues> =>
-		(values) => {
+		async (values) => {
 			const description = values.description?.trim();
 
-			onSubmit({
-				projectId: pid,
-				title: values.title.trim(),
-				description: description ? description : undefined,
-				categoryId: values.categoryId ? values.categoryId : undefined,
-				priorityId: values.priorityId ? values.priorityId : undefined,
-				complexity: values.complexity,
-				groupId: values.groupId ? values.groupId : undefined,
-			});
+			try {
+				await onSubmit({
+					projectId: pid,
+					title: values.title.trim(),
+					description: description ? description : undefined,
+					categoryId: values.categoryId ? values.categoryId : undefined,
+					priorityId: values.priorityId ? values.priorityId : undefined,
+					complexity: values.complexity,
+					groupId: values.groupId ? values.groupId : undefined,
+				});
+			} catch {
+				return;
+			}
 
 			if (resetMode === "all") {
 				reset();
@@ -180,9 +184,9 @@ export function InlineTaskCreateForm({
 
 	return (
 		<form
-			onSubmit={handleSubmit((values) => {
+			onSubmit={handleSubmit(async (values) => {
 				if (!effectiveProjectId) return;
-				submitWithProjectId(effectiveProjectId)(values);
+				await submitWithProjectId(effectiveProjectId)(values);
 			})}
 			className={
 				className ??
@@ -421,7 +425,7 @@ export function InlineTaskCreateForm({
 					{stacked ? (
 						<Button type="submit" disabled={submitDisabled} className="w-full">
 							<Plus className="mr-1 size-4" />
-							{isDialogVariant ? "Adicionar tarefa" : "Submit"}
+							Adicionar tarefa
 						</Button>
 					) : (
 						<Tooltip label="Adicionar tarefa">

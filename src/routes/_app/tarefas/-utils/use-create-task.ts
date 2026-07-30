@@ -1,7 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import type { TaskComplexity } from "@/constants/complexity";
+import { errorMessage } from "@/lib/orpc-errors";
 
 type CreateTaskInput = {
 	projectId: string;
@@ -16,7 +18,7 @@ type CreateTaskInput = {
 export function useCreateTask(onSuccess?: () => void) {
 	const queryClient = useQueryClient();
 
-	const mutation = useMutation({
+	const { mutateAsync, isPending } = useMutation({
 		...orpc.tasks.create.mutationOptions(),
 		onSuccess: async () => {
 			// ORPC TanStack Query keys are shaped like:
@@ -27,11 +29,11 @@ export function useCreateTask(onSuccess?: () => void) {
 			});
 			onSuccess?.();
 		},
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível criar a tarefa")),
 	});
 
 	return {
-		createTask: (input: CreateTaskInput) => mutation.mutate(input),
-		loading: mutation.isPending,
-		error: mutation.isError,
+		createTask: (input: CreateTaskInput) => mutateAsync(input),
+		loading: isPending,
 	};
 }

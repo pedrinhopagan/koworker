@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useRouterState } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -68,6 +68,7 @@ export function usePromptExecution(params: {
 	const interactWithInput = usePromptBarStore((s) => s.interactWithInput);
 
 	const { selection } = useInvocation(params);
+	const navigate = useNavigate();
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
@@ -108,6 +109,7 @@ export function usePromptExecution(params: {
 	const [runId, setRunId] = useState<string | null>(() =>
 		typeof window === "undefined" ? null : localStorage.getItem("kowork-active-run"),
 	);
+	const adoptedRunId = useRef(runId);
 	const [live, setLive] = useState<LiveEvent | null>(null);
 	const [liveOutput, setLiveOutput] = useState("");
 	const [elapsedMs, setElapsedMs] = useState(0);
@@ -136,6 +138,18 @@ export function usePromptExecution(params: {
 		},
 	});
 
+	// Claude vira sessão dedicada: o processo fica de pé e a conversa continua na rota. Codex segue
+	// no modelo de chamada única — o `codex exec` não tem canal de controle equivalente.
+	const startSessionMutation = useMutation({
+		...orpc.agentSessions.start.mutationOptions(),
+		onSuccess: async (session) => {
+			usePromptBarStore.getState().setText("");
+			await navigate({ to: "/executar/$executionId", params: { executionId: session.id } });
+		},
+		onError: (err) =>
+			toast.error(err instanceof Error ? err.message : "Não foi possível abrir a sessão"),
+	});
+
 	const executeMutation = useMutation({
 		...orpc.prompt.execute.mutationOptions(),
 		onSuccess: (result) => {
@@ -145,6 +159,18 @@ export function usePromptExecution(params: {
 			startedAtRef.current = Date.now();
 			setElapsedMs(0);
 			requestId.current = newClientRequestId();
+			// A barra mostra só a cauda do que está acontecendo; quem quiser ver passo a passo e responder
+			// ao agente vai para a conversa, que é a mesma tela usada no celular.
+			toast.success("Execução despachada", {
+				action: {
+					label: "Acompanhar",
+					onClick: () =>
+						void navigate({
+							to: "/executar/$executionId",
+							params: { executionId: result.runId },
+						}),
+				},
+			});
 		},
 		onError: (err) =>
 			toast.error(err instanceof Error ? err.message : "Não foi possível iniciar a execução"),
@@ -166,12 +192,14 @@ export function usePromptExecution(params: {
 			signal: controller.signal,
 			subscribe: (signal) => orpcWs.promptRun.call({ runId: activeRunId }, { signal }),
 			onEvent: (event) => {
-				if (event.status === "output") {
+				// A barra global só acompanha a cauda do que o agente está escrevendo: o detalhe passo a
+				// passo é a tela de conversa. Aqui `step` vale pelo texto que carrega junto.
+				if (event.status === "output" || event.status === "step") {
 					setLiveOutput(event.output ?? "");
 					return;
 				}
 
-				setLive(event);
+				setLive({ ...event, status: event.status });
 			},
 			onReconnect: () => void refetchStatus(),
 		});
@@ -196,7 +224,8 @@ export function usePromptExecution(params: {
 		resolvedStatus === "failed" ||
 		resolvedStatus === "timeout" ||
 		resolvedStatus === "cancelled";
-	const isRunning = executeMutation.isPending || (!!runId && !isTerminal);
+	const isRunning =
+		executeMutation.isPending || startSessionMutation.isPending || (!!runId && !isTerminal);
 
 	useEffect(() => {
 		if (!isRunning || executeMutation.isPending) {
@@ -220,7 +249,7 @@ export function usePromptExecution(params: {
 
 	const output = live?.output ?? record?.output ?? null;
 	const error = runLost
-		? "A execução foi interrompida — o servidor reiniciou ou perdeu o registro do run."
+		? "A execução foi interrompida: o servidor reiniciou ou perdeu o registro do run."
 		: (live?.error ?? record?.error ?? null);
 
 	useEffect(() => {
@@ -232,22 +261,63 @@ export function usePromptExecution(params: {
 		}
 		lastNotified.current = resolvedStatus;
 		localStorage.removeItem("kowork-active-run");
+		if (adoptedRunId.current && adoptedRunId.current === runId) {
+			adoptedRunId.current = null;
+			setRunId(null);
+			return;
+		}
 		if (resolvedStatus === "done") {
 			toast.success("Execução concluída");
 		} else {
 			toast.error(error ?? "A execução falhou");
 		}
-	}, [resolvedStatus, error]);
+	}, [resolvedStatus, error, runId]);
 
 	function handleExecute() {
 		if (!project || !promptPreview) {
-			toast.error("Projeto da rota não encontrado");
+			toast.error("Escolha o projeto antes de executar");
 			return;
 		}
 
 		const agent = selection?.kind === "agent" ? selection.agent.slug : undefined;
 		const approvalMode = cli === "codex" ? invoke.codex.approvalMode : undefined;
 		const permissionMode = cli === "claude" ? invoke.claude.permissionMode : undefined;
+
+		if (cli === "claude") {
+			startSessionMutation.mutate({
+				projectId: project.id,
+				prompt: promptPreview,
+				originalPrompt: effectiveText || text || promptPreview,
+				inputKind: "text",
+				// A barra guarda "bypass" (o `--dangerously-skip-permissions` da chamada única); a sessão
+				// passa sempre por `--permission-mode`, onde o equivalente se chama bypassPermissions.
+				permissionMode:
+					permissionMode === "bypass" ? "bypassPermissions" : (permissionMode ?? "acceptEdits"),
+				...(params.taskId ? { taskId: params.taskId } : {}),
+				...(agent ? { agent } : {}),
+				...(executionPlan.model ? { model: executionPlan.model } : {}),
+				...(executionPlan.effort ? { effort: executionPlan.effort } : {}),
+			});
+
+			recordPromptHistory({
+				kind: selection?.kind ?? "copy",
+				text: effectiveText || text,
+				prompt: promptPreview,
+				...(effectiveRoute ? { target: effectiveRoute } : {}),
+				...(selection?.kind === "agent"
+					? { agentSlug: selection.agent.slug }
+					: selection?.kind === "skill"
+						? { skillSlug: selection.skill.slug }
+						: {}),
+				projectId: project.id,
+				projectName: project.name,
+				...(pathname ? { routePath: pathname } : {}),
+				...(executionPlan.model ? { model: executionPlan.model } : {}),
+				...(executionPlan.effort ? { effort: executionPlan.effort } : {}),
+			});
+
+			return;
+		}
 
 		executeMutation.mutate({
 			clientRequestId: requestId.current,

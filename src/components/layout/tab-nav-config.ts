@@ -9,6 +9,7 @@ export type TabPath =
 	| "/vault"
 	| "/kw-terminal"
 	| "/agents"
+	| "/radar"
 	| "/prompts";
 export type Tab = { path: TabPath; label: string; altKey?: string };
 
@@ -23,6 +24,7 @@ export const tabs: Tab[] = [
 	{ path: "/vault", label: "Vault", altKey: "8" },
 	{ path: "/kw-terminal", label: "kw-terminal", altKey: "9" },
 	{ path: "/agents", label: "Agents", altKey: "0" },
+	{ path: "/radar", label: "Radar" },
 	{ path: "/prompts", label: "Prompts" },
 ];
 

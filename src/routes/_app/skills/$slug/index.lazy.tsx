@@ -93,6 +93,7 @@ function SkillPage() {
 		<SkillEditor
 			key={skillQuery.skill.slug}
 			skill={skillQuery.skill}
+			content={skillQuery.content}
 			variants={skillQuery.variants}
 			missingTools={skillQuery.missingTools}
 			projectName={projectName}
@@ -181,11 +182,13 @@ function SkillCategorySelect({
 // editor markdown só lê `initialContent` no mount — sem o remount o corpo da skill anterior vazaria.
 function SkillEditor({
 	skill,
+	content,
 	variants,
 	missingTools,
 	projectName,
 }: {
 	skill: TaskSkill;
+	content: string;
 	variants: SkillVariant[];
 	missingTools: SkillDetail["missingTools"];
 	projectName?: string;
@@ -649,7 +652,7 @@ function SkillEditor({
 						kind: "skill",
 						variantPath: activeVariantPath,
 					})}
-					content={activeVariant?.content ?? skill.instructions}
+					content={activeVariant?.content ?? content}
 					folderPath={activeVariant?.dir ?? skill.primaryDir}
 					documentMaxWidth="52rem"
 					externalSave={{

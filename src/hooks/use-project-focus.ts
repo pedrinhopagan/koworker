@@ -29,7 +29,9 @@ export function useProjectFocus(options: UseProjectFocusOptions = {}) {
 	const selectedProjectId = useSelectedProjectStore((s) => s.selectedProjectId);
 	const setSelectedProjectId = useSelectedProjectStore((s) => s.setSelectedProjectId);
 
-	const resolvedProjectId = useMemo(() => {
+	// O projeto que a tela realmente aponta: veio da URL ou de uma escolha do usuário. Nada de
+	// palpite — quem dispara agente no diretório errado é o palpite, não a ausência de escolha.
+	const explicitProjectId = useMemo(() => {
 		if (
 			preferredProjectId &&
 			(projectsQuery.data === undefined ||
@@ -38,24 +40,36 @@ export function useProjectFocus(options: UseProjectFocusOptions = {}) {
 			return preferredProjectId;
 		}
 
-		if (selectedProjectId === undefined) {
-			return;
-		}
-
 		if (selectedProjectId && projects.some((project) => project.id === selectedProjectId)) {
 			return selectedProjectId;
 		}
 
-		return projects[0]?.id ?? null;
+		return null;
 	}, [preferredProjectId, projects, selectedProjectId, projectsQuery.data]);
+
+	// Navegação, cor de tema e listagens continuam caindo no primeiro projeto quando não há escolha:
+	// ali um palpite é conveniente e reversível.
+	const resolvedProjectId = useMemo(() => {
+		if (explicitProjectId) {
+			return explicitProjectId;
+		}
+
+		if (selectedProjectId === undefined) {
+			return;
+		}
+
+		return projects[0]?.id ?? null;
+	}, [explicitProjectId, projects, selectedProjectId]);
 
 	useEffect(() => {
 		if (!syncToStore) return;
 		if (projectsQuery.data === undefined) return;
-		if (resolvedProjectId !== selectedProjectId) {
-			setSelectedProjectId(resolvedProjectId);
+		// Só a escolha explícita é persistida: gravar o fallback faria o palpite parecer escolha na
+		// próxima leitura, e é isso que fazia o prompt sair no projeto errado.
+		if (explicitProjectId && explicitProjectId !== selectedProjectId) {
+			setSelectedProjectId(explicitProjectId);
 		}
-	}, [projectsQuery.data, resolvedProjectId, selectedProjectId, setSelectedProjectId, syncToStore]);
+	}, [projectsQuery.data, explicitProjectId, selectedProjectId, setSelectedProjectId, syncToStore]);
 
 	const selectedProject = useMemo(() => {
 		if (!resolvedProjectId) return null;
@@ -75,10 +89,16 @@ export function useProjectFocus(options: UseProjectFocusOptions = {}) {
 		};
 	}, [selectedProject?.color]);
 
+	const explicitProject = useMemo(() => {
+		if (!explicitProjectId) return null;
+		return projects.find((project) => project.id === explicitProjectId) ?? null;
+	}, [projects, explicitProjectId]);
+
 	return {
 		projects,
 		selectedProjectId: resolvedProjectId,
 		selectedProject,
+		explicitProject,
 		accent,
 		loading: projectsQuery.isLoading,
 		setSelectedProjectId,

@@ -30,10 +30,10 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
+import { useRemoveTaskMutation, useUpdateTaskMutation } from "@/hooks/use-task-mutations";
 import { copyToClipboard } from "@/lib/build-prompt";
 import { joinPath } from "@/lib/os-share";
 import { relativeTimeFrom } from "@/lib/relative-time";
-import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { cn } from "@/lib/utils";
 import { FlowRunButton } from "./-components/flow-run-button";
 import {
@@ -130,26 +130,12 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 		ignoreSelector: TASK_SELECT_CONTENT_SELECTOR,
 	});
 
-	function invalidateTasks() {
-		void invalidateTaskQueries(queryClient, {
-			taskId,
-			projectId: task?.projectId,
-		});
-	}
-
 	const setDoneMutation = useSetDoneMutation(task?.projectId);
 
-	const updateMutation = useMutation({
-		...orpc.tasks.update.mutationOptions(),
-		onSuccess: invalidateTasks,
-	});
+	const updateMutation = useUpdateTaskMutation(task?.projectId);
 
-	const removeTaskMutation = useMutation({
-		...orpc.tasks.remove.mutationOptions(),
-		onSuccess: () => {
-			invalidateTasks();
-			navigate({ to: "/tarefas" });
-		},
+	const removeTaskMutation = useRemoveTaskMutation(task?.projectId, {
+		onRemoved: () => navigate({ to: "/tarefas" }),
 	});
 
 	const writeFileMutation = useMutation({

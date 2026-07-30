@@ -87,7 +87,7 @@ function ProjectDocPage() {
 		<div className="relative flex h-full w-full flex-col">
 			{reading ? null : (
 				<div className="w-full border-b border-border">
-					<div className="mx-auto flex h-10 w-full max-w-6xl items-center gap-2 px-2">
+					<div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1 md:h-10 md:flex-nowrap md:py-0">
 						<Link
 							to="/projetos"
 							search={{ projetoId }}
@@ -100,15 +100,17 @@ function ProjectDocPage() {
 							{file.dirLabel}
 							{file.name}
 						</Text>
-						<DocToolbar
-							onCollapse={() => paneRef.current?.collapseAll()}
-							onExpand={() => paneRef.current?.expandAll()}
-							onCopyContent={() => void paneRef.current?.copyContent()}
-							onCopyPath={() => void paneRef.current?.copyPath()}
-							onReading={() => setReading(true)}
-							pinned={pinned}
-							onTogglePin={togglePin}
-						/>
+						<div className="flex w-full justify-end md:w-auto">
+							<DocToolbar
+								onCollapse={() => paneRef.current?.collapseAll()}
+								onExpand={() => paneRef.current?.expandAll()}
+								onCopyContent={() => void paneRef.current?.copyContent()}
+								onCopyPath={() => void paneRef.current?.copyPath()}
+								onReading={() => setReading(true)}
+								pinned={pinned}
+								onTogglePin={togglePin}
+							/>
+						</div>
 					</div>
 				</div>
 			)}

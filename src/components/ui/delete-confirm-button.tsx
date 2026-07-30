@@ -26,8 +26,8 @@ export function resolveDeleteConfirmButtonSize(sizeVariant: DeleteConfirmButtonS
 	if (sizeVariant === "xs") {
 		return {
 			buttonSize: "icon-sm" as const,
-			iconClassName: "h-3 w-3",
-			buttonClassName: "h-6 w-6 min-h-6 min-w-6 p-0",
+			iconClassName: "size-4 md:size-3",
+			buttonClassName: "size-12 p-0 md:size-6",
 		};
 	}
 

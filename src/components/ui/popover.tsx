@@ -1,6 +1,7 @@
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import * as React from "react";
 
+import { useThemeRootContainer } from "@/hooks/use-theme-root";
 import { cn } from "@/lib/utils";
 
 // ============================================================================
@@ -16,13 +17,7 @@ const PopoverContent = React.forwardRef<
 	React.ComponentRef<typeof PopoverPrimitive.Content>,
 	React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
 >(({ className, align = "center", sideOffset = 4, ...props }, ref) => {
-	const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
-
-	React.useEffect(() => {
-		if (portalContainer) return;
-		const themeRoot = document.querySelector<HTMLElement>("[data-theme-root]");
-		setPortalContainer(themeRoot);
-	}, [portalContainer]);
+	const portalContainer = useThemeRootContainer();
 
 	return (
 		<PopoverPrimitive.Portal container={portalContainer ?? undefined}>

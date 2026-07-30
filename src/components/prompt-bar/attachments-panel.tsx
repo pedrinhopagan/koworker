@@ -137,7 +137,7 @@ export function AttachmentsPanel({ taskId }: { taskId?: string }) {
 										rows={1}
 										className={cn(
 											"max-h-32 w-full resize-none rounded-none border border-input bg-transparent px-2 py-1 text-sm shadow-xs transition-colors field-sizing-content",
-											"placeholder:text-muted-foreground/20",
+											"placeholder:text-muted-foreground",
 											"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring",
 										)}
 									/>

@@ -72,7 +72,7 @@ export function NewTaskDialog({ open, onClose }: NewTaskDialogProps) {
 				resetMode="none"
 				autoFocus
 				loading={createMutation.isPending || writeFileMutation.isPending}
-				onSubmit={(data) => void handleSubmit(data)}
+				onSubmit={handleSubmit}
 			/>
 		</Dialog>
 	);

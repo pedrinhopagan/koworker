@@ -1,5 +1,6 @@
 export { type FocusTask, useFocusTask } from "./use-focus-task";
 export { MAX_VISIBLE_TASKS, useHomeData } from "./use-home-data";
+export { useIsMobileViewport } from "./use-is-mobile-viewport";
 export { useLogin } from "./use-login";
 export { useLogout } from "./use-logout";
 export { usePrimaryColor } from "./use-primary-color";

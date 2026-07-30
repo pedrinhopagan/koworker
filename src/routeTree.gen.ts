@@ -10,15 +10,20 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as DispositivoRouteImport } from './routes/dispositivo'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as ParearTokenRouteImport } from './routes/parear.$token'
 import { Route as AppSistemaRouteImport } from './routes/_app/sistema'
+import { Route as AppParearRouteImport } from './routes/_app/parear'
 import { Route as AppKwTerminalRouteImport } from './routes/_app/kw-terminal'
 import { Route as AppFontesRouteImport } from './routes/_app/fontes'
+import { Route as AppDispositivosRouteImport } from './routes/_app/dispositivos'
 import { Route as AppConfiguracoesRouteImport } from './routes/_app/configuracoes'
 import { Route as AppVaultIndexRouteImport } from './routes/_app/vault/index'
 import { Route as AppTarefasIndexRouteImport } from './routes/_app/tarefas/index'
 import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
+import { Route as AppRadarIndexRouteImport } from './routes/_app/radar/index'
 import { Route as AppPromptsIndexRouteImport } from './routes/_app/prompts/index'
 import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/index'
 import { Route as AppMostruarioIndexRouteImport } from './routes/_app/mostruario/index'
@@ -28,6 +33,7 @@ import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents/index'
 import { Route as AppVaultFileNameIndexRouteImport } from './routes/_app/vault/$fileName/index'
 import { Route as AppTarefasTaskIdIndexRouteImport } from './routes/_app/tarefas/$taskId/index'
 import { Route as AppSkillsSlugIndexRouteImport } from './routes/_app/skills/$slug/index'
+import { Route as AppRadarPaneIdIndexRouteImport } from './routes/_app/radar/$paneId/index'
 import { Route as AppProjetosNovoIndexRouteImport } from './routes/_app/projetos/novo/index'
 import { Route as AppProjetosProjetoIdIndexRouteImport } from './routes/_app/projetos/$projetoId/index'
 import { Route as AppMediaFileNameIndexRouteImport } from './routes/_app/media/$fileName/index'
@@ -42,6 +48,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DispositivoRoute = DispositivoRouteImport.update({
+  id: '/dispositivo',
+  path: '/dispositivo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
@@ -51,9 +62,19 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const ParearTokenRoute = ParearTokenRouteImport.update({
+  id: '/parear/$token',
+  path: '/parear/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppSistemaRoute = AppSistemaRouteImport.update({
   id: '/sistema',
   path: '/sistema',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppParearRoute = AppParearRouteImport.update({
+  id: '/parear',
+  path: '/parear',
   getParentRoute: () => AppRoute,
 } as any)
 const AppKwTerminalRoute = AppKwTerminalRouteImport.update({
@@ -66,6 +87,13 @@ const AppFontesRoute = AppFontesRouteImport.update({
   path: '/fontes',
   getParentRoute: () => AppRoute,
 } as any).lazy(() => import('./routes/_app/fontes.lazy').then((d) => d.Route))
+const AppDispositivosRoute = AppDispositivosRouteImport.update({
+  id: '/dispositivos',
+  path: '/dispositivos',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/dispositivos.lazy').then((d) => d.Route),
+)
 const AppConfiguracoesRoute = AppConfiguracoesRouteImport.update({
   id: '/configuracoes',
   path: '/configuracoes',
@@ -88,6 +116,13 @@ const AppSkillsIndexRoute = AppSkillsIndexRouteImport.update({
   path: '/skills/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppRadarIndexRoute = AppRadarIndexRouteImport.update({
+  id: '/radar/',
+  path: '/radar/',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/radar/index.lazy').then((d) => d.Route),
+)
 const AppPromptsIndexRoute = AppPromptsIndexRouteImport.update({
   id: '/prompts/',
   path: '/prompts/',
@@ -144,6 +179,13 @@ const AppSkillsSlugIndexRoute = AppSkillsSlugIndexRouteImport.update({
   getParentRoute: () => AppRoute,
 } as any).lazy(() =>
   import('./routes/_app/skills/$slug/index.lazy').then((d) => d.Route),
+)
+const AppRadarPaneIdIndexRoute = AppRadarPaneIdIndexRouteImport.update({
+  id: '/radar/$paneId/',
+  path: '/radar/$paneId/',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/radar/$paneId/index.lazy').then((d) => d.Route),
 )
 const AppProjetosNovoIndexRoute = AppProjetosNovoIndexRouteImport.update({
   id: '/projetos/novo/',
@@ -210,17 +252,22 @@ const AppProjetosProjetoIdDocsSplatRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/dispositivo': typeof DispositivoRoute
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
+  '/dispositivos': typeof AppDispositivosRoute
   '/fontes': typeof AppFontesRoute
   '/kw-terminal': typeof AppKwTerminalRoute
+  '/parear': typeof AppParearRoute
   '/sistema': typeof AppSistemaRoute
+  '/parear/$token': typeof ParearTokenRoute
   '/agents/': typeof AppAgentsIndexRoute
   '/executar/': typeof AppExecutarIndexRoute
   '/media/': typeof AppMediaIndexRoute
   '/mostruario/': typeof AppMostruarioIndexRoute
   '/projetos/': typeof AppProjetosIndexRoute
   '/prompts/': typeof AppPromptsIndexRoute
+  '/radar/': typeof AppRadarIndexRoute
   '/skills/': typeof AppSkillsIndexRoute
   '/tarefas/': typeof AppTarefasIndexRoute
   '/vault/': typeof AppVaultIndexRoute
@@ -230,6 +277,7 @@ export interface FileRoutesByFullPath {
   '/media/$fileName/': typeof AppMediaFileNameIndexRoute
   '/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo/': typeof AppProjetosNovoIndexRoute
+  '/radar/$paneId/': typeof AppRadarPaneIdIndexRoute
   '/skills/$slug/': typeof AppSkillsSlugIndexRoute
   '/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/vault/$fileName/': typeof AppVaultFileNameIndexRoute
@@ -237,11 +285,15 @@ export interface FileRoutesByFullPath {
   '/tarefas/$taskId/$file/$canonicalFile': typeof AppTarefasTaskIdFileCanonicalFileRoute
 }
 export interface FileRoutesByTo {
+  '/dispositivo': typeof DispositivoRoute
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
+  '/dispositivos': typeof AppDispositivosRoute
   '/fontes': typeof AppFontesRoute
   '/kw-terminal': typeof AppKwTerminalRoute
+  '/parear': typeof AppParearRoute
   '/sistema': typeof AppSistemaRoute
+  '/parear/$token': typeof ParearTokenRoute
   '/': typeof AppIndexRoute
   '/agents': typeof AppAgentsIndexRoute
   '/executar': typeof AppExecutarIndexRoute
@@ -249,6 +301,7 @@ export interface FileRoutesByTo {
   '/mostruario': typeof AppMostruarioIndexRoute
   '/projetos': typeof AppProjetosIndexRoute
   '/prompts': typeof AppPromptsIndexRoute
+  '/radar': typeof AppRadarIndexRoute
   '/skills': typeof AppSkillsIndexRoute
   '/tarefas': typeof AppTarefasIndexRoute
   '/vault': typeof AppVaultIndexRoute
@@ -258,6 +311,7 @@ export interface FileRoutesByTo {
   '/media/$fileName': typeof AppMediaFileNameIndexRoute
   '/projetos/$projetoId': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo': typeof AppProjetosNovoIndexRoute
+  '/radar/$paneId': typeof AppRadarPaneIdIndexRoute
   '/skills/$slug': typeof AppSkillsSlugIndexRoute
   '/tarefas/$taskId': typeof AppTarefasTaskIdIndexRoute
   '/vault/$fileName': typeof AppVaultFileNameIndexRoute
@@ -267,11 +321,15 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/dispositivo': typeof DispositivoRoute
   '/login': typeof LoginRoute
   '/_app/configuracoes': typeof AppConfiguracoesRoute
+  '/_app/dispositivos': typeof AppDispositivosRoute
   '/_app/fontes': typeof AppFontesRoute
   '/_app/kw-terminal': typeof AppKwTerminalRoute
+  '/_app/parear': typeof AppParearRoute
   '/_app/sistema': typeof AppSistemaRoute
+  '/parear/$token': typeof ParearTokenRoute
   '/_app/': typeof AppIndexRoute
   '/_app/agents/': typeof AppAgentsIndexRoute
   '/_app/executar/': typeof AppExecutarIndexRoute
@@ -279,6 +337,7 @@ export interface FileRoutesById {
   '/_app/mostruario/': typeof AppMostruarioIndexRoute
   '/_app/projetos/': typeof AppProjetosIndexRoute
   '/_app/prompts/': typeof AppPromptsIndexRoute
+  '/_app/radar/': typeof AppRadarIndexRoute
   '/_app/skills/': typeof AppSkillsIndexRoute
   '/_app/tarefas/': typeof AppTarefasIndexRoute
   '/_app/vault/': typeof AppVaultIndexRoute
@@ -288,6 +347,7 @@ export interface FileRoutesById {
   '/_app/media/$fileName/': typeof AppMediaFileNameIndexRoute
   '/_app/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/_app/projetos/novo/': typeof AppProjetosNovoIndexRoute
+  '/_app/radar/$paneId/': typeof AppRadarPaneIdIndexRoute
   '/_app/skills/$slug/': typeof AppSkillsSlugIndexRoute
   '/_app/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/_app/vault/$fileName/': typeof AppVaultFileNameIndexRoute
@@ -298,17 +358,22 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/dispositivo'
     | '/login'
     | '/configuracoes'
+    | '/dispositivos'
     | '/fontes'
     | '/kw-terminal'
+    | '/parear'
     | '/sistema'
+    | '/parear/$token'
     | '/agents/'
     | '/executar/'
     | '/media/'
     | '/mostruario/'
     | '/projetos/'
     | '/prompts/'
+    | '/radar/'
     | '/skills/'
     | '/tarefas/'
     | '/vault/'
@@ -318,6 +383,7 @@ export interface FileRouteTypes {
     | '/media/$fileName/'
     | '/projetos/$projetoId/'
     | '/projetos/novo/'
+    | '/radar/$paneId/'
     | '/skills/$slug/'
     | '/tarefas/$taskId/'
     | '/vault/$fileName/'
@@ -325,11 +391,15 @@ export interface FileRouteTypes {
     | '/tarefas/$taskId/$file/$canonicalFile'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/dispositivo'
     | '/login'
     | '/configuracoes'
+    | '/dispositivos'
     | '/fontes'
     | '/kw-terminal'
+    | '/parear'
     | '/sistema'
+    | '/parear/$token'
     | '/'
     | '/agents'
     | '/executar'
@@ -337,6 +407,7 @@ export interface FileRouteTypes {
     | '/mostruario'
     | '/projetos'
     | '/prompts'
+    | '/radar'
     | '/skills'
     | '/tarefas'
     | '/vault'
@@ -346,6 +417,7 @@ export interface FileRouteTypes {
     | '/media/$fileName'
     | '/projetos/$projetoId'
     | '/projetos/novo'
+    | '/radar/$paneId'
     | '/skills/$slug'
     | '/tarefas/$taskId'
     | '/vault/$fileName'
@@ -354,11 +426,15 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_app'
+    | '/dispositivo'
     | '/login'
     | '/_app/configuracoes'
+    | '/_app/dispositivos'
     | '/_app/fontes'
     | '/_app/kw-terminal'
+    | '/_app/parear'
     | '/_app/sistema'
+    | '/parear/$token'
     | '/_app/'
     | '/_app/agents/'
     | '/_app/executar/'
@@ -366,6 +442,7 @@ export interface FileRouteTypes {
     | '/_app/mostruario/'
     | '/_app/projetos/'
     | '/_app/prompts/'
+    | '/_app/radar/'
     | '/_app/skills/'
     | '/_app/tarefas/'
     | '/_app/vault/'
@@ -375,6 +452,7 @@ export interface FileRouteTypes {
     | '/_app/media/$fileName/'
     | '/_app/projetos/$projetoId/'
     | '/_app/projetos/novo/'
+    | '/_app/radar/$paneId/'
     | '/_app/skills/$slug/'
     | '/_app/tarefas/$taskId/'
     | '/_app/vault/$fileName/'
@@ -384,7 +462,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  DispositivoRoute: typeof DispositivoRoute
   LoginRoute: typeof LoginRoute
+  ParearTokenRoute: typeof ParearTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -394,6 +474,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dispositivo': {
+      id: '/dispositivo'
+      path: '/dispositivo'
+      fullPath: '/dispositivo'
+      preLoaderRoute: typeof DispositivoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app': {
@@ -410,11 +497,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/parear/$token': {
+      id: '/parear/$token'
+      path: '/parear/$token'
+      fullPath: '/parear/$token'
+      preLoaderRoute: typeof ParearTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/sistema': {
       id: '/_app/sistema'
       path: '/sistema'
       fullPath: '/sistema'
       preLoaderRoute: typeof AppSistemaRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/parear': {
+      id: '/_app/parear'
+      path: '/parear'
+      fullPath: '/parear'
+      preLoaderRoute: typeof AppParearRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/kw-terminal': {
@@ -429,6 +530,13 @@ declare module '@tanstack/react-router' {
       path: '/fontes'
       fullPath: '/fontes'
       preLoaderRoute: typeof AppFontesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/dispositivos': {
+      id: '/_app/dispositivos'
+      path: '/dispositivos'
+      fullPath: '/dispositivos'
+      preLoaderRoute: typeof AppDispositivosRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/configuracoes': {
@@ -457,6 +565,13 @@ declare module '@tanstack/react-router' {
       path: '/skills'
       fullPath: '/skills/'
       preLoaderRoute: typeof AppSkillsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/radar/': {
+      id: '/_app/radar/'
+      path: '/radar'
+      fullPath: '/radar/'
+      preLoaderRoute: typeof AppRadarIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/prompts/': {
@@ -522,6 +637,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSkillsSlugIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/radar/$paneId/': {
+      id: '/_app/radar/$paneId/'
+      path: '/radar/$paneId'
+      fullPath: '/radar/$paneId/'
+      preLoaderRoute: typeof AppRadarPaneIdIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/projetos/novo/': {
       id: '/_app/projetos/novo/'
       path: '/projetos/novo'
@@ -583,8 +705,10 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppConfiguracoesRoute: typeof AppConfiguracoesRoute
+  AppDispositivosRoute: typeof AppDispositivosRoute
   AppFontesRoute: typeof AppFontesRoute
   AppKwTerminalRoute: typeof AppKwTerminalRoute
+  AppParearRoute: typeof AppParearRoute
   AppSistemaRoute: typeof AppSistemaRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAgentsIndexRoute: typeof AppAgentsIndexRoute
@@ -593,6 +717,7 @@ interface AppRouteChildren {
   AppMostruarioIndexRoute: typeof AppMostruarioIndexRoute
   AppProjetosIndexRoute: typeof AppProjetosIndexRoute
   AppPromptsIndexRoute: typeof AppPromptsIndexRoute
+  AppRadarIndexRoute: typeof AppRadarIndexRoute
   AppSkillsIndexRoute: typeof AppSkillsIndexRoute
   AppTarefasIndexRoute: typeof AppTarefasIndexRoute
   AppVaultIndexRoute: typeof AppVaultIndexRoute
@@ -602,6 +727,7 @@ interface AppRouteChildren {
   AppMediaFileNameIndexRoute: typeof AppMediaFileNameIndexRoute
   AppProjetosProjetoIdIndexRoute: typeof AppProjetosProjetoIdIndexRoute
   AppProjetosNovoIndexRoute: typeof AppProjetosNovoIndexRoute
+  AppRadarPaneIdIndexRoute: typeof AppRadarPaneIdIndexRoute
   AppSkillsSlugIndexRoute: typeof AppSkillsSlugIndexRoute
   AppTarefasTaskIdIndexRoute: typeof AppTarefasTaskIdIndexRoute
   AppVaultFileNameIndexRoute: typeof AppVaultFileNameIndexRoute
@@ -611,8 +737,10 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppConfiguracoesRoute: AppConfiguracoesRoute,
+  AppDispositivosRoute: AppDispositivosRoute,
   AppFontesRoute: AppFontesRoute,
   AppKwTerminalRoute: AppKwTerminalRoute,
+  AppParearRoute: AppParearRoute,
   AppSistemaRoute: AppSistemaRoute,
   AppIndexRoute: AppIndexRoute,
   AppAgentsIndexRoute: AppAgentsIndexRoute,
@@ -621,6 +749,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppMostruarioIndexRoute: AppMostruarioIndexRoute,
   AppProjetosIndexRoute: AppProjetosIndexRoute,
   AppPromptsIndexRoute: AppPromptsIndexRoute,
+  AppRadarIndexRoute: AppRadarIndexRoute,
   AppSkillsIndexRoute: AppSkillsIndexRoute,
   AppTarefasIndexRoute: AppTarefasIndexRoute,
   AppVaultIndexRoute: AppVaultIndexRoute,
@@ -630,6 +759,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppMediaFileNameIndexRoute: AppMediaFileNameIndexRoute,
   AppProjetosProjetoIdIndexRoute: AppProjetosProjetoIdIndexRoute,
   AppProjetosNovoIndexRoute: AppProjetosNovoIndexRoute,
+  AppRadarPaneIdIndexRoute: AppRadarPaneIdIndexRoute,
   AppSkillsSlugIndexRoute: AppSkillsSlugIndexRoute,
   AppTarefasTaskIdIndexRoute: AppTarefasTaskIdIndexRoute,
   AppVaultFileNameIndexRoute: AppVaultFileNameIndexRoute,
@@ -642,7 +772,9 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  DispositivoRoute: DispositivoRoute,
   LoginRoute: LoginRoute,
+  ParearTokenRoute: ParearTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

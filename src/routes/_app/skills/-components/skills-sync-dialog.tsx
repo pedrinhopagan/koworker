@@ -102,7 +102,7 @@ export function SkillsSyncAction() {
 		<>
 			<Button type="button" variant="outline" size="sm" onClick={handleOpen}>
 				<RefreshCw className="size-4" />
-				Sync
+				Sincronizar
 			</Button>
 
 			<Dialog

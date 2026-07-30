@@ -1,7 +1,7 @@
 import { InlineTaskCreateForm, type InlineTaskCreateFormSubmitInput } from "@/components/tasks";
 
 type TaskFormProps = {
-	onSubmit: (data: InlineTaskCreateFormSubmitInput) => void;
+	onSubmit: (data: InlineTaskCreateFormSubmitInput) => void | Promise<unknown>;
 	loading: boolean;
 };
 

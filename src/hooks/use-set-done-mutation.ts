@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { orpc } from "@/client";
+import { errorMessage } from "@/lib/orpc-errors";
 import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { docSessionKey, useDocSessionsStore } from "@/stores/doc-sessions";
 
@@ -18,5 +20,14 @@ export function useSetDoneMutation(projectId?: string | null) {
 				removeRecentsByPrefix(docSessionKey({ kind: "task", taskId: variables.id, file: "" }));
 			}
 		},
+		onError: (error, variables) =>
+			toast.error(
+				errorMessage(
+					error,
+					variables.done
+						? "Não foi possível concluir a tarefa"
+						: "Não foi possível reabrir a tarefa",
+				),
+			),
 	});
 }

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { orpc } from "@/client";
 import { LucideIcon } from "@/lib/lucide-icon";
+import { useRovingOption } from "@/hooks/use-roving-listbox";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -695,15 +696,7 @@ function Card({
 	const skillColor = card.icon && !card.isCurrent ? card.iconColor : undefined;
 	const showKindLabel = !boxed && !card.isCurrent && !isMostRecent;
 
-	// Acompanha a seleção do teclado: ao virar o card ativo, rola pra dentro da viewport e recebe o foco
-	// (roving tabindex). `nearest` não salta se já está visível; `preventScroll` evita brigar com o rolar.
-	const ref = useRef<HTMLDivElement>(null);
-	useEffect(() => {
-		if (active) {
-			ref.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-			ref.current?.focus({ preventScroll: true });
-		}
-	}, [active]);
+	const ref = useRovingOption<HTMLDivElement>(active);
 
 	return (
 		/** biome-ignore lint/a11y/noStaticElementInteractions: card clicável; o teclado navega pelo listener global. */

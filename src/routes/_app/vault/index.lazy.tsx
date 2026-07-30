@@ -27,7 +27,7 @@ import {
 	WifiOff,
 	X,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
@@ -35,6 +35,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Dialog } from "@/components/ui/dialog";
 import { EmptyFeedback } from "@/components/ui/empty-feedback";
 import { Input } from "@/components/ui/input";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -43,7 +44,9 @@ import { useDebouncedSearch } from "@/hooks/use-debounced-search";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useSkillsQuery } from "@/hooks/use-skills";
 import { useStableCallback } from "@/hooks/use-stable-callback";
+import { useRemoveTaskMutation } from "@/hooks/use-task-mutations";
 import { copyMarkdown, joinPath, openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
+import { errorMessage } from "@/lib/orpc-errors";
 import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { cn } from "@/lib/utils";
 import { type ClickModifiers, Tree } from "./-components/tree";
@@ -138,6 +141,10 @@ function VaultPage() {
 	// Diálogos da pasta de tarefa: renomear (título da tarefa) e excluir.
 	const [renamingTask, setRenamingTask] = useState<{ id: string; value: string } | null>(null);
 	const [deletingTask, setDeletingTask] = useState<{ id: string; title: string } | null>(null);
+
+	const createNoteFormId = useId();
+	const renameNoteFormId = useId();
+	const renameTaskFormId = useId();
 
 	// Multi-seleção origin-exclusiva: arquivos de uma única origem por vez (loose/task/folder), com
 	// `folderName` fixo quando folder. `anchorKey` é a âncora do range com Shift. As ações de lote
@@ -465,7 +472,7 @@ function VaultPage() {
 				result.count === 1 ? "Nota vinculada à tarefa" : `${result.count} notas vinculadas`,
 			);
 		},
-		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível vincular"),
+		onError: (err) => toast.error(errorMessage(err, "Não foi possível vincular")),
 	});
 
 	const moveMutation = useMutation({
@@ -477,7 +484,7 @@ function VaultPage() {
 				result.count === 1 ? "Arquivo movido para a tarefa" : `${result.count} arquivos movidos`,
 			);
 		},
-		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível mover"),
+		onError: (err) => toast.error(errorMessage(err, "Não foi possível mover")),
 	});
 
 	const moveFolderMutation = useMutation({
@@ -489,7 +496,7 @@ function VaultPage() {
 				result.count === 1 ? "Arquivo movido para a tarefa" : `${result.count} arquivos movidos`,
 			);
 		},
-		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível mover"),
+		onError: (err) => toast.error(errorMessage(err, "Não foi possível mover")),
 	});
 
 	const unlinkMutation = useMutation({
@@ -501,7 +508,7 @@ function VaultPage() {
 				result.count === 1 ? "Arquivo solto no vault" : `${result.count} arquivos soltos no vault`,
 			);
 		},
-		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível soltar"),
+		onError: (err) => toast.error(errorMessage(err, "Não foi possível soltar")),
 	});
 
 	const adoptFolderMutation = useMutation({
@@ -510,8 +517,7 @@ function VaultPage() {
 			invalidateVaultAndTasks();
 			toast.success("Pasta transformada em tarefa");
 		},
-		onError: (err) =>
-			toast.error(err instanceof Error ? err.message : "Não foi possível transformar a pasta"),
+		onError: (err) => toast.error(errorMessage(err, "Não foi possível transformar a pasta")),
 	});
 
 	const promoteMutation = useMutation({
@@ -521,8 +527,7 @@ function VaultPage() {
 			toast.success("Nota transformada em tarefa");
 			navigate({ to: "/tarefas/$taskId", params: { taskId: result.id } });
 		},
-		onError: (err) =>
-			toast.error(err instanceof Error ? err.message : "Não foi possível transformar a nota"),
+		onError: (err) => toast.error(errorMessage(err, "Não foi possível transformar a nota")),
 	});
 
 	const renameMutation = useMutation({
@@ -532,7 +537,7 @@ function VaultPage() {
 			setRenaming(null);
 			toast.success("Nota renomeada");
 		},
-		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível renomear"),
+		onError: (err) => toast.error(errorMessage(err, "Não foi possível renomear")),
 	});
 
 	const deleteMutation = useMutation({
@@ -542,7 +547,7 @@ function VaultPage() {
 			setDeleting(null);
 			toast.success("Nota deletada");
 		},
-		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível deletar"),
+		onError: (err) => toast.error(errorMessage(err, "Não foi possível deletar")),
 	});
 
 	const createNoteMutation = useMutation({
@@ -552,8 +557,7 @@ function VaultPage() {
 			setCreatingTitle(null);
 			navigate({ to: "/vault/$fileName", params: { fileName: variables.name } });
 		},
-		onError: (err) =>
-			toast.error(err instanceof Error ? err.message : "Não foi possível criar a nota"),
+		onError: (err) => toast.error(errorMessage(err, "Não foi possível criar a nota")),
 	});
 
 	const updateTaskMutation = useMutation({
@@ -562,8 +566,7 @@ function VaultPage() {
 			invalidateVaultAndTasks();
 			setRenamingTask(null);
 		},
-		onError: (err) =>
-			toast.error(err instanceof Error ? err.message : "Não foi possível atualizar a tarefa"),
+		onError: (err) => toast.error(errorMessage(err, "Não foi possível atualizar a tarefa")),
 	});
 
 	const setTaskDoneMutation = useMutation({
@@ -572,19 +575,11 @@ function VaultPage() {
 			invalidateVaultAndTasks();
 			toast.success(task?.done ? "Tarefa concluída" : "Tarefa reaberta");
 		},
-		onError: (err) =>
-			toast.error(err instanceof Error ? err.message : "Não foi possível atualizar a tarefa"),
+		onError: (err) => toast.error(errorMessage(err, "Não foi possível atualizar a tarefa")),
 	});
 
-	const removeTaskMutation = useMutation({
-		...orpc.tasks.remove.mutationOptions(),
-		onSuccess: () => {
-			invalidateVaultAndTasks();
-			setDeletingTask(null);
-			toast.success("Tarefa excluída");
-		},
-		onError: (err) =>
-			toast.error(err instanceof Error ? err.message : "Não foi possível excluir a tarefa"),
+	const removeTaskMutation = useRemoveTaskMutation(selectedProjectId, {
+		onRemoved: () => setDeletingTask(null),
 	});
 
 	const moveTaskToProjectMutation = useMutation({
@@ -593,8 +588,7 @@ function VaultPage() {
 			invalidateVaultAndTasks(variables.targetProjectId);
 			toast.success("Tarefa movida para o projeto");
 		},
-		onError: (err) =>
-			toast.error(err instanceof Error ? err.message : "Não foi possível mover a tarefa"),
+		onError: (err) => toast.error(errorMessage(err, "Não foi possível mover a tarefa")),
 	});
 
 	// Despacho único de movimento: o par (origem, destino) escolhe a mutation. Mesmo caminho pro
@@ -686,15 +680,29 @@ function VaultPage() {
 		return null;
 	}
 
-	// Conteúdo concatenado de uma pasta de tarefa/solta (via backend) ou as instruções de agent/skill
-	// (já carregadas no nó). Só chamado em pastas — o submenu Compartilhar não aparece em arquivo.
 	async function shareNodeContent(node: TreeNode) {
 		if (node.kind === "agentFolder") {
-			await copyMarkdown(node.instructions);
+			try {
+				const agent = await queryClient.fetchQuery(
+					orpc.agents.get.queryOptions({ input: { slug: node.slug } }),
+				);
+				await copyMarkdown(agent?.content ?? "");
+			} catch {
+				toast.error("Não foi possível carregar o agent");
+			}
 			return;
 		}
 		if (node.kind === "skillFolder") {
-			await copyMarkdown(node.instructions);
+			try {
+				const skill = await queryClient.fetchQuery(
+					orpc.skills.get.queryOptions({
+						input: { slug: node.slug, projectName: selectedProject?.name },
+					}),
+				);
+				await copyMarkdown(skill?.content ?? "");
+			} catch {
+				toast.error("Não foi possível carregar a skill");
+			}
 			return;
 		}
 		if (!projectId) return;
@@ -1078,86 +1086,80 @@ function VaultPage() {
 				</div>
 			)}
 
-			{creatingTitle !== null && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center">
-					<button
-						type="button"
-						aria-label="Fechar"
-						onClick={() => setCreatingTitle(null)}
-						className="absolute inset-0 bg-black/50"
+			<Dialog
+				open={creatingTitle !== null}
+				onClose={() => setCreatingTitle(null)}
+				title="Nova nota solta"
+				className="max-w-md"
+				footer={
+					<>
+						<Button type="button" variant="outline" onClick={() => setCreatingTitle(null)}>
+							Cancelar
+						</Button>
+						<Button type="submit" form={createNoteFormId} disabled={createNoteMutation.isPending}>
+							{createNoteMutation.isPending ? "Criando..." : "Criar nota"}
+						</Button>
+					</>
+				}
+			>
+				<form
+					id={createNoteFormId}
+					onSubmit={(e) => {
+						e.preventDefault();
+						confirmCreateNote();
+					}}
+				>
+					<Input
+						autoFocus
+						value={creatingTitle ?? ""}
+						onChange={(e) => setCreatingTitle(e.target.value)}
+						placeholder="Título da nota"
+						className="font-mono text-sm"
+						aria-label="Título"
 					/>
-					<form
-						onSubmit={(e) => {
-							e.preventDefault();
-							confirmCreateNote();
-						}}
-						className="relative z-10 w-full max-w-md border border-border bg-background p-6 shadow-lg animate-in fade-in-0 zoom-in-95"
-					>
-						<Text size="sm" tone="muted" className="mb-3">
-							Nova nota solta
+					{creatingTitle?.trim() && (
+						<Text size="xs" tone="muted" className="mt-2 font-mono">
+							arquivo: {creatingTitle.trim().replaceAll(/[/\\]/g, "-").replace(/^\.+/, "")}.md
 						</Text>
-						<Input
-							autoFocus
-							value={creatingTitle}
-							onChange={(e) => setCreatingTitle(e.target.value)}
-							placeholder="Título da nota"
-							className="font-mono text-sm"
-							aria-label="Título"
-						/>
-						{creatingTitle.trim() && (
-							<Text size="xs" tone="muted" className="mt-2 font-mono">
-								arquivo: {creatingTitle.trim().replaceAll(/[/\\]/g, "-").replace(/^\.+/, "")}.md
-							</Text>
-						)}
-						<div className="mt-6 flex justify-end gap-3">
-							<Button type="button" variant="outline" onClick={() => setCreatingTitle(null)}>
-								Cancelar
-							</Button>
-							<Button type="submit" disabled={createNoteMutation.isPending}>
-								{createNoteMutation.isPending ? "Criando..." : "Criar nota"}
-							</Button>
-						</div>
-					</form>
-				</div>
-			)}
+					)}
+				</form>
+			</Dialog>
 
-			{renaming && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center">
-					<button
-						type="button"
-						aria-label="Fechar"
-						onClick={() => setRenaming(null)}
-						className="absolute inset-0 bg-black/50"
+			<Dialog
+				open={renaming !== null}
+				onClose={() => setRenaming(null)}
+				title="Renomear nota"
+				className="max-w-md"
+				footer={
+					<>
+						<Button type="button" variant="outline" onClick={() => setRenaming(null)}>
+							Cancelar
+						</Button>
+						<Button type="submit" form={renameNoteFormId} disabled={renameMutation.isPending}>
+							{renameMutation.isPending ? "Aguarde..." : "Renomear"}
+						</Button>
+					</>
+				}
+			>
+				<form
+					id={renameNoteFormId}
+					onSubmit={(e) => {
+						e.preventDefault();
+						confirmRename();
+					}}
+				>
+					<Input
+						autoFocus
+						value={renaming?.value ?? ""}
+						onChange={(e) =>
+							renaming && setRenaming({ name: renaming.name, value: e.target.value })
+						}
+						placeholder="nome.md"
+						className="font-mono text-sm"
+						aria-label="Novo nome"
 					/>
-					<form
-						onSubmit={(e) => {
-							e.preventDefault();
-							confirmRename();
-						}}
-						className="relative z-10 w-full max-w-md border border-border bg-background p-6 shadow-lg animate-in fade-in-0 zoom-in-95"
-					>
-						<Text size="sm" tone="muted" className="mb-3">
-							Renomear nota
-						</Text>
-						<Input
-							autoFocus
-							value={renaming.value}
-							onChange={(e) => setRenaming({ name: renaming.name, value: e.target.value })}
-							placeholder="nome.md"
-							className="font-mono text-sm"
-							aria-label="Novo nome"
-						/>
-						<div className="mt-6 flex justify-end gap-3">
-							<Button type="button" variant="outline" onClick={() => setRenaming(null)}>
-								Cancelar
-							</Button>
-							<Button type="submit" disabled={renameMutation.isPending}>
-								{renameMutation.isPending ? "Aguarde..." : "Renomear"}
-							</Button>
-						</div>
-					</form>
-				</div>
-			)}
+				</form>
+			</Dialog>
 
 			<ConfirmDialog
 				open={deleting !== null}
@@ -1170,43 +1172,42 @@ function VaultPage() {
 				loading={deleteMutation.isPending}
 			/>
 
-			{renamingTask && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center">
-					<button
-						type="button"
-						aria-label="Fechar"
-						onClick={() => setRenamingTask(null)}
-						className="absolute inset-0 bg-black/50"
+			<Dialog
+				open={renamingTask !== null}
+				onClose={() => setRenamingTask(null)}
+				title="Renomear tarefa"
+				className="max-w-md"
+				footer={
+					<>
+						<Button type="button" variant="outline" onClick={() => setRenamingTask(null)}>
+							Cancelar
+						</Button>
+						<Button type="submit" form={renameTaskFormId} disabled={updateTaskMutation.isPending}>
+							{updateTaskMutation.isPending ? "Aguarde..." : "Renomear"}
+						</Button>
+					</>
+				}
+			>
+				<form
+					id={renameTaskFormId}
+					onSubmit={(e) => {
+						e.preventDefault();
+						if (!renamingTask) return;
+						updateTaskMutation.mutate({ id: renamingTask.id, title: renamingTask.value.trim() });
+					}}
+				>
+					<Input
+						autoFocus
+						value={renamingTask?.value ?? ""}
+						onChange={(e) =>
+							renamingTask && setRenamingTask({ id: renamingTask.id, value: e.target.value })
+						}
+						placeholder="Título da tarefa"
+						className="text-sm"
+						aria-label="Novo título"
 					/>
-					<form
-						onSubmit={(e) => {
-							e.preventDefault();
-							updateTaskMutation.mutate({ id: renamingTask.id, title: renamingTask.value.trim() });
-						}}
-						className="relative z-10 w-full max-w-md border border-border bg-background p-6 shadow-lg animate-in fade-in-0 zoom-in-95"
-					>
-						<Text size="sm" tone="muted" className="mb-3">
-							Renomear tarefa
-						</Text>
-						<Input
-							autoFocus
-							value={renamingTask.value}
-							onChange={(e) => setRenamingTask({ id: renamingTask.id, value: e.target.value })}
-							placeholder="Título da tarefa"
-							className="text-sm"
-							aria-label="Novo título"
-						/>
-						<div className="mt-6 flex justify-end gap-3">
-							<Button type="button" variant="outline" onClick={() => setRenamingTask(null)}>
-								Cancelar
-							</Button>
-							<Button type="submit" disabled={updateTaskMutation.isPending}>
-								{updateTaskMutation.isPending ? "Aguarde..." : "Renomear"}
-							</Button>
-						</div>
-					</form>
-				</div>
-			)}
+				</form>
+			</Dialog>
 
 			<ConfirmDialog
 				open={deletingTask !== null}
@@ -1215,7 +1216,7 @@ function VaultPage() {
 				title="Excluir tarefa"
 				description={
 					deletingTask
-						? `“${deletingTask.title}” e todos os seus arquivos serão removidos permanentemente.`
+						? `“${deletingTask.title}” e todos os seus arquivos saem do vault. Dá para desfazer logo depois da exclusão.`
 						: undefined
 				}
 				confirmLabel="Excluir"

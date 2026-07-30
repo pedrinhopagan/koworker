@@ -34,11 +34,13 @@ function SistemaPage() {
 
 	const [basePath, setBasePath] = useState("");
 	const [template, setTemplate] = useState("");
+	const [mobileUrl, setMobileUrl] = useState("");
 
 	useEffect(() => {
 		if (!settings) return;
 		setBasePath(settings.projectsBasePath);
 		setTemplate(settings.terminalTemplate);
+		setMobileUrl(settings.mobileBaseUrl);
 	}, [settings]);
 
 	const presetValue = matchTerminalPreset(template) ?? "custom";
@@ -150,6 +152,33 @@ function SistemaPage() {
 								tmux mantém as sessões vivas entre reinícios; kw-terminal usa workspaces
 								persistentes do cliente kw-terminal (sem abrir emulador); nenhum abre uma janela
 								nova a cada invocação.
+							</Text>
+						</section>
+
+						<section className="space-y-2">
+							<Title as="div" size="sm">
+								Endereço do celular
+							</Title>
+							<div className="flex items-center gap-2">
+								<Input
+									value={mobileUrl}
+									onChange={(event) => setMobileUrl(event.target.value)}
+									placeholder="https://pc-casa.suatailnet.ts.net"
+									className="h-9 flex-1 font-mono"
+								/>
+								<Button
+									type="button"
+									onClick={() => save({ mobileBaseUrl: mobileUrl.trim() })}
+									disabled={saving || mobileUrl === settings.mobileBaseUrl}
+									className="h-9 shrink-0"
+								>
+									Salvar
+								</Button>
+							</div>
+							<Text size="xs" tone="muted">
+								Endereço HTTPS por onde o celular alcança este computador (o host publicado pelo
+								<span className="font-mono"> tailscale serve</span>). É o link que o QR de
+								pareamento carrega, e sem HTTPS o celular não recebe notificação.
 							</Text>
 						</section>
 

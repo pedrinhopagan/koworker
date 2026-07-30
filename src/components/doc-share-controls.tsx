@@ -69,9 +69,9 @@ export function DocShareControls({
 					size="icon-sm"
 					onClick={onOpenInOs}
 					aria-label="Abrir no sistema"
-					className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+					className="size-12 p-0 md:size-6 text-muted-foreground hover:text-foreground"
 				>
-					<FolderOpen className="h-3.5 w-3.5" />
+					<FolderOpen className="size-4 md:size-3.5" />
 				</Button>
 			</Tooltip>
 			{onCopyContent || onCopyZip ? (
@@ -83,9 +83,9 @@ export function DocShareControls({
 								variant="ghost"
 								size="icon-sm"
 								aria-label="Compartilhar"
-								className="h-6 w-6 min-h-6 min-w-6 p-0 text-muted-foreground hover:text-foreground"
+								className="size-12 p-0 md:size-6 text-muted-foreground hover:text-foreground"
 							>
-								<Share2 className="h-3.5 w-3.5" />
+								<Share2 className="size-4 md:size-3.5" />
 							</Button>
 						</DropdownMenuTrigger>
 					</Tooltip>
