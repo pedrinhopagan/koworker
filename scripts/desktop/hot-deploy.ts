@@ -1,4 +1,4 @@
-import { access, chmod, cp, mkdir, rename } from "node:fs/promises";
+import { access, chmod, cp, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +22,7 @@ const guiTarget = join(home, ".local/bin/kowork");
 const cliTarget = join(home, ".local/bin/kw-cli");
 const backendTargetDir = join(home, ".local/lib/kowork/bin");
 const backendTarget = join(backendTargetDir, "kowork-backend");
+const backendEnvPath = join(appDataDir, "backend.env");
 
 const healthUrl = `http://localhost:${KOWORK_PROD_PORT}/index.html`;
 const systemdBackendUnit = "kowork-backend.service";
@@ -79,6 +80,20 @@ async function portOccupied(): Promise<boolean> {
 	} catch {
 		return false;
 	}
+}
+
+async function persistRepoDirForBackend() {
+	const content = (await pathExists(backendEnvPath)) ? await readFile(backendEnvPath, "utf8") : "";
+	const prefix = "KOWORK_REPO_DIR=";
+	const lines = content
+		.trimEnd()
+		.split("\n")
+		.filter((line) => line && !line.startsWith(prefix));
+
+	lines.push(`${prefix}${JSON.stringify(rootDir)}`);
+
+	await mkdir(appDataDir, { recursive: true });
+	await writeFile(backendEnvPath, `${lines.join("\n")}\n`);
 }
 
 function systemdBackendUnitExists(): boolean {
@@ -229,6 +244,10 @@ if (!(await pathExists(cliSource))) {
 }
 if (!(await pathExists(join(distSource, "index.html")))) {
 	throw new Error("build:web nao gerou dist/index.html");
+}
+
+if (backendManagedBySystemd) {
+	await persistRepoDirForBackend();
 }
 
 // Instala com prod antigo ainda no ar; os renames atomicos so trocam tudo no fim.

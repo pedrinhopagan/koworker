@@ -21,6 +21,7 @@ incremental = false
 
 [target.'cfg(target_os = "linux")'.dependencies]
 glib = "0.18"
+webkit2gtk = "2.0"
 tauri-plugin-autostart = "2"
 tauri-plugin-clipboard-manager = "2"
 rfd = "0.16"

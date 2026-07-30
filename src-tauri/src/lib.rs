@@ -44,6 +44,33 @@ pub fn run() {
                 }
             }
 
+            #[cfg(target_os = "linux")]
+            {
+                use tauri::Manager;
+
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.with_webview(|webview| {
+                        use glib::object::Cast;
+                        use webkit2gtk::{
+                            PermissionRequestExt, SettingsExt, UserMediaPermissionRequest,
+                            WebViewExt,
+                        };
+
+                        let wv = webview.inner();
+                        if let Some(settings) = wv.settings() {
+                            settings.set_enable_media_stream(true);
+                        }
+                        wv.connect_permission_request(|_, request| {
+                            if request.downcast_ref::<UserMediaPermissionRequest>().is_some() {
+                                request.allow();
+                                return true;
+                            }
+                            false
+                        });
+                    });
+                }
+            }
+
             backend::navigate_when_ready(app.handle());
             backend::start(app.handle());
             // Autostart cross-platform pelo plugin (grava .desktop no Linux, chave de registro no
