@@ -13,6 +13,7 @@ import {
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import Database from "bun:sqlite";
+import { ORPCError } from "@orpc/server";
 
 import { envVariables } from "../config/env";
 import { db, type tasks } from "../db/connection";
@@ -1269,6 +1270,126 @@ export async function relinkTasks(input: {
 					}
 				}
 			}),
+	);
+}
+
+function deletedTasksBackupRoot(projectRoute: string) {
+	return join(projectRoute, ".koworker", ".backups", "deleted-tasks");
+}
+
+async function findLatestQuarantineBackup(projectRoute: string, taskId: string) {
+	const root = deletedTasksBackupRoot(projectRoute);
+	const runs = await readdir(root).catch((): string[] => []);
+	let latest: { path: string; mtimeMs: number } | null = null;
+
+	for (const run of runs) {
+		const candidate = join(root, run, taskId);
+		const info = await stat(candidate).catch(() => null);
+
+		if (!info?.isDirectory()) {
+			continue;
+		}
+
+		if (!latest || info.mtimeMs > latest.mtimeMs) {
+			latest = { path: candidate, mtimeMs: info.mtimeMs };
+		}
+	}
+
+	return latest?.path ?? null;
+}
+
+export async function restoreTaskStorage(taskId: string) {
+	const task = await db.selectFrom("tasks").selectAll().where("id", "=", taskId).executeTakeFirst();
+	if (!task) {
+		throw new Error("Tarefa não encontrada");
+	}
+	if (!task.deleted_at) {
+		throw new Error("A tarefa não está removida");
+	}
+	const project = await dbProjects.getById(task.project_id);
+	if (!project) {
+		throw new Error("Projeto não encontrado");
+	}
+
+	return await withProjectStorageLock(
+		{ projectId: project.id, projectRoute: project.main_route },
+		async () => {
+			suppressTaskWatcher(project.id);
+			let restored: string | null = null;
+
+			try {
+				const current = await db
+					.selectFrom("tasks")
+					.selectAll()
+					.where("id", "=", taskId)
+					.executeTakeFirst();
+				if (!current?.deleted_at) {
+					throw new Error("A tarefa não está removida");
+				}
+
+				const backup = await findLatestQuarantineBackup(project.main_route, task.id);
+				if (!backup) {
+					throw new ORPCError("CONFLICT", {
+						message: "O backup desta tarefa não está mais disponível",
+					});
+				}
+
+				const occupied = await resolveExistingTaskFolder({
+					projectRoute: project.main_route,
+					folderPath: current.folder_path,
+				}).catch(() => null);
+				if (occupied) {
+					throw new ORPCError("CONFLICT", {
+						message: "Já existe uma pasta ocupando o destino desta tarefa",
+					});
+				}
+
+				const fingerprint = await fingerprintTaskStorageDirectory(backup);
+				const destination = await resolveTaskFolderDestination({
+					projectRoute: project.main_route,
+					folderPath: current.folder_path,
+				});
+				await mkdir(dirname(destination), { recursive: true });
+				await rename(backup, destination);
+				restored = destination;
+				await verifyFingerprint(destination, fingerprint);
+
+				await db.transaction().execute(async (trx) => {
+					const updated = await trx
+						.updateTable("tasks")
+						.set({ deleted_at: null, updated_at: Date.now() })
+						.where("id", "=", task.id)
+						.where("deleted_at", "is not", null)
+						.returning("id")
+						.executeTakeFirst();
+					if (!updated) {
+						throw new Error("A tarefa não pôde ser restaurada");
+					}
+				});
+
+				return { task: current, restoredPath: destination };
+			} catch (error) {
+				const orphan = restored;
+				if (orphan) {
+					const requarantine = join(
+						deletedTasksBackupRoot(project.main_route),
+						crypto.randomUUID(),
+						task.id,
+					);
+					await mkdir(dirname(requarantine), { recursive: true })
+						.then(() => rename(orphan, requarantine))
+						.catch((requarantineError) => {
+							console.error(
+								`Falha ao devolver a tarefa ${task.id} para a quarentena`,
+								requarantineError,
+							);
+						});
+				}
+				throw error;
+			} finally {
+				releaseTaskWatcher(project.id);
+			}
+		},
 	);
 }
 

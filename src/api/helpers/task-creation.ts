@@ -114,6 +114,10 @@ export async function createTask(input: TaskCreateInput) {
 	return row;
 }
 
+export function taskAutoTitleInstruction(taskId: string) {
+	return `A tarefa foi criada sem título. Como primeiro passo, defina um título curto (3 a 6 palavras) que resuma o objetivo: rode \`kw-cli task set ${taskId} --title "..."\` e use o mesmo título no H1 do index.md.`;
+}
+
 export async function rollbackCreatedTask(task: {
 	id: string;
 	project_id: string;

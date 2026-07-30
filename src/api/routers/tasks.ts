@@ -28,6 +28,7 @@ import { createTask } from "../helpers/task-creation";
 import {
 	quarantineTaskStorage,
 	relinkTasks,
+	restoreTaskStorage,
 	withProjectStorageLock,
 } from "../helpers/task-storage-coordinator";
 import { createDiscoveredTasks, discoverTaskFolders } from "../helpers/task-sync";
@@ -580,5 +581,11 @@ export const tasksRouter = {
 		const { task } = await quarantineTaskStorage(input.id);
 		await publishTaskEvent(task.id, task.project_id, "deleted");
 		return { id: input.id };
+	}),
+
+	restore: protectedProcedure.input(TaskIdSchema).handler(async ({ input }) => {
+		const { task } = await restoreTaskStorage(input.id);
+		await publishTaskEvent(task.id, task.project_id, "updated");
+		return { id: task.id, projectId: task.project_id };
 	}),
 };
