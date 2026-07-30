@@ -13,3 +13,19 @@ export function cliStartArgv(cli: TerminalCli, prompt = ""): string[] {
 
 	return argv.filter((arg) => arg !== "");
 }
+
+// CLI subindo numa tab restaurada, retomando a conversa de antes. Sem o id da sessão (o agent subiu
+// sem reportar ao daemon) cada CLI tem o seu jeito de dizer "a última daqui": `--continue` no claude e
+// `resume --last` no codex, ambos resolvidos pelo cwd da tab. Argv à mão porque os builders só montam
+// `--resume` no caminho headless, e aqui o CLI sobe interativo.
+export function cliResumeArgv(cli: TerminalCli, sessionId?: string | null): string[] {
+	if (cli === "codex") {
+		return ["codex", "resume", sessionId || "--last", "--dangerously-bypass-approvals-and-sandbox"];
+	}
+
+	return [
+		"claude",
+		"--dangerously-skip-permissions",
+		...(sessionId ? ["--resume", sessionId] : ["--continue"]),
+	];
+}

@@ -1,7 +1,7 @@
 import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
 
 import type { AgentRadarTranscriptEnvelope } from "@/api/helpers/agent-radar/transcript";
-import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import type { RadarAgent, RadarFocus } from "@/api/helpers/agent-radar/state";
 import type { AgentSessionEvent, AgentSessionStatus } from "@/lib/agent-session";
 import type { AgentStep } from "@/lib/agent-stream";
 import type { TaskStage } from "@/constants/complexity";
@@ -42,8 +42,9 @@ export type AgentSessionEnvelope = {
 
 type PubSubChannels = {
 	// A central de agents publica o mapa inteiro a cada mudança: a lista é curta e o snapshot completo
-	// dispensa o cliente reconstruir estado a partir de deltas depois de uma reconexão.
-	agentRadar: { agents: RadarAgent[] };
+	// dispensa o cliente reconstruir estado a partir de deltas depois de uma reconexão. `focus` é o
+	// workspace/tab/pane na tela do kw-terminal, espelhado ao vivo pelos eventos *.focused.
+	agentRadar: { agents: RadarAgent[]; focus: RadarFocus };
 	// A conversa que o CLI de um pane está gravando no disco, publicada por `paneId`.
 	agentRadarTranscript: AgentRadarTranscriptEnvelope;
 	flow: FlowEvent;

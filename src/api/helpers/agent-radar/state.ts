@@ -1,5 +1,6 @@
 import type { AgentRadarStatus } from "@/constants/agent-radar";
 import { PubSub } from "../../pubsub";
+import { scheduleRadarSnapshotCapture } from "./snapshot";
 
 // Um agent aberto no kw-terminal, do jeito que a central mostra. É reflexo do daemon, que sobrevive
 // ao restart do backend: nada disso é persistido, e a subida reconstrói o mapa relistando os panes.
@@ -25,7 +26,18 @@ export type RadarAgent = {
 	changedAt: number;
 };
 
+// O que está na tela do cliente TUI agora. O trio chega junto do daemon (workspace → tab → pane);
+// o koworker espelha isso no indicador "Na tela" sem precisar releitura do overview.
+export type RadarFocus = {
+	workspaceId: string | null;
+	tabId: string | null;
+	paneId: string | null;
+};
+
+const EMPTY_FOCUS: RadarFocus = { workspaceId: null, tabId: null, paneId: null };
+
 const agents = new Map<string, RadarAgent>();
+let focus: RadarFocus = EMPTY_FOCUS;
 
 export function listRadarAgents(): RadarAgent[] {
 	return [...agents.values()].sort(
@@ -39,8 +51,23 @@ export function getRadarAgent(paneId: string): RadarAgent | null {
 	return agents.get(paneId) ?? null;
 }
 
+export function getRadarFocus(): RadarFocus {
+	return focus;
+}
+
+function sameFocus(left: RadarFocus, right: RadarFocus) {
+	return (
+		left.workspaceId === right.workspaceId &&
+		left.tabId === right.tabId &&
+		left.paneId === right.paneId
+	);
+}
+
 function publish() {
-	return PubSub.publish("agentRadar", "global", { agents: listRadarAgents() });
+	const agents = listRadarAgents();
+	scheduleRadarSnapshotCapture(agents);
+
+	return PubSub.publish("agentRadar", "global", { agents, focus });
 }
 
 export function putRadarAgent(agent: RadarAgent) {
@@ -49,11 +76,22 @@ export function putRadarAgent(agent: RadarAgent) {
 	return publish();
 }
 
-export function resetRadarAgents(next: RadarAgent[]) {
+export function resetRadarAgents(next: RadarAgent[], nextFocus: RadarFocus = EMPTY_FOCUS) {
 	agents.clear();
 	for (const agent of next) {
 		agents.set(agent.paneId, agent);
 	}
+	focus = nextFocus;
+
+	return publish();
+}
+
+export function setRadarFocus(next: RadarFocus) {
+	if (sameFocus(focus, next)) {
+		return;
+	}
+
+	focus = next;
 
 	return publish();
 }
@@ -63,18 +101,28 @@ export function removeRadarPane(paneId: string) {
 		return;
 	}
 
+	if (focus.paneId === paneId) {
+		focus = { ...focus, paneId: null };
+	}
+
 	return publish();
 }
 
 export function removeRadarWorkspace(workspaceId: string) {
 	const doomed = [...agents.values()].filter((agent) => agent.workspaceId === workspaceId);
 
-	if (doomed.length === 0) {
-		return;
-	}
-
 	for (const agent of doomed) {
 		agents.delete(agent.paneId);
+	}
+
+	if (focus.workspaceId === workspaceId) {
+		focus = EMPTY_FOCUS;
+
+		return publish();
+	}
+
+	if (doomed.length === 0) {
+		return;
 	}
 
 	return publish();

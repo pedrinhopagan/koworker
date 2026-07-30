@@ -4,7 +4,7 @@ import { protectedProcedure, publicProcedure } from "./auth/context";
 import { isLocalRequest } from "./auth/device";
 import { Auth } from "./auth/login";
 import { dbAgentSessions } from "./db/agent-sessions";
-import { listRadarAgents } from "./helpers/agent-radar/state";
+import { getRadarFocus, listRadarAgents } from "./helpers/agent-radar/state";
 import { subscribeAgentRadarTranscript } from "./helpers/agent-radar/transcript";
 import { isSessionBusy, listSessionEvents } from "./helpers/agent-session/registry";
 import { getPromptRun } from "./helpers/prompt-run";
@@ -190,7 +190,7 @@ export const wsRouter = {
 	agentRadar: protectedProcedure.handler(async function* ({ signal }) {
 		const events = PubSub.subscribe("agentRadar", "global", signal);
 
-		yield { agents: listRadarAgents() };
+		yield { agents: listRadarAgents(), focus: getRadarFocus() };
 
 		yield* events;
 	}),

@@ -8,8 +8,8 @@ import { PubSub } from "../../pubsub";
 import { PushNotifications } from "../push-notifications";
 import type { RadarAgent } from "./state";
 
-// O alerta é da transição, não do estado corrente: `done` é passageiro e o agent cai em `idle` logo
-// depois, então notificar pelo estado atual chegaria descrevendo algo que já mudou.
+// O alerta é da transição, não do estado corrente: o agent cai em `idle` logo depois de devolver a vez,
+// então notificar pelo estado atual chegaria descrevendo algo que já mudou.
 export function shouldAlertTransition(previous: AgentRadarStatus, next: AgentRadarStatus): boolean {
 	return previous !== next && AGENT_RADAR_ALERT_STATUSES.includes(next);
 }

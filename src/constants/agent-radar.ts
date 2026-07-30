@@ -12,6 +12,13 @@ export const AGENT_RADAR_STATUS_LABELS: Record<AgentRadarStatus, string> = {
 	unknown: "Sem sinal",
 };
 
-// Só transição para estes status vira notificação: o agent terminou o trabalho ou parou esperando
-// resposta. `idle` fica de fora porque é o repouso normal entre um turno e outro.
-export const AGENT_RADAR_ALERT_STATUSES: AgentRadarStatus[] = ["done", "blocked"];
+// O daemon separa "terminou o turno" de "travou perguntando", mas para quem acompanha de longe os dois
+// cobram a mesma coisa: voltar pro terminal. Então `done` entra no radar como `blocked` e o koworker
+// tem um estado só de "é a sua vez".
+export function normalizeAgentRadarStatus(status: AgentRadarStatus): AgentRadarStatus {
+	return status === "done" ? "blocked" : status;
+}
+
+// Só transição para este status vira notificação: o agent parou e a vez é sua. `idle` fica de fora
+// porque é o repouso normal entre um turno e outro.
+export const AGENT_RADAR_ALERT_STATUSES: AgentRadarStatus[] = ["blocked"];

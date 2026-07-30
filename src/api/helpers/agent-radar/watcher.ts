@@ -1,4 +1,8 @@
-import { AGENT_RADAR_STATUSES, type AgentRadarStatus } from "@/constants/agent-radar";
+import {
+	AGENT_RADAR_STATUSES,
+	type AgentRadarStatus,
+	normalizeAgentRadarStatus,
+} from "@/constants/agent-radar";
 import { dbProjects } from "../../db/projects";
 import { getSystemSettings } from "../system-settings";
 import {
@@ -18,6 +22,7 @@ import {
 import { openKwTerminalEventStream, type KwTerminalEventStream } from "./socket";
 import {
 	getRadarAgent,
+	getRadarFocus,
 	listRadarAgents,
 	matchProjectByCwd,
 	putRadarAgent,
@@ -26,10 +31,13 @@ import {
 	renameRadarTab,
 	renameRadarWorkspace,
 	resetRadarAgents,
+	setRadarFocus,
+	type RadarFocus,
 } from "./state";
 
 const RECONNECT_MIN_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
+const FOCUS_DEBOUNCE_MS = 40;
 
 // Cada conexão bem-sucedida abre uma geração. Callback de socket derrubado chega depois do teardown,
 // e sem essa marca ele mexeria no mapa já reconstruído pela geração seguinte.
@@ -39,9 +47,105 @@ let reconnectDelay = RECONNECT_MIN_MS;
 let socketPath = "";
 let lifecycle: KwTerminalEventStream | null = null;
 const paneStreams = new Map<string, KwTerminalEventStream>();
+let pendingFocus: RadarFocus | null = null;
+let focusFlush: ReturnType<typeof setTimeout> | null = null;
 
 function toRadarStatus(value: string): AgentRadarStatus {
-	return AGENT_RADAR_STATUSES.find((status) => status === value) ?? "unknown";
+	return normalizeAgentRadarStatus(
+		AGENT_RADAR_STATUSES.find((status) => status === value) ?? "unknown",
+	);
+}
+
+function clearFocusFlush() {
+	if (focusFlush) {
+		clearTimeout(focusFlush);
+		focusFlush = null;
+	}
+	pendingFocus = null;
+}
+
+function flushFocus() {
+	focusFlush = null;
+	if (!pendingFocus) {
+		return;
+	}
+
+	const next = pendingFocus;
+	pendingFocus = null;
+	void setRadarFocus(next);
+}
+
+function resolveFocusField(
+	patched: string | null | undefined,
+	currentValue: string | null,
+	workspaceChanged: boolean,
+) {
+	if (patched !== undefined) {
+		return patched;
+	}
+
+	if (workspaceChanged) {
+		return null;
+	}
+
+	return currentValue;
+}
+
+// O daemon emite workspace → tab → pane em sequência a cada troca; o debounce junta o trio numa
+// publicação só e evita o indicador "Na tela" piscar com tab/pane velhos no meio do caminho.
+function scheduleFocusUpdate(patch: Partial<RadarFocus>) {
+	const current = pendingFocus ?? getRadarFocus();
+	const workspaceId = patch.workspaceId === undefined ? current.workspaceId : patch.workspaceId;
+	const workspaceChanged = workspaceId !== current.workspaceId;
+
+	pendingFocus = {
+		workspaceId,
+		tabId: resolveFocusField(patch.tabId, current.tabId, workspaceChanged),
+		paneId: resolveFocusField(patch.paneId, current.paneId, workspaceChanged),
+	};
+
+	if (focusFlush) {
+		clearTimeout(focusFlush);
+	}
+
+	focusFlush = setTimeout(flushFocus, FOCUS_DEBOUNCE_MS);
+	focusFlush.unref();
+}
+
+function deriveFocus(params: {
+	workspaces: { workspace_id: string; focused: boolean; active_tab_id: string }[];
+	tabs: { tab_id: string; workspace_id: string; focused: boolean }[];
+	panes: { pane_id: string; tab_id: string; workspace_id: string; focused: boolean }[];
+}): RadarFocus {
+	const workspace = params.workspaces.find(function (item) {
+		return item.focused;
+	});
+
+	if (!workspace) {
+		return { workspaceId: null, tabId: null, paneId: null };
+	}
+
+	const tab =
+		params.tabs.find(function (item) {
+			return item.workspace_id === workspace.workspace_id && item.focused;
+		}) ??
+		params.tabs.find(function (item) {
+			return item.tab_id === workspace.active_tab_id;
+		});
+
+	const pane = params.panes.find(function (item) {
+		return (
+			item.workspace_id === workspace.workspace_id &&
+			item.focused &&
+			(!tab || item.tab_id === tab.tab_id)
+		);
+	});
+
+	return {
+		workspaceId: workspace.workspace_id,
+		tabId: tab?.tab_id ?? workspace.active_tab_id,
+		paneId: pane?.pane_id ?? null,
+	};
 }
 
 function closePaneStream(paneId: string) {
@@ -50,6 +154,7 @@ function closePaneStream(paneId: string) {
 }
 
 function teardown() {
+	clearFocusFlush();
 	lifecycle?.close();
 	lifecycle = null;
 
@@ -167,6 +272,7 @@ async function syncRadar(current: number) {
 				},
 			];
 		}),
+		deriveFocus({ workspaces, tabs, panes }),
 	);
 
 	await watchPanes(current);
@@ -183,7 +289,7 @@ async function handleStatusEvent(event: KwTerminalEvent, current: number) {
 		return;
 	}
 
-	const status = event.data.agent_status;
+	const status = normalizeAgentRadarStatus(event.data.agent_status);
 	const next = {
 		...known,
 		status,
@@ -238,6 +344,37 @@ async function handleLifecycleEvent(event: KwTerminalEvent, current: number) {
 
 	if (event.event === "tab_renamed") {
 		await renameRadarTab(event.data.tab_id, event.data.label);
+
+		return;
+	}
+
+	if (event.event === "workspace_focused") {
+		scheduleFocusUpdate({ workspaceId: event.data.workspace_id });
+
+		return;
+	}
+
+	if (event.event === "tab_focused") {
+		scheduleFocusUpdate({
+			workspaceId: event.data.workspace_id,
+			tabId: event.data.tab_id,
+		});
+
+		return;
+	}
+
+	if (event.event === "pane_focused") {
+		const known = getRadarAgent(event.data.pane_id);
+		const patch: Partial<RadarFocus> = {
+			workspaceId: event.data.workspace_id,
+			paneId: event.data.pane_id,
+		};
+
+		if (known) {
+			patch.tabId = known.tabId;
+		}
+
+		scheduleFocusUpdate(patch);
 	}
 }
 

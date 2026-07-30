@@ -54,6 +54,21 @@ const TabRenamedSchema = z.object({
 	data: z.object({ tab_id: z.string(), label: z.string() }),
 });
 
+const WorkspaceFocusedSchema = z.object({
+	event: z.literal("workspace_focused"),
+	data: z.object({ workspace_id: z.string() }),
+});
+
+const TabFocusedSchema = z.object({
+	event: z.literal("tab_focused"),
+	data: z.object({ tab_id: z.string(), workspace_id: z.string() }),
+});
+
+const PaneFocusedSchema = z.object({
+	event: z.literal("pane_focused"),
+	data: z.object({ pane_id: z.string(), workspace_id: z.string() }),
+});
+
 const KwTerminalEventSchema = z.discriminatedUnion("event", [
 	AgentStatusChangedSchema,
 	AgentDetectedSchema,
@@ -62,6 +77,9 @@ const KwTerminalEventSchema = z.discriminatedUnion("event", [
 	WorkspaceClosedSchema,
 	WorkspaceRenamedSchema,
 	TabRenamedSchema,
+	WorkspaceFocusedSchema,
+	TabFocusedSchema,
+	PaneFocusedSchema,
 ]);
 
 export type KwTerminalEvent = z.infer<typeof KwTerminalEventSchema>;
@@ -74,7 +92,10 @@ export const KW_TERMINAL_LIFECYCLE_SUBSCRIPTIONS = [
 	{ type: "pane.closed" },
 	{ type: "workspace.closed" },
 	{ type: "workspace.renamed" },
+	{ type: "workspace.focused" },
 	{ type: "tab.renamed" },
+	{ type: "tab.focused" },
+	{ type: "pane.focused" },
 ];
 
 export function paneStatusSubscription(paneId: string) {

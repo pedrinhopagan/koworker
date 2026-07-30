@@ -363,6 +363,33 @@ const devicesSchema = type({
 	"blocked_at?": "number.integer",
 });
 
+// Retrato do último estado conhecido dos agents abertos no kw-terminal. Existe porque o daemon morre
+// com a máquina: sem isto, desligar o pc apaga a lista de quem estava aberto. É reescrito a cada
+// mudança do radar (nunca com a lista vazia, senão a queda do daemon apagaria o retrato) e é o que a
+// restauração de uma tacada lê. SEM FK para projects: o retrato é histórico e sobrevive à exclusão.
+const agentSessionSnapshotsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	// O pane de origem, só para reconhecer o mesmo agent se o daemon ainda estiver de pé.
+	pane_id: "string",
+	workspace_label: "string",
+	tab_label: "string",
+	agent: "string",
+	cwd: "string",
+	"project_id?": "string",
+	"project_name?": "string",
+	// Status no instante da captura: `working` é o que manda a restauração disparar o "continue".
+	status: "string",
+	// A sessão do CLI, quando o agent a reportou: é o que permite retomar a conversa exata em vez de
+	// só abrir o CLI no mesmo diretório.
+	"session_id?": "string",
+	"session_path?": "string",
+	"title?": "string",
+	"task_id?": "string",
+	"task_title?": "string",
+	captured_at: type("number.integer").configure({ default: "now" }),
+	"restored_at?": "number.integer",
+});
+
 const pushSubscriptionsSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	user_id: type("number.integer").configure({ references: "users.id", onDelete: "cascade" }),
@@ -394,6 +421,7 @@ const database = new Database({
 		agent_sessions: agentSessionsSchema,
 		execution_runs: executionRunsSchema,
 		agent_events: agentEventsSchema,
+		agent_session_snapshots: agentSessionSnapshotsSchema,
 		push_subscriptions: pushSubscriptionsSchema,
 		devices: devicesSchema,
 		settings: settingsSchema,
@@ -426,6 +454,7 @@ export type agent_source_paths = DB["agent_source_paths"];
 export type prompt_history = DB["prompt_history"];
 export type agent_sessions = DB["agent_sessions"];
 export type agent_events = DB["agent_events"];
+export type agent_session_snapshots = DB["agent_session_snapshots"];
 export type execution_runs = DB["execution_runs"];
 export type push_subscriptions = DB["push_subscriptions"];
 export type devices = DB["devices"];
@@ -452,6 +481,7 @@ export {
 	agentSessionsSchema,
 	agent_event_kind,
 	agentEventsSchema,
+	agentSessionSnapshotsSchema,
 	executionRunsSchema,
 	pushSubscriptionsSchema,
 	device_status,

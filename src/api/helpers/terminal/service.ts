@@ -142,6 +142,27 @@ function openTerminal(params: OpenParams): Promise<OpenTerminalResult> {
 // focus por WM.
 const KW_TERMINAL_CLIENT_LABEL = "kw-terminal";
 
+// Depois de focar no daemon, garante que há uma janela pra ver: sem cliente TUI aberto spawna o
+// emulador do preset rodando o attach (título estável "kw-terminal - Kowork") e sobe a janela pelo
+// WM. O foco WM é best-effort silencioso — casa título × classe do preset, outros emuladores só não
+// focam.
+export async function revealKwTerminalClient(params: {
+	config: TerminalConfig;
+	workingDir: string;
+}): Promise<void> {
+	if (!(await kwTerminalClientAttached())) {
+		spawnAttach({
+			config: params.config,
+			title: `${KW_TERMINAL_CLIENT_LABEL} - Kowork`,
+			commandArgv: [...KW_TERMINAL_CLIENT_ARGV],
+			workingDir: params.workingDir,
+		});
+		await Bun.sleep(400);
+	}
+
+	await focusTerminalWindow(KW_TERMINAL_CLIENT_LABEL).catch(() => {});
+}
+
 // Modo kw-terminal: 1 tab = 1 window lógica (paridade tmux). Workspace = sessão do projeto (label
 // `sessionName`), tab = tarefa/rota (label `windowName`), pane raiz da tab recebe o comando. IDs
 // kw-terminal são voláteis; recuperamos workspace/tab por label pra sobreviver a restart do backend.
@@ -210,27 +231,14 @@ async function openKwTerminal(
 	}
 
 	// Foreground: primeiro foca no daemon (workspace + tab) pra o cliente renderizar já na tab certa;
-	// depois garante que existe um cliente TUI visível — se não houver, spawna o emulador do preset
-	// rodando o cliente kw-terminal, com título estável ("kw-terminal - Kowork") — e traz a janela pra
-	// frente pelo WM. O foco WM é best-effort silencioso (casa título × classe do preset; outros
-	// emuladores só não focam), igual ao caminho tmux.
+	// depois traz a janela do cliente pra frente, igual ao caminho tmux.
 	if (!background) {
 		await kwTerminalWorkspaceFocus(workspaceId);
 		if (tab) {
 			await kwTerminalTabFocus(tab.tab_id);
 		}
 
-		if (!(await kwTerminalClientAttached())) {
-			spawnAttach({
-				config,
-				title: `${KW_TERMINAL_CLIENT_LABEL} - Kowork`,
-				commandArgv: [...KW_TERMINAL_CLIENT_ARGV],
-				workingDir,
-			});
-			await Bun.sleep(400);
-		}
-
-		await focusTerminalWindow(KW_TERMINAL_CLIENT_LABEL).catch(() => {});
+		await revealKwTerminalClient({ config, workingDir });
 	}
 
 	trackWindow({
@@ -783,17 +791,7 @@ export const Terminal = {
 					throw new Error(`Falha ao focar a sessão ${params.cli} no kw-terminal`);
 				}
 
-				if (!(await kwTerminalClientAttached())) {
-					spawnAttach({
-						config: params.config,
-						title: `${KW_TERMINAL_CLIENT_LABEL} - Kowork`,
-						commandArgv: [...KW_TERMINAL_CLIENT_ARGV],
-						workingDir: agent.cwd,
-					});
-					await Bun.sleep(400);
-				}
-
-				await focusTerminalWindow(KW_TERMINAL_CLIENT_LABEL).catch(() => {});
+				await revealKwTerminalClient({ config: params.config, workingDir: agent.cwd });
 
 				return { agent: agent.agent, cwd: agent.cwd, status: agent.agent_status, opened: false };
 			}
