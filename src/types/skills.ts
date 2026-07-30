@@ -1,4 +1,5 @@
 import type { RouterOutputs } from "@/client";
+import type { PrinciplesFinding } from "@/lib/principles/lint";
 
 export type SkillRecord = RouterOutputs["skills"]["list"][number];
 export type SkillSource = SkillRecord["sources"][number];
@@ -12,7 +13,7 @@ export type TaskSkill = {
 	slug: string;
 	label: string;
 	description: string;
-	instructions: string;
+	findings: PrinciplesFinding[];
 	icon: string;
 	color: string;
 	categoryId: string | null;

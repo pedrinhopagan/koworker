@@ -3,8 +3,10 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readSkillFile, type SkillFile, writeSkillFile } from "@/lib/skills/parser";
+import { dbAgentSettings } from "../db/agent-settings";
 import { dbAgentSourcePaths } from "../db/agent-source-paths";
 import { dbProjects } from "../db/projects";
+import { AGENT_DELETE_BACKUP_ROOT, createDeleteBackup } from "./delete-backup";
 
 export type AgentTool = "claude-code" | "opencode" | "codex" | "koworker";
 export type AgentScope = "global" | "project" | "custom";
@@ -87,6 +89,10 @@ async function buildRoots(): Promise<AgentRoot[]> {
 	return [...(await sourcePathRoots()), KOWORKER_ROOT, ...(await allProjectRoots())];
 }
 
+async function buildDeletableRoots(): Promise<AgentRoot[]> {
+	return [...(await sourcePathRoots()), ...(await allProjectRoots())];
+}
+
 async function assertAllowedPath(target: string) {
 	const resolved = resolve(target);
 	const parent = dirname(resolved);
@@ -154,6 +160,12 @@ async function loadSourcesForSlug(slug: string, roots: AgentRoot[]): Promise<Loa
 		loaded.push({ root, dir: root.path, path, file, hash: agentContentHash(file) });
 	}
 	return loaded;
+}
+
+async function readRawAgent(path: string): Promise<string | null> {
+	return await Bun.file(path)
+		.text()
+		.catch(() => null);
 }
 
 function buildRecord(slug: string, loaded: LoadedSource[]): AgentFsRecord {
@@ -359,16 +371,60 @@ export async function deleteAgentInFs(path: string): Promise<void> {
 	await rm(path, { force: true });
 }
 
-// Remove o agent de TODAS as fontes onde ele existe (todas as cópias no disco).
-export async function deleteAllAgentInFs(input: { slug: string }): Promise<{ removed: number }> {
-	const loaded = await loadSourcesForSlug(input.slug, await buildRoots());
+export async function deleteAllAgentInFs(input: {
+	slug: string;
+}): Promise<{ removed: number; backupPath: string }> {
+	const loaded = await loadSourcesForSlug(input.slug, await buildDeletableRoots());
+	if (loaded.length === 0) {
+		throw new Error("Nenhuma cópia removível deste agent foi encontrada");
+	}
+
+	const sources = await Promise.all(
+		loaded.map(async (source) => {
+			const raw = await readRawAgent(source.path);
+			if (raw === null) {
+				throw new Error(`Não foi possível ler ${source.path} para o backup`);
+			}
+
+			return {
+				tool: source.root.tool,
+				scope: source.root.scope,
+				path: source.path,
+				hash: source.hash,
+				raw,
+			};
+		}),
+	);
+
+	const backupPath = await createDeleteBackup({
+		root: AGENT_DELETE_BACKUP_ROOT,
+		slug: input.slug,
+		settings: (await dbAgentSettings.getAll()).find((row) => row.slug === input.slug) ?? null,
+		sources,
+		copySource: async (source, target) => {
+			const copyPath = join(target, basename(source.path));
+			await Bun.write(copyPath, source.raw);
+			if ((await readRawAgent(copyPath)) !== source.raw) {
+				throw new Error(`Falha ao verificar o backup de ${source.path}`);
+			}
+
+			return { hash: source.hash };
+		},
+	});
 
 	let removed = 0;
-	for (const source of loaded) {
+	for (const source of sources) {
 		await assertAllowedPath(source.path);
-		await rm(source.path, { force: true });
+		if ((await readRawAgent(source.path)) !== source.raw) {
+			throw new Error(`O agent mudou antes da remoção. Backup preservado em ${backupPath}`);
+		}
+		await rm(source.path, { force: true }).catch((err) => {
+			throw new Error(`Falha ao remover ${source.path}. Backup preservado em ${backupPath}`, {
+				cause: err,
+			});
+		});
 		removed++;
 	}
 
-	return { removed };
+	return { removed, backupPath };
 }

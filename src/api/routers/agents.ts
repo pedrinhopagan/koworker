@@ -1,7 +1,11 @@
+import { ORPCError } from "@orpc/server";
+
+import { lintPrinciples } from "@/lib/principles/lint";
 import { protectedProcedure } from "../auth/context";
 import { dbAgentSettings } from "../db/agent-settings";
 import { dbAgentSourcePaths } from "../db/agent-source-paths";
 import {
+	type AgentFsRecord,
 	createAgentInFs,
 	deleteAllAgentInFs,
 	deleteAgentInFs,
@@ -24,6 +28,17 @@ import {
 	AgentUpdateSchema,
 } from "../schemas/agents";
 
+function agentFindings(record: AgentFsRecord) {
+	return lintPrinciples({
+		kind: "agent",
+		slug: record.slug,
+		name: record.name,
+		description: record.description,
+		body: record.content,
+		metadata: record.metadata,
+	});
+}
+
 export const agentsRouter = {
 	list: protectedProcedure.handler(async () => {
 		const [records, settings] = await Promise.all([listAgentsFromFs(), dbAgentSettings.getAll()]);
@@ -32,13 +47,22 @@ export const agentsRouter = {
 
 		return records.map((record) => {
 			const override = settingsBySlug.get(record.slug);
-			return Object.assign(record, {
+			return {
+				slug: record.slug,
+				name: record.name,
+				description: record.description,
+				metadata: record.metadata,
+				sources: record.sources,
+				conflict: record.conflict,
+				primaryPath: record.primaryPath,
+				primaryDir: record.primaryDir,
+				findings: agentFindings(record),
 				settings: {
 					label: override?.label ?? null,
 					icon: override?.icon ?? null,
 					color: override?.color ?? null,
 				},
-			});
+			};
 		});
 	}),
 
@@ -48,6 +72,7 @@ export const agentsRouter = {
 
 		const override = (await dbAgentSettings.getAll()).find((row) => row.slug === record.slug);
 		return Object.assign(record, {
+			findings: agentFindings(record),
 			settings: {
 				label: override?.label ?? null,
 				icon: override?.icon ?? null,
@@ -84,7 +109,15 @@ export const agentsRouter = {
 	}),
 
 	deleteAll: protectedProcedure.input(AgentDeleteAllSchema).handler(async ({ input }) => {
-		return await deleteAllAgentInFs(input);
+		const result = await deleteAllAgentInFs(input).catch((err: unknown) => {
+			throw new ORPCError("CONFLICT", {
+				message: err instanceof Error ? err.message : "Não foi possível remover o agent",
+				cause: err,
+			});
+		});
+		await dbAgentSettings.remove(input.slug);
+
+		return result;
 	}),
 
 	listPaths: protectedProcedure.handler(async () => {

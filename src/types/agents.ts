@@ -1,4 +1,5 @@
 import type { RouterOutputs } from "@/client";
+import type { PrinciplesFinding } from "@/lib/principles/lint";
 
 export type AgentRecord = RouterOutputs["agents"]["list"][number];
 export type AgentSource = AgentRecord["sources"][number];
@@ -11,7 +12,7 @@ export type TaskAgent = {
 	slug: string;
 	label: string;
 	description: string;
-	instructions: string;
+	findings: PrinciplesFinding[];
 	icon: string;
 	color: string;
 	sources: AgentSource[];

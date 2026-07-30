@@ -12,6 +12,7 @@ import {
 import { dbProjects } from "../db/projects";
 import { dbSkillSettings } from "../db/skill-settings";
 import { dbSkillSourcePaths } from "../db/skill-source-paths";
+import { createDeleteBackup, SKILL_DELETE_BACKUP_ROOT } from "./delete-backup";
 import { expandTilde } from "./os-actions";
 import {
 	exportSkillDirectoryText,
@@ -84,7 +85,6 @@ const helpersDir = dirname(fileURLToPath(import.meta.url));
 const STATIC_SKILLS_PATH = resolve(helpersDir, "../../../static/skills");
 
 const CREATE_ROOT = join(home, ".agents/skills");
-export const SKILL_DELETE_BACKUP_ROOT = join(home, "Documentos", "backups", "koworker", "skills");
 
 // Static interno do koworker, resolvido relativo ao módulo (não é caminho do usuário). Menor
 // prioridade de conteúdo: depois dos source_paths, antes dos projetos.
@@ -281,7 +281,8 @@ async function loadSkillSource(dir: string): Promise<CachedSkillSource | null> {
 		if (err?.code === "ENOENT" || err?.code === "ENOTDIR") {
 			return null;
 		}
-		throw err;
+		console.error(`Skill ignorada em ${dir}:`, err);
+		return null;
 	});
 	if (!manifest || !manifest.files.some((file) => file.path === "SKILL.md")) {
 		return null;
@@ -747,52 +748,31 @@ export async function deleteAllSkillInFs(input: {
 		throw new Error("Skill não encontrada");
 	}
 
-	const backupPath = join(
-		SKILL_DELETE_BACKUP_ROOT,
-		`${new Date().toISOString().replaceAll(":", "-")}-${input.slug}-${crypto.randomUUID().slice(0, 8)}`,
-	);
-	const settings = (await dbSkillSettings.getAll()).find((row) => row.slug === input.slug) ?? null;
-
-	await mkdir(backupPath, { recursive: true });
-	try {
-		for (const [index, source] of loaded.entries()) {
-			const target = join(
-				backupPath,
-				"sources",
-				`${String(index + 1).padStart(3, "0")}-${source.root.tool}-${source.root.scope}`,
-			);
+	const backupPath = await createDeleteBackup({
+		root: SKILL_DELETE_BACKUP_ROOT,
+		slug: input.slug,
+		settings: (await dbSkillSettings.getAll()).find((row) => row.slug === input.slug) ?? null,
+		sources: loaded.map((source) => ({
+			tool: source.root.tool,
+			scope: source.root.scope,
+			path: source.dir,
+			manifest: source.manifest,
+		})),
+		copySource: async (source, target) => {
 			await cp(source.manifest.canonicalRoot, target, { recursive: true, dereference: false });
 			const copied = await inspectSkillDirectory(target);
 			if (copied.hash !== source.manifest.hash) {
-				throw new Error(`Falha ao verificar o backup de ${source.dir}`);
+				throw new Error(`Falha ao verificar o backup de ${source.path}`);
 			}
-		}
 
-		await Bun.write(
-			join(backupPath, "manifest.json"),
-			JSON.stringify(
-				{
-					createdAt: new Date().toISOString(),
-					slug: input.slug,
-					settings,
-					sources: loaded.map((source) => ({
-						tool: source.root.tool,
-						scope: source.root.scope,
-						path: source.dir,
-						entryType: source.manifest.entryType,
-						linkTarget: source.manifest.linkTarget,
-						hash: source.manifest.hash,
-						contentHash: source.manifest.contentHash,
-					})),
-				},
-				null,
-				2,
-			),
-		);
-	} catch (err) {
-		await rm(backupPath, { recursive: true, force: true });
-		throw err;
-	}
+			return {
+				entryType: source.manifest.entryType,
+				linkTarget: source.manifest.linkTarget,
+				hash: source.manifest.hash,
+				contentHash: source.manifest.contentHash,
+			};
+		},
+	});
 
 	invalidateSkillsFsCache();
 	for (const source of loaded) {

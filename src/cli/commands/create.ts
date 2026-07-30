@@ -1,5 +1,6 @@
 import { createTaskStorage } from "@/api/helpers/task-creation";
 import { parseArgs } from "../args";
+import { noteSessionTask } from "../kw-terminal";
 import { notifyTasksChanged } from "../notify";
 import {
 	resolveCategoryId,
@@ -49,6 +50,7 @@ export async function runCreate(args: string[]): Promise<void> {
 	}
 
 	await notifyTasksChanged({ projectId: project.id, action: "created", taskId: task.id });
+	noteSessionTask({ id: task.id, title: title ?? null, groupId });
 
 	console.log(title ? `✅ Tarefa "${title}" criada.` : "✅ Tarefa criada.");
 	console.log(`taskId: ${task.id}`);

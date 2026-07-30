@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { lintPrinciples } from "@/lib/principles/lint";
 import { protectedProcedure } from "../auth/context";
 import { dbSkillSettings } from "../db/skill-settings";
 import { dbSkillSourcePaths } from "../db/skill-source-paths";
@@ -11,6 +12,7 @@ import {
 	listSkillsFromFs,
 	previewSkillStandardizationInFs,
 	readSkillFileFromFs,
+	type SkillFsRecord,
 	renameSkillInFs,
 	standardizeSkillInFs,
 	updateSkillInFs,
@@ -34,6 +36,17 @@ import {
 	SkillUpdateSchema,
 } from "../schemas/skills";
 
+function skillFindings(record: SkillFsRecord) {
+	return lintPrinciples({
+		kind: "skill",
+		slug: record.slug,
+		name: record.name,
+		description: record.description,
+		body: record.content,
+		metadata: record.metadata,
+	});
+}
+
 export const skillsRouter = {
 	list: protectedProcedure.input(SkillListSchema).handler(async ({ input }) => {
 		const [records, settings] = await Promise.all([
@@ -45,7 +58,16 @@ export const skillsRouter = {
 
 		return records.map((record) => {
 			const override = settingsBySlug.get(record.slug);
-			return Object.assign(record, {
+			return {
+				slug: record.slug,
+				name: record.name,
+				description: record.description,
+				metadata: record.metadata,
+				sources: record.sources,
+				conflict: record.conflict,
+				primaryPath: record.primaryPath,
+				primaryDir: record.primaryDir,
+				findings: skillFindings(record),
 				settings: {
 					label: override?.label ?? null,
 					icon: override?.icon ?? null,
@@ -53,7 +75,7 @@ export const skillsRouter = {
 					categoryId: override?.category_id ?? null,
 					quickInvoke: !!override?.quick_invoke,
 				},
-			});
+			};
 		});
 	}),
 
@@ -63,6 +85,7 @@ export const skillsRouter = {
 
 		const override = (await dbSkillSettings.getAll()).find((row) => row.slug === record.slug);
 		return Object.assign(record, {
+			findings: skillFindings(record),
 			settings: {
 				label: override?.label ?? null,
 				icon: override?.icon ?? null,
@@ -134,7 +157,7 @@ export const skillsRouter = {
 
 	deleteAll: protectedProcedure.input(SkillDeleteAllSchema).handler(async ({ input }) => {
 		const result = await deleteAllSkillInFs(input).catch((err: any) => {
-			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+			throw new ORPCError("CONFLICT", {
 				message: err instanceof Error ? err.message : "Não foi possível remover a skill",
 				cause: err,
 			});

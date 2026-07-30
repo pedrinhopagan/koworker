@@ -9,6 +9,7 @@ let result: {
 	byKey?: string;
 	byPath?: string;
 	crossProject?: string;
+	reported: string[] | null;
 };
 
 beforeAll(async () => {
@@ -35,10 +36,30 @@ afterAll(async () => {
 
 describe("resolveTask", () => {
 	test("resolve UUID, storage key e path nested somente no projeto do cwd", () => {
-		expect(result).toEqual({
+		expect({
+			byId: result.byId,
+			byKey: result.byKey,
+			byPath: result.byPath,
+			crossProject: result.crossProject,
+		}).toEqual({
 			byId: "11111111-aaaa-4000-8000-000000000021",
 			byKey: "11111111-aaaa-4000-8000-000000000021",
 			byPath: "11111111-aaaa-4000-8000-000000000021",
+			crossProject: undefined,
 		});
+	});
+
+	test("apontar a CLI para uma tarefa vincula a sessão do pane a ela", () => {
+		expect(result.reported).toEqual([
+			"pane",
+			"report-task",
+			"w1:p1",
+			"--task-id",
+			"11111111-aaaa-4000-8000-000000000021",
+			"--title",
+			"Storage",
+			"--route",
+			"/tarefas/sem-feature/11111111-aaaa-4000-8000-000000000021",
+		]);
 	});
 });

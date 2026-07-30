@@ -10,12 +10,16 @@ export type SystemSettings = {
 	projectsBasePath: string;
 	terminalTemplate: string;
 	terminalMultiplexer: TerminalMultiplexer;
+	// Endereço por onde o celular alcança este backend (o host HTTPS do `tailscale serve`). É o que o
+	// QR de pareamento carrega: o backend não tem como adivinhar o nome desta máquina na tailnet.
+	mobileBaseUrl: string;
 };
 
 const SETTINGS_KEY = {
 	projectsBasePath: "projects_base_path",
 	terminalTemplate: "terminal_template",
 	terminalMultiplexer: "terminal_multiplexer",
+	mobileBaseUrl: "mobile_base_url",
 } as const;
 
 // Defaults calculados por `process.platform`: kw-terminal (workspace persistente) no Linux/macOS,
@@ -34,6 +38,7 @@ export function defaultSystemSettings(): SystemSettings {
 		projectsBasePath: join(homedir(), "Projects"),
 		terminalTemplate: TERMINAL_PRESETS[preset].template,
 		terminalMultiplexer: process.platform === "win32" ? "none" : "kw-terminal",
+		mobileBaseUrl: "",
 	};
 }
 
@@ -49,6 +54,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
 			multiplexer === "tmux" || multiplexer === "none" || multiplexer === "kw-terminal"
 				? multiplexer
 				: defaults.terminalMultiplexer,
+		mobileBaseUrl: stored.get(SETTINGS_KEY.mobileBaseUrl) ?? defaults.mobileBaseUrl,
 	};
 }
 
@@ -66,6 +72,9 @@ export async function setSystemSettings(input: Partial<SystemSettings>): Promise
 		writes.push(
 			dbSettings.set({ key: SETTINGS_KEY.terminalTemplate, value: input.terminalTemplate }),
 		);
+	}
+	if (input.mobileBaseUrl !== undefined) {
+		writes.push(dbSettings.set({ key: SETTINGS_KEY.mobileBaseUrl, value: input.mobileBaseUrl }));
 	}
 	if (input.terminalMultiplexer !== undefined) {
 		writes.push(

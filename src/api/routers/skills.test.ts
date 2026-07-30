@@ -22,6 +22,19 @@ test("deleteAll preserva a mensagem da falha no limite da API", async () => {
 						user_type: "admin",
 						session_epoch: 0,
 					},
+					device: {
+						id: "device-teste",
+						user_id: 1,
+						name: "Teste",
+						status: "approved",
+						user_agent: null,
+						first_ip: null,
+						last_ip: null,
+						created_at: 0,
+						last_seen_at: 0,
+						approved_at: 0,
+						blocked_at: null,
+					},
 				},
 			},
 		);
@@ -31,7 +44,7 @@ test("deleteAll preserva a mensagem da falha no limite da API", async () => {
 
 	expect(error).toBeInstanceOf(ORPCError);
 	expect(error).toMatchObject({
-		code: "INTERNAL_SERVER_ERROR",
+		code: "CONFLICT",
 		message: "Skill não encontrada",
 	});
 });

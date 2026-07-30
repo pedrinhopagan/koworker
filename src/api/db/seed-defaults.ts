@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -33,8 +34,8 @@ const CATEGORIES_SEEDED_MARKER = "default_categories_seeded";
 
 // Garante que cada root default de plataforma exista com scope 'global', sem duplicar. Compara com o
 // til expandido para reconhecer linhas custom equivalentes (ex.: `~/.claude/skills`) e nunca remove
-// linhas do usuário. Insere só os que faltam, todo boot — o koworker fica sempre pronto para buscar
-// skills/agents de todos os lugares comuns, mesmo que um default novo entre no código depois.
+// linhas do usuário. Insere só os que faltam e existem no disco, todo boot: um default novo entra
+// sozinho quando a pasta aparece, e uma raiz que a máquina não tem nunca vira linha morta na tela.
 async function ensureGlobalRoots<T extends string>(
 	dao: {
 		list: () => Promise<{ tool: string; path: string }[]>;
@@ -44,7 +45,9 @@ async function ensureGlobalRoots<T extends string>(
 ) {
 	const existing = await dao.list();
 	const known = new Set(existing.map((row) => resolve(expandTilde(row.path))));
-	const missing = defaults.filter((root) => !known.has(resolve(root.path)));
+	const missing = defaults.filter(
+		(root) => !known.has(resolve(root.path)) && existsSync(root.path),
+	);
 	if (missing.length === 0) {
 		return;
 	}

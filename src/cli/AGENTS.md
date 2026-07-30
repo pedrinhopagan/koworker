@@ -12,7 +12,8 @@ ou no layout v2 por feature; callers tratam `folder_path` como opaco.
 cli/
 ├── index.ts            # Entry point: bootstrap de env + dispatch de comando + help canônico
 ├── args.ts             # Parser de positionals e flags
-├── notify.ts           # Aviso HTTP ao servidor após escrita (best-effort)
+├── notify.ts           # POST HTTP ao servidor local (aviso de escrita e navegação)
+├── kw-terminal.ts      # Vincula a sessão do pane à tarefa tocada (best-effort)
 ├── resolve.ts          # Resolve por cwd + UUID, storage_key ou maior prefixo de folder_path
 ├── task-storage.ts     # Resolve o projeto da task e delega ao lock de storage da API
 └── commands/
@@ -24,6 +25,7 @@ cli/
     ├── project.ts      # Lista, cria e edita projetos
     ├── route.ts        # Rotas do projeto
     ├── skill.ts        # Estilo e listagem de skills
+    ├── nav.ts          # Navega o app aberto para uma rota interna
     ├── task.ts         # Metadados, conclusão, merge e quarentena
     └── task-file.ts    # Operações de conteúdo sobre path validado
 ```
@@ -41,6 +43,9 @@ cli/
   que revalida `project_id` e `folder_path` depois de entrar na fila.
 - Remoção move conteúdo para `.koworker/.backups`; nunca apaga a pasta diretamente.
 - `kw-cli version --json` expõe a release de storage instalada.
+- Comandos que tocam uma tarefa (`create`, `task show`, `task file write/create`, `task done/reopen`)
+  reportam a tarefa ao pane do kw-terminal quando `HERDR_PANE_ID` existe. É best-effort e mudo:
+  kw-terminal ausente não pode derrubar a escrita.
 
 ## COMANDOS
 

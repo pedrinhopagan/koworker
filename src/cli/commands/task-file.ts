@@ -18,9 +18,12 @@ import {
 	TaskWriteFileSchema,
 } from "@/api/schemas/tasks";
 import { hasFlag, parseArgs } from "../args";
+import { noteSessionTask } from "../kw-terminal";
 import { notifyTasksChanged } from "../notify";
 import { resolveTask } from "../resolve";
 import { withCliTaskStorageLock } from "../task-storage";
+
+const FILE_COMMANDS_KEEPING_THE_FILE = new Set(["read", "write"]);
 
 export function runTaskFile(args: string[]): Promise<void> {
 	const [sub, ...rest] = args;
@@ -239,6 +242,12 @@ async function resolveTaskFileTarget(
 
 	if (!name) {
 		throw new Error(`Informe o nome do arquivo .md da tarefa`);
+	}
+
+	// O arquivo só entra na barra quando o agente continua com ele: apagar ou
+	// renomear deixaria o botão apontando para o que não existe mais.
+	if (FILE_COMMANDS_KEEPING_THE_FILE.has(command)) {
+		noteSessionTask({ id: row.id, title: row.title, groupId: row.group_id, file: name });
 	}
 
 	return { row, name };

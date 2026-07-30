@@ -8,6 +8,7 @@ import { quarantineTaskStorage } from "@/api/helpers/task-storage-coordinator";
 import { CLEARED_TASK_WORKTREE_METADATA } from "@/api/helpers/task-worktree";
 import { COMPLEXITY_LABELS, TASK_COMPLEXITIES } from "@/constants/complexity";
 import { hasFlag, parseArgs } from "../args";
+import { clearSessionTask, noteSessionTask } from "../kw-terminal";
 import { notifyTasksChanged } from "../notify";
 import { withCliTaskStorageLock } from "../task-storage";
 import {
@@ -149,6 +150,17 @@ async function runTaskShow(args: string[]): Promise<void> {
 	console.log(`PR da worktree: ${formatOptional(row.worktree_pr_url)}`);
 	console.log(`arquivo primário: ${primaryFile ?? "-"}`);
 
+	// Resolver a tarefa já vinculou a sessão; inspecionar acrescenta o arquivo
+	// que o agente vai abrir.
+	if (primaryFile) {
+		noteSessionTask({
+			id: row.id,
+			title: row.title,
+			groupId: row.group_id,
+			file: primaryFile,
+		});
+	}
+
 	if (files.length === 0) {
 		console.log("arquivos: nenhum");
 		return;
@@ -233,6 +245,10 @@ export async function setTaskDone(raw: string | undefined, done: boolean): Promi
 	);
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
 
+	if (done) {
+		clearSessionTask();
+	}
+
 	console.log(
 		done
 			? `✅ Tarefa "${row.title ?? row.folder_path}" marcada como concluída.`
@@ -295,6 +311,7 @@ async function setTaskMergeCompleted(raw: string | undefined): Promise<void> {
 		}),
 	);
 	await notifyTasksChanged({ projectId: row.project_id, action: "updated", taskId: row.id });
+	clearSessionTask();
 
 	console.log(`✅ Merge concluído e tarefa "${row.title ?? row.folder_path}" finalizada.`);
 }
@@ -312,6 +329,7 @@ async function runTaskRm(args: string[]): Promise<void> {
 
 	await quarantineTaskStorage(row.id);
 	await notifyTasksChanged({ projectId: row.project_id, action: "deleted", taskId: row.id });
+	clearSessionTask();
 
 	console.log(`🗑️  Tarefa "${row.title ?? row.folder_path}" removida.`);
 }

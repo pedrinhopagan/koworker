@@ -7,21 +7,14 @@ import { DEFAULT_KOWORK_PORT, KOWORK_PROD_PORT } from "@/lib/runtime-config";
 // pendurar a CLI, que é o canal usado pelo agente dentro de uma execução.
 const NOTIFY_TIMEOUT_MS = 1500;
 
-export async function notifyTasksChanged(input: {
-	projectId: string;
-	action: "created" | "updated" | "deleted";
-	taskId?: string;
-}): Promise<void> {
+// Retorna quantas portas confirmaram o POST, para quem precisa distinguir
+// "servidor fora do ar" de "servidor recebeu". A confirmação é o `{ok:true}` do
+// corpo, não o status: em dev o fallback SPA responde 200 para rota inexistente.
+export async function postToServer(path: string, payload: object): Promise<number> {
 	const ports = new Set<number>([DEFAULT_KOWORK_PORT, KOWORK_PROD_PORT]);
 	if (process.env.KOWORK_PORT) {
 		ports.add(Number(process.env.KOWORK_PORT));
 	}
-
-	const body = JSON.stringify({
-		project_id: input.projectId,
-		task_id: input.taskId,
-		action: input.action,
-	});
 
 	const headers: Record<string, string> = { "Content-Type": "application/json" };
 	const notifyToken = process.env.KOWORK_NOTIFY_TOKEN;
@@ -29,14 +22,35 @@ export async function notifyTasksChanged(input: {
 		headers.Authorization = `Bearer ${notifyToken}`;
 	}
 
-	await Promise.all(
-		[...ports].map((port) =>
-			fetch(`http://localhost:${port}/api/tasks/notify`, {
+	const acknowledged = await Promise.all(
+		[...ports].map(async (port) => {
+			const response = await fetch(`http://localhost:${port}${path}`, {
 				method: "POST",
 				headers,
-				body,
+				body: JSON.stringify(payload),
 				signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
-			}).catch(() => {}),
-		),
+			}).catch(() => null);
+			if (!response?.ok) {
+				return false;
+			}
+
+			const body = await response.json().catch(() => null);
+
+			return (body as { ok?: boolean } | null)?.ok === true;
+		}),
 	);
+
+	return acknowledged.filter(Boolean).length;
+}
+
+export async function notifyTasksChanged(input: {
+	projectId: string;
+	action: "created" | "updated" | "deleted";
+	taskId?: string;
+}): Promise<void> {
+	await postToServer("/api/tasks/notify", {
+		project_id: input.projectId,
+		task_id: input.taskId,
+		action: input.action,
+	});
 }

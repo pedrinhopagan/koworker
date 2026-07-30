@@ -9,7 +9,7 @@ function skill(slug: string, label: string, description = ""): TaskSkill {
 		slug,
 		label,
 		description,
-		instructions: "",
+		findings: [],
 		icon: "FolderOpen",
 		color: "#000000",
 		categoryId: null,

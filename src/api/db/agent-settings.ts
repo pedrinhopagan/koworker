@@ -9,6 +9,8 @@ export type AgentSettingsInput = {
 
 export const dbAgentSettings = {
 	getAll: () => db.selectFrom("agent_settings").selectAll().execute(),
+	remove: (slug: string) =>
+		db.deleteFrom("agent_settings").where("slug", "=", slug).executeTakeFirst(),
 
 	upsert: ({ slug, label, icon, color }: AgentSettingsInput) => {
 		const values = {

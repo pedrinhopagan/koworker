@@ -7,6 +7,7 @@ import { dbTaskGroups } from "@/api/db/task-groups";
 import { dbTasks } from "@/api/db/tasks";
 import { normalizeEntityName } from "@/api/db/entity-name";
 import { TASK_COMPLEXITIES, type TaskComplexity } from "@/constants/complexity";
+import { noteSessionTask } from "./kw-terminal";
 
 // Caminho real e normalizado: resolve symlinks (o main_route pode ter sido cadastrado por um
 // symlink que o cwd já entrega resolvido) e tira a barra final.
@@ -26,7 +27,19 @@ export async function resolveProjectByCwd() {
 	return projects.find((project) => canonicalPath(project.main_route) === cwd) ?? null;
 }
 
+// Apontar a CLI para uma tarefa é o gesto que diz em qual delas o agente está:
+// todo comando de tarefa passa por aqui, então é aqui que a sessão se vincula.
 export async function resolveTask(raw: string) {
+	const task = await findTask(raw);
+
+	if (task) {
+		noteSessionTask({ id: task.id, title: task.title, groupId: task.group_id });
+	}
+
+	return task;
+}
+
+async function findTask(raw: string) {
 	const project = await resolveProjectByCwd();
 	if (!project) {
 		return null;

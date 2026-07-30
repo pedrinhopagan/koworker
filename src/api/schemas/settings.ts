@@ -12,4 +12,11 @@ export const SettingsUpdateSchema = z.object({
 		})
 		.optional(),
 	terminalMultiplexer: z.enum(TERMINAL_MULTIPLEXERS).optional(),
+	// Vazio limpa o endereço; qualquer outro valor precisa ser uma URL absoluta, porque é ela que vira
+	// o link do QR aberto no celular.
+	mobileBaseUrl: z
+		.string()
+		.trim()
+		.refine((value) => value === "" || URL.canParse(value), { message: "URL inválida" })
+		.optional(),
 });

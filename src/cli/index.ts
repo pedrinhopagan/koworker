@@ -30,6 +30,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 	route: async (a) => (await import("./commands/route")).runRoute(a),
 	skill: async (a) => (await import("./commands/skill")).runSkill(a),
 	backup: async (a) => (await import("./commands/backup")).runBackup(a),
+	nav: async (a) => (await import("./commands/nav")).runNav(a),
 };
 
 const handler = command ? commands[command] : undefined;
@@ -104,6 +105,9 @@ Backup:
                           Instala timer systemd (default 09h, 15h e 21h, todo dia)
   backup snapshots        Lista os snapshots existentes
 
+Navegação:
+  nav <rota>              Navega o app aberto para uma rota interna (usado pelos botões do kw-terminal)
+
 Versão:
   version [--json]         Mostra a release de storage instalada
 `);
@@ -112,6 +116,7 @@ Versão:
 
 try {
 	await handler(args);
+	(await import("./kw-terminal")).flushSessionTask();
 	process.exit(0);
 } catch (err: any) {
 	console.error(err?.message ?? String(err));
