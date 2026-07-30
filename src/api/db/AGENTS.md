@@ -17,12 +17,12 @@ Padronizar schema SQLite e queries Kysely.
 
 ## TABLES
 
-19, na ordem de registro em `connection.ts`:
+20, na ordem de registro em `connection.ts`:
 
 - Domínio: `users`, `projects`, `categories`, `priorities`, `project_routes`, `task_groups`, `tasks`
 - Storage: `task_storage_runs`
 - Skills e agents: `skill_categories`, `skill_settings`, `skill_source_paths`, `agent_settings`, `agent_source_paths`
-- Execução e histórico: `prompt_history`, `execution_runs`, `agent_sessions`, `agent_events`
+- Execução e histórico: `prompt_history`, `execution_runs`, `agent_sessions`, `agent_events`, `agent_session_snapshots`
 - Infra: `push_subscriptions`, `settings`
 
 Não existe `subtasks` nem `task_executions`. Subtarefa é arquivo `.md` na pasta da task; execução é `execution_runs`. Colunas por tabela: ver `AGENTS.md` na raiz.

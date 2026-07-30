@@ -12,3 +12,7 @@ Garantir consistência visual e base de UI.
 - Criar componentes de tipografia `Title` e `Text` em `src/components/typography.tsx`
 - Ícones apenas de `lucide-react`
 - Evitar componentes com mais de 200 linhas
+- Os `overrides` de `@radix-ui/react-focus-scope`, `react-dismissable-layer` e `react-focus-guards` no
+  `package.json` são obrigatórios: essas libs guardam a pilha de camadas e o foco em estado de módulo,
+  então duas cópias resolvidas não se enxergam e menu + dialog abertos juntos entram em briga de foco
+  que travava a página. `bun add` de pacote Radix novo pede conferir se a resolução continua única.

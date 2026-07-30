@@ -139,9 +139,49 @@ Implementação: `src/api/helpers/terminal/names.ts`.
 ## ROTA /terminals
 
 Rota única para os terminais desta máquina, pensada para o celular. Os agents são o conteúdo (cartões
-ao vivo do radar, cada um com link para a conversa em `/terminals/$paneId`); o workspace é o
-agrupamento, e as ações dele (focar, nova tab, renomear, fechar) ficam num dropdown no header do
-grupo. Tab sem agent é shell puro: aparece atrás de um toggle, só com focar/renomear/fechar.
+ao vivo do radar); o cartão inteiro foca o agent no kw-terminal (`agentRadar.focus`), o botão "Ver
+agent" na direita abre a conversa em `/terminals/$paneId` e o botão direito abre as
+ações do agent: focar no kw-terminal (`agentRadar.focus`), ver diff no kw-diff (`agentRadar.openDiff`)
+e fechar o pane (`agentRadar.close`). O workspace é o agrupamento, e as ações dele (focar, nova tab,
+renomear, fechar) ficam num dropdown no header do grupo. Tab sem agent é shell puro: aparece atrás de
+um toggle, só com focar/renomear/fechar.
+
+O `done` do daemon entra no radar como `blocked` (`normalizeAgentRadarStatus`): agent que devolveu a vez
+cobra a mesma coisa que agent travado, então o koworker tem um estado só de "esperando você". Isso vale
+para o placar, o chip do cartão, a notificação e o item Terminais da sidebar, que mostra a cobrinha
+quando tem agent trabalhando e o carimbo em laranja quando tem agent esperando.
+
+O indicador "Na tela" (workspace/tab/agent) espelha o foco do cliente TUI ao vivo: o watcher do radar
+assina `workspace.focused` / `tab.focused` / `pane.focused` no daemon e publica o trio no canal
+`agentRadar` junto com o mapa de agents. Trocar de workspace ou tab no kw-terminal atualiza o koworker
+sem ação no app e sem releitura do `kwTerminal.overview`.
+
+## RETRATO E RESTAURAÇÃO DAS SESSÕES
+
+O daemon do kw-terminal morre com a máquina, então o radar volta vazio depois de um desligamento. Para
+não perder a lista de quem estava aberto, cada mudança do radar grava um retrato em
+`agent_session_snapshots` (`src/api/helpers/agent-radar/snapshot.ts`, chamado no `publish` do state,
+com debounce de 2s). O retrato é único e reescrito inteiro, e **nunca** é gravado vazio: radar vazio é
+tanto "fechei tudo" quanto "o daemon caiu", e é no segundo caso que o retrato precisa sobreviver. Cada
+linha guarda workspace/tab, agent, `cwd`, projeto, `status` no instante da captura e o id da sessão do
+CLI quando o agent o reportou.
+
+`agentRadar.restoreSnapshot` (`helpers/agent-radar/restore.ts`) sobe tudo de uma vez: workspace por
+label (reaproveitado se existir), uma tab por agent (idempotente pelo label — tab que já tem agent é
+dada como restaurada) e o CLI retomando a conversa por `cliResumeArgv`: `claude --resume <id>` /
+`--continue` e `codex resume <id>` / `resume --last` quando não há id. Quem estava `working` na captura
+recebe um `continue` disparado fora da chamada da rota, depois de esperar o daemon reconhecer o agent
+no pane (até 60s). No fim o cliente TUI é revelado como no `focus`.
+
+Na rota `/terminals` isso é o card "Sessões da última vez", que só aparece quando não há agent vivo, com
+"Restaurar sessões" e "Descartar" (`agentRadar.snapshot` / `restoreSnapshot` / `discardSnapshot`).
+
+## KW-DIFF
+
+`agentRadar.openDiff` manda o revisor local abrir o `cwd` do agent. O kw-diff é um servidor em
+`127.0.0.1:4816` com janela GTK própria: `src/api/helpers/kw-diff.ts` confere `/api/health`, chama o
+launcher `kw-diff-open --show` quando o servidor não está de pé e aponta a janela pelo deep-link
+`?cwd=<repo>` com `kw-diff-window --show`. Nada do estado do kw-diff é espelhado no Kowork.
 
 "Abrir nova sessão" é o caminho livre para subir um agent: escolhe projeto e CLI, aceita nome e
 primeira mensagem opcionais, cria a tab por `kwTerminal.sessionStart` e navega para a conversa. O

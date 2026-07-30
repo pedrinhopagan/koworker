@@ -79,7 +79,7 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 
 ## ENTIDADES
 
-20 tabelas, na ordem de registro em `connection.ts`. `?` marca coluna opcional (nullable).
+21 tabelas, na ordem de registro em `connection.ts`. `?` marca coluna opcional (nullable).
 
 ### users
 - `id` (integer, autoincrement), `name`, `password`
@@ -194,6 +194,24 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - `cli?`, `permission_mode?`, `model?`, `effort?`, `approval_mode?`, `stage?`, `agent?`
 - `output?`, `error?`
 - `started_at`, `updated_at`, `heartbeat_at?`, `finished_at?`, `deleted_at?`
+
+### agent_session_snapshots
+- `id` (uuid), `pane_id`, `workspace_label`, `tab_label`, `agent`, `cwd`
+- `project_id?`, `project_name?`: **sem FK**, o retrato é histórico e sobrevive à exclusão do projeto
+- `status`: status do radar no instante da captura; `working` é o que faz a restauração disparar `continue`
+- `session_id?`, `session_path?`: a sessão do CLI, quando o agent a reportou ao daemon
+- `title?`, `task_id?`, `task_title?`, `captured_at`, `restored_at?`
+- Retrato único do que estava aberto no kw-terminal: reescrito inteiro a cada mudança do radar e nunca
+  com a lista vazia, porque a queda do daemon (ou o desligamento da máquina) apagaria o retrato
+
+### agent_session_snapshots
+- `id` (uuid), `pane_id`, `workspace_label`, `tab_label`, `agent`, `cwd`
+- `project_id?`, `project_name?`: **sem FK**, o retrato é histórico e sobrevive à exclusão do projeto
+- `status`: status do radar no instante da captura; `working` é o que faz a restauração disparar `continue`
+- `session_id?`, `session_path?`: a sessão do CLI, quando o agent a reportou ao daemon
+- `title?`, `task_id?`, `task_title?`, `captured_at`, `restored_at?`
+- Retrato único do que estava aberto no kw-terminal: reescrito inteiro a cada mudança do radar e nunca
+  com a lista vazia, porque a queda do daemon (ou o desligamento da máquina) apagaria o retrato
 
 ### push_subscriptions
 - `id` (uuid), `user_id` (FK users.id, cascade)
