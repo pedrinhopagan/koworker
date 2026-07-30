@@ -2,41 +2,13 @@ import { Bot, CircleCheck, Loader2, TriangleAlert } from "lucide-react";
 
 import { Text } from "@/components/typography";
 import type { AgentSessionEvent } from "@/lib/agent-session";
+import { toTimelineGroups } from "@/lib/agent-timeline";
 import { cn } from "@/lib/utils";
 import { AgentAnswer } from "./agent-answer";
 import { SessionPermission } from "./session-permission";
 import { SessionQuestion } from "./session-question";
 import { SessionTrace } from "./session-trace";
 import { SessionUserMessage } from "./session-user-message";
-
-const TRACE_KINDS = new Set(["thinking", "tool_use", "notice"]);
-
-type Group =
-	| { kind: "trace"; key: string; events: AgentSessionEvent[] }
-	| { kind: "block"; key: string; event: AgentSessionEvent };
-
-// Pensamento, ferramenta e aviso viram um rastro só entre duas falas: a conversa lida de cima a
-// baixo é a fala, e o caminho até ela fica recolhido logo acima de onde importou.
-function toGroups(events: AgentSessionEvent[]): Group[] {
-	const groups: Group[] = [];
-
-	for (const event of events) {
-		if (!TRACE_KINDS.has(event.payload.kind)) {
-			groups.push({ kind: "block", key: String(event.seq), event });
-			continue;
-		}
-
-		const last = groups.at(-1);
-		if (last?.kind === "trace") {
-			last.events.push(event);
-			continue;
-		}
-
-		groups.push({ kind: "trace", key: `trace-${event.seq}`, events: [event] });
-	}
-
-	return groups;
-}
 
 function ResultRow({ event }: { event: AgentSessionEvent }) {
 	if (event.payload.kind !== "result") {
@@ -82,13 +54,13 @@ export function SessionTimeline({
 	onDecide?: (requestId: string, decision: "allow" | "deny", reason?: string) => void;
 	onAnswer?: (questionId: string, input: { answers: string[]; freeText?: string }) => void;
 }) {
-	const groups = toGroups(events);
+	const groups = toTimelineGroups(events);
 
 	return (
 		<div className="min-w-0 space-y-4">
 			{groups.map((group) => {
-				if (group.kind === "trace") {
-					return <SessionTrace key={group.key} events={group.events} />;
+				if (group.kind === "trail") {
+					return <SessionTrace key={group.key} steps={group.steps} total={group.total} />;
 				}
 
 				const { payload } = group.event;
