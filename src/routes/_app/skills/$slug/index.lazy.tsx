@@ -1,4 +1,11 @@
-import { createLazyFileRoute, Link, useBlocker, useNavigate } from "@tanstack/react-router";
+import {
+	createLazyFileRoute,
+	Link,
+	useBlocker,
+	useCanGoBack,
+	useNavigate,
+	useRouter,
+} from "@tanstack/react-router";
 import {
 	ArrowLeft,
 	Check,
@@ -194,6 +201,8 @@ function SkillEditor({
 	projectName?: string;
 }) {
 	const navigate = useNavigate();
+	const router = useRouter();
+	const canGoBack = useCanGoBack();
 	const paneRef = useRef<DocEditorPaneHandle>(null);
 
 	const reading = useReadingModeStore((s) => s.reading);
@@ -318,8 +327,14 @@ function SkillEditor({
 		setActiveVariantPath(path);
 	}
 
+	// Voltar pelo histórico preserva a busca e os filtros da listagem; sem entrada anterior (abriu a
+	// skill direto pela URL) cai na listagem limpa.
 	async function navigateBack() {
 		await autosave.flush();
+		if (canGoBack) {
+			router.history.back();
+			return;
+		}
 		await navigate({ to: "/skills" });
 	}
 
