@@ -1,7 +1,3 @@
-// Catálogo de fontes disponíveis para a interface e para a leitura de .md/prompts.
-// As famílias precisam estar carregadas no <link> do Google Fonts em src/index.html.
-// `family` é o valor cru de font-family que a store injeta em --app-font / --reading-font.
-
 type FontCategory = "mono" | "sans" | "serif";
 
 type FontDef = {
