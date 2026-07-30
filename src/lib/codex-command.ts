@@ -7,6 +7,7 @@ export type CodexCommandParams = {
 	persistSession?: boolean;
 	structuredOutput?: boolean;
 	resumeSessionId?: string;
+	mcpUrl?: string;
 };
 
 function approvalArgs(approvalMode: string, resume = false) {
@@ -36,6 +37,11 @@ export function buildCodexExecArgs(params: CodexCommandParams & { cwd?: string }
 	}
 	if (params.effort) {
 		args.push("-c", `model_reasoning_effort=${params.effort}`);
+	}
+	// O codex só fala MCP pela config; a url é o servidor do próprio koworker, que é como a pergunta
+	// com opções chega à sessão. O valor é TOML, então vai entre aspas.
+	if (params.mcpUrl) {
+		args.push("-c", `mcp_servers.koworker.url="${params.mcpUrl}"`);
 	}
 
 	if (!params.persistSession && !params.resumeSessionId) {

@@ -1,16 +1,25 @@
 import { ORPCError } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "./auth/context";
+import { isLocalRequest } from "./auth/device";
 import { Auth } from "./auth/login";
+import { dbAgentSessions } from "./db/agent-sessions";
+import { listRadarAgents } from "./helpers/agent-radar/state";
+import { subscribeAgentRadarTranscript } from "./helpers/agent-radar/transcript";
+import { isSessionBusy, listSessionEvents } from "./helpers/agent-session/registry";
 import { getPromptRun } from "./helpers/prompt-run";
 import { PubSub } from "./pubsub";
+import { agentRadarRouter } from "./routers/agent-radar";
+import { agentSessionsRouter } from "./routers/agent-sessions";
 import { agentsRouter } from "./routers/agents";
 import { categoriesRouter } from "./routers/categories";
+import { devicesRouter } from "./routers/devices";
 import { flowRouter } from "./routers/flow";
 import { kwTerminalRouter } from "./routers/kw-terminal";
 import { mediaRouter } from "./routers/media";
 import { mostruarioRouter } from "./routers/mostruario";
 import { notificationsRouter } from "./routers/notifications";
+import { pairingRouter } from "./routers/pairing";
 import { prioritiesRouter } from "./routers/priorities";
 import { promptRouter } from "./routers/prompt";
 import { promptHistoryRouter } from "./routers/prompt-history";
@@ -25,13 +34,24 @@ import { taskStorageRouter } from "./routers/task-storage";
 import { tasksRouter } from "./routers/tasks";
 import { terminalRouter, terminalWsRouter } from "./routers/terminal";
 import { vaultRouter } from "./routers/vault";
-import { EndpointSchemas, FlowTaskSchema, PromptRunIdSchema } from "./schemas";
+import {
+	AgentRadarPaneSchema,
+	AgentSessionIdSchema,
+	EndpointSchemas,
+	FlowTaskSchema,
+	PromptRunIdSchema,
+} from "./schemas";
 
 export const router = {
 	auth: {
-		login: publicProcedure
-			.input(EndpointSchemas.authLogin)
-			.handler(({ input, context }) => Auth.login(input, context.resHeaders, context.reqHeaders)),
+		login: publicProcedure.input(EndpointSchemas.authLogin).handler(({ input, context }) =>
+			Auth.login({
+				input,
+				resHeaders: context.resHeaders,
+				reqHeaders: context.reqHeaders,
+				remoteAddress: context.remoteAddress,
+			}),
+		),
 
 		logout: protectedProcedure.handler(({ context }) =>
 			Auth.logout(context.resHeaders, context.user.id),
@@ -41,7 +61,21 @@ export const router = {
 			id: context.user.id,
 			name: context.user.name,
 		})),
+
+		// Pública de propósito: é o que a tela de espera consulta enquanto o dispositivo não é
+		// aprovado, quando nenhuma rota protegida responde.
+		session: publicProcedure.handler(({ context }) => ({
+			user: context.user ? { id: context.user.id, name: context.user.name } : null,
+			device: context.device
+				? { id: context.device.id, name: context.device.name, status: context.device.status }
+				: null,
+			canManageDevices: isLocalRequest({
+				reqHeaders: context.reqHeaders,
+				remoteAddress: context.remoteAddress,
+			}),
+		})),
 	},
+	devices: devicesRouter,
 	projects: projectsRouter,
 	projectRoutes: projectRoutesRouter,
 	tasks: tasksRouter,
@@ -53,6 +87,8 @@ export const router = {
 	skills: skillsRouter,
 	skillCategories: skillCategoriesRouter,
 	agents: agentsRouter,
+	agentRadar: agentRadarRouter,
+	agentSessions: agentSessionsRouter,
 	prompt: promptRouter,
 	promptHistory: promptHistoryRouter,
 	terminal: terminalRouter,
@@ -61,6 +97,7 @@ export const router = {
 	media: mediaRouter,
 	mostruario: mostruarioRouter,
 	notifications: notificationsRouter,
+	pairing: pairingRouter,
 	settings: settingsRouter,
 	system: systemRouter,
 
@@ -87,6 +124,10 @@ export const wsRouter = {
 	),
 
 	tasks: protectedProcedure.handler(({ signal }) => PubSub.subscribe("tasks", "global", signal)),
+
+	navigate: protectedProcedure.handler(({ signal }) =>
+		PubSub.subscribe("navigate", "global", signal),
+	),
 
 	flow: protectedProcedure
 		.input(FlowTaskSchema)
@@ -119,6 +160,46 @@ export const wsRouter = {
 
 		yield* events;
 	}),
+
+	// A conversa da sessão. Assina antes de ler o estado: um bloco publicado entre a leitura e a
+	// assinatura se perderia, e a rota ficaria mostrando um agente parado que na verdade respondeu.
+	agentSession: protectedProcedure.input(AgentSessionIdSchema).handler(async function* ({
+		input,
+		context,
+		signal,
+	}) {
+		const events = PubSub.subscribe("agentSession", input.sessionId, signal);
+
+		const session = await dbAgentSessions.getByIdForUser(input.sessionId, context.user.id);
+		if (!session) {
+			throw new ORPCError("NOT_FOUND", { message: "Sessão não encontrada" });
+		}
+
+		yield {
+			sessionId: session.id,
+			status: session.status,
+			busy: isSessionBusy(session.id),
+			events: await listSessionEvents(session.id),
+		};
+
+		yield* events;
+	}),
+
+	// Central de agents. Assina antes de emitir o snapshot: uma transição publicada entre a leitura do
+	// mapa e a assinatura sumiria, e o cartão ficaria mostrando um status que já mudou.
+	agentRadar: protectedProcedure.handler(async function* ({ signal }) {
+		const events = PubSub.subscribe("agentRadar", "global", signal);
+
+		yield { agents: listRadarAgents() };
+
+		yield* events;
+	}),
+
+	// A conversa que o CLI aberto num pane está gravando no disco. Vive fora de `agentSession` porque
+	// não há sessão do app por trás: o dono do processo é o terminal, e o app só lê o arquivo.
+	agentRadarTranscript: protectedProcedure
+		.input(AgentRadarPaneSchema)
+		.handler(({ input, signal }) => subscribeAgentRadarTranscript(input.paneId, signal)),
 
 	terminal: terminalWsRouter,
 };

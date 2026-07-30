@@ -50,7 +50,7 @@ export const PromptExecuteSchema = z
 		clientRequestId: z.string().uuid(),
 		projectId: z.string().trim().min(1),
 		taskId: z.string().trim().min(1).optional(),
-		createTaskTitle: z.string().trim().min(1).optional(),
+		createTaskTitle: z.string().trim().optional(),
 		prompt: z.string().trim().min(1),
 		originalPrompt: z.string().trim().min(1).optional(),
 		source: z.enum(["global_bar", "execution_route", "task_flow", "desktop_terminal"]),
@@ -63,7 +63,7 @@ export const PromptExecuteSchema = z
 		effort: z.string().trim().min(1).optional(),
 		approvalMode: z.string().trim().min(1).optional(),
 	})
-	.refine((input) => !(input.taskId && input.createTaskTitle), {
+	.refine((input) => !(input.taskId && input.createTaskTitle !== undefined), {
 		message: "Escolha uma tarefa existente ou crie uma nova",
 	});
 

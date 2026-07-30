@@ -244,11 +244,74 @@ const execution_status = type.enumerated(
 	"cancelled",
 );
 
+const agent_session_status = type.enumerated("live", "ended", "crashed");
+
+// Sessão de agente: o processo do CLI que fica de pé entre turnos. A linha é a identidade estável da
+// conversa — `id` é o `--session-id` passado ao CLI, então retomar é `--resume <id>` na mesma linha.
+// `cwd` é congelado no start: uma sessão retomada nunca troca de diretório, mesmo que o projeto mude.
+const agentSessionsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	user_id: type("number.integer").configure({ references: "users.id", onDelete: "cascade" }),
+	project_id: type("string").configure({ references: "projects.id", onDelete: "restrict" }),
+	"task_id?": type("string").configure({ references: "tasks.id", onDelete: "set null" }),
+	title: "string",
+	cli: "string",
+	// Id da conversa no CLI quando ele gera o seu: o `claude` aceita o `id` desta linha, mas o
+	// `codex` batiza a thread por conta própria e é este valor que o `resume` exige.
+	"cli_session_id?": "string",
+	cwd: "string",
+	"model?": "string",
+	"effort?": "string",
+	"agent?": "string",
+	permission_mode: type("string").configure({ default: "acceptEdits" }),
+	status: agent_session_status,
+	"pid?": "number.integer",
+	started_at: type("number.integer").configure({ default: "now" }),
+	updated_at: "number.integer",
+	"heartbeat_at?": "number.integer",
+	"ended_at?": "number.integer",
+	"end_reason?": "string",
+	"deleted_at?": "number.integer",
+});
+
+const agent_event_kind = type.enumerated(
+	"user",
+	"assistant",
+	"thinking",
+	"tool_use",
+	"tool_result",
+	"permission",
+	"question",
+	"notice",
+	"result",
+);
+
+// Cada bloco da conversa. `seq` ordena dentro da sessão e é a identidade que o front usa para juntar
+// o que chega pelo WebSocket com o que veio da leitura inicial. `payload` é JSON com o shape de cada
+// `kind` (src/lib/agent-session.ts é a fronteira que valida na leitura).
+const agentEventsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	session_id: type("string").configure({
+		references: "agent_sessions.id",
+		onDelete: "cascade",
+	}),
+	"run_id?": type("string").configure({ references: "execution_runs.id", onDelete: "set null" }),
+	seq: "number.integer",
+	kind: agent_event_kind,
+	payload: "string",
+	created_at: type("number.integer").configure({ default: "now" }),
+	"updated_at?": "number.integer",
+});
+
 const executionRunsSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	user_id: type("number.integer").configure({ references: "users.id", onDelete: "cascade" }),
 	project_id: type("string").configure({ references: "projects.id", onDelete: "restrict" }),
 	"task_id?": type("string").configure({ references: "tasks.id", onDelete: "set null" }),
+	"session_id?": type("string").configure({
+		references: "agent_sessions.id",
+		onDelete: "set null",
+	}),
 	"client_request_id?": "string",
 	"request_fingerprint?": "string",
 	"parent_run_id?": type("string").configure({
@@ -281,6 +344,25 @@ const executionRunsSchema = type({
 	"deleted_at?": "number.integer",
 });
 
+const device_status = type.enumerated("pending", "approved", "blocked");
+
+// Cada navegador/app que já pediu sessão. A identidade é o cookie de dispositivo (assinado), não o
+// IP: o celular troca de rede o tempo todo. `status` é o portão — só `approved` alcança as rotas
+// protegidas, e a aprovação só é concedida de dentro da máquina (loopback).
+const devicesSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	user_id: type("number.integer").configure({ references: "users.id", onDelete: "cascade" }),
+	name: "string",
+	"user_agent?": "string",
+	status: device_status,
+	"first_ip?": "string",
+	"last_ip?": "string",
+	created_at: type("number.integer").configure({ default: "now" }),
+	last_seen_at: "number.integer",
+	"approved_at?": "number.integer",
+	"blocked_at?": "number.integer",
+});
+
 const pushSubscriptionsSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	user_id: type("number.integer").configure({ references: "users.id", onDelete: "cascade" }),
@@ -309,8 +391,11 @@ const database = new Database({
 		agent_settings: agentSettingsSchema,
 		agent_source_paths: agentSourcePathsSchema,
 		prompt_history: promptHistorySchema,
+		agent_sessions: agentSessionsSchema,
 		execution_runs: executionRunsSchema,
+		agent_events: agentEventsSchema,
 		push_subscriptions: pushSubscriptionsSchema,
+		devices: devicesSchema,
 		settings: settingsSchema,
 	},
 });
@@ -339,8 +424,11 @@ export type skill_source_paths = DB["skill_source_paths"];
 export type agent_settings = DB["agent_settings"];
 export type agent_source_paths = DB["agent_source_paths"];
 export type prompt_history = DB["prompt_history"];
+export type agent_sessions = DB["agent_sessions"];
+export type agent_events = DB["agent_events"];
 export type execution_runs = DB["execution_runs"];
 export type push_subscriptions = DB["push_subscriptions"];
+export type devices = DB["devices"];
 export type settings = DB["settings"];
 
 export {
@@ -360,7 +448,13 @@ export {
 	agentSettingsSchema,
 	agentSourcePathsSchema,
 	promptHistorySchema,
+	agent_session_status,
+	agentSessionsSchema,
+	agent_event_kind,
+	agentEventsSchema,
 	executionRunsSchema,
 	pushSubscriptionsSchema,
+	device_status,
+	devicesSchema,
 	settingsSchema,
 };

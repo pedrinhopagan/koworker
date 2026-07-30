@@ -16,9 +16,21 @@ export function AudioRecorder({ onTranscribed }: { onTranscribed: (text: string)
 	const mountedRef = useRef(true);
 	const chunksRef = useRef<Blob[]>([]);
 	const [recording, setRecording] = useState(false);
+	const [elapsed, setElapsed] = useState(0);
 	const [audio, setAudio] = useState<{ blob: Blob; url: string } | null>(null);
 	const [guideOpen, setGuideOpen] = useState(false);
 	const supported = typeof MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+
+	useEffect(() => {
+		if (!recording) {
+			return;
+		}
+
+		setElapsed(0);
+		const timer = setInterval(() => setElapsed((value) => value + 1), 1000);
+
+		return () => clearInterval(timer);
+	}, [recording]);
 
 	const transcription = useMutation({
 		...orpc.prompt.transcribe.mutationOptions(),
@@ -53,13 +65,28 @@ export function AudioRecorder({ onTranscribed }: { onTranscribed: (text: string)
 
 	async function handleRecord() {
 		if (!supported) {
-			toast.error("Gravação de áudio não está disponível neste navegador");
+			toast.error(
+				window.isSecureContext
+					? "Gravação de áudio não está disponível neste navegador"
+					: "O microfone exige uma conexão segura (https ou localhost)",
+			);
 			return;
 		}
 
-		const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+		let captureError: unknown;
+		const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch((error) => {
+			captureError = error;
+			return null;
+		});
 		if (!stream) {
-			toast.error("Não foi possível acessar o microfone");
+			const name = captureError instanceof DOMException ? captureError.name : "";
+			toast.error(
+				name === "NotAllowedError" || name === "SecurityError"
+					? "Permissão de microfone negada. Libere o acesso e tente de novo."
+					: name === "NotFoundError"
+						? "Nenhum microfone foi encontrado neste dispositivo"
+						: "Não foi possível acessar o microfone",
+			);
 			return;
 		}
 		if (!mountedRef.current) {
@@ -132,7 +159,7 @@ export function AudioRecorder({ onTranscribed }: { onTranscribed: (text: string)
 			{recording && (
 				<Button type="button" variant="destructive" size="sm" onClick={handleStop}>
 					<CircleStop className="size-4" />
-					Parar gravação
+					Parar gravação · {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
 				</Button>
 			)}
 			{audio && (

@@ -78,10 +78,18 @@ test("metacaractere de shell no agent continua um único argumento", () => {
 	);
 });
 
-test("background usa modo print sem sessão interativa", () => {
+test("background usa modo print com fluxo de eventos e sem sessão interativa", () => {
 	expect(
 		buildClaudeArgv({ prompt: "/mobile faça", permissionMode: "bypass", headless: true }),
-	).toEqual(["claude", "-p", "--dangerously-skip-permissions", "/mobile faça"]);
+	).toEqual([
+		"claude",
+		"-p",
+		"--output-format",
+		"stream-json",
+		"--verbose",
+		"--dangerously-skip-permissions",
+		"/mobile faça",
+	]);
 });
 
 test("execução headless cria e retoma sessões identificadas", () => {
@@ -95,6 +103,9 @@ test("execução headless cria e retoma sessões identificadas", () => {
 	).toEqual([
 		"claude",
 		"-p",
+		"--output-format",
+		"stream-json",
+		"--verbose",
 		"--dangerously-skip-permissions",
 		"--session-id",
 		"run-1",

@@ -1,110 +1,111 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-	ArrowLeft,
-	Ban,
-	Clock3,
-	Loader2,
-	RefreshCw,
-	RotateCcw,
-	TerminalSquare,
-} from "lucide-react";
+import { ArrowDown, ArrowLeft, Loader2, RefreshCw, TerminalSquare } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { PageShell } from "@/components/layout/page-shell";
-import { Text, Title } from "@/components/typography";
+import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { EXECUTION_STATUS_LABELS } from "@/constants/execution";
-import { newClientRequestId } from "@/lib/client-request-id";
-import { isNotFoundError } from "@/lib/orpc-errors";
-import { cn } from "@/lib/utils";
-import { LiveOutput } from "@/components/ui/live-output";
-import { useRunLiveOutput } from "@/hooks/use-run-live-output";
-import { ExecutionContinuation } from "../-components/execution-continuation";
-import { ExecutionResult } from "../-components/execution-result";
-
-function ExecutionLiveOutput({ runId, running }: { runId: string; running: boolean }) {
-	const output = useRunLiveOutput({ runId, enabled: running });
-
-	if (!running) {
-		return null;
-	}
-
-	return (
-		<section className="min-w-0 border border-border bg-card shadow-[4px_4px_0_var(--border)]">
-			<div className="flex items-center gap-3 border-b border-border px-4 py-3">
-				<span className="flex size-8 items-center justify-center border border-border bg-muted/40">
-					<Loader2 className="size-4 animate-spin" />
-				</span>
-				<div>
-					<Title as="h2" size="sm">
-						Ao vivo
-					</Title>
-					<Text size="xs" tone="muted">
-						Cauda da saída do agente, atualizada enquanto ele trabalha
-					</Text>
-				</div>
-			</div>
-			{output ? (
-				<LiveOutput text={output} className="max-h-72 border-0" />
-			) : (
-				<div className="flex min-h-24 items-center justify-center p-6 text-center">
-					<Text tone="muted">Aguardando a primeira linha do agente…</Text>
-				</div>
-			)}
-		</section>
-	);
-}
+import { permissionModeLabel } from "@/constants/execution";
+import { useAgentSession } from "@/hooks/use-agent-session";
+import { errorMessage } from "@/lib/orpc-errors";
+import { RunThread } from "../-components/run-thread";
+import { SessionHeaderActions } from "../-components/session-header";
+import { NewSessionHandoff } from "../-components/new-session-handoff";
+import { SessionTimeline } from "@/components/agent-session/session-timeline";
+import { TaskLink } from "@/components/task-link";
+import { ThreadComposer } from "@/components/agent-session/thread-composer";
 
 export const Route = createLazyFileRoute("/_app/executar/$executionId/")({
-	component: ExecutionDetailPage,
+	component: AgentSessionPage,
 });
 
-function ExecutionDetailPage() {
+function AgentSessionPage() {
 	const { executionId } = Route.useParams();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const runQuery = useQuery({
-		...orpc.prompt.runStatus.queryOptions({ input: { runId: executionId } }),
-		retry: (failureCount, error) => !isNotFoundError(error) && failureCount < 3,
-		refetchInterval: (query) => {
-			if (isNotFoundError(query.state.error)) {
-				return false;
-			}
-			if (!query.state.data || query.state.data.status === "running") {
-				return 2500;
-			}
+	const viewport = useRef<HTMLDivElement>(null);
+	const [pinned, setPinned] = useState(true);
 
-			return false;
+	const { session, events, status, busy, endReason, pending, loading, missing, refetch } =
+		useAgentSession(executionId);
+
+	// O mesmo endereço serve sessão e execução de chamada única (Codex e todo run anterior às
+	// sessões): o id que não é sessão é resolvido aqui, virando redirect quando o run pertence a uma
+	// sessão e a conversa antiga quando não pertence. Links e notificações já disparados continuam
+	// valendo.
+	const resolveRun = useMutation({
+		...orpc.agentSessions.resolveRun.mutationOptions(),
+		onSuccess: async ({ sessionId }) => {
+			if (!sessionId) {
+				return;
+			}
+			await navigate({
+				to: "/executar/$executionId",
+				params: { executionId: sessionId },
+				replace: true,
+			});
 		},
 	});
-	const continueMutation = useMutation({
-		...orpc.prompt.continue.mutationOptions(),
-		onSuccess: async ({ runId }) => {
-			localStorage.removeItem(`kowork-execution-followup-${executionId}`);
-			await queryClient.invalidateQueries({ queryKey: orpc.prompt.listRuns.key() });
-			toast.success("Sessão continuada");
-			await navigate({ to: "/executar/$executionId", params: { executionId: runId } });
-		},
-		onError: (error: Error) => toast.error(error.message),
+	const resolveLegacy = resolveRun.mutate;
+
+	useEffect(() => {
+		if (missing) {
+			resolveLegacy({ sessionId: executionId });
+		}
+	}, [missing, executionId, resolveLegacy]);
+
+	function reload() {
+		return Promise.all([
+			refetch(),
+			queryClient.invalidateQueries({ queryKey: orpc.agentSessions.list.key() }),
+		]);
+	}
+
+	const turn = useMutation({
+		...orpc.agentSessions.turn.mutationOptions(),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível enviar a mensagem")),
 	});
-	const retryMutation = useMutation({
-		...orpc.prompt.retry.mutationOptions(),
-		onSuccess: ({ runId }) => {
-			void navigate({ to: "/executar/$executionId", params: { executionId: runId } });
-		},
-		onError: (error: Error) => toast.error(error.message),
+	const decide = useMutation({
+		...orpc.agentSessions.permission.mutationOptions(),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível responder a permissão")),
 	});
-	const cancelMutation = useMutation({
-		...orpc.prompt.cancel.mutationOptions(),
-		onSuccess: () => void runQuery.refetch(),
-		onError: (error: Error) => toast.error(error.message),
+	const answer = useMutation({
+		...orpc.agentSessions.answer.mutationOptions(),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível enviar a resposta")),
 	});
 
-	if (runQuery.isLoading) {
+	const scrollToEnd = useCallback(() => {
+		viewport.current?.scrollTo({ top: viewport.current.scrollHeight, behavior: "smooth" });
+	}, []);
+
+	// Acompanhar do celular significa ficar no fim da conversa enquanto o agente escreve, mas quem
+	// subiu para reler não pode ser puxado de volta a cada bloco novo.
+	useEffect(() => {
+		const node = viewport.current;
+		if (!node || !pinned) {
+			return;
+		}
+		scrollToEnd();
+		const observer = new ResizeObserver(() => scrollToEnd());
+		for (const child of node.children) {
+			observer.observe(child);
+		}
+
+		return () => observer.disconnect();
+	}, [pinned, scrollToEnd, events.length, busy]);
+
+	// Depois de todos os hooks: um retorno antes deles mudaria a quantidade de hooks entre renders.
+	const legacyRunId = resolveRun.data?.sessionId ? null : resolveRun.data?.runId;
+	if (legacyRunId) {
+		return <RunThread runId={legacyRunId} />;
+	}
+
+	if (loading) {
 		return (
-			<PageShell title="Execução" description="Carregando resultado…" icon={TerminalSquare}>
+			<PageShell title="Sessão" description="Carregando…" icon={TerminalSquare}>
 				<div className="flex min-h-64 items-center justify-center">
 					<Loader2 className="size-6 animate-spin text-muted-foreground" />
 				</div>
@@ -112,23 +113,21 @@ function ExecutionDetailPage() {
 		);
 	}
 
-	if (!runQuery.data) {
-		const missing = isNotFoundError(runQuery.error);
-
+	if (!session) {
 		return (
 			<PageShell
-				title={missing ? "Execução não encontrada" : "Sem conexão com o executor"}
+				title={missing ? "Sessão não encontrada" : "Sem conexão com o executor"}
 				icon={TerminalSquare}
 			>
 				<div className="border border-dashed border-border p-8 text-center">
 					<Text tone="muted">
 						{missing
-							? "Este resultado não existe ou não está mais no histórico."
-							: "Não foi possível falar com o servidor agora. A execução continua do outro lado — tente de novo em instantes."}
+							? "Esta sessão não existe ou saiu do histórico."
+							: "Não foi possível falar com o servidor agora. A sessão continua do outro lado — tente de novo em instantes."}
 					</Text>
 					<div className="mt-4 flex flex-wrap justify-center gap-2">
 						{!missing && (
-							<Button variant="outline" onClick={() => void runQuery.refetch()}>
+							<Button variant="outline" onClick={() => void reload()}>
 								<RefreshCw className="size-4" />
 								Tentar de novo
 							</Button>
@@ -142,121 +141,107 @@ function ExecutionDetailPage() {
 		);
 	}
 
-	const run = runQuery.data;
-	const running = run.status === "running";
-	const duration = run.finishedAt
-		? Math.max(1, Math.round((run.finishedAt - run.startedAt) / 1000))
-		: null;
+	const live = status === "live";
+	const composerHint = busy
+		? "O agente está trabalhando. Assim que ele terminar você continua daqui."
+		: "Responda ao agente acima para ele seguir.";
 
 	return (
 		<PageShell
-			title={run.taskTitle ?? run.title}
-			description={`${run.projectName} · ${run.cli === "codex" ? "Codex" : "Claude"}${run.model ? ` · ${run.model}` : ""}`}
+			title={session.taskTitle ?? session.title}
+			description={`${session.projectName} · ${session.model ?? session.cli} · ${permissionModeLabel(session.permissionMode)}`}
 			icon={TerminalSquare}
-			contentClassName="overflow-y-auto pb-24"
+			contentClassName="flex min-h-0 flex-col"
 			actions={
-				<div className="flex items-center gap-2">
+				<div className="flex flex-wrap items-center gap-2">
+					{live && (
+						<SessionHeaderActions
+							sessionId={session.id}
+							cli={session.cli}
+							busy={busy}
+							permissionMode={session.permissionMode}
+							onChanged={() => void reload()}
+						/>
+					)}
+					{session.taskId && (
+						<TaskLink taskId={session.taskId} label={session.taskTitle ?? "Abrir tarefa"} />
+					)}
 					<Button asChild variant="outline" size="sm">
 						<Link to="/executar">
 							<ArrowLeft className="size-4" />
 							Histórico
 						</Link>
 					</Button>
-					{running ? (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => cancelMutation.mutate({ runId: run.runId })}
-							disabled={cancelMutation.isPending}
-						>
-							<Ban className="size-4" />
-							Cancelar
-						</Button>
-					) : (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() =>
-								retryMutation.mutate({ runId: run.runId, clientRequestId: newClientRequestId() })
-							}
-							disabled={retryMutation.isPending}
-						>
-							<RotateCcw className="size-4" />
-							Repetir
-						</Button>
-					)}
 				</div>
 			}
 		>
-			<div className="grid gap-6 pb-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-				<div className="min-w-0 space-y-6">
-					<div className="flex flex-wrap items-center gap-2 border-y border-border py-2">
-						<span
-							className={cn(
-								"border border-border px-2 py-1 text-[10px] font-bold uppercase tracking-wider",
-								running && "border-primary text-primary",
-								run.status === "failed" && "border-destructive text-destructive",
-							)}
-						>
-							{EXECUTION_STATUS_LABELS[run.status]}
-						</span>
-						<Text size="xs" tone="muted" className="flex items-center gap-1">
-							<Clock3 className="size-3" />
-							{duration ? `${duration}s` : "Em andamento"}
-						</Text>
-						{run.parentRunId && (
-							<Link
-								to="/executar/$executionId"
-								params={{ executionId: run.parentRunId }}
-								className="text-xs font-bold text-primary hover:underline"
-							>
-								Ver turno anterior
-							</Link>
-						)}
-					</div>
-
-					<ExecutionLiveOutput runId={run.runId} running={running} />
-
-					<ExecutionResult runId={run.runId} output={run.output} />
-
-					{run.canContinue && (
-						<ExecutionContinuation
-							cli={run.cli ?? "claude"}
-							model={run.model}
-							pending={continueMutation.isPending}
-							draftKey={`kowork-execution-followup-${executionId}`}
-							onSubmit={(prompt, inputKind) =>
-								continueMutation.mutate({
-									runId: run.runId,
-									clientRequestId: newClientRequestId(),
-									prompt,
-									inputKind,
-								})
-							}
-						/>
-					)}
+			<div className="relative flex min-h-0 flex-1 flex-col">
+				<div
+					ref={viewport}
+					onScroll={(event) => {
+						const node = event.currentTarget;
+						setPinned(node.scrollHeight - node.scrollTop - node.clientHeight < 120);
+					}}
+					className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pb-4"
+				>
+					<SessionTimeline
+						events={events}
+						busy={busy}
+						pending={decide.isPending || answer.isPending}
+						onDecide={(requestId, decision, reason) =>
+							decide.mutate({
+								sessionId: session.id,
+								requestId,
+								decision,
+								...(reason ? { reason } : {}),
+							})
+						}
+						onAnswer={(questionId, input) =>
+							answer.mutate({
+								sessionId: session.id,
+								questionId,
+								answers: input.answers,
+								...(input.freeText ? { freeText: input.freeText } : {}),
+							})
+						}
+					/>
 				</div>
 
-				<aside className="border border-border bg-muted/20 p-4 lg:sticky lg:top-4">
-					<Title as="h2" size="xs" className="uppercase tracking-[0.12em]">
-						Instrução original
-					</Title>
-					<Text className="mt-3 whitespace-pre-wrap text-sm leading-6">
-						{run.originalPrompt ?? run.prompt}
-					</Text>
-					{run.error && (
-						<div className="mt-4 border-l-2 border-destructive bg-destructive/5 p-3">
-							<Text className="text-sm text-destructive">{run.error}</Text>
-						</div>
-					)}
-					{run.taskId && (
-						<Button asChild variant="outline" size="sm" className="mt-4 w-full">
-							<Link to="/tarefas/$taskId" params={{ taskId: run.taskId }}>
-								Abrir tarefa
-							</Link>
-						</Button>
-					)}
-				</aside>
+				{!pinned && (
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => {
+							setPinned(true);
+							scrollToEnd();
+						}}
+						className="absolute bottom-24 left-1/2 z-20 -translate-x-1/2 bg-background shadow-[3px_3px_0_var(--border)]"
+					>
+						<ArrowDown className="size-4" />
+						Ir para o fim
+					</Button>
+				)}
+
+				{live ? (
+					<ThreadComposer
+						draftKey={`kowork-session-draft-${session.id}`}
+						projectName={session.projectName}
+						disabled={busy || !!pending}
+						pending={turn.isPending}
+						hint={composerHint}
+						onSubmit={(prompt, inputKind) => {
+							setPinned(true);
+							turn.mutate({ sessionId: session.id, prompt, inputKind });
+						}}
+					/>
+				) : (
+					<NewSessionHandoff
+						projectId={session.projectId}
+						endReason={endReason}
+						{...(session.taskId ? { taskId: session.taskId } : {})}
+						{...(session.taskTitle ? { taskTitle: session.taskTitle } : {})}
+					/>
+				)}
 			</div>
 		</PageShell>
 	);

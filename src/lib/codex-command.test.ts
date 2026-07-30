@@ -67,6 +67,31 @@ describe("buildCodexExecArgs", () => {
 		]);
 	});
 
+	// A pergunta com opções só chega ao codex por MCP, e MCP no codex é config, não flag.
+	test("o servidor MCP do koworker entra como override de config", () => {
+		expect(
+			buildCodexExecArgs({
+				prompt: "turno da sessão",
+				approvalMode: "fullAuto",
+				persistSession: true,
+				structuredOutput: true,
+				mcpUrl: "http://127.0.0.1:3210/mcp/session/abc",
+				cwd: "/projeto",
+			}),
+		).toEqual([
+			"codex",
+			"exec",
+			"-c",
+			'mcp_servers.koworker.url="http://127.0.0.1:3210/mcp/session/abc"',
+			"--skip-git-repo-check",
+			"-C",
+			"/projeto",
+			"--full-auto",
+			"--json",
+			"turno da sessão",
+		]);
+	});
+
 	test("traduz modos de sandbox aceitos pelo subcomando resume", () => {
 		expect(
 			buildCodexExecArgs({

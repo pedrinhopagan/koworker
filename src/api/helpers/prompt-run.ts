@@ -1,18 +1,25 @@
 import { type InvokeCli } from "@/constants/invoke";
+import { type AgentStep, createAgentStreamParser, mergeAgentSteps } from "@/lib/agent-stream";
 import { buildClaudeArgv } from "@/lib/claude-command";
 import { buildCodexExecArgs } from "@/lib/codex-command";
 import { ORPCError } from "@orpc/server";
-import { z } from "zod";
 import type { execution_runs } from "../db/connection";
 import { dbExecutionRuns } from "../db/execution-runs";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
 import { PubSub, type PromptRunEvent } from "../pubsub";
+import {
+	type ExecutionTerminalHandle,
+	openExecutionTerminal,
+	readNewLogBytes,
+} from "./execution-terminal";
 import { finishFlowRunExternally, FLOW_TIMEOUT_MS } from "./flow";
+import { getSystemSettings } from "./system-settings";
 import { PushNotifications } from "./push-notifications";
 import { getActiveRun, HEARTBEAT_STALE_MS, releaseRun, trackRun } from "./run-registry";
+import { applyRunStepPatches, getRunSteps } from "./run-steps";
 import { spawnCapture } from "./spawn";
-import { createTask, rollbackCreatedTask } from "./task-creation";
+import { createTask, rollbackCreatedTask, taskAutoTitleInstruction } from "./task-creation";
 import { withProjectStorageLock } from "./task-storage-coordinator";
 
 const RUN_TIMEOUT_MS = 45 * 60_000;
@@ -60,17 +67,6 @@ export type PromptRunRecord = {
 	parentRunId?: string;
 	cliSessionId?: string;
 };
-
-const CodexEventSchema = z.object({
-	type: z.string(),
-	thread_id: z.string().optional(),
-	item: z
-		.object({
-			type: z.string(),
-			text: z.string().optional(),
-		})
-		.optional(),
-});
 
 function truncateOutput(value: string): string {
 	if (value.length <= MAX_OUTPUT_CHARS) {
@@ -121,97 +117,52 @@ function toPromptRunRecord(row: execution_runs): PromptRunRecord {
 	};
 }
 
-export function parseCodexOutput(stdout: string) {
-	const messages: string[] = [];
-	let cliSessionId: string | undefined;
-
-	for (const line of stdout.split("\n")) {
-		if (!line.trim()) {
-			continue;
-		}
-
-		let json: unknown;
-		try {
-			json = JSON.parse(line);
-		} catch {
-			continue;
-		}
-		const event = CodexEventSchema.safeParse(json);
-		if (!event.success) {
-			continue;
-		}
-		if (event.data.type === "thread.started" && event.data.thread_id) {
-			cliSessionId = event.data.thread_id;
-		}
-		if (
-			event.data.type === "item.completed" &&
-			event.data.item?.type === "agent_message" &&
-			event.data.item.text
-		) {
-			messages.push(event.data.item.text);
-		}
-	}
-
-	return {
-		output: messages.at(-1) ?? stdout,
-		...(cliSessionId ? { cliSessionId } : {}),
-	};
-}
-
-function liveTextFromCodexLine(line: string): string {
-	if (!line.trim()) {
-		return "";
-	}
-
-	let json: unknown;
-	try {
-		json = JSON.parse(line);
-	} catch {
-		return "";
-	}
-	const event = CodexEventSchema.safeParse(json);
-	if (!event.success) {
-		return "";
-	}
-
-	return `${event.data.item?.text ?? event.data.type}\n`;
-}
-
-function createOutputStreamer(runId: string, cli: InvokeCli) {
-	let pendingLine = "";
+// Um só parser cobre o acompanhamento e o desfecho: o que sai do processo vira passo na tela na hora
+// e, no fim, o mesmo estado entrega o texto final e o id de sessão que permite continuar a conversa.
+function createRunStream(runId: string, cli: InvokeCli) {
+	const parser = createAgentStreamParser(cli);
 	let tail = "";
-	let dirty = false;
+	let pending: AgentStep[] = [];
 
-	const timer = setInterval(() => {
-		if (!dirty) {
+	function collect(steps: AgentStep[]) {
+		if (steps.length === 0) {
 			return;
 		}
-		dirty = false;
-		void emit({ runId, status: "output", output: tail });
-	}, LIVE_OUTPUT_INTERVAL_MS);
-	timer.unref();
-
-	function append(text: string) {
-		if (!text) {
-			return;
-		}
-		tail = `${tail}${text}`.slice(-LIVE_OUTPUT_MAX_CHARS);
-		dirty = true;
+		pending = mergeAgentSteps(pending, steps);
+		tail =
+			`${tail}${steps.map((step) => `${step.label}${step.detail ? `: ${step.detail}` : ""}\n`).join("")}`.slice(
+				-LIVE_OUTPUT_MAX_CHARS,
+			);
 	}
+
+	function flushToClients() {
+		if (pending.length === 0) {
+			return;
+		}
+		const steps = pending;
+		pending = [];
+		void emit({ runId, status: "step", steps, output: tail });
+	}
+
+	const timer = setInterval(flushToClients, LIVE_OUTPUT_INTERVAL_MS);
+	timer.unref();
+	let stopped = false;
 
 	return {
 		push(chunk: string) {
-			if (cli !== "codex") {
-				append(chunk);
-				return;
+			collect(applyRunStepPatches(runId, parser.push(chunk)));
+		},
+		// Idempotente: o desfecho normal encerra o fluxo para ler o resultado e o `finally` encerra de
+		// novo quando o processo morre antes disso.
+		stop() {
+			if (!stopped) {
+				stopped = true;
+				collect(applyRunStepPatches(runId, parser.flush()));
+				flushToClients();
+				clearInterval(timer);
 			}
 
-			const lines = `${pendingLine}${chunk}`.split("\n");
-			pendingLine = lines.pop() ?? "";
-			append(lines.map(liveTextFromCodexLine).join(""));
-		},
-		stop() {
-			clearInterval(timer);
+			return parser.result();
 		},
 	};
 }
@@ -252,7 +203,7 @@ async function assertTaskStorageStable(projectId: string, taskId: string) {
 		dbTasks.getById(taskId),
 	]);
 	if (!project || !task) {
-		throw new Error("A tarefa desta execução não existe mais");
+		throw new ORPCError("NOT_FOUND", { message: "A tarefa desta execução não existe mais" });
 	}
 
 	return withProjectStorageLock(
@@ -300,7 +251,7 @@ async function finishRun(params: {
 	}).catch(() => {});
 }
 
-async function runInBackground(params: {
+type RunProcessParams = {
 	runId: string;
 	userId: number;
 	title: string;
@@ -308,9 +259,12 @@ async function runInBackground(params: {
 	cmd: string[];
 	controller: AbortController;
 	cli: InvokeCli;
-}): Promise<void> {
+};
+
+async function runInBackground(params: RunProcessParams): Promise<void> {
 	const { runId, cwd, cmd } = params;
-	const streamer = createOutputStreamer(runId, params.cli);
+	const stream = createRunStream(runId, params.cli);
+	let parsed: ReturnType<typeof stream.stop> = {};
 
 	try {
 		const { stdout, stderr, exitCode, timedOut, cancelled } = await spawnCapture({
@@ -319,8 +273,9 @@ async function runInBackground(params: {
 			timeoutMs: RUN_TIMEOUT_MS,
 			env: HEADLESS_ENV,
 			signal: params.controller.signal,
-			onStdout: streamer.push,
+			onStdout: stream.push,
 		});
+		parsed = stream.stop();
 
 		if (cancelled) {
 			await finishRun({
@@ -344,7 +299,7 @@ async function runInBackground(params: {
 			return;
 		}
 
-		const result = params.cli === "codex" ? parseCodexOutput(stdout) : { output: stdout };
+		const result = { output: parsed.output ?? stdout, cliSessionId: parsed.sessionId };
 
 		if (exitCode !== 0) {
 			await finishRun({
@@ -368,16 +323,177 @@ async function runInBackground(params: {
 			...(result.cliSessionId ? { cliSessionId: result.cliSessionId } : {}),
 		});
 	} catch (err) {
+		const sessionId = stream.stop().sessionId;
 		await finishRun({
 			runId,
 			userId: params.userId,
 			title: params.title,
 			status: "failed",
 			error: err instanceof Error ? err.message : "Erro inesperado na execução",
+			...(sessionId ? { cliSessionId: sessionId } : {}),
 		});
 	} finally {
-		streamer.stop();
+		stream.stop();
 		releaseRun(runId);
+	}
+}
+
+async function runViaKwTerminal(params: RunProcessParams): Promise<void> {
+	const settings = await getSystemSettings().catch(() => null);
+	if (settings?.terminalMultiplexer !== "kw-terminal") {
+		return runInBackground(params);
+	}
+
+	const handle = await openExecutionTerminal({
+		runId: params.runId,
+		title: params.title,
+		cwd: params.cwd,
+		cmd: params.cmd,
+	}).catch(() => null);
+	if (!handle) {
+		return runInBackground(params);
+	}
+
+	return runInTerminal(params, handle);
+}
+
+async function runInTerminal(
+	params: RunProcessParams,
+	handle: ExecutionTerminalHandle,
+): Promise<void> {
+	const { runId } = params;
+	const stream = createRunStream(runId, params.cli);
+	const decoder = new TextDecoder();
+	const startedAt = Date.now();
+	let offset = 0;
+	let stdout = "";
+	let exitCode: number | null = null;
+	let cancelled = false;
+	let timedOut = false;
+	let tabClosed = false;
+	let lastTabCheck = startedAt;
+
+	async function drain() {
+		const chunk = await readNewLogBytes({ path: handle.logPath, offset, decoder });
+		offset = chunk.next;
+		if (chunk.text) {
+			stdout += chunk.text;
+			stream.push(chunk.text);
+		}
+	}
+
+	try {
+		while (true) {
+			await drain();
+
+			const exitText = await Bun.file(handle.exitPath)
+				.text()
+				.catch(() => "");
+			if (exitText.trim()) {
+				await drain();
+				exitCode = Number.parseInt(exitText.trim(), 10);
+				break;
+			}
+
+			if (params.controller.signal.aborted) {
+				cancelled = true;
+				break;
+			}
+
+			if (Date.now() - startedAt > RUN_TIMEOUT_MS) {
+				timedOut = true;
+				break;
+			}
+
+			if (Date.now() - lastTabCheck > 5_000) {
+				lastTabCheck = Date.now();
+				if (!(await handle.tabAlive())) {
+					tabClosed = true;
+					break;
+				}
+			}
+
+			await Bun.sleep(400);
+		}
+
+		const parsed = stream.stop();
+
+		if (cancelled || timedOut) {
+			await handle.closeTab();
+		}
+
+		if (cancelled) {
+			await finishRun({
+				runId,
+				userId: params.userId,
+				title: params.title,
+				status: "cancelled",
+				error: "A execução foi cancelada.",
+			});
+			return;
+		}
+
+		if (timedOut) {
+			await finishRun({
+				runId,
+				userId: params.userId,
+				title: params.title,
+				status: "timeout",
+				error: "A execução excedeu o tempo limite de 45 minutos.",
+			});
+			return;
+		}
+
+		const result = { output: parsed.output ?? stdout, cliSessionId: parsed.sessionId };
+
+		if (tabClosed) {
+			await finishRun({
+				runId,
+				userId: params.userId,
+				title: params.title,
+				status: "cancelled",
+				error: "A tab da execução foi fechada no kw-terminal antes do fim.",
+				output: truncateOutput(result.output),
+				...(result.cliSessionId ? { cliSessionId: result.cliSessionId } : {}),
+			});
+			return;
+		}
+
+		if (exitCode !== 0) {
+			await finishRun({
+				runId,
+				userId: params.userId,
+				title: params.title,
+				status: "failed",
+				error: failureMessage(exitCode ?? 1, stdout.slice(-MAX_ERROR_DETAIL_CHARS)),
+				output: truncateOutput(result.output),
+				...(result.cliSessionId ? { cliSessionId: result.cliSessionId } : {}),
+			});
+			return;
+		}
+
+		await finishRun({
+			runId,
+			userId: params.userId,
+			title: params.title,
+			status: "done",
+			output: truncateOutput(result.output),
+			...(result.cliSessionId ? { cliSessionId: result.cliSessionId } : {}),
+		});
+	} catch (err) {
+		const sessionId = stream.stop().sessionId;
+		await finishRun({
+			runId,
+			userId: params.userId,
+			title: params.title,
+			status: "failed",
+			error: err instanceof Error ? err.message : "Erro inesperado na execução",
+			...(sessionId ? { cliSessionId: sessionId } : {}),
+		});
+	} finally {
+		stream.stop();
+		releaseRun(runId);
+		void handle.cleanup();
 	}
 }
 
@@ -427,7 +543,9 @@ export async function startPromptRun(params: {
 	);
 	if (existing) {
 		if (existing.request_fingerprint !== requestFingerprint) {
-			throw new Error("A identificação desta requisição já foi usada por outra execução");
+			throw new ORPCError("CONFLICT", {
+				message: "A identificação desta requisição já foi usada por outra execução",
+			});
 		}
 
 		return { runId: existing.id };
@@ -484,14 +602,18 @@ export async function startPromptRun(params: {
 			// O índice único de sessão em andamento é a defesa contra dois turnos simultâneos no mesmo
 			// histórico do CLI. Sem tradução, o usuário recebia o texto cru da constraint do SQLite.
 			if (params.resumeSessionId && error instanceof Error && error.message.includes("UNIQUE")) {
-				throw new Error("Esta sessão já tem uma continuação em andamento. Aguarde ela terminar.");
+				throw new ORPCError("CONFLICT", {
+					message: "Esta sessão já tem uma continuação em andamento. Aguarde ela terminar.",
+				});
 			}
 
 			throw error;
 		});
 	if (created.id !== runId) {
 		if (created.request_fingerprint !== requestFingerprint) {
-			throw new Error("A identificação desta requisição já foi usada por outra execução");
+			throw new ORPCError("CONFLICT", {
+				message: "A identificação desta requisição já foi usada por outra execução",
+			});
 		}
 		return { runId: created.id };
 	}
@@ -516,7 +638,7 @@ export async function startPromptRun(params: {
 	let taskId = params.taskId;
 	let title = params.title;
 	let prompt = params.prompt;
-	if (params.createTaskTitle) {
+	if (params.createTaskTitle !== undefined) {
 		if (controller.signal.aborted) {
 			await finishRun({
 				runId,
@@ -530,7 +652,7 @@ export async function startPromptRun(params: {
 		}
 		const task = await createTask({
 			projectId: params.projectId,
-			title: params.createTaskTitle,
+			...(params.createTaskTitle ? { title: params.createTaskTitle } : {}),
 			complexity: "medio",
 			seed: true,
 		}).catch(async (error) => {
@@ -549,8 +671,11 @@ export async function startPromptRun(params: {
 		}
 
 		taskId = task.id;
-		title = task.title ?? params.createTaskTitle;
-		prompt = `${params.cli === "codex" ? "$kw" : "/kw"} ${task.folder_path}/index.md\n\n${params.prompt}`;
+		title = task.title ?? title;
+		const kwLine = `${params.cli === "codex" ? "$kw" : "/kw"} ${task.folder_path}/index.md`;
+		prompt = params.createTaskTitle
+			? `${kwLine}\n\n${params.prompt}`
+			: `${kwLine}\n\n${taskAutoTitleInstruction(task.id)}\n\n${params.prompt}`;
 		// Zerar `create_task_title` no mesmo update que grava o vínculo deixa a intenção "criar tarefa"
 		// consumida: um retry deste run reaproveita a tarefa em vez de criar uma segunda com o mesmo
 		// título.
@@ -654,7 +779,7 @@ export async function startPromptRun(params: {
 						: { sessionId: runId }),
 				});
 
-	void runInBackground({
+	const runParams = {
 		runId,
 		userId: params.userId,
 		title,
@@ -662,7 +787,13 @@ export async function startPromptRun(params: {
 		cmd,
 		controller,
 		cli: params.cli,
-	});
+	};
+
+	if (params.source === "execution_route") {
+		void runViaKwTerminal(runParams);
+	} else {
+		void runInBackground(runParams);
+	}
 
 	return { runId };
 }
@@ -732,6 +863,49 @@ export async function getPromptRun(runId: string, userId: number) {
 				canContinue: record.status === "done" && !!record.cli_session_id,
 			})
 		: null;
+}
+
+// A conversa é o que o usuário enxerga no celular: os turnos em ordem, cada um com o que foi pedido,
+// o que o agente respondeu e os passos que ainda estiverem em memória. Um run sem sessão (Codex antes
+// do primeiro desfecho) é uma conversa de um turno só.
+export async function getPromptThread(runId: string, userId: number) {
+	const run = await dbExecutionRuns.getDetailedByIdForUser(runId, userId);
+	if (!run) {
+		return null;
+	}
+
+	const rows = run.cli_session_id
+		? await dbExecutionRuns.listThreadForUser(run.cli_session_id, userId)
+		: [run];
+	const turns = rows.map((row) =>
+		Object.assign(toPromptRunRecord(row), {
+			projectName: row.project_name ?? "Projeto removido",
+			taskTitle: row.task_title ?? undefined,
+			steps: getRunSteps(row.id),
+		}),
+	);
+	const last = turns.at(-1) ?? toPromptRunRecord(run);
+	// Retomar a sessão do CLI parte do último turno que chegou ao fim: se o turno mais recente falhou
+	// ou foi interrompido, a conversa continua do que ficou de pé em vez de morrer ali.
+	const resumable = run.cli_session_id
+		? turns.findLast((turn) => turn.status === "done")
+		: undefined;
+
+	return {
+		threadId: run.cli_session_id ?? run.id,
+		projectId: run.project_id,
+		projectName: run.project_name ?? "Projeto removido",
+		...(run.task_id ? { taskId: run.task_id } : {}),
+		...(run.task_title ? { taskTitle: run.task_title } : {}),
+		title: run.title,
+		cli: run.cli ?? "claude",
+		...(run.model ? { model: run.model } : {}),
+		latestRunId: last.runId,
+		...(resumable ? { continueFromRunId: resumable.runId } : {}),
+		status: last.status,
+		canContinue: !!resumable && last.status !== "running",
+		turns,
+	};
 }
 
 export async function listPromptRuns(userId: number, limit: number) {

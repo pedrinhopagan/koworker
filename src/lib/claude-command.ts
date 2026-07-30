@@ -21,7 +21,9 @@ export function buildClaudeArgv(params: ClaudeCommandParams): string[] {
 	const argv = ["claude"];
 
 	if (params.headless) {
-		argv.push("-p");
+		// Sem stream-json o headless só devolve o texto final: nada do que o agente fez pelo caminho
+		// chega ao PWA. `--verbose` é o que libera o fluxo evento a evento com `-p`.
+		argv.push("-p", "--output-format", "stream-json", "--verbose");
 	}
 
 	argv.push(...permissionArgs(params.permissionMode));

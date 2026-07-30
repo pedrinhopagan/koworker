@@ -10,6 +10,10 @@ export function imagePlaceholder(index: number): string {
 	return `[Imagem ${index}]`;
 }
 
+export function nextImageIndex(images: { index: number }[]): number {
+	return images.reduce((max, image) => Math.max(max, image.index), 0) + 1;
+}
+
 export function resolveImagePlaceholders(
 	text: string,
 	images: { index: number; name: string }[],

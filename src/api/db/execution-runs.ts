@@ -16,6 +16,7 @@ type ExecutionRunCreate = Pick<
 		Pick<
 			execution_runs,
 			| "task_id"
+			| "session_id"
 			| "client_request_id"
 			| "request_fingerprint"
 			| "parent_run_id"
@@ -111,6 +112,23 @@ export const dbExecutionRuns = {
 			.where("er.deleted_at", "is", null)
 			.orderBy("er.started_at", "desc")
 			.limit(limit)
+			.execute();
+	},
+
+	// Todos os turnos de uma conversa compartilham o `cli_session_id`: o primeiro run cria a sessão e
+	// cada continuação herda a mesma. Ordem cronológica porque a tela é uma conversa, não um histórico.
+	listThreadForUser(cliSessionId: string, userId: number) {
+		return db
+			.selectFrom("execution_runs as er")
+			.leftJoin("projects as p", "p.id", "er.project_id")
+			.leftJoin("tasks as t", "t.id", "er.task_id")
+			.selectAll("er")
+			.select(["p.name as project_name", "t.title as task_title"])
+			.where("er.cli_session_id", "=", cliSessionId)
+			.where("er.user_id", "=", userId)
+			.where("er.kind", "=", "prompt")
+			.where("er.deleted_at", "is", null)
+			.orderBy("er.started_at", "asc")
 			.execute();
 	},
 

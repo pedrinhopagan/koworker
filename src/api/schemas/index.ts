@@ -1,6 +1,7 @@
 import { AuthLoginSchema } from "./auth";
 
 export { AuthLoginSchema } from "./auth";
+export { AgentRadarPaneSchema, AgentRadarSendSchema } from "./agent-radar";
 export {
 	MediaDeleteSchema,
 	MediaListSchema,
@@ -25,6 +26,16 @@ export {
 	PriorityUpdateSchema,
 } from "./priorities";
 export { FlowTaskSchema } from "./flow";
+export {
+	AgentSessionAnswerSchema,
+	AgentSessionClearSchema,
+	AgentSessionIdSchema,
+	AgentSessionListSchema,
+	AgentSessionModeSchema,
+	AgentSessionPermissionSchema,
+	AgentSessionStartSchema,
+	AgentSessionTurnSchema,
+} from "./agent-session";
 export {
 	AudioTranscriptionSchema,
 	PromptAutofillResultSchema,

@@ -1,5 +1,9 @@
 import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
 
+import type { AgentRadarTranscriptEnvelope } from "@/api/helpers/agent-radar/transcript";
+import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import type { AgentSessionEvent, AgentSessionStatus } from "@/lib/agent-session";
+import type { AgentStep } from "@/lib/agent-stream";
 import type { TaskStage } from "@/constants/complexity";
 
 const publisher = new MemoryPublisher<Record<string, object>>();
@@ -15,16 +19,36 @@ export type FlowEvent = {
 	message: string | null;
 };
 
+// `output` é a cauda crua do processo e `step` são os passos já interpretados do agente (ferramenta,
+// alvo, desfecho). Os dois viajam pelo mesmo canal: quem só quer saber se terminou lê `status`.
 export type PromptRunEvent = {
 	runId: string;
-	status: "started" | "output" | "done" | "failed" | "timeout" | "cancelled";
+	status: "started" | "output" | "step" | "done" | "failed" | "timeout" | "cancelled";
 	output?: string;
 	error?: string;
+	steps?: AgentStep[];
+};
+
+// A conversa de uma sessão viva. `events` carrega blocos novos ou já conhecidos que mudaram de
+// estado (ferramenta que terminou, permissão respondida) — o `seq` de cada um é a identidade que o
+// front usa para juntar. `busy` é o agente trabalhando; `status` só aparece quando a sessão muda.
+export type AgentSessionEnvelope = {
+	sessionId: string;
+	events?: AgentSessionEvent[];
+	status?: AgentSessionStatus;
+	busy?: boolean;
+	endReason?: string;
 };
 
 type PubSubChannels = {
+	// A central de agents publica o mapa inteiro a cada mudança: a lista é curta e o snapshot completo
+	// dispensa o cliente reconstruir estado a partir de deltas depois de uma reconexão.
+	agentRadar: { agents: RadarAgent[] };
+	// A conversa que o CLI de um pane está gravando no disco, publicada por `paneId`.
+	agentRadarTranscript: AgentRadarTranscriptEnvelope;
 	flow: FlowEvent;
 	promptRun: PromptRunEvent;
+	agentSession: AgentSessionEnvelope;
 	notification: {
 		title: string;
 		message: string;
@@ -35,6 +59,11 @@ type PubSubChannels = {
 		projectId: string;
 		action: "created" | "updated" | "deleted";
 		source: "api" | "cli" | "fs";
+	};
+	// Pedido externo de navegação: o kw-terminal manda a rota da tarefa em que o
+	// agente está trabalhando e o app abre essa rota na janela aberta.
+	navigate: {
+		route: string;
 	};
 };
 

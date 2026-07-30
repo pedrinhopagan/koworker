@@ -428,6 +428,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS task_storage_runs_active_project_unique_idx
 	sqlite.exec(
 		"CREATE INDEX IF NOT EXISTS execution_runs_user_started_idx ON execution_runs (user_id, started_at DESC)",
 	);
+	if (!hasColumn(tableInfo(sqlite, "agent_sessions"), "cli_session_id")) {
+		ensureColumn(sqlite, "agent_sessions", "cli_session_id TEXT");
+	}
 	for (const [name, definition] of [
 		["client_request_id", "TEXT"],
 		["request_fingerprint", "TEXT"],
@@ -445,11 +448,27 @@ CREATE UNIQUE INDEX IF NOT EXISTS task_storage_runs_active_project_unique_idx
 		["approval_mode", "TEXT"],
 		["deleted_at", "INTEGER"],
 		["heartbeat_at", "INTEGER"],
+		["session_id", "TEXT REFERENCES agent_sessions(id) ON DELETE SET NULL"],
 	] as const) {
 		if (!hasColumn(tableInfo(sqlite, "execution_runs"), name)) {
 			ensureColumn(sqlite, "execution_runs", `${name} ${definition}`);
 		}
 	}
+	sqlite.exec(
+		"CREATE INDEX IF NOT EXISTS execution_runs_session_id_idx ON execution_runs (session_id)",
+	);
+	sqlite.exec(
+		"CREATE INDEX IF NOT EXISTS agent_sessions_user_started_idx ON agent_sessions (user_id, started_at DESC)",
+	);
+	sqlite.exec(
+		"CREATE INDEX IF NOT EXISTS agent_sessions_status_heartbeat_idx ON agent_sessions (status, heartbeat_at)",
+	);
+	sqlite.exec(
+		"CREATE UNIQUE INDEX IF NOT EXISTS agent_sessions_live_task_idx ON agent_sessions (task_id) WHERE task_id IS NOT NULL AND status = 'live' AND deleted_at IS NULL",
+	);
+	sqlite.exec(
+		"CREATE UNIQUE INDEX IF NOT EXISTS agent_events_session_seq_idx ON agent_events (session_id, seq)",
+	);
 	sqlite.exec(
 		"CREATE UNIQUE INDEX IF NOT EXISTS execution_runs_user_request_idx ON execution_runs (user_id, client_request_id) WHERE client_request_id IS NOT NULL",
 	);

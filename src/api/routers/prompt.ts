@@ -7,9 +7,11 @@ import { dbExecutionRuns } from "../db/execution-runs";
 import {
 	cancelPromptRun,
 	getPromptRun,
+	getPromptThread,
 	listPromptRuns,
 	startPromptRun,
 } from "../helpers/prompt-run";
+import { dropRunSteps, getRunSteps } from "../helpers/run-steps";
 import { runPromptAutofill } from "../helpers/prompt-autofill";
 import { transcribeAudio } from "../helpers/audio-transcription";
 import {
@@ -68,9 +70,32 @@ export const promptRouter = {
 		.input(PromptRunListSchema)
 		.handler(({ input, context }) => listPromptRuns(context.user.id, input.limit)),
 
-	clearRuns: protectedProcedure.input(PromptRunClearSchema).handler(async ({ input, context }) => ({
-		cleared: await dbExecutionRuns.softDeleteFinishedForUser(input.runIds, context.user.id),
-	})),
+	clearRuns: protectedProcedure.input(PromptRunClearSchema).handler(async ({ input, context }) => {
+		const cleared = await dbExecutionRuns.softDeleteFinishedForUser(input.runIds, context.user.id);
+		dropRunSteps(input.runIds);
+
+		return { cleared };
+	}),
+
+	thread: protectedProcedure.input(PromptRunIdSchema).handler(async ({ input, context }) => {
+		const thread = await getPromptThread(input.runId, context.user.id);
+		if (!thread) {
+			throw new ORPCError("NOT_FOUND", { message: "Conversa não encontrada" });
+		}
+
+		return thread;
+	}),
+
+	// O detalhe do que o agente fez vive na memória do executor: quem abre a conversa depois de uma
+	// reconexão pega o estado inteiro aqui e o streaming continua de onde parou.
+	runSteps: protectedProcedure.input(PromptRunIdSchema).handler(async ({ input, context }) => {
+		const run = await dbExecutionRuns.getByIdForUser(input.runId, context.user.id);
+		if (!run) {
+			throw new ORPCError("NOT_FOUND", { message: "Execução não encontrada" });
+		}
+
+		return { steps: getRunSteps(input.runId) };
+	}),
 
 	retry: protectedProcedure.input(PromptRunRetrySchema).handler(async ({ input, context }) => {
 		const run = await dbExecutionRuns.getByIdForUser(input.runId, context.user.id);

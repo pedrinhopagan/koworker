@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useRovingListbox } from "@/hooks/use-roving-listbox";
 import { useTaskSortMode } from "@/hooks/use-task-sort-mode";
 import { sortTasksByMode } from "@/lib/task-sorting";
 import type { TaskWithMeta } from "@/types/tasks";
@@ -113,6 +114,31 @@ export function ExecutionTaskPicker({
 		return sections.filter((section) => section.tasks.length > 0);
 	}, [categories, filteredTasks, groups, priorities, sortMode]);
 
+	const flatTasks = useMemo(() => groupedTasks.flatMap((section) => section.tasks), [groupedTasks]);
+	const indexById = useMemo(
+		() => new Map(flatTasks.map((task, index) => [task.id, index])),
+		[flatTasks],
+	);
+
+	function selectTask(taskId: string) {
+		onChange(taskId);
+		close();
+	}
+
+	const { activeIndex, focusedIndex, setActiveIndex, onKeyDown } = useRovingListbox({
+		count: flatTasks.length,
+		onSelect: (index) => {
+			const task = flatTasks[index];
+			if (task) {
+				selectTask(task.id);
+			}
+		},
+	});
+
+	useEffect(() => {
+		setActiveIndex(0);
+	}, [query, filters, setActiveIndex]);
+
 	useEffect(() => {
 		if (!open) {
 			return;
@@ -137,19 +163,30 @@ export function ExecutionTaskPicker({
 
 	return (
 		<>
-			<div ref={triggerRef} className="flex min-w-0 flex-1 flex-col gap-0.5">
-				<Text size="xs">Tarefa</Text>
+			<div ref={triggerRef} className="flex min-w-0 flex-1 flex-col gap-1.5">
+				<Text
+					as="span"
+					size="xs"
+					className="font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+				>
+					Tarefa
+				</Text>
 				<button
 					type="button"
 					disabled={disabled || loading}
 					onClick={() => setOpen(true)}
-					className="flex h-9 min-w-0 items-center gap-3 border border-input bg-card px-3 text-left text-sm transition-colors hover:border-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+					className="flex h-10 min-w-0 items-center gap-3 border border-input bg-card px-3 text-left text-sm transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					<ListFilter className="size-4 shrink-0 text-muted-foreground" />
-					<span className={cn("min-w-0 flex-1 truncate", !selectedTask && "text-muted-foreground")}>
+					<span
+						className={cn(
+							"min-w-0 flex-1 truncate font-medium",
+							selectedTask ? "text-foreground" : "text-muted-foreground",
+						)}
+					>
 						{loading
 							? "Carregando tarefas…"
-							: (selectedTask?.displayTitle ?? "Escolher tarefa ou executar sem vínculo")}
+							: (selectedTask?.displayTitle ?? "Criar tarefa nova para esta conversa")}
 					</span>
 					{selectedTask?.done && <CheckCircle2 className="size-4 shrink-0 text-primary" />}
 				</button>
@@ -162,100 +199,109 @@ export function ExecutionTaskPicker({
 				description="A lista começa pelas pendentes e segue os mesmos filtros de Tarefas."
 				className="max-w-3xl"
 			>
-				<div className="relative">
-					<Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						value={query}
-						onChange={(event) => setQuery(event.target.value)}
-						placeholder="Buscar pelo título ou diretório…"
-						className="pr-10 pl-10"
-						autoFocus
-					/>
-					{query && (
-						<Button
-							type="button"
-							variant="ghost"
-							size="icon-sm"
-							onClick={() => setQuery("")}
-							className="absolute top-1/2 right-1 -translate-y-1/2"
-							aria-label="Limpar busca"
-						>
-							<X className="size-4" />
-						</Button>
-					)}
-				</div>
-
-				<div className="mt-3">
-					<ExecutionTaskFilters
-						value={filters}
-						categories={categories}
-						priorities={priorities}
-						onChange={setFilters}
-					/>
-				</div>
-
-				<button
-					type="button"
-					onClick={() => {
-						onClear();
-						close();
-					}}
-					className="mt-3 flex min-h-12 w-full items-center gap-3 border border-dashed border-border px-3 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-				>
-					<span className="flex size-7 shrink-0 items-center justify-center border border-border bg-background">
-						{!selectedTask && <Check className="size-4" />}
-					</span>
-					<span>
-						<Text className="font-semibold">Executar sem tarefa</Text>
-						<Text size="xs" tone="muted">
-							Usa apenas o projeto como diretório de trabalho.
-						</Text>
-					</span>
-				</button>
-
-				<div className="my-3 flex items-center justify-between gap-3 border-b border-border pb-2">
-					<Text className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-						Tarefas
-					</Text>
-					<span className="flex min-w-0 items-center gap-2">
-						<TaskSortControls value={sortMode} onChange={setSortMode} />
-						<Text size="xs" tone="muted" className="shrink-0 tabular-nums">
-							{filteredTasks.length} de {tasks.length}
-						</Text>
-					</span>
-				</div>
-
-				{filteredTasks.length === 0 && (
-					<div className="border border-dashed border-border p-8 text-center">
-						<Search className="mx-auto mb-3 size-5 text-muted-foreground" />
-						<Title as="h3" size="sm">
-							Nenhuma tarefa encontrada
-						</Title>
-						<Text size="sm" tone="muted">
-							Ajuste a busca ou os filtros.
-						</Text>
+				<div onKeyDown={onKeyDown}>
+					<div className="relative">
+						<Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+						<Input
+							value={query}
+							onChange={(event) => setQuery(event.target.value)}
+							placeholder="Buscar pelo título ou diretório…"
+							className="pr-10 pl-10"
+							autoFocus
+						/>
+						{query && (
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-sm"
+								onClick={() => setQuery("")}
+								className="absolute top-1/2 right-1 -translate-y-1/2"
+								aria-label="Limpar busca"
+							>
+								<X className="size-4" />
+							</Button>
+						)}
 					</div>
-				)}
 
-				<div className="flex flex-col gap-5" role="listbox" aria-label="Tarefas disponíveis">
-					{groupedTasks.map(({ group, tasks: sectionTasks }) => (
-						<section key={group?.id ?? "sem-feature"} className="flex flex-col gap-1.5">
-							<TaskGroupLabel name={group?.name} color={group?.color} count={sectionTasks.length} />
-							{sectionTasks.map((task) => (
-								<ExecutionTaskOption
-									key={task.id}
-									task={task}
-									category={task.category ?? undefined}
-									priority={task.priority ?? undefined}
-									selected={task.id === selectedTask?.id}
-									onSelect={() => {
-										onChange(task.id);
-										close();
-									}}
+					<div className="mt-3">
+						<ExecutionTaskFilters
+							value={filters}
+							categories={categories}
+							priorities={priorities}
+							onChange={setFilters}
+						/>
+					</div>
+
+					<button
+						type="button"
+						onClick={() => {
+							onClear();
+							close();
+						}}
+						className="mt-3 flex min-h-12 w-full items-center gap-3 border border-dashed border-border px-3 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+					>
+						<span className="flex size-7 shrink-0 items-center justify-center border border-border bg-background">
+							{!selectedTask && <Check className="size-4" />}
+						</span>
+						<span>
+							<Text className="font-semibold">Criar tarefa nova</Text>
+							<Text size="xs" tone="muted">
+								A conversa ganha uma pasta própria no projeto.
+							</Text>
+						</span>
+					</button>
+
+					<div className="my-3 flex items-center justify-between gap-3 border-b border-border pb-2">
+						<Text className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+							Tarefas
+						</Text>
+						<span className="flex min-w-0 items-center gap-2">
+							<TaskSortControls value={sortMode} onChange={setSortMode} />
+							<Text size="xs" tone="muted" className="shrink-0 tabular-nums">
+								{filteredTasks.length} de {tasks.length}
+							</Text>
+						</span>
+					</div>
+
+					{filteredTasks.length === 0 && (
+						<div className="border border-dashed border-border p-8 text-center">
+							<Search className="mx-auto mb-3 size-5 text-muted-foreground" />
+							<Title as="h3" size="sm">
+								Nenhuma tarefa encontrada
+							</Title>
+							<Text size="sm" tone="muted">
+								Ajuste a busca ou os filtros.
+							</Text>
+						</div>
+					)}
+
+					<div className="flex flex-col gap-5" role="listbox" aria-label="Tarefas disponíveis">
+						{groupedTasks.map(({ group, tasks: sectionTasks }) => (
+							<section key={group?.id ?? "sem-feature"} className="flex flex-col gap-1.5">
+								<TaskGroupLabel
+									name={group?.name}
+									color={group?.color}
+									count={sectionTasks.length}
 								/>
-							))}
-						</section>
-					))}
+								{sectionTasks.map((task) => {
+									const index = indexById.get(task.id) ?? -1;
+									return (
+										<ExecutionTaskOption
+											key={task.id}
+											task={task}
+											category={task.category ?? undefined}
+											priority={task.priority ?? undefined}
+											selected={task.id === selectedTask?.id}
+											active={index === activeIndex}
+											focused={index === focusedIndex}
+											onActivate={() => setActiveIndex(index)}
+											onSelect={() => selectTask(task.id)}
+										/>
+									);
+								})}
+							</section>
+						))}
+					</div>
 				</div>
 			</Dialog>
 		</>

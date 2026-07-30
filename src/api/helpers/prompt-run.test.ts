@@ -7,7 +7,6 @@ process.env.DATABASE_URL = ":memory:";
 process.env.JWT_SECRET = "prompt-run-test-secret";
 process.env.NODE_ENV = "development";
 
-let parseCodexOutput: typeof import("./prompt-run").parseCodexOutput;
 let startPromptRun: typeof import("./prompt-run").startPromptRun;
 let reconcileStaleRuns: typeof import("./prompt-run").reconcileStaleRuns;
 let dbExecutionRuns: typeof import("../db/execution-runs").dbExecutionRuns;
@@ -17,7 +16,7 @@ let FLOW_TIMEOUT_MS: number;
 let projectRoute: string;
 
 beforeAll(async () => {
-	({ parseCodexOutput, reconcileStaleRuns, startPromptRun } = await import("./prompt-run"));
+	({ reconcileStaleRuns, startPromptRun } = await import("./prompt-run"));
 	({ dbExecutionRuns } = await import("../db/execution-runs"));
 	({ trackRun, releaseRun } = await import("./run-registry"));
 	({ FLOW_TIMEOUT_MS } = await import("./flow"));
@@ -70,41 +69,6 @@ beforeAll(async () => {
 			created_at: 1,
 		})
 		.execute();
-});
-
-describe("parseCodexOutput", () => {
-	test("extrai a sessão e a mensagem final do JSONL", () => {
-		const result = parseCodexOutput(
-			[
-				JSON.stringify({ type: "thread.started", thread_id: "thread-123" }),
-				JSON.stringify({
-					type: "item.completed",
-					item: { type: "agent_message", text: "# Resultado\n\nTudo certo." },
-				}),
-			].join("\n"),
-		);
-
-		expect(result).toEqual({
-			output: "# Resultado\n\nTudo certo.",
-			cliSessionId: "thread-123",
-		});
-	});
-
-	test("ignora eventos inválidos sem perder o resultado válido", () => {
-		const result = parseCodexOutput(
-			[
-				"linha inválida",
-				JSON.stringify({ type: "thread.started", thread_id: "thread-456" }),
-				JSON.stringify({
-					type: "item.completed",
-					item: { type: "agent_message", text: "Resposta" },
-				}),
-			].join("\n"),
-		);
-
-		expect(result.output).toBe("Resposta");
-		expect(result.cliSessionId).toBe("thread-456");
-	});
 });
 
 describe("reconcileStaleRuns", () => {
