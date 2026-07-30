@@ -4,9 +4,14 @@ import { dbProjects } from "../db/projects";
 import { dbTaskGroups } from "../db/task-groups";
 import { dbTasks } from "../db/tasks";
 import { relinkTasks, withProjectStorageLock } from "../helpers/task-storage-coordinator";
-import { allocateStorageKey, normalizeStorageSlug } from "../helpers/task-storage-path";
+import {
+	allocateStorageKey,
+	buildFeatureFolderPath,
+	normalizeStorageSlug,
+} from "../helpers/task-storage-path";
 import {
 	TaskGroupCreateSchema,
+	TaskGroupFolderSchema,
 	TaskGroupIdSchema,
 	TaskGroupListSchema,
 	TaskGroupReorderSchema,
@@ -29,6 +34,31 @@ export const taskGroupsRouter = {
 			? await dbTaskGroups.listByProject(input.projectId)
 			: await dbTaskGroups.listAll();
 		return rows.map(mapTaskGroup);
+	}),
+
+	// Caminho da pasta da feature no disco, do jeito que ele viaja num prompt: `featureId` nulo é o
+	// pseudo-grupo "Sem grupo". Projeto em layout v1 não tem pasta de feature e devolve `path` nulo.
+	folder: protectedProcedure.input(TaskGroupFolderSchema).handler(async ({ input }) => {
+		const project = await dbProjects.getById(input.projectId);
+		if (!project) throw new Error("Projeto não encontrado");
+
+		const group = input.featureId ? await dbTaskGroups.getById(input.featureId) : null;
+		if (input.featureId && (!group || group.project_id !== project.id)) {
+			return { path: null, name: null, projectName: project.name };
+		}
+		if (group && !(group.storage_key && group.storage_slug)) {
+			return { path: null, name: group.name, projectName: project.name };
+		}
+
+		return {
+			path: buildFeatureFolderPath({
+				layoutVersion: project.task_layout_version,
+				featureStorageKey: group?.storage_key,
+				featureStorageSlug: group?.storage_slug,
+			}),
+			name: group?.name ?? null,
+			projectName: project.name,
+		};
 	}),
 
 	create: protectedProcedure.input(TaskGroupCreateSchema).handler(async ({ input }) => {

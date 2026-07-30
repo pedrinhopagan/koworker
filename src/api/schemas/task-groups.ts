@@ -8,6 +8,11 @@ export const TaskGroupListSchema = z.object({
 	projectId: z.string().min(1).optional(),
 });
 
+export const TaskGroupFolderSchema = z.object({
+	projectId: z.string().min(1),
+	featureId: z.string().min(1).nullable(),
+});
+
 export const TaskGroupCreateSchema = z.object({
 	projectId: z.string().trim().min(1),
 	name: z.string().trim().min(1),

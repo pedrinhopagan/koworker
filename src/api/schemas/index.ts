@@ -88,6 +88,7 @@ export {
 } from "./agents";
 export {
 	TaskGroupCreateSchema,
+	TaskGroupFolderSchema,
 	TaskGroupIdSchema,
 	TaskGroupListSchema,
 	TaskGroupReorderSchema,

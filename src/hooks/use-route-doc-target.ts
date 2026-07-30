@@ -5,8 +5,9 @@ import { orpc } from "@/client";
 import type { TaskStage } from "@/constants/complexity";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useSkillQuery } from "@/hooks/use-skills";
+import { NO_FEATURE_ROUTE_ID } from "@/routes/_app/tarefas/-utils/task-route-resolution";
 
-type RouteKind = "task" | "vault" | "docs" | "skill" | "none";
+type RouteKind = "task" | "feature" | "vault" | "docs" | "skill" | "none";
 
 export type RouteDocTarget = {
 	kind: RouteKind;
@@ -54,6 +55,30 @@ export function useRouteDocTarget(): RouteDocTarget {
 		enabled: nonTaskKind === "skill",
 	});
 
+	// `/tarefas/$featureId` reaproveita o segmento `$taskId`: quando a task não existe (ou o segmento
+	// é o pseudo-grupo "sem-feature"), a tela é a lista da feature e o alvo vira a pasta dela.
+	const noFeatureSegment = firstTaskSegment === NO_FEATURE_ROUTE_ID;
+	const featureSegment =
+		firstTaskSegment &&
+		!secondTaskSegment &&
+		!fileName &&
+		!slug &&
+		!splat &&
+		!canonicalFile &&
+		(noFeatureSegment || (firstTaskQuery.isFetched && !firstTaskQuery.data))
+			? firstTaskSegment
+			: null;
+	const featureProjectId = explicitProject?.id;
+	const featureFolderQuery = useQuery({
+		...orpc.taskGroups.folder.queryOptions({
+			input: {
+				projectId: featureProjectId ?? "",
+				featureId: noFeatureSegment ? null : featureSegment,
+			},
+		}),
+		enabled: !!featureSegment && !!featureProjectId,
+	});
+
 	const task = canonicalFile ? secondTaskQuery.data : (secondTaskQuery.data ?? firstTaskQuery.data);
 	if (task) {
 		const activeFile = canonicalFile || (firstTaskQuery.data ? secondTaskSegment : undefined);
@@ -65,6 +90,15 @@ export function useRouteDocTarget(): RouteDocTarget {
 			taskId: task.id,
 			categoryStructureSlug: task?.category?.structureSlug ?? null,
 			nextStage: task?.nextStage ?? null,
+		};
+	}
+
+	if (featureSegment) {
+		return {
+			kind: "feature",
+			path: featureFolderQuery.data?.path ?? null,
+			projectName: explicitProject?.name,
+			projectId: explicitProject?.id,
 		};
 	}
 

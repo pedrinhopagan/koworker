@@ -160,6 +160,23 @@ export function buildExpectedTaskFolderPath(input: {
 	);
 }
 
+export function buildFeatureFolderPath(input: {
+	layoutVersion: number;
+	featureStorageKey?: string | null;
+	featureStorageSlug?: string | null;
+}) {
+	if (input.layoutVersion !== TASK_STORAGE_LAYOUT_V2) {
+		return null;
+	}
+
+	const featureSegment =
+		input.featureStorageKey && input.featureStorageSlug
+			? storageFolderSegment(input.featureStorageSlug, input.featureStorageKey)
+			: TASK_STORAGE_NO_FEATURE;
+
+	return join(KOWORKER_DIR, TASK_STORAGE_NAMESPACE, featureSegment);
+}
+
 export async function resolveExistingTaskFolder(input: {
 	projectRoute: string;
 	folderPath: string;
