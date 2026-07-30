@@ -2,7 +2,8 @@ import { afterAll, expect, test } from "bun:test";
 
 import { PubSub } from "../../pubsub";
 import { sessionNameForProject } from "./names";
-import { Terminal, type TerminalConfig } from "./service";
+import type { KwTerminalAgent } from "./kw-terminal";
+import { selectAgentForCli, Terminal, type TerminalConfig } from "./service";
 import { tmuxKillSession, tmuxListWindows, tmuxSessionExists } from "./tmux";
 
 // Ciclo de vida real do modo tmux, sem GUI: `background: true` cria a sessão/janela no tmux mas não
@@ -19,6 +20,53 @@ afterAll(async () => {
 	if (hasTmux) {
 		await tmuxKillSession(sessionName);
 	}
+});
+
+function agentFixture(agent: string, cwd: string): KwTerminalAgent {
+	return {
+		agent,
+		agent_status: "idle",
+		cwd,
+		foreground_cwd: cwd,
+		focused: false,
+		pane_id: `pane-${cwd}`,
+		tab_id: `tab-${cwd}`,
+		terminal_id: `term-${agent}-${cwd}`,
+		workspace_id: `ws-${cwd}`,
+	};
+}
+
+const agents = [
+	agentFixture("codex", "/proj/app"),
+	agentFixture("claude", "/proj/app/pacote"),
+	agentFixture("claude", "/proj/app"),
+	agentFixture("claude", "/proj/outro"),
+];
+
+test("escolhe o agent do cli no cwd exato do projeto", () => {
+	expect(selectAgentForCli({ agents, cli: "claude", mainRoute: "/proj/app" })?.cwd).toBe(
+		"/proj/app",
+	);
+	expect(selectAgentForCli({ agents, cli: "codex", mainRoute: "/proj/app" })?.cwd).toBe(
+		"/proj/app",
+	);
+});
+
+test("aceita subpasta do projeto quando não há agent na raiz", () => {
+	const semRaiz = agents.filter((agent) => agent.cwd !== "/proj/app");
+
+	expect(selectAgentForCli({ agents: semRaiz, cli: "claude", mainRoute: "/proj/app" })?.cwd).toBe(
+		"/proj/app/pacote",
+	);
+});
+
+test("não cai para o agent de outro projeto", () => {
+	expect(selectAgentForCli({ agents, cli: "claude", mainRoute: "/proj/vazio" })).toBeNull();
+	expect(selectAgentForCli({ agents, cli: "codex", mainRoute: "/proj/outro" })).toBeNull();
+});
+
+test("sem projeto em foco pega a primeira sessão do cli", () => {
+	expect(selectAgentForCli({ agents, cli: "claude" })?.cwd).toBe("/proj/app/pacote");
 });
 
 test.skipIf(!hasTmux)("abre a sessão em background e rastreia a janela da tarefa", async () => {

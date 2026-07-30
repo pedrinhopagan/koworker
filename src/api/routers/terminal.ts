@@ -11,6 +11,7 @@ import { PubSub } from "../pubsub";
 import {
 	CloseProjectSessionSchema,
 	CloseTaskWindowSchema,
+	FocusAgentSchema,
 	InvocationSessionsSchema,
 	OpenForRouteSchema,
 	OpenForTaskSchema,
@@ -31,6 +32,18 @@ async function projectOrThrow(projectId: string) {
 }
 
 export const terminalRouter = {
+	focusAgent: protectedProcedure.input(FocusAgentSchema).handler(async ({ input }) => {
+		const project = input.projectId ? await projectOrThrow(input.projectId) : null;
+
+		return Terminal.focusAgent({
+			config: await terminalConfig(),
+			cli: input.cli,
+			...(project
+				? { projectId: project.id, projectName: project.name, mainRoute: project.main_route }
+				: {}),
+		});
+	}),
+
 	openForTask: protectedProcedure.input(OpenForTaskSchema).handler(async ({ input }) => {
 		const project = await projectOrThrow(input.projectId);
 		return Terminal.openForTask({

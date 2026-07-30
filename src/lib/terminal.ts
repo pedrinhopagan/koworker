@@ -1,6 +1,8 @@
 import { toast } from "sonner";
 
 import { orpc, type RouterInputs, type RouterOutputs } from "@/client";
+import type { InvokeCli } from "@/constants/invoke";
+import { errorMessage } from "@/lib/orpc-errors";
 
 // O terminal agora é um serviço do backend (spawn via Bun.spawn na máquina local), então funciona
 // igual no browser e no desktop — sem gate de Tauri. Cada função dispara a procedure e traduz o
@@ -71,6 +73,28 @@ async function openRoute(
 		const message = error instanceof Error ? error.message : "Erro ao abrir terminal";
 		if (showToast) toast.error(message);
 		return { success: false, message };
+	}
+}
+
+// Traz pra frente a sessão do CLI ativo que já está rodando no kw-terminal. Sem agent daquele CLI o
+// backend abre uma no projeto em foco; sem projeto em foco responde com o motivo e viramos toast.
+export async function focusCliAgent(params: {
+	cli: InvokeCli;
+	projectId?: string;
+}): Promise<boolean> {
+	try {
+		const { agent, cwd, opened } = await orpc.terminal.focusAgent.call({
+			cli: params.cli,
+			...(params.projectId ? { projectId: params.projectId } : {}),
+		});
+		const where = cwd.split("/").at(-1) || cwd;
+		toast.success(
+			opened ? `Sessão ${agent} aberta em ${where}` : `Foco na sessão ${agent} em ${where}`,
+		);
+		return true;
+	} catch (error) {
+		toast.error(errorMessage(error, "Erro ao focar o agent no kw-terminal"));
+		return false;
 	}
 }
 

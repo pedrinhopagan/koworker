@@ -106,6 +106,7 @@ Procedures em `src/api/routers/terminal.ts`:
 
 | Procedure | Descrição |
 |-----------|-----------|
+| `focusAgent` | Foca a sessão já aberta do CLI ativo (claude/codex) no kw-terminal, preferindo a do projeto; sem sessão, abre a window `cli_<cli>` no projeto em foco e sobe o CLI nela |
 | `openForTask` | Abre/cria sessão e window para tarefa |
 | `openForRoute` | Abre tab para rota customizada do projeto |
 | `closeProjectSession` | Fecha sessão inteira do projeto |
@@ -124,6 +125,19 @@ Labels estáveis entre reinícios do backend (lookup por nome, não por ID volá
 - **Invocações**: `agent_*` ou `skill_*` (filtro `isInvocationWindow`)
 
 Implementação: `src/api/helpers/terminal/names.ts`.
+
+## EXECUÇÕES DA ROTA /executar
+
+Runs unattended com `source: "execution_route"` rodam dentro do kw-terminal quando o multiplexador
+configurado é `kw-terminal`: workspace dedicado `kw_execucoes`, uma tab por run
+(`{runId[0:8]}_{titulo}`), sem foco automático. O comando roda via script bash com a saída espelhada
+por `tee` para `$TMPDIR/kowork-executions/<runId>.log`; o backend acompanha esse log
+(`readNewLogBytes`) e mantém o rastreamento do run (status, passos, output) exatamente como no modo
+headless. Exit code sai em `<runId>.exit`. Cancelamento fecha a tab; fechar a tab por fora encerra o
+run como cancelado. Fallback: multiplexador diferente de kw-terminal ou falha ao abrir a tab caem no
+spawn headless. Implementação: `src/api/helpers/execution-terminal.ts` + `runViaKwTerminal` em
+`src/api/helpers/prompt-run.ts`. Sessões Claude vivas (`agent_sessions`) seguem headless: o
+protocolo de permissões/perguntas depende do stdin do processo.
 
 ## EVENTOS
 

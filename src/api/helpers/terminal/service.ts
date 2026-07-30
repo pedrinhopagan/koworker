@@ -15,6 +15,9 @@ import {
 	findTabByLabel,
 	findWorkspaceByLabel,
 	KW_TERMINAL_CLIENT_ARGV,
+	type KwTerminalAgent,
+	kwTerminalAgentFocus,
+	kwTerminalAgentList,
 	type KwTerminalTab,
 	kwTerminalClientAttached,
 	kwTerminalPaneList,
@@ -704,7 +707,139 @@ function invocationArgv(params: {
 	});
 }
 
+// Window dedicada ao CLI do projeto. Não colide com tarefas (UUID hex), rotas (nome sanitizado) nem
+// com invocações (`agent_`/`skill_`), então a sessão do CLI é sempre reencontrada pelo mesmo label.
+function cliWindowName(cli: "claude" | "codex"): string {
+	return `cli_${cli}`;
+}
+
+// CLI subindo sem prompt: mesmos flags de permissão da invocação (bypass), sem o argumento final.
+function cliStartArgv(cli: "claude" | "codex"): string[] {
+	const argv =
+		cli === "codex"
+			? buildCodexArgv({ prompt: "", approvalMode: "bypass" })
+			: buildClaudeArgv({ prompt: "", permissionMode: "bypass" });
+
+	return argv.filter((arg) => arg !== "");
+}
+
+async function windowExists(params: {
+	config: TerminalConfig;
+	projectId: string;
+	sessionName: string;
+	windowName: string;
+}): Promise<boolean> {
+	if (params.config.multiplexer === "none") {
+		return !!findSession(params.projectId)?.windows.some(
+			(window) => window.windowName === params.windowName,
+		);
+	}
+
+	if (params.config.multiplexer === "kw-terminal") {
+		return (await kwTerminalTabLabels(params.projectId, params.sessionName)).includes(
+			params.windowName,
+		);
+	}
+
+	return await tmuxWindowExists(params.sessionName, params.windowName);
+}
+
+// Sessão do CLI ativo a focar: só os agents daquele binário e, quando há projeto em foco, só os
+// abertos dentro dele (cwd exato antes de subpasta). Sem match no projeto não caímos pro agent de
+// outro projeto — focar a janela errada é pior que avisar que não há sessão.
+export function selectAgentForCli(params: {
+	agents: KwTerminalAgent[];
+	cli: string;
+	mainRoute?: string;
+}): KwTerminalAgent | null {
+	const { mainRoute } = params;
+	const matching = params.agents.filter((agent) => agent.agent === params.cli);
+
+	if (!mainRoute) {
+		return matching[0] ?? null;
+	}
+
+	const inProject = matching.filter(
+		(agent) => agent.cwd === mainRoute || agent.cwd.startsWith(`${mainRoute}/`),
+	);
+
+	return inProject.find((agent) => agent.cwd === mainRoute) ?? inProject[0] ?? null;
+}
+
 export const Terminal = {
+	// Traz pra frente a sessão do CLI ativo já aberta no kw-terminal: foca o agent no daemon, garante
+	// um cliente TUI visível e sobe a janela pelo WM. Sem agent daquele CLI (ou fora do modo
+	// kw-terminal) abre uma window `cli_<cli>` no projeto em foco e sobe o CLI nela; a window que já
+	// existe é só focada, sem reexecutar o comando.
+	async focusAgent(params: {
+		config: TerminalConfig;
+		cli: "claude" | "codex";
+		projectId?: string;
+		projectName?: string;
+		mainRoute?: string;
+	}) {
+		if (params.config.multiplexer === "kw-terminal") {
+			await ensureKwTerminalServer();
+
+			const agent = selectAgentForCli({
+				agents: await kwTerminalAgentList(),
+				cli: params.cli,
+				...(params.mainRoute ? { mainRoute: params.mainRoute } : {}),
+			});
+
+			if (agent) {
+				if (!(await kwTerminalAgentFocus(agent.terminal_id))) {
+					throw new Error(`Falha ao focar a sessão ${params.cli} no kw-terminal`);
+				}
+
+				if (!(await kwTerminalClientAttached())) {
+					spawnAttach({
+						config: params.config,
+						title: `${KW_TERMINAL_CLIENT_LABEL} - Kowork`,
+						commandArgv: [...KW_TERMINAL_CLIENT_ARGV],
+						workingDir: agent.cwd,
+					});
+					await Bun.sleep(400);
+				}
+
+				await focusTerminalWindow(KW_TERMINAL_CLIENT_LABEL).catch(() => {});
+
+				return { agent: agent.agent, cwd: agent.cwd, status: agent.agent_status, opened: false };
+			}
+		}
+
+		const { projectId, projectName, mainRoute } = params;
+		if (!projectId || !projectName || !mainRoute) {
+			throw new Error(
+				`Nenhuma sessão ${params.cli} aberta e nenhum projeto em foco para abrir uma`,
+			);
+		}
+
+		const sessionName = sessionNameForProject(projectName);
+		const windowName = cliWindowName(params.cli);
+		const alreadyOpen = await windowExists({
+			config: params.config,
+			projectId,
+			sessionName,
+			windowName,
+		});
+
+		await openTerminal({
+			config: params.config,
+			projectId,
+			projectName,
+			workingDir: mainRoute,
+			taskId: windowName,
+			windowName,
+			command: alreadyOpen ? undefined : { kind: "argv", argv: cliStartArgv(params.cli) },
+			forceNew: false,
+			background: false,
+			killExistingOnForceNew: false,
+		});
+
+		return { agent: params.cli, cwd: mainRoute, status: "starting", opened: !alreadyOpen };
+	},
+
 	openForTask(params: {
 		config: TerminalConfig;
 		projectId: string;

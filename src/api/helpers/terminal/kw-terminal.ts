@@ -26,6 +26,8 @@ export type KwTerminalTab = {
 	agent_status: string;
 };
 
+// `agent`, `activity` e `title` só vêm quando o pane tem um agent detectado com o que dizer: o
+// daemon omite o campo em vez de mandar nulo.
 export type KwTerminalPane = {
 	pane_id: string;
 	tab_id: string;
@@ -36,6 +38,37 @@ export type KwTerminalPane = {
 	focused: boolean;
 	revision: number;
 	agent_status: string;
+	agent?: string;
+	activity?: string;
+	title?: string;
+	// Preenchidos só quando o agent reporta a sessão que está gravando (`pane report-agent-session`);
+	// sem a integração instalada o daemon devolve nulo e quem precisa do transcript o procura no disco.
+	agent_session_id?: string | null;
+	agent_session_path?: string | null;
+};
+
+// A tarefa que o agent anunciou estar tocando (`pane report-task`). Só o `agent list` devolve.
+export type KwTerminalSessionTask = {
+	task_id: string;
+	title: string;
+	route: string;
+	file_route?: string;
+};
+
+// Agent detectado pelo kw-terminal dentro de um pane: `agent` é o binário reconhecido (`claude`,
+// `codex`...) e `cwd` é o diretório onde ele foi aberto — é por eles que casamos a sessão do CLI
+// ativo com o projeto em foco.
+export type KwTerminalAgent = {
+	agent: string;
+	agent_status: string;
+	cwd: string;
+	foreground_cwd: string;
+	focused: boolean;
+	pane_id: string;
+	tab_id: string;
+	terminal_id: string;
+	workspace_id: string;
+	session_task?: KwTerminalSessionTask | null;
 };
 
 type KwTerminalEnvelope<TResult> = {
@@ -75,6 +108,20 @@ async function kwTerminalServerRunning(): Promise<boolean> {
 	const { ok, stdout } = await runKwTerminal(["status", "server"]);
 
 	return ok && /status:\s*running/.test(stdout);
+}
+
+// Caminho do socket unix onde o daemon atende. Sai do próprio `status server` em vez de ser
+// remontado a partir de XDG_CONFIG_HOME: o kw-terminal escolhe o diretório por sessão nomeada e
+// aceita override por env, e adivinhar isso aqui daria um caminho errado sem aviso.
+export async function kwTerminalSocketPath(): Promise<string> {
+	const { ok, stdout } = await runKwTerminal(["status", "server"]);
+	const socket = ok ? /^socket:\s*(.+)$/m.exec(stdout)?.[1]?.trim() : null;
+
+	if (!socket) {
+		throw new Error("kw-terminal não informou o caminho do socket");
+	}
+
+	return socket;
 }
 
 // Paridade com o tmux, cuja CLI sobe o daemon sozinha no primeiro comando: se o servidor kw-terminal
@@ -293,6 +340,33 @@ export async function kwTerminalPaneRun(paneId: string, command: string): Promis
 
 export async function kwTerminalPaneClose(paneId: string): Promise<boolean> {
 	return (await runKwTerminal(["pane", "close", paneId])).ok;
+}
+
+export async function kwTerminalAgentList(): Promise<KwTerminalAgent[]> {
+	const result = await runKwTerminalJson<{ agents: KwTerminalAgent[] }>(["agent", "list"]);
+
+	return result.agents;
+}
+
+// `target` aceita terminal id, nome do agent ou pane id; usamos o `terminal_id` do `agent list`, que
+// é o identificador estável do agent detectado.
+export async function kwTerminalAgentFocus(target: string): Promise<boolean> {
+	return (await runKwTerminal(["agent", "focus", target])).ok;
+}
+
+// Escreve o texto no prompt do agent sem submeter: quem envia decide quando o Enter vai.
+export async function kwTerminalAgentSend(target: string, text: string): Promise<void> {
+	const { ok, stderr } = await runKwTerminal(["agent", "send", target, text]);
+	if (!ok) {
+		throw new Error(`Falha ao escrever no agent do kw-terminal: ${stderr.trim() || "erro"}`);
+	}
+}
+
+export async function kwTerminalPaneSendKeys(paneId: string, ...keys: string[]): Promise<void> {
+	const { ok, stderr } = await runKwTerminal(["pane", "send-keys", paneId, ...keys]);
+	if (!ok) {
+		throw new Error(`Falha ao enviar tecla ao pane kw-terminal: ${stderr.trim() || "erro"}`);
+	}
 }
 
 // Lookup por label: pós-restart do backend o ID em memória some, mas o label (`sessionName` /

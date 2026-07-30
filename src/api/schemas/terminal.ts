@@ -26,6 +26,13 @@ const EffortSchema = z
 	.max(20)
 	.regex(/^[a-z]+$/, "Esforço inválido");
 
+// Foco da sessão já aberta do CLI ativo. Sem `projectId` (nenhum projeto em foco na UI) qualquer
+// sessão daquele CLI serve.
+export const FocusAgentSchema = z.object({
+	cli: z.enum(INVOKE_CLIS),
+	projectId: z.string().optional(),
+});
+
 export const OpenForTaskSchema = z.object({
 	projectId: z.string(),
 	projectName: z.string(),

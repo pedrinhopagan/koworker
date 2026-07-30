@@ -25,3 +25,17 @@ export const KwTerminalWorkspaceRenameSchema = z.object({
 	workspaceId: z.string(),
 	label: z.string().trim().min(1),
 });
+
+// A rota chega de fora do app e vai direto para o router, então só um caminho
+// interno absoluto passa: sem host, sem esquema e sem `//` inicial, que o
+// navegador leria como outra origem.
+export const KwTerminalNavigateSchema = z
+	.object({
+		route: z
+			.string()
+			.trim()
+			.min(1)
+			.max(512)
+			.regex(/^\/(?!\/)[\w\-./?=&%#]*$/, "rota inválida"),
+	})
+	.strict();
