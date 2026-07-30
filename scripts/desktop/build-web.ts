@@ -23,6 +23,8 @@ function run(command: string[], cwd = rootDir) {
 await rm(distDir, { force: true, recursive: true });
 await mkdir(distDir, { recursive: true });
 
+run(["bun", "x", "tsr", "generate"]);
+
 run([
 	"bun",
 	"build",

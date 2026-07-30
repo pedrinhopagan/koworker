@@ -203,10 +203,7 @@ async function restoreInstalledTargets() {
 const backendManagedBySystemd = systemdBackendUnitExists();
 const warnings: string[] = [];
 
-console.log("→ Gerando route tree (TanStack Router)...");
-run(["bunx", "tsr", "generate"]);
-
-console.log("→ Build do frontend (dist)...");
+console.log("→ Build do frontend (route tree + dist)...");
 run(["bun", "run", "build:web"]);
 
 console.log("→ Build do backend (binario standalone)...");

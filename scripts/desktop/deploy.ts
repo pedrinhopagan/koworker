@@ -313,11 +313,32 @@ async function fallbackPrepare(worktreeDir: string) {
 	await rm(distDir, { force: true, recursive: true });
 	await mkdir(distDir, { recursive: true });
 
-	run(["bun", "build", "src/main.tsx", "--outdir", "dist", "--target", "browser"], worktreeDir);
+	run(["bun", "x", "tsr", "generate"], worktreeDir);
+	run(
+		[
+			"bun",
+			"build",
+			"src/main.tsx",
+			"--outdir",
+			"dist",
+			"--target",
+			"browser",
+			"--production",
+			"--minify",
+			"--splitting",
+		],
+		worktreeDir,
+	);
 	run(
 		["bun", "x", "@tailwindcss/cli", "-i", "src/index.css", "-o", "dist/index.css", "--minify"],
 		worktreeDir,
 	);
+
+	const builtMainJs = await readFile(join(distDir, "main.js"), "utf8");
+
+	if (builtMainJs.includes(".development.js")) {
+		throw new Error("Build de produção contém React em modo development");
+	}
 
 	const sourceIndex = await readFile(join(worktreeDir, "src", "index.html"), "utf8");
 	const packageJson = JSON.parse(await readFile(join(worktreeDir, "package.json"), "utf8")) as {
@@ -334,7 +355,10 @@ async function fallbackPrepare(worktreeDir: string) {
 		const sourceSwPath = join(staticDir, "sw.js");
 		if (await pathExists(sourceSwPath)) {
 			const sourceSw = await readFile(sourceSwPath, "utf8");
-			const builtSw = buildProductionServiceWorker(sourceSw, appVersion);
+			const cacheVersion = Bun.hash(
+				`${sourceSw}\n${builtMainJs}\n${await readFile(join(distDir, "index.css"), "utf8")}\n${await readFile(join(staticDir, "fonts/fonts.css"), "utf8")}`,
+			).toString(36);
+			const builtSw = buildProductionServiceWorker(sourceSw, `${appVersion}-${cacheVersion}`);
 			await writeFile(join(distDir, "sw.js"), builtSw);
 		}
 	}
