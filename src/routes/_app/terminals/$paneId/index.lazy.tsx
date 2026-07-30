@@ -16,6 +16,7 @@ import { AGENT_RADAR_STATUS_LABELS } from "@/constants/agent-radar";
 import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { useAgentRadarTranscript } from "@/hooks/use-agent-radar-transcript";
 import { errorMessage } from "@/lib/orpc-errors";
+import { PaneStatusStrip } from "../-components/pane-status-strip";
 
 export const Route = createLazyFileRoute("/_app/terminals/$paneId/")({
 	component: TerminalPanePage,
@@ -93,31 +94,35 @@ function TerminalPanePage() {
 						const node = event.currentTarget;
 						setPinned(node.scrollHeight - node.scrollTop - node.clientHeight < 120);
 					}}
-					className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain pb-4"
+					className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
 				>
-					{loading && (
-						<div className="flex min-h-32 items-center justify-center">
-							<Loader2 className="size-5 animate-spin text-muted-foreground" />
-						</div>
-					)}
+					<div className="mx-auto w-full max-w-3xl space-y-5 pb-4">
+						<PaneStatusStrip agent={agent} closed={closed} />
 
-					{!loading && missing && (
-						<EmptyFeedback
-							icon={SquareTerminal}
-							title="Sem conversa para ler"
-							subtitle="Este agent não grava sessão em disco, ou ainda não escreveu a primeira linha."
-						/>
-					)}
+						{loading && (
+							<div className="flex min-h-32 items-center justify-center">
+								<Loader2 className="size-5 animate-spin text-muted-foreground" />
+							</div>
+						)}
 
-					{!loading && !missing && events.length === 0 && (
-						<EmptyFeedback
-							icon={SquareTerminal}
-							title="Conversa vazia"
-							subtitle="A sessão começou agora: o que for dito aqui aparece sozinho."
-						/>
-					)}
+						{!loading && missing && (
+							<EmptyFeedback
+								icon={SquareTerminal}
+								title="Sem conversa para ler"
+								subtitle="Este agent não grava sessão em disco, ou ainda não escreveu a primeira linha."
+							/>
+						)}
 
-					<SessionTimeline events={events} busy={busy} />
+						{!loading && !missing && events.length === 0 && (
+							<EmptyFeedback
+								icon={SquareTerminal}
+								title="Conversa vazia"
+								subtitle="A sessão começou agora: o que for dito aqui aparece sozinho."
+							/>
+						)}
+
+						<SessionTimeline events={events} busy={busy} />
+					</div>
 				</div>
 
 				{!pinned && (
@@ -135,21 +140,23 @@ function TerminalPanePage() {
 					</Button>
 				)}
 
-				<ThreadComposer
-					draftKey={`kowork-radar-draft-${paneId}`}
-					{...(agent?.projectName ? { projectName: agent.projectName } : {})}
-					disabled={closed}
-					pending={send.isPending}
-					hint={
-						closed
-							? "Este agent não está mais aberto no terminal."
-							: "O texto vai para o prompt do agent no terminal e o Enter é dado por aqui."
-					}
-					onSubmit={(text) => {
-						setPinned(true);
-						send.mutate({ paneId, text });
-					}}
-				/>
+				<div className="mx-auto w-full max-w-3xl">
+					<ThreadComposer
+						draftKey={`kowork-radar-draft-${paneId}`}
+						{...(agent?.projectName ? { projectName: agent.projectName } : {})}
+						disabled={closed}
+						pending={send.isPending}
+						hint={
+							closed
+								? "Este agent não está mais aberto no terminal."
+								: "O texto vai para o prompt do agent no terminal e o Enter é dado por aqui."
+						}
+						onSubmit={(text) => {
+							setPinned(true);
+							send.mutate({ paneId, text });
+						}}
+					/>
+				</div>
 			</div>
 		</PageShell>
 	);

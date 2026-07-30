@@ -10,8 +10,10 @@ import {
 	type SidebarNavItem,
 	type SidebarNavRouteItem,
 } from "@/components/layout/sidebar-nav-config";
+import { SidebarAgentPulse } from "@/components/layout/sidebar-agent-pulse";
 import { SidebarTooltip } from "@/components/layout/sidebar-tooltip";
 import { useProjectFocus } from "@/hooks";
+import { useAgentRadarAttention } from "@/hooks/use-agent-radar";
 import { useNavActionDialogsStore } from "@/hooks/use-nav-action-dialogs";
 import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
 import { hideWindow, isTauri } from "@/lib/tauri";
@@ -45,6 +47,63 @@ const sidebarItem = tv({
 	},
 });
 
+type SidebarLayout = "compact" | "expanded" | "drawer";
+
+type CountTone = "accent" | "warning";
+
+const COUNT_TONE: Record<CountTone, { overlay: string; inline: string }> = {
+	accent: {
+		overlay:
+			"bg-[var(--project-accent,var(--primary))]/30 text-[var(--project-accent,var(--primary))]",
+		inline: "bg-muted text-foreground",
+	},
+	warning: {
+		overlay: "bg-warning/35 text-warning",
+		inline: "bg-warning/20 text-warning",
+	},
+};
+
+// Carimbo de contagem do item da sidebar: sobre o ícone quando a barra está estreita ou expandida, e
+// ao fim da linha no drawer, onde há largura sobrando.
+function SidebarCountBadge({
+	count,
+	layout,
+	tone,
+}: {
+	count: number;
+	layout: SidebarLayout;
+	tone: CountTone;
+}) {
+	if (count <= 0) {
+		return null;
+	}
+
+	if (layout === "drawer") {
+		return (
+			<span
+				className={cn(
+					"ml-auto min-w-5 rounded px-1.5 text-center text-xs font-semibold",
+					COUNT_TONE[tone].inline,
+				)}
+			>
+				{count}
+			</span>
+		);
+	}
+
+	return (
+		<span
+			className={cn(
+				"absolute z-10 min-w-3 rounded-[3px] px-0.5 text-center font-semibold text-[8px] leading-[11px]",
+				COUNT_TONE[tone].overlay,
+				layout === "compact" ? "-top-1.5 -right-1.5" : "-top-2 -right-2",
+			)}
+		>
+			{count}
+		</span>
+	);
+}
+
 export function SidebarNavContent({
 	variant,
 	compact = false,
@@ -70,8 +129,9 @@ export function SidebarNavContent({
 	const currentInList = currentKey !== null && recents.some((r) => r.key === currentKey);
 
 	const openActionDialog = useNavActionDialogsStore((s) => s.open);
+	const radar = useAgentRadarAttention();
 
-	const layout = variant === "drawer" ? "drawer" : compact ? "compact" : "expanded";
+	const layout: SidebarLayout = variant === "drawer" ? "drawer" : compact ? "compact" : "expanded";
 	const iconSize = variant === "drawer" ? 18 : 15;
 
 	function handleRouteNavigate(path: string) {
@@ -200,13 +260,34 @@ export function SidebarNavContent({
 		const active = isSidebarRouteActive(currentPath, item.path);
 		const className = sidebarItem({ active, layout });
 		const Icon = item.icon;
-		const tooltip = getTooltipLabel(item);
+		const isTerminals = item.path === "/terminals";
+		const waiting = isTerminals ? radar.waiting : 0;
+		const working = isTerminals ? radar.working : 0;
+		const tooltip =
+			waiting > 0
+				? `${item.label} — ${waiting} esperando você`
+				: working > 0
+					? `${item.label} — ${working} trabalhando`
+					: getTooltipLabel(item);
 
 		const content = (
 			<>
-				<Icon size={iconSize} />
-				{layout === "compact" ? null : <span className="truncate text-sm">{item.label}</span>}
-				{layout === "drawer" && item.altKey ? (
+				<span className={cn("relative inline-flex", layout === "compact" && "justify-center")}>
+					<Icon size={iconSize} className={waiting > 0 ? "text-warning" : undefined} />
+					{layout !== "drawer" && (
+						<SidebarCountBadge count={waiting} layout={layout} tone="warning" />
+					)}
+					{layout === "compact" && <SidebarAgentPulse layout={layout} count={working} />}
+				</span>
+				{layout !== "compact" && (
+					<span className="flex min-w-0 items-center gap-2">
+						<span className="truncate text-sm">{item.label}</span>
+						<SidebarAgentPulse layout={layout} count={working} />
+					</span>
+				)}
+				{layout === "drawer" && waiting > 0 ? (
+					<SidebarCountBadge count={waiting} layout={layout} tone="warning" />
+				) : layout === "drawer" && item.altKey ? (
 					<span className="ml-auto text-xs text-muted-foreground">Alt+{item.altKey}</span>
 				) : null}
 			</>
@@ -263,23 +344,14 @@ export function SidebarNavContent({
 						size={iconSize}
 						className={active ? "text-[var(--project-accent,var(--primary))]" : undefined}
 					/>
-					{isSwitcher && sessionCount > 0 ? (
-						<span
-							className={cn(
-								"absolute z-10 min-w-3 rounded-[3px] bg-[var(--project-accent,var(--primary))]/30 px-0.5 text-center font-semibold text-[8px] text-[var(--project-accent,var(--primary))] leading-[11px]",
-								layout === "compact" ? "-top-1.5 -right-1.5" : "-top-2 -right-2",
-							)}
-						>
-							{sessionCount}
-						</span>
+					{isSwitcher && layout !== "drawer" ? (
+						<SidebarCountBadge count={sessionCount} layout={layout} tone="accent" />
 					) : null}
 				</span>
 				{layout === "compact" ? null : <span className="truncate text-sm">{item.label}</span>}
 				{layout === "drawer" && isSwitcher ? (
 					sessionCount > 0 ? (
-						<span className="ml-auto min-w-5 rounded bg-muted px-1.5 text-center text-xs font-semibold text-foreground">
-							{sessionCount}
-						</span>
+						<SidebarCountBadge count={sessionCount} layout={layout} tone="accent" />
 					) : item.altKey ? (
 						<span className="ml-auto text-xs text-muted-foreground">Alt+{item.altKey}</span>
 					) : null

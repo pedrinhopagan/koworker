@@ -7,6 +7,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { useSelectedProjectStore } from "@/stores/selected-project";
+import { HomeAgentsSummary } from "./-components/home-agents-summary";
 import { HomeProjectShowcase } from "./-components/home-project-showcase";
 
 export const Route = createFileRoute("/_app/")({
@@ -118,6 +119,10 @@ function HomePage() {
 			contentClassName="overflow-y-auto pb-6"
 		>
 			<HomeProjectShowcase project={project} />
+
+			<div className="mx-auto w-full max-w-4xl px-2 pb-10 md:px-4">
+				<HomeAgentsSummary />
+			</div>
 		</PageShell>
 	);
 }

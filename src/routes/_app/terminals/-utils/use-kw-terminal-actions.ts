@@ -47,6 +47,20 @@ export function useKwTerminalActions() {
 			onSuccess: invalidate,
 			onError,
 		}),
+		agentFocus: useMutation({
+			...orpc.agentRadar.focus.mutationOptions(),
+			onSuccess: invalidate,
+			onError,
+		}),
+		agentDiff: useMutation({
+			...orpc.agentRadar.openDiff.mutationOptions(),
+			onError: (error: Error) => toast.error(errorMessage(error, "Falha ao abrir o kw-diff")),
+		}),
+		agentClose: useMutation({
+			...orpc.agentRadar.close.mutationOptions(),
+			onSuccess: invalidate,
+			onError,
+		}),
 	};
 }
 

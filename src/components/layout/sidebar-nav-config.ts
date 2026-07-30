@@ -85,8 +85,6 @@ export const sidebarNavGroups: SidebarNavGroup[] = [
 	},
 	{
 		items: [
-			{ kind: "route", path: "/skills", label: "Skills", icon: Sparkles, altKey: "7" },
-			{ kind: "route", path: "/vault", label: "Vault", icon: Archive, altKey: "8" },
 			{
 				kind: "route",
 				path: "/terminals",
@@ -94,11 +92,6 @@ export const sidebarNavGroups: SidebarNavGroup[] = [
 				icon: SquareTerminal,
 				altKey: "9",
 			},
-			{ kind: "route", path: "/agents", label: "Agents", icon: Bot, altKey: "0" },
-		],
-	},
-	{
-		items: [
 			{
 				kind: "action",
 				id: "openSwitcher",
@@ -106,6 +99,13 @@ export const sidebarNavGroups: SidebarNavGroup[] = [
 				icon: Layers,
 				altKey: "`",
 			},
+		],
+	},
+	{
+		items: [
+			{ kind: "route", path: "/skills", label: "Skills", icon: Sparkles, altKey: "7" },
+			{ kind: "route", path: "/vault", label: "Vault", icon: Archive, altKey: "8" },
+			{ kind: "route", path: "/agents", label: "Agents", icon: Bot, altKey: "0" },
 		],
 	},
 	{
