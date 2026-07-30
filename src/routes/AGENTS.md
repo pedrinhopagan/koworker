@@ -74,7 +74,7 @@ routes/
 - `/projetos/novo`
 - `/projetos/$projetoId`
 - `/projetos/$projetoId/docs/$`
-- `/executar`
+- `/executar` — chat vazio: a primeira mensagem abre a sessão e leva para `/executar/$executionId`
 - `/executar/$executionId`
 - `/skills`
 - `/skills/$slug`

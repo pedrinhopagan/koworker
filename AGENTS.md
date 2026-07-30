@@ -1,6 +1,6 @@
 # KOWORK KNOWLEDGE BASE
 
-**Atualizado:** 2026-07-24 (seção de entidades derivada de `src/api/db/connection.ts`)
+**Atualizado:** 2026-07-27 (seção de entidades derivada de `src/api/db/connection.ts`)
 
 ## VISÃO GERAL
 
@@ -73,13 +73,13 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - **snake_case** no DB, `camelCase` no TS
 - **Datas**: todas as colunas `*_at` são epoch em ms (`number.integer`), nunca texto ISO
 - **Booleanos**: não existem; são `INTEGER` 0/1 (`done`, `hide_terminal`, `quick_invoke`)
-- **JSON**: colunas JSON são `TEXT` com `JSON.stringify/parse` (`tasks.file_order`, `task_storage_runs.manifest`)
-- **Soft delete**: `projects`, `tasks` e `execution_runs` possuem `deleted_at`
-- **Conjuntos finitos**: só `user_type`, `task_storage_runs.status`, `prompt_history.kind`, `execution_runs.kind` e `execution_runs.status` são enums no DSL. Complexidade, stage, tool e scope são texto livre no DB e o conjunto é garantido em `src/constants/` + boundary Zod.
+- **JSON**: colunas JSON são `TEXT` com `JSON.stringify/parse` (`tasks.file_order`, `task_storage_runs.manifest`, `agent_events.payload`)
+- **Soft delete**: `projects`, `tasks`, `execution_runs` e `agent_sessions` possuem `deleted_at`
+- **Conjuntos finitos**: só `user_type`, `task_storage_runs.status`, `prompt_history.kind`, `execution_runs.kind`, `execution_runs.status`, `agent_sessions.status` e `agent_events.kind` são enums no DSL. Complexidade, stage, tool e scope são texto livre no DB e o conjunto é garantido em `src/constants/` + boundary Zod.
 
 ## ENTIDADES
 
-17 tabelas, na ordem de registro em `connection.ts`. `?` marca coluna opcional (nullable).
+20 tabelas, na ordem de registro em `connection.ts`. `?` marca coluna opcional (nullable).
 
 ### users
 - `id` (integer, autoincrement), `name`, `password`
@@ -165,9 +165,28 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - `route_path?`, `model?`, `effort?`, `created_at`
 - Deduplicado na entrada: reenviar prompt idêntico rebumpa `created_at` em vez de duplicar
 
+### agent_sessions
+- `id` (uuid): no claude é também o `--session-id`, então retomar é `--resume <id>` na mesma linha
+- `user_id` (FK users.id, cascade), `project_id` (FK projects.id, restrict), `task_id?` (set null)
+- `title`, `cli`, `cwd` (congelado no start; sessão retomada nunca troca de diretório)
+- `cli_session_id?`: só o codex usa, é o `thread_id` que o `codex exec resume` exige
+- `model?`, `effort?`, `agent?`, `permission_mode` (default `acceptEdits`; no codex guarda a política
+  de aprovação e vale do próximo turno em diante)
+- `status`: `live | ended | crashed`; `pid?`, `end_reason?`
+- `started_at`, `updated_at`, `heartbeat_at?`, `ended_at?`, `deleted_at?`
+- Índice único parcial: uma sessão `live` por tarefa
+
+### agent_events
+- `id` (uuid), `session_id` (FK agent_sessions.id, cascade), `run_id?` (FK execution_runs.id, set null)
+- `seq`: ordem dentro da sessão, único por sessão e identidade no merge do front
+- `kind`: `user | assistant | thinking | tool_use | tool_result | permission | question | notice | result`
+- `payload`: JSON por `kind`; a fronteira que valida na leitura é `src/lib/agent-session.ts`
+- `created_at`, `updated_at?`: bloco que muda de estado é atualizado, não duplicado
+
 ### execution_runs
 - `id` (uuid), `user_id` (FK users.id, cascade), `project_id` (FK projects.id, restrict)
 - `task_id?` (FK tasks.id, set null), `parent_run_id?` (FK execution_runs.id, set null)
+- `session_id?` (FK agent_sessions.id, set null): o turno pertence a uma sessão viva
 - `client_request_id?`, `request_fingerprint?`, `cli_session_id?`, `create_task_title?`
 - `kind`: `prompt | flow`; `title`
 - `status`: `running | done | failed | timeout | waiting_user | cancelled`
@@ -181,6 +200,13 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - `endpoint`, `p256dh`, `auth`, `expiration_time?`
 - `created_at`, `updated_at`
 
+### devices
+- `id` (uuid), `user_id` (FK users.id, cascade), `name`, `user_agent?`
+- `status`: `pending | approved | blocked`
+- `first_ip?`, `last_ip?`, `created_at`, `last_seen_at`, `approved_at?`, `blocked_at?`
+- Portão de acesso: sessão só vale amarrada a um device `approved` (o `deviceId` viaja no JWT).
+  Requisição de loopback nasce aprovada; qualquer outra entra como `pending` e espera liberação.
+
 ### settings
 - `key` (PK), `value` (string), `updated_at?`
 - Chave-valor de SO: pasta base de projetos, template de emulador, multiplexador. O shape tipado e os defaults por plataforma vivem em `api/helpers/system-settings.ts`.
@@ -189,6 +215,10 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 
 - `tasks` não tem coluna de status. Só `done` (0/1) e `completed_at`.
 - Execução é rastreada em `execution_runs`, que é outra entidade: uma tarefa pode ter N runs (ou nenhum).
+- Claude e Codex são sessão (`agent_sessions`) com N turnos, cada turno um `execution_runs`. No Claude
+  o processo fica vivo entre turnos; no Codex cada turno é um `codex exec resume <thread>` e o id da
+  thread mora em `agent_sessions.cli_session_id`. A execução de chamada única sobrou só na barra de
+  prompt (`prompt.execute`). Detalhe em `docs/SESSOES.md`.
 - A etapa do fluxo (`grill`, `plano`, `execucao`, `execucao-fases`, `revisao`) é **inferida dos artefatos da pasta** (`inferTaskStage`), nunca persistida na task. A ordem por complexidade vive em `COMPLEXITY_FLOWS` (`execucao-fases` só no fluxo `extremo`) e cada etapa tem agente próprio em `STAGE_AGENT`.
 - O estado visual do progresso é derivado por função em `src/lib/` (não é coluna).
 
@@ -218,9 +248,18 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 
 ## REALTIME
 
-- Canais do PubSub (`src/api/pubsub/index.ts`): `tasks`, `flow`, `promptRun`, `notification` e `terminal`
-- `wsRouter` expõe `auth.me`, `notifications`, `tasks`, `flow`, `promptRun` e `terminal`
+- Canais do PubSub (`src/api/pubsub/index.ts`): `tasks`, `flow`, `promptRun`, `agentSession`,
+  `agentRadar`, `agentRadarTranscript`, `notification`, `navigate` e `terminal`
+- `wsRouter` expõe `auth.me`, `notifications`, `tasks`, `navigate`, `flow`, `promptRun`,
+  `agentSession`, `agentRadar`, `agentRadarTranscript` e `terminal`
+- `agentSession` entrega os blocos da conversa (por `seq`), o `busy` do agente e a mudança de
+  `status` da sessão; a assinatura começa com o histórico inteiro para a reconexão não perder nada
+- `agentRadarTranscript` é por `paneId` e entrega a conversa que o CLI aberto no kw-terminal grava em
+  disco (`~/.claude/projects`, `~/.codex/sessions`), nos mesmos blocos de `agentSession`. Lote com
+  `reset` é a conversa inteira de novo: o arquivo virou outro e os `seq` recomeçaram
 - Origem do evento de task é marcada em `source`: `api`, `cli` ou `fs` (watcher de disco)
+- `promptRun` carrega o desfecho (`done`, `failed`…), a cauda de saída (`output`) e os passos do agente
+  já interpretados (`step`, com ferramenta, alvo e resultado)
 - Front consome com `orpcWs` + TanStack Query
 
 ## QUALIDADE
@@ -241,3 +280,4 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 | `src/cli/AGENTS.md` | CLI para AI Agents |
 | `src-tauri/AGENTS.md` | Wrapper desktop Tauri |
 | `docs/TERMINAL.md` | Sistema de terminais (tmux / kw-terminal / none + ORPC PubSub) |
+| `docs/SESSOES.md` | Sessões de agente: processo vivo, protocolo do CLI, permissão e pergunta |

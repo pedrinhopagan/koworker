@@ -11,18 +11,18 @@ Padronizar schema SQLite e queries Kysely.
 - IDs são `uuid` (TEXT) gerados na aplicação, exceto `users.id` (INTEGER autoincrement) e as tabelas com PK natural (`skill_settings.slug`, `agent_settings.slug`, `settings.key`)
 - `snake_case` no DB, `camelCase` no TS (na camada `db` usar nomes das colunas)
 - Datas em epoch ms (`number.integer`); booleanos em INTEGER 0/1
-- `projects`, `tasks` e `execution_runs` usam soft delete (`deleted_at`)
+- `projects`, `tasks`, `execution_runs` e `agent_sessions` usam soft delete (`deleted_at`)
 - JSON em coluna `TEXT`, sempre serialize/parse no boundary
 - Inputs de `create/update` usam tipos inferidos dos schemas Zod da pasta `src/api/schemas/`
 
 ## TABLES
 
-17, na ordem de registro em `connection.ts`:
+19, na ordem de registro em `connection.ts`:
 
 - Domínio: `users`, `projects`, `categories`, `priorities`, `project_routes`, `task_groups`, `tasks`
 - Storage: `task_storage_runs`
 - Skills e agents: `skill_categories`, `skill_settings`, `skill_source_paths`, `agent_settings`, `agent_source_paths`
-- Execução e histórico: `prompt_history`, `execution_runs`
+- Execução e histórico: `prompt_history`, `execution_runs`, `agent_sessions`, `agent_events`
 - Infra: `push_subscriptions`, `settings`
 
 Não existe `subtasks` nem `task_executions`. Subtarefa é arquivo `.md` na pasta da task; execução é `execution_runs`. Colunas por tabela: ver `AGENTS.md` na raiz.

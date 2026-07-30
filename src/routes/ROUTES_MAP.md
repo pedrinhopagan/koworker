@@ -44,6 +44,8 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
 | `src/routes/_app/agents/index.tsx` | `/_app/agents/` | `/agents` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/agents/$slug/index.tsx` | `/_app/agents/$slug/` | `/agents/$slug` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
 | `src/routes/_app/prompts/index.tsx` | `/_app/prompts/` | `/prompts` | `__root` + `AppShell` + `PageShell` |
+| `src/routes/_app/radar/index.tsx` | `/_app/radar/` | `/radar` | `__root` + `AppShell` + `PageShell` (agents abertos no kw-terminal, ao vivo) |
+| `src/routes/_app/radar/$paneId/index.tsx` | `/_app/radar/$paneId/` | `/radar/$paneId` | `__root` + `AppShell` + `PageShell` (conversa do agent daquele pane, lida do transcript do CLI) |
 | `src/routes/_app/configuracoes.tsx` | `/_app/configuracoes` | `/configuracoes` | `__root` + `AppShell` + `PageShell` |
 
 ## Estrutura de pastas em `src/routes`
@@ -60,6 +62,7 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
   - `/media/$fileName` (`$fileName` é o asset em `.koworker/medias/`; `?projectId` no search identifica o projeto)
   - `/skills/$slug` (`$slug` é o slug da skill, ex. `commit` — edita o `SKILL.md` da pasta dona)
   - `/agents/$slug` (`$slug` é o slug do agent, ex. `planner` — edita o `.md` da pasta dona)
+  - `/radar/$paneId` (`$paneId` é o pane do kw-terminal, ex. `w5E:p3` — some junto com o pane)
 
 ## Evidências verificadas
 
