@@ -1,26 +1,42 @@
 import { ORPCError } from "@orpc/server";
 
 export const MAX_LOGIN_FAILURES_PER_NAME = 5;
+export const MAX_LOGIN_FAILURES_PER_IP = 10;
 export const MAX_LOGIN_FAILURES_GLOBAL = 20;
 export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+export interface LoginIdentity {
+	name: string;
+	ip: string | null | undefined;
+}
 
 type LoginAttempt = {
 	failures: number;
 	resetAt: number;
 };
 
-const attemptsByName = new Map<string, LoginAttempt>();
+const attempts = new Map<string, LoginAttempt>();
 
 let globalAttempt: LoginAttempt = { failures: 0, resetAt: 0 };
 
-function attemptKey(name: string) {
-	return name.trim().toLowerCase();
+// O nome sozinho não segura quem varre usuários; o IP sozinho não segura quem troca de rede. As duas
+// chaves contam na mesma janela e qualquer uma delas basta pra barrar.
+function limitsFor(identity: LoginIdentity) {
+	const limits = [
+		{ key: `name:${identity.name.trim().toLowerCase()}`, max: MAX_LOGIN_FAILURES_PER_NAME },
+	];
+
+	if (identity.ip) {
+		limits.push({ key: `ip:${identity.ip}`, max: MAX_LOGIN_FAILURES_PER_IP });
+	}
+
+	return limits;
 }
 
 function purgeExpired(now: number) {
-	for (const [key, attempt] of attemptsByName) {
+	for (const [key, attempt] of attempts) {
 		if (now >= attempt.resetAt) {
-			attemptsByName.delete(key);
+			attempts.delete(key);
 		}
 	}
 
@@ -37,42 +53,45 @@ function bump(attempt: LoginAttempt | undefined, now: number): LoginAttempt {
 	return { failures: attempt.failures + 1, resetAt: attempt.resetAt };
 }
 
-export function assertLoginAllowed(name: string) {
+export function assertLoginAllowed(identity: LoginIdentity) {
 	const now = Date.now();
 	purgeExpired(now);
 
-	if (globalAttempt.failures >= MAX_LOGIN_FAILURES_GLOBAL) {
-		throw new ORPCError("TOO_MANY_REQUESTS", {
-			message: "Muitas tentativas de login. Tente novamente mais tarde.",
-		});
-	}
+	const blocked =
+		globalAttempt.failures >= MAX_LOGIN_FAILURES_GLOBAL ||
+		limitsFor(identity).some((limit) => (attempts.get(limit.key)?.failures ?? 0) >= limit.max);
 
-	const attempt = attemptsByName.get(attemptKey(name));
-	if (attempt && attempt.failures >= MAX_LOGIN_FAILURES_PER_NAME) {
+	if (blocked) {
 		throw new ORPCError("TOO_MANY_REQUESTS", {
 			message: "Muitas tentativas de login. Tente novamente mais tarde.",
 		});
 	}
 }
 
-export function recordLoginFailure(name: string) {
+export function recordLoginFailure(identity: LoginIdentity) {
 	const now = Date.now();
 	purgeExpired(now);
 
-	attemptsByName.set(attemptKey(name), bump(attemptsByName.get(attemptKey(name)), now));
+	for (const limit of limitsFor(identity)) {
+		attempts.set(limit.key, bump(attempts.get(limit.key), now));
+	}
+
 	globalAttempt = bump(globalAttempt, now);
 }
 
-export function clearLoginFailures(name: string) {
-	attemptsByName.delete(attemptKey(name));
+export function clearLoginFailures(identity: LoginIdentity) {
+	for (const limit of limitsFor(identity)) {
+		attempts.delete(limit.key);
+	}
+
 	globalAttempt = { failures: 0, resetAt: 0 };
 }
 
 export function resetLoginRateLimit() {
-	attemptsByName.clear();
+	attempts.clear();
 	globalAttempt = { failures: 0, resetAt: 0 };
 }
 
 export function loginRateLimitSize() {
-	return attemptsByName.size;
+	return attempts.size;
 }

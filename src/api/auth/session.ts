@@ -3,7 +3,7 @@ import { type } from "arktype";
 import * as jose from "jose";
 import { envVariables } from "@/api/config/env";
 
-const SECRET = new TextEncoder().encode(envVariables.JWT_SECRET);
+export const SECRET = new TextEncoder().encode(envVariables.JWT_SECRET);
 
 export const SESSION_COOKIE_NAME =
 	envVariables.NODE_ENV === "production" ? "session" : "session_dev";
@@ -15,13 +15,20 @@ const SESSION_RENEW_THRESHOLD_SECONDS = SESSION_MAX_AGE_SECONDS / 2;
 const sessionClaimsSchema = type({
 	userId: "number",
 	sessionEpoch: "number.integer",
+	// Amarra a sessão ao dispositivo aprovado. Token antigo, sem esse campo, não valida mais:
+	// quem tinha sessão viva antes do portão de dispositivos refaz o login uma vez.
+	deviceId: "string",
 	"exp?": "number",
 });
 
 export type SessionClaims = typeof sessionClaimsSchema.infer;
 
-function createSessionToken(params: { userId: number; sessionEpoch: number }) {
-	return new jose.SignJWT({ userId: params.userId, sessionEpoch: params.sessionEpoch })
+function createSessionToken(params: { userId: number; sessionEpoch: number; deviceId: string }) {
+	return new jose.SignJWT({
+		userId: params.userId,
+		sessionEpoch: params.sessionEpoch,
+		deviceId: params.deviceId,
+	})
 		.setProtectedHeader({ alg: "HS256" })
 		.setExpirationTime(`${SESSION_MAX_AGE_SECONDS}s`)
 		.sign(SECRET);
@@ -36,12 +43,12 @@ export async function verifySessionToken(token: string) {
 	}
 }
 
-export function readSessionTokens(cookieHeader: string | null | undefined) {
+export function readCookieValues(cookieHeader: string | null | undefined, cookieName: string) {
 	if (!cookieHeader) {
 		return [];
 	}
 
-	const prefix = `${SESSION_COOKIE_NAME}=`;
+	const prefix = `${cookieName}=`;
 
 	return cookieHeader
 		.split(";")
@@ -49,6 +56,10 @@ export function readSessionTokens(cookieHeader: string | null | undefined) {
 		.filter((entry) => entry.startsWith(prefix))
 		.map((entry) => decodeURIComponent(entry.slice(prefix.length)))
 		.filter((token) => token.length > 0);
+}
+
+export function readSessionTokens(cookieHeader: string | null | undefined) {
+	return readCookieValues(cookieHeader, SESSION_COOKIE_NAME);
 }
 
 export function shouldRenewSession(claims: SessionClaims) {
@@ -59,7 +70,7 @@ export function shouldRenewSession(claims: SessionClaims) {
 	return claims.exp - Math.floor(Date.now() / 1000) < SESSION_RENEW_THRESHOLD_SECONDS;
 }
 
-function shouldUseSecureCookie(reqHeaders: Headers | undefined): boolean {
+export function shouldUseSecureCookie(reqHeaders: Headers | undefined): boolean {
 	const origin = reqHeaders?.get("origin") || "";
 	const host = reqHeaders?.get("host") || "";
 	const candidate = `${origin} ${host}`.toLowerCase();
@@ -91,12 +102,14 @@ function shouldUseSecureCookie(reqHeaders: Headers | undefined): boolean {
 export async function issueSessionCookie(params: {
 	userId: number;
 	sessionEpoch: number;
+	deviceId: string;
 	resHeaders: Headers | undefined;
 	reqHeaders: Headers | undefined;
 }) {
 	const token = await createSessionToken({
 		userId: params.userId,
 		sessionEpoch: params.sessionEpoch,
+		deviceId: params.deviceId,
 	});
 
 	setCookie(params.resHeaders, SESSION_COOKIE_NAME, token, {

@@ -3,7 +3,14 @@ const STATIC_CACHE = "kowork-static-" + CACHE_VERSION;
 const SHELL_CACHE = "kowork-shell-" + CACHE_VERSION;
 
 const STATIC_PREFIX = "/static/";
-const PRECACHE_ASSETS = ["/index.html", "/main.js", "/index.css"];
+const PRECACHE_ASSETS = [
+	"/index.html",
+	"/main.js",
+	"/index.css",
+	"/static/fonts/fonts.css",
+	"/static/fonts/archivo-400-900-normal-latin.woff2",
+	"/static/fonts/jetbrains-mono-400-700-normal-latin.woff2",
+];
 const APP_ASSETS = new Set(["/main.js", "/index.css"]);
 const NEVER_CACHE_PREFIXES = ["/rpc", "/ws"];
 
@@ -110,11 +117,15 @@ self.addEventListener("push", function onPush(event) {
 		typeof payload.body === "string" ? payload.body : "Uma execução do Kowork foi atualizada.";
 	const url = typeof payload.url === "string" ? payload.url : "/";
 	const tag = typeof payload.tag === "string" ? payload.tag : "kowork-execution";
+	// Pergunta pendente segura o agente até ser respondida: ela fica na bandeja até o toque, em vez
+	// de sumir sozinha como um aviso de conclusão.
+	const requireInteraction = payload.requireInteraction === true;
 
 	event.waitUntil(
 		self.registration.showNotification(title, {
 			body,
 			tag,
+			requireInteraction,
 			icon: "/static/icons/pwa-192.png",
 			badge: "/static/icons/pwa-192.png",
 			data: { url },
@@ -138,10 +149,14 @@ self.addEventListener("notificationclick", function onNotificationClick(event) {
 				const existing = items.find(function sameOrigin(client) {
 					return new URL(client.url).origin === self.location.origin;
 				});
+				// Com o app aberto, navegar pelo router é instantâneo e preserva o estado; recarregar o
+				// documento (client.navigate) remonta o SPA e no iOS standalone nem sempre é aceito.
 				if (existing) {
-					return existing.navigate(target.href).then(function focusClient() {
-						return existing.focus();
-					});
+					existing.postMessage({
+						type: "kowork-navigate",
+						route: target.pathname + target.search,
+					}, existing.location.origin);
+					return existing.focus();
 				}
 				return self.clients.openWindow(target.href);
 			}),

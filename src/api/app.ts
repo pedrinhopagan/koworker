@@ -32,6 +32,12 @@ function buildAllowedOrigins(): Set<string> {
 
 const allowedOrigins = buildAllowedOrigins();
 
+// O upgrade do WebSocket não passa por CORS: sem checar a origem aqui, qualquer página aberta no
+// navegador tenta abrir o socket com os cookies do usuário.
+export function isAllowedOrigin(origin: string | null | undefined): boolean {
+	return !!origin && allowedOrigins.has(origin);
+}
+
 function resolveCorsOrigin(origin: string | undefined): string {
 	if (!origin) {
 		return DEFAULT_KOWORK_API_ORIGIN;

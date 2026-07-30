@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { FormProvider, type SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { orpc, reconnectRealtime } from "@/client";
+import { errorMessage } from "@/lib/orpc-errors";
 import { loginSchema } from "@/lib/schemas";
 import type { LoginInput } from "@/types/auth";
 
@@ -22,11 +23,17 @@ export function useLogin() {
 
 	const onSubmit: SubmitHandler<LoginInput> = async (data) => {
 		try {
-			await mutateAsync(data);
-		} catch {
+			const session = await mutateAsync(data);
+
+			if (session.device.status !== "approved") {
+				queryClient.clear();
+				await navigate({ to: "/dispositivo" });
+
+				return;
+			}
+		} catch (error) {
 			toast.error("Não foi possível entrar", {
-				description: "Nome ou senha inválidos",
-				position: "bottom-left",
+				description: errorMessage(error, "Nome ou senha inválidos"),
 			});
 
 			return;

@@ -7,6 +7,12 @@ export const DbUsers = {
 		return db.selectFrom("users").where("id", "=", id).selectAll().executeTakeFirst();
 	},
 
+	listIds: async () => {
+		const rows = await db.selectFrom("users").select("id").execute();
+
+		return rows.map((row) => row.id);
+	},
+
 	getByName(name: string) {
 		return db.selectFrom("users").where("name", "=", name).selectAll().executeTakeFirst();
 	},

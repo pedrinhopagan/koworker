@@ -9,6 +9,20 @@ function readBearerToken(headers: Headers) {
 	return bearer ?? headers.get("x-kowork-token");
 }
 
+// O CLI do agente roda sempre na mesma máquina do servidor, então o canal MCP não aceita nada que
+// venha de fora do loopback — a porta do koworker é pública na VPS e o id da sessão sozinho não é
+// credencial. Cabeçalho de encaminhamento significa que a requisição passou por um proxy.
+export function isLoopbackRequest(params: {
+	headers: Headers;
+	remoteAddress: string | null | undefined;
+}) {
+	if (FORWARDING_HEADERS.some((header) => params.headers.has(header))) {
+		return false;
+	}
+
+	return !!params.remoteAddress && LOOPBACK_ADDRESSES.has(params.remoteAddress);
+}
+
 export function isNotifyAuthorized(params: {
 	headers: Headers;
 	remoteAddress: string | null | undefined;

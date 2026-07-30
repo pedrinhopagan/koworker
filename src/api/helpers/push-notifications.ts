@@ -33,7 +33,16 @@ export const PushNotifications = {
 		};
 	},
 
-	async send(userId: number, payload: { title: string; body: string; url?: string; tag?: string }) {
+	async send(
+		userId: number,
+		payload: {
+			title: string;
+			body: string;
+			url?: string;
+			tag?: string;
+			requireInteraction?: boolean;
+		},
+	) {
 		if (!vapid) {
 			return 0;
 		}

@@ -1,13 +1,16 @@
 import type { ServerWebSocket } from "bun";
 
-import { resolveSession, type User } from "./context";
+import type { Device, User } from "./context";
+import { resolveSessionDevice } from "./context";
 
 const REVALIDATE_INTERVAL_MS = 60_000;
 const SESSION_CLOSED_CODE = 4401;
 
 export interface WsSessionData {
 	user: User | null;
+	device: Device | null;
 	cookieHeader: string | null;
+	remoteAddress: string | null;
 }
 
 const wsSessions = new Set<ServerWebSocket<WsSessionData>>();
@@ -19,15 +22,20 @@ async function revalidateWsSession(ws: ServerWebSocket<WsSessionData>) {
 		return;
 	}
 
-	const session = await resolveSession(ws.data.cookieHeader);
+	const session = await resolveSessionDevice({
+		cookieHeader: ws.data.cookieHeader,
+		userAgent: undefined,
+		remoteAddress: ws.data.remoteAddress,
+	});
 
-	if (!session || session.user.id !== ws.data.user.id) {
+	if (!session || session.user.id !== ws.data.user.id || session.device.status !== "approved") {
 		ws.close(SESSION_CLOSED_CODE, "Sessão expirada");
 
 		return;
 	}
 
 	ws.data.user = session.user;
+	ws.data.device = session.device;
 }
 
 async function revalidateWsSessions() {
@@ -63,6 +71,14 @@ export function closeWsSessionsForUser(userId: number) {
 	for (const ws of wsSessions) {
 		if (ws.data.user?.id === userId) {
 			ws.close(SESSION_CLOSED_CODE, "Sessão encerrada");
+		}
+	}
+}
+
+export function closeWsSessionsForDevice(deviceId: string) {
+	for (const ws of wsSessions) {
+		if (ws.data.device?.id === deviceId) {
+			ws.close(SESSION_CLOSED_CODE, "Dispositivo revogado");
 		}
 	}
 }

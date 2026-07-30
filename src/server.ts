@@ -1,16 +1,19 @@
 import { stat } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import type { Server } from "bun";
+import type { z } from "zod";
 
 import "./api/arktype";
-import { rpcHandler, wsRpcHandler } from "./api/app";
-import { resolveSession } from "./api/auth/context";
+import { isAllowedOrigin, rpcHandler, wsRpcHandler } from "./api/app";
+import { resolveSessionDevice } from "./api/auth/context";
 import { registerWsSession, unregisterWsSession, type WsSessionData } from "./api/auth/ws-sessions";
 import { envVariables } from "./api/config/env";
 import { DbUsers } from "./api/db/users";
-import { isNotifyAuthorized } from "./api/helpers/notify-auth";
+import { handleSessionMcp } from "./api/helpers/agent-session/mcp";
+import { isLoopbackRequest, isNotifyAuthorized } from "./api/helpers/notify-auth";
 import { PubSub } from "./api/pubsub";
 import { TaskNotifySchema } from "./api/schemas";
+import { KwTerminalNavigateSchema } from "./api/schemas/kw-terminal";
 import homepage from "./index.html";
 import { DEFAULT_KOWORK_PORT } from "./lib/runtime-config";
 
@@ -56,6 +59,56 @@ async function serveStatic(pathname: string) {
 	return null;
 }
 
+// Porta de entrada das rotas HTTP que ferramentas locais chamam sem sessão:
+// só POST, só loopback (ou token), corpo limitado e validado pelo schema dono.
+async function readLoopbackBody<T>(
+	request: Request,
+	server: Server<WsSessionData>,
+	schema: z.ZodType<T>,
+): Promise<{ data: T } | { response: Response }> {
+	if (request.method !== "POST") {
+		return { response: new Response("Method Not Allowed", { status: 405 }) };
+	}
+
+	const authorized = isNotifyAuthorized({
+		headers: request.headers,
+		remoteAddress: server.requestIP(request)?.address,
+		notifyToken: envVariables.KOWORK_NOTIFY_TOKEN,
+	});
+	if (!authorized) {
+		return { response: new Response("Unauthorized", { status: 401 }) };
+	}
+
+	if (Number(request.headers.get("content-length") ?? 0) > NOTIFY_MAX_BODY_BYTES) {
+		return { response: new Response("Payload Too Large", { status: 413 }) };
+	}
+
+	let rawBody: string;
+	try {
+		rawBody = await request.text();
+	} catch {
+		return { response: new Response("Bad Request", { status: 400 }) };
+	}
+
+	if (rawBody.length > NOTIFY_MAX_BODY_BYTES) {
+		return { response: new Response("Payload Too Large", { status: 413 }) };
+	}
+
+	let payload: unknown;
+	try {
+		payload = JSON.parse(rawBody);
+	} catch {
+		return { response: new Response("Bad Request", { status: 400 }) };
+	}
+
+	const parsed = schema.safeParse(payload);
+	if (!parsed.success) {
+		return { response: new Response("Bad Request", { status: 400 }) };
+	}
+
+	return { data: parsed.data };
+}
+
 const port = Number(envVariables.KOWORK_PORT) || DEFAULT_KOWORK_PORT;
 
 await DbUsers.ensureDefaultUser();
@@ -85,6 +138,19 @@ const { startRunReconciler } = await import("./api/helpers/prompt-run");
 const { abortActiveRuns } = await import("./api/helpers/run-registry");
 await startRunReconciler();
 
+// Sessões vivas pertencem ao processo que as criou: as que sobraram de um executor morto viram
+// `crashed` no boot, com o botão de retomar na rota.
+const { shutdownSessions, startSessionReconciler } =
+	await import("./api/helpers/agent-session/registry");
+await startSessionReconciler();
+
+// Central de agents: escuta o socket do kw-terminal e mantém em memória o estado de quem está
+// trabalhando, travado ou pronto. Falhar aqui não derruba o servidor — o watcher reconecta sozinho.
+const { startAgentRadar, stopAgentRadar } = await import("./api/helpers/agent-radar/watcher");
+await startAgentRadar().catch((error) => {
+	console.error("Falha ao iniciar a central de agents:", error);
+});
+
 let shuttingDown = false;
 
 async function shutdown(signal: string) {
@@ -96,6 +162,13 @@ async function shutdown(signal: string) {
 	const aborted = await abortActiveRuns();
 	if (aborted > 0) {
 		console.log(`[${signal}] ${aborted} execução(ões) encerrada(s) junto com o servidor`);
+	}
+
+	await stopAgentRadar();
+
+	const closed = await shutdownSessions();
+	if (closed > 0) {
+		console.log(`[${signal}] ${closed} sessão(ões) de agente encerrada(s) junto com o servidor`);
 	}
 
 	process.exit(0);
@@ -116,68 +189,75 @@ Bun.serve<WsSessionData>({
 			}),
 	routes: {
 		"/healthz": () => Response.json({ ok: true }),
-		"/rpc/*": async (request: Request) => {
+		"/rpc/*": async (request: Request, server: Server<WsSessionData>) => {
 			const { response } = await rpcHandler.handle(request, {
 				prefix: "/rpc",
-				context: {},
+				context: { remoteAddress: server.requestIP(request)?.address ?? null },
 			});
 
 			return response ?? new Response("Not Found", { status: 404 });
 		},
 		"/api/tasks/notify": async (request: Request, server: Server<WsSessionData>) => {
-			if (request.method !== "POST") {
-				return new Response("Method Not Allowed", { status: 405 });
+			const body = await readLoopbackBody(request, server, TaskNotifySchema);
+			if ("response" in body) {
+				return body.response;
 			}
 
-			const authorized = isNotifyAuthorized({
-				headers: request.headers,
-				remoteAddress: server.requestIP(request)?.address,
-				notifyToken: envVariables.KOWORK_NOTIFY_TOKEN,
-			});
-			if (!authorized) {
-				return new Response("Unauthorized", { status: 401 });
-			}
-
-			const contentLength = Number(request.headers.get("content-length") ?? 0);
-			if (contentLength > NOTIFY_MAX_BODY_BYTES) {
-				return new Response("Payload Too Large", { status: 413 });
-			}
-
-			let rawBody: string;
-			try {
-				rawBody = await request.text();
-			} catch {
-				return new Response("Bad Request", { status: 400 });
-			}
-
-			if (rawBody.length > NOTIFY_MAX_BODY_BYTES) {
-				return new Response("Payload Too Large", { status: 413 });
-			}
-
-			let payload: unknown;
-			try {
-				payload = JSON.parse(rawBody);
-			} catch {
-				return new Response("Bad Request", { status: 400 });
-			}
-
-			const parsed = TaskNotifySchema.safeParse(payload);
-			if (!parsed.success) {
-				return new Response("Bad Request", { status: 400 });
-			}
-
-			const event = { ...parsed.data, source: "cli" as const };
-			await PubSub.publish("tasks", parsed.data.projectId, event);
+			const event = { ...body.data, source: "cli" as const };
+			await PubSub.publish("tasks", body.data.projectId, event);
 			await PubSub.publish("tasks", "global", event);
 
 			return Response.json({ ok: true });
 		},
+		// Canal MCP da sessão: o CLI do agente, rodando nesta máquina, chama a ferramenta de perguntar
+		// ao usuário. Só loopback — a porta é pública na VPS e o id da sessão não é credencial.
+		"/mcp/session/:sessionId": (
+			request: Bun.BunRequest<"/mcp/session/:sessionId">,
+			server: Server<WsSessionData>,
+		) => {
+			const remoteAddress = server.requestIP(request)?.address;
+			if (!isLoopbackRequest({ headers: request.headers, remoteAddress })) {
+				return new Response("Unauthorized", { status: 401 });
+			}
+
+			return handleSessionMcp(request, request.params.sessionId);
+		},
+		"/api/kw-terminal/navigate": async (request: Request, server: Server<WsSessionData>) => {
+			const body = await readLoopbackBody(request, server, KwTerminalNavigateSchema);
+			if ("response" in body) {
+				return body.response;
+			}
+
+			await PubSub.publish("navigate", "global", body.data);
+
+			return Response.json({ ok: true });
+		},
 		"/ws": async (request: Request, server: Server<WsSessionData>) => {
+			if (!isAllowedOrigin(request.headers.get("origin"))) {
+				return new Response("Forbidden", { status: 403 });
+			}
+
 			const cookieHeader = request.headers.get("cookie");
-			const session = await resolveSession(cookieHeader);
+			const remoteAddress = server.requestIP(request)?.address ?? null;
+			const session = await resolveSessionDevice({
+				cookieHeader,
+				userAgent: request.headers.get("user-agent") ?? undefined,
+				remoteAddress,
+			});
+
+			// Socket é canal de dado vivo: dispositivo pendente ou bloqueado não sobe, mesmo com
+			// sessão válida no cookie.
+			if (session && session.device.status !== "approved") {
+				return new Response("Forbidden", { status: 403 });
+			}
 
 			const upgraded = server.upgrade(request, {
-				data: { user: session?.user ?? null, cookieHeader },
+				data: {
+					user: session?.user ?? null,
+					device: session?.device ?? null,
+					cookieHeader,
+					remoteAddress,
+				},
 			});
 
 			if (!upgraded) {
@@ -199,7 +279,7 @@ Bun.serve<WsSessionData>({
 		},
 		message(ws, message) {
 			wsRpcHandler.message(ws, message, {
-				context: { user: ws.data?.user ?? null },
+				context: { user: ws.data?.user ?? null, device: ws.data?.device ?? null },
 			});
 		},
 		close(ws) {
