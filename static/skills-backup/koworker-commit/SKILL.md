@@ -40,6 +40,8 @@ Create a clean, task-scoped commit and record it. Do not push.
    - Run `git status`, `git diff`, and `git log -5 --oneline`.
    - If there are no changes, record it in `notes` and stop.
    - Identify which files belong to the task.
+   - Triage every untracked file: it is either part of the delivery or process garbage. Garbage is what a tool left behind and nobody asked for: screenshots at the repo root (`shot-*.png`, `mobile.png`, `desk-*.png`), report HTML, dumps, logs, `.bak` files, build artifacts outside the build folder, throwaway investigation scripts. The tell is having no counterpart in the diff, no code referencing it and no part of the request asking for it.
+   - Delete the garbage instead of committing it or leaving it dirtying `git status`. If it reappears on every run, the tool or the `.gitignore` is the cause and the fix belongs in the commit. Ask before deleting anything ambiguous; delete without asking only what is clearly derived and reproducible, and say what was removed.
    - If unrelated files are present, your only allowed response is to ask whether to include them. Do not commit yet.
    - If sensitive files are present, refuse to commit them and ask to exclude.
    - Do not commit until scope is explicitly confirmed.

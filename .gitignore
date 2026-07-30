@@ -48,6 +48,9 @@ db.sqlite
 workopilot-front-end/
 example_**.png
 
+# capturas soltas na raiz (agent-browser e afins) nunca pertencem ao repo
+/*.png
+
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
