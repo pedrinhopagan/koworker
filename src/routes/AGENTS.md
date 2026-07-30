@@ -16,7 +16,12 @@ routes/
 │   ├── configuracoes.tsx
 │   ├── sistema.tsx
 │   ├── fontes.tsx
-│   ├── kw-terminal.tsx
+│   ├── terminals/
+│   │   ├── index.tsx
+│   │   ├── $paneId/index.tsx
+│   │   ├── -components/
+│   │   └── -utils/
+│   ├── radar/               (redirects legados para /terminals)
 │   ├── executar/
 │   │   ├── index.tsx
 │   │   ├── $executionId/index.tsx
@@ -89,7 +94,9 @@ routes/
 - `/sistema`
 - `/configuracoes`
 - `/fontes`
-- `/kw-terminal`
+- `/terminals` — agents e workspaces do kw-terminal; "Abrir nova sessão" cria a tab e leva para a conversa
+- `/terminals/$paneId`
+- Links legados `/radar` e `/radar/$paneId` redirecionam por `replace`.
 
 ## LAYOUTS E GUARDA
 
@@ -108,7 +115,7 @@ página. Nunca mova `validateSearch`, `beforeLoad` ou `loader` para o arquivo `.
 Já divididas: `fontes`, `executar/`, `executar/$executionId/`, `projetos/$projetoId/docs/$`,
 `vault/`, `vault/$fileName/`, `tarefas/$taskId/`, `tarefas/$taskId/$file`,
 `tarefas/$taskId/$file_/$canonicalFile`, `skills/$slug/`, `agents/$slug/`, `media/`,
-`media/$fileName/`, `mostruario/`.
+`media/$fileName/`, `mostruario/`, `terminals/`, `terminals/$paneId/`.
 
 ## REGRAS
 

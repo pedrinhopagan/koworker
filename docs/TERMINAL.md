@@ -116,6 +116,15 @@ Procedures em `src/api/routers/terminal.ts`:
 
 WebSocket: `terminal.events` → `PubSub.terminal.subscribe`.
 
+Procedures em `src/api/routers/kw-terminal.ts`, que é o que a rota `/terminals` consome:
+
+| Procedure | Descrição |
+|-----------|-----------|
+| `overview` | Workspaces com suas tabs, do daemon |
+| `sessionStart` | Sessão livre: tab nova no workspace do projeto com claude/codex subindo nela e prompt inicial opcional; devolve o `paneId` para abrir a conversa |
+| `tabCreate` / `tabFocus` / `tabRename` / `tabClose` | Ações de tab |
+| `workspaceFocus` / `workspaceRename` / `workspaceClose` | Ações de workspace |
+
 ## NOMENCLATURA
 
 Labels estáveis entre reinícios do backend (lookup por nome, não por ID volátil):
@@ -123,8 +132,24 @@ Labels estáveis entre reinícios do backend (lookup por nome, não por ID volá
 - **Sessão/workspace**: `kw_{primeira_palavra_do_projectName_lowercase}` (ex: `kw_kowork`)
 - **Window/tab**: `{taskId[0:8]}_{sanitized_title}` (ex: `abcd1234_minha_tarefa`)
 - **Invocações**: `agent_*` ou `skill_*` (filtro `isInvocationWindow`)
+- **Sessão livre da rota `/terminals`**: `sess_{nome}` ou `sess_{hhmm}` (`sessionTabName`)
 
 Implementação: `src/api/helpers/terminal/names.ts`.
+
+## ROTA /terminals
+
+Rota única para os terminais desta máquina, pensada para o celular. Os agents são o conteúdo (cartões
+ao vivo do radar, cada um com link para a conversa em `/terminals/$paneId`); o workspace é o
+agrupamento, e as ações dele (focar, nova tab, renomear, fechar) ficam num dropdown no header do
+grupo. Tab sem agent é shell puro: aparece atrás de um toggle, só com focar/renomear/fechar.
+
+"Abrir nova sessão" é o caminho livre para subir um agent: escolhe projeto e CLI, aceita nome e
+primeira mensagem opcionais, cria a tab por `kwTerminal.sessionStart` e navega para a conversa. O
+pane entra no radar quando o daemon detecta o agent, então nada é rastreado em banco — diferente de
+`/executar`, que abre `execution_runs`.
+
+`/radar` e `/kw-terminal` deixaram de existir; `/radar` e `/radar/$paneId` seguem como redirects
+porque push já entregue aponta para lá.
 
 ## EXECUÇÕES DA ROTA /executar
 

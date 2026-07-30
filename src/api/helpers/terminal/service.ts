@@ -8,6 +8,7 @@ import {
 	type TerminalCommand,
 	terminalCommandText,
 } from "./command";
+import { cliStartArgv } from "./cli-argv";
 import { type EmulatorProcess, spawnEmulator } from "./emulator";
 import { focusTerminalWindow } from "./focus";
 import {
@@ -711,16 +712,6 @@ function invocationArgv(params: {
 // com invocações (`agent_`/`skill_`), então a sessão do CLI é sempre reencontrada pelo mesmo label.
 function cliWindowName(cli: "claude" | "codex"): string {
 	return `cli_${cli}`;
-}
-
-// CLI subindo sem prompt: mesmos flags de permissão da invocação (bypass), sem o argumento final.
-function cliStartArgv(cli: "claude" | "codex"): string[] {
-	const argv =
-		cli === "codex"
-			? buildCodexArgv({ prompt: "", approvalMode: "bypass" })
-			: buildClaudeArgv({ prompt: "", permissionMode: "bypass" });
-
-	return argv.filter((arg) => arg !== "");
 }
 
 async function windowExists(params: {

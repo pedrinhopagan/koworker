@@ -1,20 +1,33 @@
+import { ORPCError } from "@orpc/server";
+
 import { protectedProcedure } from "../auth/context";
+import { dbProjects } from "../db/projects";
+import { cliStartArgv } from "../helpers/terminal/cli-argv";
+import { terminalCommandText } from "../helpers/terminal/command";
 import {
 	ensureKwTerminalServer,
+	findWorkspaceByLabel,
+	kwTerminalPaneRun,
 	kwTerminalTabClose,
+	kwTerminalTabCreate,
 	kwTerminalTabCreateInWorkspace,
 	kwTerminalTabFocus,
 	kwTerminalTabList,
 	kwTerminalTabRename,
+	kwTerminalWorkspaceClose,
+	kwTerminalWorkspaceCreate,
 	kwTerminalWorkspaceFocus,
 	kwTerminalWorkspaceList,
 	kwTerminalWorkspaceRename,
 } from "../helpers/terminal/kw-terminal";
+import { sessionNameForProject, sessionTabName } from "../helpers/terminal/names";
 import {
+	KwTerminalSessionStartSchema,
 	KwTerminalTabCloseSchema,
 	KwTerminalTabCreateSchema,
 	KwTerminalTabFocusSchema,
 	KwTerminalTabRenameSchema,
+	KwTerminalWorkspaceCloseSchema,
 	KwTerminalWorkspaceFocusSchema,
 	KwTerminalWorkspaceRenameSchema,
 } from "../schemas/kw-terminal";
@@ -79,5 +92,57 @@ export const kwTerminalRouter = {
 		.handler(async ({ input }) => {
 			await ensureKwTerminalServer();
 			return kwTerminalWorkspaceRename(input.workspaceId, input.label);
+		}),
+
+	workspaceClose: protectedProcedure
+		.input(KwTerminalWorkspaceCloseSchema)
+		.handler(async ({ input }) => {
+			await ensureKwTerminalServer();
+
+			if (!(await kwTerminalWorkspaceClose(input.workspaceId))) {
+				throw new Error("Falha ao fechar workspace kw-terminal");
+			}
+
+			return { ok: true };
+		}),
+
+	// Sessão livre: tab nova no workspace do projeto com o CLI já subindo nela. O pane entra na
+	// central sozinho quando o daemon detecta o agent, então aqui basta devolver o pane raiz.
+	sessionStart: protectedProcedure
+		.input(KwTerminalSessionStartSchema)
+		.handler(async ({ input }) => {
+			const project = await dbProjects.getById(input.projectId);
+			if (!project) {
+				throw new ORPCError("NOT_FOUND", { message: "Projeto não encontrado" });
+			}
+
+			await ensureKwTerminalServer();
+
+			const workspaceLabel = sessionNameForProject(project.name);
+			const workspace =
+				(await findWorkspaceByLabel(workspaceLabel)) ??
+				(await kwTerminalWorkspaceCreate({
+					cwd: project.main_route,
+					label: workspaceLabel,
+					focus: false,
+				}));
+
+			const { tab, rootPane } = await kwTerminalTabCreate({
+				workspaceId: workspace.workspace_id,
+				cwd: project.main_route,
+				label: sessionTabName(input.label),
+				focus: false,
+			});
+
+			await kwTerminalPaneRun(
+				rootPane.pane_id,
+				terminalCommandText({ kind: "argv", argv: cliStartArgv(input.cli, input.prompt ?? "") }),
+			);
+
+			return {
+				paneId: rootPane.pane_id,
+				tabId: tab.tab_id,
+				workspaceId: workspace.workspace_id,
+			};
 		}),
 };

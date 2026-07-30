@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
-import { ArrowDown, ArrowLeft, Loader2, Radar } from "lucide-react";
+import { ArrowDown, ArrowLeft, Loader2, SquareTerminal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -17,11 +17,11 @@ import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { useAgentRadarTranscript } from "@/hooks/use-agent-radar-transcript";
 import { errorMessage } from "@/lib/orpc-errors";
 
-export const Route = createLazyFileRoute("/_app/radar/$paneId/")({
-	component: RadarPanePage,
+export const Route = createLazyFileRoute("/_app/terminals/$paneId/")({
+	component: TerminalPanePage,
 });
 
-function RadarPanePage() {
+function TerminalPanePage() {
 	const { paneId } = Route.useParams();
 	const viewport = useRef<HTMLDivElement>(null);
 	const [pinned, setPinned] = useState(true);
@@ -65,7 +65,7 @@ function RadarPanePage() {
 			description={[agent?.projectName ?? agent?.cwd, agent?.tabLabel, source?.cli]
 				.filter(Boolean)
 				.join(" · ")}
-			icon={Radar}
+			icon={SquareTerminal}
 			contentClassName="flex min-h-0 flex-col"
 			actions={
 				<div className="flex flex-wrap items-center gap-2">
@@ -78,9 +78,9 @@ function RadarPanePage() {
 					{agent?.taskId && <TaskLink taskId={agent.taskId} label={agent.taskTitle ?? "Tarefa"} />}
 
 					<Button asChild variant="outline" size="sm">
-						<Link to="/radar">
+						<Link to="/terminals">
 							<ArrowLeft className="size-4" />
-							Radar
+							Terminais
 						</Link>
 					</Button>
 				</div>
@@ -103,7 +103,7 @@ function RadarPanePage() {
 
 					{!loading && missing && (
 						<EmptyFeedback
-							icon={Radar}
+							icon={SquareTerminal}
 							title="Sem conversa para ler"
 							subtitle="Este agent não grava sessão em disco, ou ainda não escreveu a primeira linha."
 						/>
@@ -111,7 +111,7 @@ function RadarPanePage() {
 
 					{!loading && !missing && events.length === 0 && (
 						<EmptyFeedback
-							icon={Radar}
+							icon={SquareTerminal}
 							title="Conversa vazia"
 							subtitle="A sessão começou agora: o que for dito aqui aparece sozinho."
 						/>

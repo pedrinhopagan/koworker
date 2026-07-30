@@ -36,7 +36,7 @@ export async function alertRadarTransition(agent: RadarAgent) {
 			PushNotifications.send(userId, {
 				title,
 				body,
-				url: "/radar",
+				url: "/terminals",
 				tag: `kowork-radar-${agent.paneId}`,
 				requireInteraction: agent.status === "blocked",
 			}).catch((error: unknown) => {

@@ -26,6 +26,17 @@ export const KwTerminalWorkspaceRenameSchema = z.object({
 	label: z.string().trim().min(1),
 });
 
+export const KwTerminalWorkspaceCloseSchema = z.object({
+	workspaceId: z.string(),
+});
+
+export const KwTerminalSessionStartSchema = z.object({
+	projectId: z.string().min(1),
+	cli: z.enum(["claude", "codex"]),
+	label: z.string().trim().max(60).optional(),
+	prompt: z.string().trim().max(20_000).optional(),
+});
+
 // A rota chega de fora do app e vai direto para o router, então só um caminho
 // interno absoluto passa: sem host, sem esquema e sem `//` inicial, que o
 // navegador leria como outra origem.

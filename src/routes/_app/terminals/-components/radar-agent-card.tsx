@@ -67,7 +67,7 @@ export function RadarAgentCard({ agent }: { agent: RadarAgent }) {
 				{/* Entrar na conversa é a ação do cartão, mas não pode roubar o toque do link do projeto:
 				    por isso é um alvo próprio, à direita, e não o cartão inteiro clicável. */}
 				<Link
-					to="/radar/$paneId"
+					to="/terminals/$paneId"
 					params={{ paneId: agent.paneId }}
 					className="ml-auto inline-flex min-h-9 shrink-0 items-center gap-1.5 border border-border bg-muted/40 px-2.5 text-xs font-semibold text-foreground transition-colors hover:border-primary hover:bg-muted"
 				>

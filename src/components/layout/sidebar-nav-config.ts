@@ -12,7 +12,6 @@ import {
 	MessageSquareText,
 	OctagonX,
 	Presentation,
-	Radar,
 	RefreshCw,
 	Rocket,
 	Settings,
@@ -90,13 +89,12 @@ export const sidebarNavGroups: SidebarNavGroup[] = [
 			{ kind: "route", path: "/vault", label: "Vault", icon: Archive, altKey: "8" },
 			{
 				kind: "route",
-				path: "/kw-terminal",
-				label: "kw-terminal",
+				path: "/terminals",
+				label: "Terminais",
 				icon: SquareTerminal,
 				altKey: "9",
 			},
 			{ kind: "route", path: "/agents", label: "Agents", icon: Bot, altKey: "0" },
-			{ kind: "route", path: "/radar", label: "Radar", icon: Radar },
 		],
 	},
 	{

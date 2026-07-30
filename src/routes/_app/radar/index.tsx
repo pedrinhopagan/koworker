@@ -1,3 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/_app/radar/")({});
+// A central virou `/terminals`, mas notificação push já entregue continua apontando pra cá.
+export const Route = createFileRoute("/_app/radar/")({
+	beforeLoad: () => {
+		throw redirect({ to: "/terminals", replace: true });
+	},
+});

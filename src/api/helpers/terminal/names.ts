@@ -38,6 +38,22 @@ export function sanitizeRouteName(routeName: string): string {
 		.join("");
 }
 
+// Tab da sessão livre aberta pela rota /terminals. Prefixo próprio para não ser lida como invocação
+// (`agent_`/`skill_`) nem como tarefa; sem nome informado o rótulo cai na hora da abertura.
+export function sessionTabName(label?: string): string {
+	const sanitized = label ? sanitizeRouteName(label).slice(0, 20) : "";
+
+	if (sanitized) {
+		return `sess_${sanitized}`;
+	}
+
+	const now = new Date();
+	const hours = String(now.getHours()).padStart(2, "0");
+	const minutes = String(now.getMinutes()).padStart(2, "0");
+
+	return `sess_${hours}${minutes}`;
+}
+
 // Discrimina a window de uma invocação de agent/skill. O taskId da invocação é `agent_<slug>` /
 // `skill_<slug>` (ver `src/lib/invoke.ts`) e `windowNameForTask` o trunca em 8 chars como prefixo,
 // então a window sempre começa com `agent_` / `skill_`. Tarefas (UUID hex) e rotas (nome sanitizado)

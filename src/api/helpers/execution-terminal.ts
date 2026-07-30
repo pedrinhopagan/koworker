@@ -2,6 +2,7 @@ import { mkdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { shellQuote } from "@/lib/shell-argv";
 import {
 	ensureKwTerminalServer,
 	findTabByLabel,
@@ -17,10 +18,6 @@ import { windowNameForTask } from "./terminal/names";
 export const EXECUTION_WORKSPACE_LABEL = "kw_execucoes";
 
 const RUN_FILES_DIR = join(tmpdir(), "kowork-executions");
-
-function shellQuote(value: string) {
-	return `'${value.replaceAll("'", `'\\''`)}'`;
-}
 
 export type ExecutionTerminalHandle = {
 	logPath: string;
