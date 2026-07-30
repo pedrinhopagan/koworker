@@ -4,6 +4,12 @@ import { useState } from "react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cleanup, fireEvent, render } from "../../../tests/web/testing-library";
 
 afterEach(cleanup);
@@ -61,5 +67,59 @@ describe("ConfirmDialog", () => {
 		);
 
 		expect(await screen.findByRole("alertdialog")).toBeTruthy();
+	});
+});
+
+// Confirmação aberta a partir de um item de menu: menu e dialog coexistem por um instante, e o
+// travamento da página aparece quando `@radix-ui/react-focus-scope` e
+// `@radix-ui/react-dismissable-layer` são resolvidos em cópias diferentes — cada cópia tem a própria
+// pilha de camadas, então nenhuma pausa a outra. Os `overrides` do package.json mantêm uma cópia só,
+// e este teste é o que acusa a volta da duplicata.
+function MenuConfirmHarness() {
+	const [confirming, setConfirming] = useState(false);
+
+	return (
+		<div data-theme-root>
+			<DropdownMenu>
+				<DropdownMenuTrigger>ações</DropdownMenuTrigger>
+				<DropdownMenuContent>
+					<DropdownMenuItem onSelect={() => setConfirming(true)}>Fechar workspace</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
+
+			<ConfirmDialog
+				open={confirming}
+				onClose={() => setConfirming(false)}
+				onConfirm={() => setConfirming(false)}
+				title="Fechar kw_kowork?"
+			/>
+		</div>
+	);
+}
+
+async function openConfirmFromMenu() {
+	render(<MenuConfirmHarness />);
+	fireEvent.pointerDown(screen.getByText("ações"), { button: 0, ctrlKey: false });
+	fireEvent.click(await screen.findByText("Fechar workspace"));
+	await screen.findByRole("alertdialog");
+}
+
+describe("ConfirmDialog aberto por menu", () => {
+	test("devolve o ponteiro à página ao cancelar", async () => {
+		await openConfirmFromMenu();
+
+		fireEvent.click(screen.getByText("Cancelar"));
+		await Bun.sleep(50);
+
+		expect(document.body.style.pointerEvents).toBe("");
+	});
+
+	test("devolve o ponteiro à página ao confirmar", async () => {
+		await openConfirmFromMenu();
+
+		fireEvent.click(screen.getByText("Confirmar"));
+		await Bun.sleep(50);
+
+		expect(document.body.style.pointerEvents).toBe("");
 	});
 });

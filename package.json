@@ -111,5 +111,10 @@
 		"oxfmt": "^0.26.0",
 		"oxlint": "^1.41.0",
 		"typescript": "^5.9.3"
+	},
+	"overrides": {
+		"@radix-ui/react-dismissable-layer": "1.1.14",
+		"@radix-ui/react-focus-guards": "1.1.4",
+		"@radix-ui/react-focus-scope": "1.1.11"
 	}
 }
