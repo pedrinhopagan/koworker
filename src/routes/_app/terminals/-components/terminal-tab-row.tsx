@@ -1,7 +1,8 @@
-import { ChevronDown, Pencil, Target, Terminal, X } from "lucide-react";
+import { ChevronDown, MoreVertical, Pencil, Target, X } from "lucide-react";
 import { useState } from "react";
 
 import { Text } from "@/components/typography";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -9,34 +10,56 @@ import {
 	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Tooltip } from "@/components/ui/tooltip";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { commandLabel } from "@/lib/shell-command";
 import { cn } from "@/lib/utils";
+import type { WorkspaceProjectRef } from "../-utils/resolve-workspace-project";
 import type { KwTerminalActions } from "../-utils/use-kw-terminal-actions";
+import { FocusOnScreenIndicator } from "./focus-on-screen-indicator";
 import { RenameDialog } from "./rename-dialog";
+import { TERMINALS_ACTION_BUTTON, TERMINALS_CELL, TERMINALS_COLUMNS } from "./table-layout";
+import { WorkspaceMenuItems } from "./workspace-menu-items";
 
 type TerminalTabRowProps = {
 	tabId: string;
 	label: string;
 	focused: boolean;
+	workspaceId: string;
+	workspaceLabel: string;
+	displayName: string;
+	project: WorkspaceProjectRef | null;
 	actions: KwTerminalActions;
 };
 
-const ACTION_BUTTON =
-	"relative inline-flex size-7 shrink-0 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground";
-
-export function TerminalTabRow({ tabId, label, focused, actions }: TerminalTabRowProps) {
-	const [renaming, setRenaming] = useState(false);
-	const [open, setOpen] = useState(false);
+export function TerminalTabRow({
+	tabId,
+	label,
+	focused,
+	workspaceId,
+	workspaceLabel,
+	displayName,
+	project,
+	actions,
+}: TerminalTabRowProps) {
+	const [renamingTab, setRenamingTab] = useState(false);
+	const [renamingWorkspace, setRenamingWorkspace] = useState(false);
+	const [closingWorkspace, setClosingWorkspace] = useState(false);
+	const [commandOpen, setCommandOpen] = useState(false);
 	const program = commandLabel(label);
 	const detailed = program !== label;
 
 	return (
-		<li className={cn("bg-card transition-colors", focused && "bg-primary/5")}>
+		<li className={cn("transition-colors", focused && "bg-primary/5")}>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
 					<div>
-						<div className="relative flex items-center gap-2 px-3 py-2">
+						<div className={cn(TERMINALS_COLUMNS, "relative")}>
 							<button
 								type="button"
 								onClick={function () {
@@ -46,87 +69,116 @@ export function TerminalTabRow({ tabId, label, focused, actions }: TerminalTabRo
 								className="absolute inset-0 cursor-pointer hover:bg-muted/20"
 							/>
 
-							<Terminal className="relative size-3.5 shrink-0 text-muted-foreground" />
-
-							<Text
-								as="span"
-								size="xs"
-								className="relative shrink-0 font-bold uppercase tracking-[0.1em]"
+							<span
+								className={cn(
+									TERMINALS_CELL,
+									"pointer-events-none relative gap-1.5 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-foreground",
+								)}
 							>
-								Terminal
-							</Text>
-
-							<span className="relative min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-								{program ?? label}
+								TERM
+								{focused && <FocusOnScreenIndicator variant="item" />}
 							</span>
 
-							<div className="relative z-10 flex items-center gap-0.5">
-								{detailed && (
-									<Tooltip label={open ? "Ocultar comando" : "Ver comando completo"}>
+							<span className={cn(TERMINALS_CELL, "pointer-events-none relative")}>
+								<Text as="span" size="xs" tone="muted">
+									—
+								</Text>
+							</span>
+
+							<span className={cn(TERMINALS_CELL, "pointer-events-none relative")}>
+								<Text as="span" size="xs" tone="muted" className="truncate font-mono">
+									{displayName}
+									<span className="text-muted-foreground/40"> · </span>
+									{program ?? label}
+								</Text>
+							</span>
+
+							<span className={cn(TERMINALS_CELL, "pointer-events-none relative")}>
+								<Text as="span" size="xs" tone="muted">
+									—
+								</Text>
+							</span>
+
+							<span className={cn(TERMINALS_CELL, "pointer-events-none relative")}>
+								<Text as="span" size="xs" tone="muted">
+									—
+								</Text>
+							</span>
+
+							<div className={cn(TERMINALS_CELL, "relative z-10 justify-end")}>
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
 										<button
 											type="button"
-											onClick={function () {
-												setOpen(function (current) {
-													return !current;
-												});
-											}}
-											aria-label={open ? "Ocultar comando" : "Ver comando completo"}
-											aria-expanded={open}
-											className={ACTION_BUTTON}
+											aria-label={`Mais ações da tab ${program ?? label}`}
+											className={TERMINALS_ACTION_BUTTON}
 										>
-											<ChevronDown
-												className={cn("size-3.5 transition-transform", open && "rotate-180")}
-											/>
+											<MoreVertical className="size-3.5" aria-hidden />
 										</button>
-									</Tooltip>
-								)}
+									</DropdownMenuTrigger>
 
-								<Tooltip label={focused ? "Na tela" : "Focar tab"}>
-									<button
-										type="button"
-										onClick={function () {
-											actions.tabFocus.mutate({ tabId });
-										}}
-										aria-label={
-											focused
-												? `Tab ${program ?? label} na tela`
-												: `Focar a tab ${program ?? label}`
-										}
-										className={cn(ACTION_BUTTON, focused && "text-primary hover:text-primary")}
-									>
-										<Target className="size-3.5" aria-hidden />
-									</button>
-								</Tooltip>
+									<DropdownMenuContent align="end" className="min-w-[220px]">
+										<DropdownMenuItem
+											onSelect={function () {
+												actions.tabFocus.mutate({ tabId });
+											}}
+										>
+											<Target className="size-4" />
+											Focar tab
+										</DropdownMenuItem>
 
-								<Tooltip label="Renomear">
-									<button
-										type="button"
-										onClick={function () {
-											setRenaming(true);
-										}}
-										aria-label="Renomear tab"
-										className={ACTION_BUTTON}
-									>
-										<Pencil className="size-3.5" aria-hidden />
-									</button>
-								</Tooltip>
+										<DropdownMenuItem
+											onSelect={function () {
+												setRenamingTab(true);
+											}}
+										>
+											<Pencil className="size-4" />
+											Renomear tab
+										</DropdownMenuItem>
 
-								<Tooltip label="Fechar tab">
-									<button
-										type="button"
-										onClick={function () {
-											actions.tabClose.mutate({ tabId });
-										}}
-										aria-label="Fechar tab"
-										className={cn(ACTION_BUTTON, "hover:text-destructive")}
-									>
-										<X className="size-3.5" aria-hidden />
-									</button>
-								</Tooltip>
+										{detailed && (
+											<DropdownMenuItem
+												onSelect={function () {
+													setCommandOpen(true);
+												}}
+											>
+												<ChevronDown className="size-4" />
+												Ver comando completo
+											</DropdownMenuItem>
+										)}
+
+										<DropdownMenuItem
+											onSelect={function () {
+												actions.tabClose.mutate({ tabId });
+											}}
+											className="text-destructive"
+										>
+											<X className="size-4" />
+											Fechar tab
+										</DropdownMenuItem>
+
+										<DropdownMenuSeparator />
+
+										<WorkspaceMenuItems
+											workspaceId={workspaceId}
+											displayName={displayName}
+											project={project}
+											actions={actions}
+											Item={DropdownMenuItem}
+											Separator={DropdownMenuSeparator}
+											onRename={function () {
+												setRenamingWorkspace(true);
+											}}
+											onCloseWorkspace={function () {
+												setClosingWorkspace(true);
+											}}
+										/>
+									</DropdownMenuContent>
+								</DropdownMenu>
 							</div>
 						</div>
 
-						{open && detailed && (
+						{commandOpen && detailed && (
 							<pre className="max-h-40 overflow-auto overscroll-contain border-t border-border bg-background px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
 								{label}
 							</pre>
@@ -134,7 +186,7 @@ export function TerminalTabRow({ tabId, label, focused, actions }: TerminalTabRo
 					</div>
 				</ContextMenuTrigger>
 
-				<ContextMenuContent>
+				<ContextMenuContent className="min-w-[220px]">
 					<ContextMenuItem
 						onSelect={function () {
 							actions.tabFocus.mutate({ tabId });
@@ -146,25 +198,23 @@ export function TerminalTabRow({ tabId, label, focused, actions }: TerminalTabRo
 
 					<ContextMenuItem
 						onSelect={function () {
-							setRenaming(true);
+							setRenamingTab(true);
 						}}
 					>
 						<Pencil className="size-4" />
-						Renomear
+						Renomear tab
 					</ContextMenuItem>
 
 					{detailed && (
 						<ContextMenuItem
 							onSelect={function () {
-								setOpen(true);
+								setCommandOpen(true);
 							}}
 						>
 							<ChevronDown className="size-4" />
 							Ver comando completo
 						</ContextMenuItem>
 					)}
-
-					<ContextMenuSeparator />
 
 					<ContextMenuItem
 						onSelect={function () {
@@ -175,27 +225,84 @@ export function TerminalTabRow({ tabId, label, focused, actions }: TerminalTabRo
 						<X className="size-4" />
 						Fechar tab
 					</ContextMenuItem>
+
+					<ContextMenuSeparator />
+
+					<WorkspaceMenuItems
+						workspaceId={workspaceId}
+						displayName={displayName}
+						project={project}
+						actions={actions}
+						onRename={function () {
+							setRenamingWorkspace(true);
+						}}
+						onCloseWorkspace={function () {
+							setClosingWorkspace(true);
+						}}
+					/>
 				</ContextMenuContent>
 			</ContextMenu>
 
 			<RenameDialog
-				open={renaming}
+				open={renamingTab}
 				title="Renomear tab"
 				initial={label}
 				pending={actions.tabRename.isPending}
 				onClose={function () {
-					setRenaming(false);
+					setRenamingTab(false);
 				}}
 				onSubmit={function (next) {
 					actions.tabRename.mutate(
 						{ tabId, label: next },
 						{
 							onSuccess: function () {
-								setRenaming(false);
+								setRenamingTab(false);
 							},
 						},
 					);
 				}}
+			/>
+
+			<RenameDialog
+				open={renamingWorkspace}
+				title="Renomear workspace"
+				initial={workspaceLabel}
+				pending={actions.workspaceRename.isPending}
+				onClose={function () {
+					setRenamingWorkspace(false);
+				}}
+				onSubmit={function (next) {
+					actions.workspaceRename.mutate(
+						{ workspaceId, label: next },
+						{
+							onSuccess: function () {
+								setRenamingWorkspace(false);
+							},
+						},
+					);
+				}}
+			/>
+
+			<ConfirmDialog
+				open={closingWorkspace}
+				onClose={function () {
+					setClosingWorkspace(false);
+				}}
+				onConfirm={function () {
+					actions.workspaceClose.mutate(
+						{ workspaceId },
+						{
+							onSuccess: function () {
+								setClosingWorkspace(false);
+							},
+						},
+					);
+				}}
+				title={`Fechar ${displayName}?`}
+				description="Todas as tabs e agents deste workspace são encerrados."
+				confirmLabel="Fechar"
+				variant="danger"
+				loading={actions.workspaceClose.isPending}
 			/>
 		</li>
 	);

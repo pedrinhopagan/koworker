@@ -26,10 +26,7 @@ pub fn setup(app: &App) -> Result<TrayIcon, Box<dyn std::error::Error>> {
 
     let tray = TrayIconBuilder::with_id("kowork-tray")
         .icon(icon)
-        .tooltip(format!(
-            "Kowork - {} para abrir",
-            toggle_shortcut_label()
-        ))
+        .tooltip(format!("Kowork - {} para abrir", toggle_shortcut_label()))
         .icon_as_template(false)
         .menu(&menu)
         .show_menu_on_left_click(false)
@@ -60,7 +57,12 @@ pub fn handle_run_event(app_handle: &tauri::AppHandle, event: RunEvent) {
                 }
             }
         }
-        RunEvent::ExitRequested { .. } | RunEvent::Exit => {
+        RunEvent::ExitRequested {
+            code: None, api, ..
+        } => {
+            api.prevent_exit();
+        }
+        RunEvent::Exit => {
             backend::stop();
         }
         _ => {}

@@ -13,8 +13,8 @@ import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { NewSessionDialog } from "./-components/new-session-dialog";
 import { RestoreSnapshotCard } from "./-components/restore-snapshot-card";
 import { ShortcutsSection } from "./-components/shortcuts-section";
-import { TerminalsSummary } from "./-components/terminals-summary";
-import { WorkspaceGroup } from "./-components/workspace-group";
+import { TerminalsTable, type TerminalsWorkspace } from "./-components/terminals-table";
+import { resolveWorkspaceProject } from "./-utils/resolve-workspace-project";
 import { useKwTerminalActions } from "./-utils/use-kw-terminal-actions";
 
 export const Route = createLazyFileRoute("/_app/terminals/")({
@@ -22,38 +22,40 @@ export const Route = createLazyFileRoute("/_app/terminals/")({
 });
 
 type Workspace = RouterOutputs["kwTerminal"]["overview"]["workspaces"][number];
+type Project = RouterOutputs["projects"]["list"][number];
 
-type Group = {
-	workspaceId: string;
-	label: string;
-	number: number;
-	focused: boolean;
-	focusedPaneId: string | null;
-	agents: RadarAgent[];
-	tabs: Workspace["tabs"];
-};
-
-function buildGroups(
+function buildWorkspaces(
 	workspaces: Workspace[],
 	agents: RadarAgent[],
 	focus: { workspaceId: string | null; tabId: string | null; paneId: string | null },
-): Group[] {
+	projects: Project[],
+): TerminalsWorkspace[] {
 	const groups = workspaces.map(function (workspace) {
+		const workspaceAgents = agents.filter(function (agent) {
+			return agent.workspaceId === workspace.workspace_id;
+		});
+		const resolved = resolveWorkspaceProject({
+			workspaceLabel: workspace.label,
+			agents: workspaceAgents,
+			projects,
+		});
+
 		return {
 			workspaceId: workspace.workspace_id,
 			label: workspace.label,
+			displayName: resolved.displayName,
 			number: workspace.number,
 			focused: focus.workspaceId === workspace.workspace_id,
 			focusedPaneId: focus.workspaceId === workspace.workspace_id ? focus.paneId : null,
-			agents: agents.filter(function (agent) {
-				return agent.workspaceId === workspace.workspace_id;
-			}),
+			agents: workspaceAgents,
 			tabs: workspace.tabs.map(function (tab) {
 				return {
-					...tab,
+					tabId: tab.tab_id,
+					label: tab.label,
 					focused: focus.tabId === tab.tab_id,
 				};
 			}),
+			project: resolved.project,
 		};
 	});
 
@@ -69,16 +71,26 @@ function buildGroups(
 		}
 
 		known.add(agent.workspaceId);
+
+		const orphanAgents = agents.filter(function (candidate) {
+			return candidate.workspaceId === agent.workspaceId;
+		});
+		const resolved = resolveWorkspaceProject({
+			workspaceLabel: agent.workspaceLabel,
+			agents: orphanAgents,
+			projects,
+		});
+
 		groups.push({
 			workspaceId: agent.workspaceId,
 			label: agent.workspaceLabel,
+			displayName: resolved.displayName,
 			number: Number.POSITIVE_INFINITY,
 			focused: focus.workspaceId === agent.workspaceId,
 			focusedPaneId: focus.workspaceId === agent.workspaceId ? focus.paneId : null,
-			agents: agents.filter(function (candidate) {
-				return candidate.workspaceId === agent.workspaceId;
-			}),
+			agents: orphanAgents,
 			tabs: [],
+			project: resolved.project,
 		});
 	}
 
@@ -92,7 +104,13 @@ function TerminalsPage() {
 	const actions = useKwTerminalActions();
 	const { agents, focus, loading: radarLoading } = useAgentRadar();
 	const overview = useQuery(orpc.kwTerminal.overview.queryOptions());
-	const groups = buildGroups(overview.data?.workspaces ?? [], agents, focus);
+	const projects = useQuery(orpc.projects.list.queryOptions());
+	const workspaces = buildWorkspaces(
+		overview.data?.workspaces ?? [],
+		agents,
+		focus,
+		projects.data ?? [],
+	);
 
 	return (
 		<PageShell
@@ -115,15 +133,13 @@ function TerminalsPage() {
 			<div className="mx-auto w-full max-w-5xl space-y-5">
 				<RestoreSnapshotCard hasLiveAgents={agents.length > 0} />
 
-				{groups.length > 0 && <TerminalsSummary agents={agents} workspaces={groups.length} />}
-
-				{(radarLoading || overview.isLoading) && groups.length === 0 && (
+				{(radarLoading || overview.isLoading) && workspaces.length === 0 && (
 					<Text size="sm" tone="muted">
 						Conectando na central...
 					</Text>
 				)}
 
-				{overview.isError && groups.length === 0 && (
+				{overview.isError && workspaces.length === 0 && (
 					<EmptyFeedback
 						icon={SquareTerminal}
 						title="kw-terminal indisponível"
@@ -131,7 +147,7 @@ function TerminalsPage() {
 					/>
 				)}
 
-				{!radarLoading && !overview.isLoading && !overview.isError && groups.length === 0 && (
+				{!radarLoading && !overview.isLoading && !overview.isError && workspaces.length === 0 && (
 					<EmptyFeedback
 						icon={SquareTerminal}
 						title="Nenhum terminal aberto"
@@ -139,21 +155,7 @@ function TerminalsPage() {
 					/>
 				)}
 
-				{groups.map(function (group) {
-					return (
-						<WorkspaceGroup
-							key={group.workspaceId}
-							workspaceId={group.workspaceId}
-							label={group.label}
-							number={group.number}
-							focused={group.focused}
-							focusedPaneId={group.focusedPaneId}
-							agents={group.agents}
-							tabs={group.tabs}
-							actions={actions}
-						/>
-					);
-				})}
+				{workspaces.length > 0 && <TerminalsTable workspaces={workspaces} actions={actions} />}
 
 				<ShortcutsSection />
 			</div>

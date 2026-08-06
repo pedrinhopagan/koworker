@@ -4,6 +4,15 @@ export const AGENT_RADAR_STATUSES = ["working", "blocked", "done", "idle", "unkn
 
 export type AgentRadarStatus = (typeof AGENT_RADAR_STATUSES)[number];
 
+const AGENT_RADAR_AGENT_LABELS: Record<string, string> = {
+	"prime-agent": "Prime Agent",
+	pi: "Pi",
+};
+
+export function agentRadarAgentLabel(agent: string) {
+	return AGENT_RADAR_AGENT_LABELS[agent] ?? agent;
+}
+
 export const AGENT_RADAR_STATUS_LABELS: Record<AgentRadarStatus, string> = {
 	working: "Trabalhando",
 	blocked: "Esperando você",

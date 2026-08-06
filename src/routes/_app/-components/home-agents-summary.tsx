@@ -15,7 +15,7 @@ import {
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";
-import { AGENT_RADAR_STATUS_LABELS } from "@/constants/agent-radar";
+import { AGENT_RADAR_STATUS_LABELS, agentRadarAgentLabel } from "@/constants/agent-radar";
 import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { useRadarAgentNav } from "@/hooks/use-radar-agent-nav";
 import { AGENT_RADAR_VISUALS, sortRadarAgents } from "@/lib/agent-radar-status";
@@ -126,6 +126,7 @@ export function HomeAgentsSummary() {
 							const visual = AGENT_RADAR_VISUALS[agent.status];
 							const paneId = agent.paneId;
 							const taskId = agent.taskId;
+							const agentLabel = agentRadarAgentLabel(agent.agent);
 
 							return (
 								<li key={paneId} className={cn("transition-colors", visual.surface)}>
@@ -147,7 +148,7 @@ export function HomeAgentsSummary() {
 														"pointer-events-none relative font-mono text-xs font-semibold uppercase tracking-[0.08em] text-foreground",
 													)}
 												>
-													{agent.agent}
+													{agentLabel}
 												</span>
 
 												<span
