@@ -9,6 +9,7 @@ import {
 	FolderOpen,
 	FolderSymlink,
 	LayoutGrid,
+	Layers,
 	Link as LinkIcon,
 	Pencil,
 	Share2,
@@ -39,6 +40,7 @@ export type TaskMenuData = {
 	projects: ProjectOption[];
 	priorities: ColorOption[];
 	categories: ColorOption[];
+	features?: ColorOption[];
 };
 
 // Só os campos que o menu lê. TaskFolder (vault) e TaskWithMeta (lista) mapeiam aqui.
@@ -49,6 +51,7 @@ export type TaskMenuTarget = {
 	folderPath?: string;
 	priorityId?: string | null;
 	categoryId?: string | null;
+	groupId?: string | null;
 };
 
 // Actions presentational: o caller liga cada uma na mutation/navegação certa. Recebem o target
@@ -65,6 +68,7 @@ export type TaskMenuActions = {
 	onToggleDone: (target: TaskMenuTarget) => void;
 	onIgnoreRecency?: (target: TaskMenuTarget) => void;
 	onMoveToProject: (target: TaskMenuTarget, projectId: string) => void;
+	onMoveToFeature?: (target: TaskMenuTarget, groupId: string | null) => void;
 	onDelete: (target: TaskMenuTarget) => void;
 };
 
@@ -192,6 +196,42 @@ export function taskMenuItems(
 					<EyeOff className="mr-2 size-4" />
 					Ignorar nas recentes
 				</ContextMenuItem>
+			)}
+			{data.features && actions.onMoveToFeature && (
+				<ContextMenuSub>
+					<ContextMenuSubTrigger className="px-3 py-2">
+						<Layers className="mr-2 size-4" />
+						Mover para feature
+					</ContextMenuSubTrigger>
+					<ContextMenuSubContent className="max-h-72 w-[220px] overflow-y-auto">
+						<ContextMenuItem
+							onSelect={() => actions.onMoveToFeature?.(target, null)}
+							className={cn("gap-2 px-3 py-2", !target.groupId && "font-medium")}
+						>
+							<span className="size-2 shrink-0 rounded-full bg-muted-foreground" />
+							<span className="min-w-0 flex-1 truncate">Sem feature</span>
+							{!target.groupId && <Check className="size-4 shrink-0 text-muted-foreground" />}
+						</ContextMenuItem>
+						{data.features.map((feature) => {
+							const active = feature.id === target.groupId;
+
+							return (
+								<ContextMenuItem
+									key={feature.id}
+									onSelect={() => actions.onMoveToFeature?.(target, feature.id)}
+									className={cn("gap-2 px-3 py-2", active && "font-medium")}
+								>
+									<span
+										className="size-2 shrink-0 rounded-full"
+										style={{ backgroundColor: feature.color }}
+									/>
+									<span className="min-w-0 flex-1 truncate">{feature.name}</span>
+									{active && <Check className="size-4 shrink-0 text-muted-foreground" />}
+								</ContextMenuItem>
+							);
+						})}
+					</ContextMenuSubContent>
+				</ContextMenuSub>
 			)}
 			<ContextMenuSub>
 				<ContextMenuSubTrigger className="px-3 py-2">

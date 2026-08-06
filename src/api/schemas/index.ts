@@ -111,6 +111,7 @@ export {
 	TaskListByProjectSchema,
 	TaskMergeReadySchema,
 	TaskMetricsSchema,
+	TaskMoveToFeatureSchema,
 	TaskMoveToProjectSchema,
 	TaskNotifySchema,
 	TaskPromoteSchema,

@@ -14,6 +14,7 @@ import { recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import {
+	useMoveTaskToFeatureMutation,
 	useMoveTaskToProjectMutation,
 	useRemoveTaskMutation,
 	useUpdateTaskMutation,
@@ -75,6 +76,7 @@ type TaskActionSurfaceProps = {
 	onClose?: () => void;
 	onRename: () => void;
 	onToggleDone: () => void;
+	features?: TaskGroup[];
 };
 
 function TaskActionSurface({
@@ -85,6 +87,7 @@ function TaskActionSurface({
 	onClose,
 	onRename,
 	onToggleDone,
+	features,
 }: TaskActionSurfaceProps) {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -97,6 +100,7 @@ function TaskActionSurface({
 	const updateMutation = useUpdateTaskMutation(task.projectId);
 	const removeTaskMutation = useRemoveTaskMutation(task.projectId);
 	const moveToProjectMutation = useMoveTaskToProjectMutation(task.projectId);
+	const moveToFeatureMutation = useMoveTaskToFeatureMutation(task.projectId);
 	const ignoreRecencyMutation = useMutation({
 		...orpc.tasks.ignoreRecency.mutationOptions(),
 		onSuccess: () => {
@@ -120,6 +124,15 @@ function TaskActionSurface({
 			name: category.name,
 			color: category.color,
 		})),
+		...(features
+			? {
+					features: features.map((feature) => ({
+						id: feature.id,
+						name: feature.name,
+						color: feature.color,
+					})),
+				}
+			: {}),
 	};
 
 	function taskDir() {
@@ -172,6 +185,12 @@ function TaskActionSurface({
 		onIgnoreRecency: () => ignoreRecencyMutation.mutate({ id: task.id }),
 		onMoveToProject: (_value, projectId) =>
 			moveToProjectMutation.mutate({ id: task.id, targetProjectId: projectId }),
+		...(features
+			? {
+					onMoveToFeature: (_value: TaskMenuTarget, groupId: string | null) =>
+						moveToFeatureMutation.mutate({ id: task.id, groupId }),
+				}
+			: {}),
 		onDelete: () => removeTaskMutation.mutate({ id: task.id }),
 	};
 
@@ -180,6 +199,7 @@ function TaskActionSurface({
 		updateMutation.isPending ||
 		removeTaskMutation.isPending ||
 		moveToProjectMutation.isPending ||
+		moveToFeatureMutation.isPending ||
 		ignoreRecencyMutation.isPending;
 
 	if (mode === "context") return taskMenuItems(target, data, actions);
@@ -252,6 +272,7 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 		folderPath: task.folderPath,
 		priorityId: task.priority?.id ?? null,
 		categoryId: task.category?.id ?? null,
+		groupId: task.groupId ?? null,
 	};
 	const fileBadgeLabel = hasArtifacts ? (
 		<div className="flex flex-col gap-1">
@@ -290,6 +311,7 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 					disabled={isMutating}
 					onRename={() => setEditing(true)}
 					onToggleDone={() => handleToggleDone(!isDone)}
+					features={features}
 				/>
 			}
 		>
@@ -415,6 +437,7 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 						onClose={() => setMobileActionsOpen(false)}
 						onRename={() => setEditing(true)}
 						onToggleDone={() => handleToggleDone(!isDone)}
+						features={features}
 					/>
 				)}
 

@@ -62,3 +62,15 @@ export function useMoveTaskToProjectMutation(projectId?: string | null) {
 			toast.error(errorMessage(error, "Não foi possível mover a tarefa de projeto")),
 	});
 }
+
+export function useMoveTaskToFeatureMutation(projectId?: string | null) {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.tasks.moveToFeature.mutationOptions(),
+		onSuccess: (_data, variables) =>
+			invalidateTaskQueries(queryClient, { taskId: variables.id, projectId }),
+		onError: (error) =>
+			toast.error(errorMessage(error, "Não foi possível mover a tarefa de feature")),
+	});
+}

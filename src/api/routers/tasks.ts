@@ -44,6 +44,7 @@ import {
 	TaskIgnoreRecencySchema,
 	TaskListByProjectSchema,
 	TaskMetricsSchema,
+	TaskMoveToFeatureSchema,
 	TaskMoveToProjectSchema,
 	TaskOpenArtifactSchema,
 	TaskRenameFileSchema,
@@ -449,6 +450,28 @@ export const tasksRouter = {
 		await publishTaskEvent(row.id, row.project_id, "deleted");
 		await publishTaskEvent(row.id, input.targetProjectId, "created");
 		restartTasksWatcher();
+
+		return updated ? mapTaskWithDisplay(updated) : null;
+	}),
+
+	moveToFeature: protectedProcedure.input(TaskMoveToFeatureSchema).handler(async ({ input }) => {
+		const row = await dbTasks.getById(input.id);
+		if (!row) throw new Error("Tarefa não encontrada");
+		if (row.group_id === input.groupId) return mapTaskWithDisplay(row);
+
+		const [updated] = await relinkTasks({
+			intents: [
+				{
+					taskId: row.id,
+					targetProjectId: row.project_id,
+					targetGroupId: input.groupId,
+				},
+			],
+		});
+
+		if (updated) {
+			await publishTaskEvent(updated.id, updated.project_id, "updated");
+		}
 
 		return updated ? mapTaskWithDisplay(updated) : null;
 	}),

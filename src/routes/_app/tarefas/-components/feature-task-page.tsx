@@ -52,6 +52,7 @@ export function FeatureTaskPage({
 				<GroupedTaskList
 					tasks={data.tasks}
 					groups={feature ? [feature] : []}
+					availableFeatures={data.groups}
 					categories={data.categories}
 					priorities={data.priorities}
 					loading={loading}

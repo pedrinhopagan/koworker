@@ -6,6 +6,7 @@ import {
 	FolderSymlink,
 	Gauge,
 	LayoutGrid,
+	Layers,
 	Pencil,
 	Share2,
 	Trash2,
@@ -24,7 +25,7 @@ import { cn } from "@/lib/utils";
 
 import type { TaskMenuActions, TaskMenuData, TaskMenuTarget } from "./task-context-menu";
 
-type SheetView = "main" | "priority" | "category" | "complexity" | "move" | "share";
+type SheetView = "main" | "priority" | "category" | "complexity" | "feature" | "move" | "share";
 
 const actionItem = tv({
 	base: "flex min-h-12 w-full items-center gap-3 px-5 py-3 text-base text-foreground transition-colors hover:bg-muted/30",
@@ -120,6 +121,7 @@ export function TaskMobileActionsDrawer({
 		priority: "Prioridade",
 		category: "Categoria",
 		complexity: "Complexidade",
+		feature: "Mover para feature",
 		move: "Mover para projeto",
 		share: "Compartilhar",
 	};
@@ -185,6 +187,17 @@ export function TaskMobileActionsDrawer({
 						<Flame className="size-[18px] shrink-0" />
 						Prioridade
 					</button>
+					{data.features && actions.onMoveToFeature && (
+						<button
+							type="button"
+							disabled={disabled}
+							onClick={() => setView("feature")}
+							className={actionItem()}
+						>
+							<Layers className="size-[18px] shrink-0" />
+							Mover para feature
+						</button>
+					)}
 					<button
 						type="button"
 						disabled={disabled}
@@ -264,6 +277,39 @@ export function TaskMobileActionsDrawer({
 								<span className="min-w-0 flex-1 truncate text-left">
 									{COMPLEXITY_LABELS[level]}
 								</span>
+								{active && <Check className="size-4 shrink-0 text-muted-foreground" />}
+							</button>
+						);
+					})}
+				</div>
+			)}
+
+			{view === "feature" && data.features && actions.onMoveToFeature && (
+				<div className="flex flex-col">
+					<button
+						type="button"
+						onClick={() => runAction(() => actions.onMoveToFeature?.(target, null))}
+						className={pickItem({ class: target.groupId ? undefined : "font-medium" })}
+					>
+						<span className="size-2.5 shrink-0 rounded-full bg-muted-foreground" />
+						<span className="min-w-0 flex-1 truncate text-left">Sem feature</span>
+						{!target.groupId && <Check className="size-4 shrink-0 text-muted-foreground" />}
+					</button>
+					{data.features.map((feature) => {
+						const active = feature.id === target.groupId;
+
+						return (
+							<button
+								key={feature.id}
+								type="button"
+								onClick={() => runAction(() => actions.onMoveToFeature?.(target, feature.id))}
+								className={pickItem({ class: active ? "font-medium" : undefined })}
+							>
+								<span
+									className="size-2.5 shrink-0 rounded-full"
+									style={{ backgroundColor: feature.color }}
+								/>
+								<span className="min-w-0 flex-1 truncate text-left">{feature.name}</span>
 								{active && <Check className="size-4 shrink-0 text-muted-foreground" />}
 							</button>
 						);

@@ -135,6 +135,11 @@ export const TaskMoveToProjectSchema = z.object({
 	targetProjectId: z.string().trim().min(1),
 });
 
+export const TaskMoveToFeatureSchema = z.object({
+	id: z.string().trim().min(1),
+	groupId: z.string().trim().min(1).nullable(),
+});
+
 // Reordena/recoloca um bucket inteiro. As ids vêm na ordem final desejada; o handler grava
 // display_order = índice e fixa group_id nelas. categoryId só é enviado quando o destino é um
 // cluster de categoria (modo Categoria); nos modos achatados é omitido para preservar a

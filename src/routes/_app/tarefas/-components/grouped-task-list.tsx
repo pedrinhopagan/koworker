@@ -153,6 +153,7 @@ type GroupedTaskListProps = {
 	loading: boolean;
 	sortMode: TaskSortMode;
 	reorderingDisabled?: boolean;
+	availableFeatures?: TaskGroup[];
 	// Em "Todos os projetos" cada projeto monta uma instância; o prefixo isola só a chave de colapso
 	// do slot "Sem feature" (NO_GROUP). Omitido no modo single → chave idêntica à de hoje.
 	collapseKeyPrefix?: string;
@@ -166,6 +167,7 @@ export function GroupedTaskList({
 	loading,
 	sortMode,
 	reorderingDisabled = false,
+	availableFeatures = groups,
 	collapseKeyPrefix,
 }: GroupedTaskListProps) {
 	const queryClient = useQueryClient();
@@ -187,9 +189,6 @@ export function GroupedTaskList({
 	);
 	const highlightLevels = useMemo(() => buildHighlightLevels(tasks), [tasks]);
 
-	// Ordem de render dos slots de grupo: grupos reais (ordem do banco) com o "Sem grupo" (id null)
-	// encaixado em `noGroupOrder` (default 0 = topo). Já filtra o "Sem grupo" vazio, então é a fonte
-	// única tanto pro render quanto pro `items` do SortableContext e pra reordenação no drop.
 	const renderableGroups = useMemo(() => {
 		const slots: { id: string | null; group?: TaskGroup }[] = groups.map((group) => ({
 			id: group.id,
@@ -198,22 +197,19 @@ export function GroupedTaskList({
 		const index = Math.min(Math.max(noGroupOrder, 0), slots.length);
 		slots.splice(index, 0, { id: null });
 
-		return (
-			slots
-				.map(({ id, group }) => {
-					const bucketKeys = Object.keys(buckets)
-						.filter((key) => parseBucketKey(key).groupId === id)
-						.sort(
-							(a, b) =>
-								(categoryOrder.get(parseBucketKey(a).categoryId) ?? 0) -
-								(categoryOrder.get(parseBucketKey(b).categoryId) ?? 0),
-						);
-					const count = bucketKeys.reduce((sum, key) => sum + buckets[key].length, 0);
-					return { id, group, bucketKeys, count };
-				})
-				// "Sem grupo" só aparece quando tem task; grupos nomeados sempre aparecem.
-				.filter((slot) => !(slot.id === null && slot.count === 0))
-		);
+		return slots
+			.map(({ id, group }) => {
+				const bucketKeys = Object.keys(buckets)
+					.filter((key) => parseBucketKey(key).groupId === id)
+					.sort(
+						(a, b) =>
+							(categoryOrder.get(parseBucketKey(a).categoryId) ?? 0) -
+							(categoryOrder.get(parseBucketKey(b).categoryId) ?? 0),
+					);
+				const count = bucketKeys.reduce((sum, key) => sum + buckets[key].length, 0);
+				return { id, group, bucketKeys, count };
+			})
+			.filter((slot) => slot.count > 0);
 	}, [groups, noGroupOrder, buckets, categoryOrder]);
 
 	const sensors = useSensors(
@@ -331,11 +327,22 @@ export function GroupedTaskList({
 		if (oldIndex < 0 || newIndex < 0) return;
 
 		const moved = arrayMove(order, oldIndex, newIndex);
+		const visibleSlots = new Set(order);
+		let visibleIndex = 0;
+		const fullOrder: (string | null)[] = groups.map((group) => group.id);
+		fullOrder.splice(Math.min(Math.max(noGroupOrder, 0), fullOrder.length), 0, null);
+		const mergedOrder = fullOrder.map((slot) => {
+			if (!visibleSlots.has(slot)) return slot;
 
-		const nullIndex = moved.indexOf(null);
+			const next = moved[visibleIndex];
+			visibleIndex += 1;
+			return next;
+		});
+
+		const nullIndex = mergedOrder.indexOf(null);
 		if (nullIndex >= 0) setNoGroupOrder(nullIndex);
 
-		const realOrder = moved.filter((id): id is string => id !== null);
+		const realOrder = mergedOrder.filter((id): id is string => id !== null);
 		const prevRealOrder = groups.map((group) => group.id);
 		if (realOrder.some((id, index) => id !== prevRealOrder[index])) {
 			groupReorderMutation.mutate({ orderedIds: realOrder });
@@ -392,8 +399,6 @@ export function GroupedTaskList({
 		);
 	}
 
-	// `items` precisa casar 1:1 com os nós sortable montados — vem de renderableGroups (já sem o
-	// "Sem grupo" vazio), nunca do conjunto bruto.
 	const sortableGroupIds = renderableGroups.map((slot) => groupDropId(slot.id));
 	const isGroupDrag = !!activeId?.startsWith("group::");
 	const activeGroup = isGroupDrag
@@ -437,7 +442,7 @@ export function GroupedTaskList({
 								buckets={buckets}
 								taskMap={taskMap}
 								highlightLevels={highlightLevels}
-								features={groups}
+								features={availableFeatures}
 								reorderingDisabled={reorderingDisabled}
 								collapsed={collapsedKeys.includes(collapseKey)}
 								onToggleCollapse={() => toggleCollapsed(collapseKey)}
@@ -538,6 +543,7 @@ export function GroupedTaskListByProject({
 					<GroupedTaskList
 						tasks={tasksByProject.get(project.id) ?? []}
 						groups={groupsByProject.get(project.id) ?? []}
+						availableFeatures={groupsByProject.get(project.id) ?? []}
 						categories={categories}
 						priorities={priorities}
 						loading={false}
@@ -652,11 +658,6 @@ function GroupSectionBody({
 									/>
 								);
 							}),
-						)}
-						{count === 0 && (
-							<Text size="sm" tone="muted" className="px-3 py-2">
-								Arraste tarefas para cá.
-							</Text>
 						)}
 					</div>
 				</SortableContext>
