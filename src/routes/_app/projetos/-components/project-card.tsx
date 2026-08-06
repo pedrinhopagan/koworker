@@ -37,7 +37,7 @@ export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 					to="/projetos"
 					search={{ projetoId: project.id }}
 					aria-label={project.name}
-					className="absolute inset-0 z-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+					className="absolute inset-0 z-0 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
 				/>
 
 				<div className="pointer-events-none relative z-10 flex items-center gap-3">

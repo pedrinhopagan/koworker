@@ -73,6 +73,12 @@ const second = await db
 	.select(["t.id", "t.folder_path", "t.storage_key", "t.storage_slug"])
 	.orderBy("t.created_at", "asc")
 	.execute();
+const primeAgentRoutes = await db
+	.selectFrom("project_routes")
+	.select(["name", "command", "icon", "route"])
+	.where("project_id", "=", "aaaaaaaa-0000-4000-8000-000000000001")
+	.where("command", "=", "prime-agent")
+	.execute();
 await db.destroy();
 
 const sqlite = new Database(databasePath, { readonly: true });
@@ -89,6 +95,7 @@ console.log(
 		first,
 		mtimePreserved: (await stat(filePath)).mtimeMs === before.mtimeMs,
 		pathIndex,
+		primeAgentRoutes,
 		second,
 	}),
 );

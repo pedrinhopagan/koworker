@@ -1,17 +1,10 @@
 import { readdir, realpath, stat } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
+import { PROJECT_DOC_NAMES } from "@/constants/projects";
 import { mapWithConcurrency } from "./concurrency";
 import { createFolderCache, invalidateFolderPrefix } from "./folder-cache";
 import { isPathInside } from "./path-containment";
-
-export const PROJECT_DOC_NAMES = [
-	"CLAUDE.md",
-	"AGENTS.md",
-	"GEMINI.md",
-	"README.md",
-	"CONTRIBUTING.md",
-] as const;
 
 const SKIP_DIRS = new Set(["node_modules", "dist", "build", "out", "target", "vendor", "coverage"]);
 
@@ -84,7 +77,10 @@ async function collectDocs(root: string): Promise<string[]> {
 
 			for (const entry of entries) {
 				if (entry.isDirectory()) {
-					if (!entry.name.startsWith(".") && !SKIP_DIRS.has(entry.name)) {
+					if (
+						(!entry.name.startsWith(".") || entry.name === ".github") &&
+						!SKIP_DIRS.has(entry.name)
+					) {
 						children.push(join(dir, entry.name));
 					}
 					continue;

@@ -158,7 +158,7 @@ export const dbProjects = {
 				project_id: input.id,
 				name: route.name,
 				route: input.main_route,
-				icon: "Cpu",
+				icon: route.icon,
 				command: route.command,
 			});
 		}

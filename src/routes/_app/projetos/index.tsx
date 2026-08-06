@@ -29,10 +29,10 @@ function ProjetosPage() {
 	return (
 		<PageShell
 			title="Projetos"
-			description="Organize seus projetos e contextos"
+			description="Acesse CLIs e comandos de cada projeto"
 			icon={FolderKanban}
 			variant="grid"
-			contentClassName="flex-col overflow-y-auto md:overflow-visible"
+			contentClassName="flex-col overflow-y-auto md:!grid-cols-[minmax(260px,1fr)_minmax(0,2fr)] md:overflow-visible"
 		>
 			<div className="order-2 flex min-w-0 flex-col px-4 pb-4 md:order-none md:h-full md:min-h-0 md:overflow-hidden">
 				<ProjectList projects={data.projects} selectedId={selectedId} loading={loading} />

@@ -34,6 +34,24 @@ describe("listProjectDocs", () => {
 		expect(docs.some((doc) => "content" in doc)).toBe(false);
 	});
 
+	test("reconhece outros documentos convencionais de projeto", async () => {
+		await mkdir(join(projectRoute, ".github"));
+		for (const name of ["ARCHITECTURE.md", "SECURITY.md", "ROADMAP.md", "CHANGELOG.md"]) {
+			await Bun.write(join(projectRoute, name), name);
+		}
+		await Bun.write(join(projectRoute, ".github", "CODE_OF_CONDUCT.md"), "conduta");
+
+		const names = (await listProjectDocs(projectRoute)).map((doc) => doc.name).sort();
+
+		expect(names).toEqual([
+			"ARCHITECTURE.md",
+			"CHANGELOG.md",
+			"CODE_OF_CONDUCT.md",
+			"ROADMAP.md",
+			"SECURITY.md",
+		]);
+	});
+
 	test("para na profundidade máxima em vez de varrer a árvore inteira", async () => {
 		const raso = join(projectRoute, "a", "b", "c", "d");
 		const fundo = join(raso, "e");
@@ -124,6 +142,12 @@ describe("writeProjectDoc", () => {
 		const doc = await readProjectDoc(projectRoute, "README.md");
 
 		expect(doc?.content).toBe("depois");
+	});
+
+	test("permite editar os novos documentos reconhecidos", async () => {
+		await writeProjectDoc({ projectRoute, path: "ARCHITECTURE.md", content: "arquitetura" });
+
+		expect((await readProjectDoc(projectRoute, "ARCHITECTURE.md"))?.content).toBe("arquitetura");
 	});
 
 	test("recusa nome fora da whitelist, traversal e symlink externo", async () => {

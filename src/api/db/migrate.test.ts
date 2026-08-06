@@ -9,6 +9,12 @@ let result: {
 	first: { folder_path: string; storage_key: string | null; storage_slug: string | null }[];
 	mtimePreserved: boolean;
 	pathIndex: { name: string } | null;
+	primeAgentRoutes: {
+		name: string;
+		command: string;
+		icon: string;
+		route: string;
+	}[];
 	second: { folder_path: string; storage_key: string | null; storage_slug: string | null }[];
 };
 
@@ -49,5 +55,16 @@ describe("ensureDbSchema", () => {
 
 	test("mantém duplicatas legadas visíveis para preflight sem derrubar o boot", () => {
 		expect(result.pathIndex).toBeNull();
+	});
+
+	test("adiciona o prime-agent uma única vez aos projetos existentes", () => {
+		expect(result.primeAgentRoutes).toEqual([
+			{
+				name: "prime-agent",
+				command: "prime-agent",
+				icon: "Sparkles",
+				route: join(root, "project"),
+			},
+		]);
 	});
 });

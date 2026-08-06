@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { FileText, FolderOpen, Plus, TerminalSquare } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+	Bot,
+	Command,
+	FolderOpen,
+	type LucideIcon as LucideIconComponent,
+	Pencil,
+	Plus,
+	TerminalSquare,
+} from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
@@ -9,7 +17,9 @@ import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { type SortableItemRenderProps, SortableList } from "@/components/ui/sortable-list";
 import { Switch } from "@/components/ui/switch";
+import { isProjectCliRoute, PROJECT_DOC_NAMES, resolveProjectDocIcon } from "@/constants/projects";
 import { useCapabilities } from "@/hooks/use-capabilities";
+import { LucideIcon } from "@/lib/lucide-icon";
 import type { ProjectDetail } from "../-utils/use-projects-data";
 import { ProjectRouteShortcutItem } from "./project-route-shortcut-item";
 
@@ -71,7 +81,7 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 
 	return (
 		<div className="flex flex-col md:h-full md:min-h-0">
-			<div className="shrink-0 space-y-6 px-4 pt-4 pb-4">
+			<div className="shrink-0 border-b border-border bg-card/30 px-5 py-4">
 				<div className="flex items-start justify-between gap-4">
 					<div className="flex min-w-0 items-start gap-3">
 						<div className="mt-0.5 size-9 shrink-0" style={{ backgroundColor: project.color }} />
@@ -84,65 +94,54 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 									{project.description}
 								</Text>
 							)}
-							<div className="mt-1.5 flex items-center gap-1.5 text-muted-foreground">
+							<div className="mt-2 flex items-center gap-1.5 text-muted-foreground">
 								<FolderOpen className="size-3.5 shrink-0" />
 								<span className="truncate font-mono text-xs">{displayPath}</span>
 							</div>
 						</div>
 					</div>
 					<Button variant="outline" size="sm" asChild>
-						<Link to="/projetos/$projetoId" params={{ projetoId: project.id }}>
+						<Link
+							to="/projetos/$projetoId"
+							params={{ projetoId: project.id }}
+							className="cursor-pointer"
+						>
+							<Pencil className="size-3.5" />
 							Editar
 						</Link>
 					</Button>
 				</div>
 
-				<div className="grid grid-cols-3 gap-px border border-border bg-border">
-					<MetricCell label="Total" value={total} />
+				<div className="mt-4 grid grid-cols-[repeat(3,minmax(0,1fr))_auto] items-stretch gap-px border border-border bg-border">
+					<MetricCell label="Tarefas" value={total} />
 					<MetricCell label="Pendentes" value={pending} />
 					<MetricCell label="Concluídas" value={done} accentColor={project.color} />
-				</div>
-
-				<div>
-					<div className="mb-2 flex items-center justify-between">
-						<Text size="xs" tone="muted" className="uppercase tracking-[0.18em]">
-							Progresso
+					<label className="flex min-w-28 cursor-pointer items-center justify-center gap-2 bg-card px-3 py-2.5">
+						<TerminalSquare className="size-4 text-muted-foreground" />
+						<Text as="span" size="xs" tone="muted" className="hidden lg:inline">
+							Terminal
 						</Text>
-						<Text size="xs" tone="muted" className="tabular-nums">
-							{progress}%
-						</Text>
-					</div>
-					<div className="h-2 w-full bg-muted">
-						<div
-							className="h-2 transition-all"
-							style={{ width: `${progress}%`, backgroundColor: project.color }}
+						<Switch
+							checked={!project.hideTerminal}
+							disabled={updateMutation.isPending}
+							onCheckedChange={(checked) =>
+								updateMutation.mutate({
+									id: project.id,
+									hideTerminal: !checked,
+								})
+							}
 						/>
-					</div>
+					</label>
 				</div>
-
-				<label className="flex cursor-pointer items-center justify-between gap-4 border border-border bg-card px-4 py-3">
-					<div className="flex items-center gap-2.5">
-						<TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
-						<div>
-							<Text size="sm" as="div">
-								Mostrar terminal
-							</Text>
-							<Text size="xs" tone="muted">
-								Atalho de terminal na página do projeto.
-							</Text>
-						</div>
-					</div>
-					<Switch
-						checked={!project.hideTerminal}
-						disabled={updateMutation.isPending}
-						onCheckedChange={(checked) =>
-							updateMutation.mutate({ id: project.id, hideTerminal: !checked })
-						}
+				<div className="mt-2 h-1 w-full bg-muted">
+					<div
+						className="h-1 transition-all"
+						style={{ width: `${progress}%`, backgroundColor: project.color }}
 					/>
-				</label>
+				</div>
 			</div>
 
-			<div className="px-4 pb-6 space-y-6 md:flex-1 md:min-h-0 md:overflow-y-auto md:[scrollbar-gutter:stable]">
+			<div className="space-y-8 px-5 py-5 md:min-h-0 md:flex-1 md:overflow-y-auto md:[scrollbar-gutter:stable]">
 				<SummaryRoutes
 					key={project.id}
 					project={{
@@ -171,60 +170,86 @@ type SummaryDocsProps = {
 function SummaryDocs({ projectId }: SummaryDocsProps) {
 	const docsQuery = useQuery(orpc.projects.listDocs.queryOptions({ input: { id: projectId } }));
 	const docs = useMemo(() => docsQuery.data ?? [], [docsQuery.data]);
-
-	// Agrupa por pasta e ordena os grupos por profundidade: a raiz primeiro, depois as pastas
-	// progressivamente mais internas. Dentro de cada grupo, ordem por nome.
-	const groups = useMemo(() => {
-		const byDir = new Map<string, typeof docs>();
-		for (const doc of docs) {
-			const list = byDir.get(doc.dirLabel) ?? [];
-			list.push(doc);
-			byDir.set(doc.dirLabel, list);
-		}
-
-		const depth = (dirLabel: string) => dirLabel.split("/").filter(Boolean).length;
-
-		return [...byDir.entries()]
-			.sort(([a], [b]) => depth(a) - depth(b) || a.localeCompare(b))
-			.map(([dirLabel, files]) => ({
-				dirLabel,
-				files: files.sort((a, b) => a.name.localeCompare(b.name)),
-			}));
-	}, [docs]);
+	const groups = useMemo(
+		() =>
+			PROJECT_DOC_NAMES.map((name) => ({
+				name,
+				docs: docs
+					.filter((doc) => doc.name === name)
+					.sort(
+						(a, b) =>
+							a.dirLabel.split("/").filter(Boolean).length -
+								b.dirLabel.split("/").filter(Boolean).length ||
+							a.dirLabel.localeCompare(b.dirLabel),
+					),
+			})).filter((group) => group.docs.length > 0),
+		[docs],
+	);
 
 	if (docs.length === 0) {
 		return null;
 	}
 
 	return (
-		<div className="space-y-3">
-			<Text size="xs" tone="muted" className="uppercase tracking-[0.18em]">
-				Documentos ({docs.length})
-			</Text>
+		<section className="space-y-4">
+			<div className="flex items-center gap-2 border-b border-border pb-2">
+				<FolderOpen className="size-4 text-muted-foreground" />
+				<Title as="h2" size="sm">
+					Documentos
+				</Title>
+				<span className="flex size-5 items-center justify-center bg-muted font-mono text-[10px] text-muted-foreground">
+					{docs.length}
+				</span>
+			</div>
 
-			<div className="space-y-4">
-				{groups.map((group) => (
-					<div key={group.dirLabel} className="space-y-0.5">
-						{group.files.map((doc) => (
+			{groups.map((group) => (
+				<div key={group.name} className="space-y-2">
+					<div className="flex items-center gap-2">
+						<LucideIcon
+							name={resolveProjectDocIcon(group.name)}
+							className="size-3.5 text-muted-foreground"
+						/>
+						<Text
+							as="div"
+							size="xs"
+							tone="muted"
+							className="font-mono font-semibold uppercase tracking-[0.12em]"
+						>
+							{group.name}
+						</Text>
+						<span className="flex size-5 items-center justify-center bg-muted font-mono text-[10px] text-muted-foreground">
+							{group.docs.length}
+						</span>
+					</div>
+
+					<div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+						{group.docs.map((doc) => (
 							<Link
 								key={doc.path}
 								to="/projetos/$projetoId/docs/$"
 								params={{ projetoId: projectId, _splat: doc.path }}
-								className="flex items-center gap-2.5 border border-border bg-card px-3 py-2 transition-colors hover:bg-accent"
+								className="group flex min-h-12 min-w-0 cursor-pointer items-center gap-2.5 border border-border bg-card px-2.5 py-2 transition-colors hover:border-foreground/25 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 							>
-								<FileText className="size-4 shrink-0 text-muted-foreground" />
-								<span className="min-w-0 flex-1 truncate font-mono text-sm font-medium">
-									{doc.name}
-								</span>
-								<span className="ml-3 max-w-[45%] truncate font-mono text-xs text-muted-foreground/50">
-									{group.dirLabel}
-								</span>
+								<div className="flex size-8 shrink-0 items-center justify-center border border-border bg-muted/40 transition-colors group-hover:bg-background">
+									<LucideIcon
+										name={resolveProjectDocIcon(doc.name)}
+										className="size-4 text-foreground"
+									/>
+								</div>
+								<div className="min-w-0 flex-1">
+									<Text as="div" size="xs" className="truncate font-mono font-semibold">
+										{doc.dirLabel}
+									</Text>
+									<Text as="div" size="xs" tone="muted" className="truncate font-mono text-[10px]">
+										{doc.path}
+									</Text>
+								</div>
 							</Link>
 						))}
 					</div>
-				))}
-			</div>
-		</div>
+				</div>
+			))}
+		</section>
 	);
 }
 
@@ -236,17 +261,17 @@ type MetricCellProps = {
 
 function MetricCell({ label, value, accentColor }: MetricCellProps) {
 	return (
-		<div className="bg-card px-4 py-3">
-			<Text size="xs" tone="muted" className="uppercase tracking-[0.12em]">
-				{label}
-			</Text>
+		<div className="flex items-baseline gap-2 bg-card px-3 py-2.5">
 			<Title
 				as="div"
-				className="mt-1 text-2xl font-extrabold leading-none tabular-nums"
+				className="text-lg font-extrabold leading-none tabular-nums"
 				style={accentColor ? { color: accentColor } : undefined}
 			>
 				{value}
 			</Title>
+			<Text size="xs" tone="muted" className="truncate">
+				{label}
+			</Text>
 		</div>
 	);
 }
@@ -295,16 +320,41 @@ function SummaryRoutes({ project, routes, onReorder }: SummaryRoutesProps) {
 		);
 	}
 
+	const cliRoutes = ordered.filter(isProjectCliRoute);
+	const commandRoutes = ordered.filter((route) => !isProjectCliRoute(route));
 	const shortcutCount = ordered.length + (showTerminal ? 1 : 0);
 
-	return (
-		<div className="space-y-2">
-			<Text size="xs" tone="muted" className="uppercase tracking-[0.18em]">
-				Atalhos ({shortcutCount})
-			</Text>
+	function handleGroupReorder(group: "cli" | "command", items: ProjectRoute[]) {
+		const next = group === "cli" ? [...items, ...commandRoutes] : [...cliRoutes, ...items];
+		setOrdered(next);
+		onReorder(next.map((item) => item.id));
+	}
 
-			<div className="flex flex-col gap-1">
-				{showTerminal ? (
+	return (
+		<section className="space-y-5">
+			<div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
+				<div>
+					<Title as="h2" size="lg">
+						Atalhos do projeto
+					</Title>
+					<Text size="xs" tone="muted" className="mt-0.5">
+						{shortcutCount} {shortcutCount === 1 ? "ação disponível" : "ações disponíveis"}
+					</Text>
+				</div>
+				<Button variant="outline" size="sm" asChild>
+					<Link
+						to="/projetos/$projetoId"
+						params={{ projetoId: project.id }}
+						className="cursor-pointer"
+					>
+						<Plus className="size-3.5" />
+						Adicionar
+					</Link>
+				</Button>
+			</div>
+
+			{showTerminal && (
+				<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
 					<ProjectRouteShortcutItem
 						project={{
 							id: project.id,
@@ -313,39 +363,72 @@ function SummaryRoutes({ project, routes, onReorder }: SummaryRoutesProps) {
 						}}
 						isTerminal
 					/>
-				) : null}
+				</div>
+			)}
 
-				{ordered.length === 0 ? (
-					showTerminal ? null : (
-						<Text size="sm" tone="muted" className="py-3">
-							Nenhum atalho cadastrado.
-						</Text>
-					)
-				) : (
+			{cliRoutes.length > 0 && (
+				<ShortcutGroup title="CLIs" count={cliRoutes.length} icon={Bot}>
 					<SortableList
-						items={ordered}
-						onReorder={(items) => {
-							setOrdered(items);
-							onReorder(items.map((i) => i.id));
-						}}
+						items={cliRoutes}
+						onReorder={(items) => handleGroupReorder("cli", items)}
 						renderItem={renderItem}
+						strategy="grid"
+						className="gap-2"
 					/>
-				)}
-			</div>
+				</ShortcutGroup>
+			)}
 
-			<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-				<Text size="xs" tone="muted">
-					Clique para executar; clique direito para mais opções. Arraste para reordenar.
+			{commandRoutes.length > 0 && (
+				<ShortcutGroup title="Outros comandos" count={commandRoutes.length} icon={Command}>
+					<SortableList
+						items={commandRoutes}
+						onReorder={(items) => handleGroupReorder("command", items)}
+						renderItem={renderItem}
+						strategy="grid"
+						className="gap-2"
+					/>
+				</ShortcutGroup>
+			)}
+
+			{shortcutCount === 0 && (
+				<div className="border border-dashed border-border bg-card px-6 py-10 text-center">
+					<Command className="mx-auto size-7 text-muted-foreground" />
+					<Title as="div" size="sm" className="mt-3">
+						Nenhum atalho cadastrado
+					</Title>
+					<Text size="xs" tone="muted" className="mt-1">
+						Adicione uma CLI ou comando para acessar este projeto rapidamente.
+					</Text>
+				</div>
+			)}
+
+			<Text size="xs" tone="muted">
+				Clique para abrir · clique direito para mais opções · arraste pelo puxador para reordenar
+			</Text>
+		</section>
+	);
+}
+
+type ShortcutGroupProps = {
+	title: string;
+	count: number;
+	icon: LucideIconComponent;
+	children: ReactNode;
+};
+
+function ShortcutGroup({ title, count, icon: Icon, children }: ShortcutGroupProps) {
+	return (
+		<div className="space-y-2.5">
+			<div className="flex items-center gap-2">
+				<Icon className="size-4 text-muted-foreground" />
+				<Text as="div" size="xs" tone="muted" className="font-semibold uppercase tracking-[0.16em]">
+					{title}
 				</Text>
-				<Link
-					to="/projetos/$projetoId"
-					params={{ projetoId: project.id }}
-					className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-				>
-					<Plus className="size-3" />
-					Adicionar atalho
-				</Link>
+				<span className="flex size-5 items-center justify-center bg-muted font-mono text-[10px] text-muted-foreground">
+					{count}
+				</span>
 			</div>
+			{children}
 		</div>
 	);
 }

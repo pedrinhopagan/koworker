@@ -13,6 +13,7 @@ import {
 import {
 	arrayMove,
 	horizontalListSortingStrategy,
+	rectSortingStrategy,
 	SortableContext,
 	type SortingStrategy,
 	sortableKeyboardCoordinates,
@@ -43,7 +44,7 @@ interface SortableListProps<T extends SortableItem> {
 	/** Optional render function for the drag overlay (ghost element). */
 	renderDragOverlay?: (item: T) => React.ReactNode;
 	/** Sorting strategy. Defaults to vertical. */
-	strategy?: "vertical" | "horizontal";
+	strategy?: "vertical" | "horizontal" | "grid";
 	/** Container className */
 	className?: string;
 	/** Item wrapper className */
@@ -109,7 +110,7 @@ function SortableItemWrapper<T extends SortableItem>({
 	};
 
 	return (
-		<div className={itemClassName} style={style} ref={setNodeRef}>
+		<div className={cn("min-w-0", itemClassName)} style={style} ref={setNodeRef}>
 			{renderItem(item, renderProps)}
 		</div>
 	);
@@ -139,8 +140,14 @@ function SortableList<T extends SortableItem>({
 		}),
 	);
 
-	const sortingStrategy: SortingStrategy =
-		strategy === "horizontal" ? horizontalListSortingStrategy : verticalListSortingStrategy;
+	const sortingStrategies: Record<
+		NonNullable<SortableListProps<T>["strategy"]>,
+		SortingStrategy
+	> = {
+		vertical: verticalListSortingStrategy,
+		horizontal: horizontalListSortingStrategy,
+		grid: rectSortingStrategy,
+	};
 
 	const activeItem = React.useMemo(
 		() => items.find((item) => item.id === activeId),
@@ -181,10 +188,12 @@ function SortableList<T extends SortableItem>({
 			onDragEnd={handleDragEnd}
 			onDragCancel={handleDragCancel}
 		>
-			<SortableContext items={itemIds} strategy={sortingStrategy}>
+			<SortableContext items={itemIds} strategy={sortingStrategies[strategy]}>
 				<div
 					className={cn(
-						strategy === "horizontal" ? "flex flex-row gap-2" : "flex flex-col gap-1",
+						strategy === "horizontal" && "flex flex-row gap-2",
+						strategy === "vertical" && "flex flex-col gap-1",
+						strategy === "grid" && "grid grid-cols-1 gap-2 sm:grid-cols-2",
 						className,
 					)}
 				>

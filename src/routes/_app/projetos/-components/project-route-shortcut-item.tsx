@@ -1,8 +1,10 @@
-import { Terminal } from "lucide-react";
+import { ArrowUpRight, Terminal } from "lucide-react";
 import { useState } from "react";
 
 import { TerminalShortcutMenu } from "@/components/layout/terminal-shortcut-menu";
+import { Text } from "@/components/typography";
 import { type SortableItemRenderProps, DragHandle } from "@/components/ui/sortable-list";
+import { resolveProjectRouteIcon } from "@/constants/projects";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { openProjectRoute, openProjectTerminal } from "@/lib/terminal";
@@ -69,8 +71,8 @@ export function ProjectRouteShortcutItem({
 		}
 	}
 
-	const label = isTerminal ? "Terminal" : (route?.name ?? "Atalho");
-	const title = isTerminal
+	const label = isTerminal ? "Terminal do projeto" : (route?.name ?? "Atalho");
+	const ariaLabel = isTerminal
 		? isTerminalOpen
 			? "Focar terminal do projeto"
 			: "Abrir terminal do projeto"
@@ -83,26 +85,35 @@ export function ProjectRouteShortcutItem({
 			type="button"
 			onClick={handleClick}
 			disabled={isOpening}
-			title={title}
+			aria-label={ariaLabel}
 			className={cn(
-				"flex w-full min-w-0 items-center gap-2.5 px-2 py-2 text-left transition-colors",
+				"group flex min-h-16 w-full min-w-0 cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-wait",
 				isTerminal && isTerminalOpen && "text-green-500 hover:text-green-400",
 			)}
 		>
-			{isTerminal ? (
-				<Terminal className={cn("size-4 shrink-0", isOpening && "animate-pulse")} />
-			) : (
-				<LucideIcon
-					name={route?.icon ?? "FolderOpen"}
-					className={cn("size-4 shrink-0 text-muted-foreground", isOpening && "animate-pulse")}
-				/>
-			)}
-			<span className="shrink-0 text-sm font-medium">{label}</span>
-			{route?.command ? (
-				<span className="ml-auto truncate font-mono text-xs text-muted-foreground">
-					{route.command}
-				</span>
-			) : null}
+			<div className="flex size-9 shrink-0 items-center justify-center border border-border bg-muted/40 transition-colors group-hover:bg-background">
+				{isTerminal ? (
+					<Terminal className={cn("size-4", isOpening && "animate-pulse")} />
+				) : (
+					<LucideIcon
+						name={route ? resolveProjectRouteIcon(route) : "FolderOpen"}
+						className={cn("size-4 text-foreground", isOpening && "animate-pulse")}
+					/>
+				)}
+			</div>
+			<div className="min-w-0 flex-1">
+				<Text as="div" size="sm" className="truncate font-semibold">
+					{label}
+				</Text>
+				<Text
+					size="xs"
+					tone="muted"
+					className="mt-0.5 block overflow-hidden text-ellipsis whitespace-nowrap font-mono"
+				>
+					{isTerminal ? project.mainRoute : (route?.command ?? route?.route)}
+				</Text>
+			</div>
+			<ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground" />
 		</button>
 	);
 
@@ -118,26 +129,31 @@ export function ProjectRouteShortcutItem({
 	return (
 		<div
 			className={cn(
-				"flex items-stretch border border-border bg-card transition-colors hover:bg-accent/50",
+				"flex min-w-0 cursor-pointer items-stretch border border-border bg-card transition-colors hover:border-foreground/25 hover:bg-accent/50",
 				sortable?.isDragging && "opacity-60",
 			)}
 		>
 			{sortable ? (
-				<div className="flex items-center px-1" onClick={(e) => e.stopPropagation()}>
+				<div
+					className="flex items-center border-r border-border px-1"
+					onClick={(e) => e.stopPropagation()}
+				>
 					<DragHandle
 						attributes={sortable.dragHandleProps.attributes}
 						listeners={sortable.dragHandleProps.listeners}
 					/>
 				</div>
 			) : (
-				// Sem reorder (Terminal): espaçador da largura da coluna do handle pra alinhar o ícone
-				// com os atalhos arrastáveis.
-				<div className="w-8 shrink-0" aria-hidden />
+				<div className="w-8 shrink-0 border-r border-border" aria-hidden />
 			)}
 
 			<TerminalShortcutMenu
 				projectId={project.id}
-				project={{ id: project.id, name: project.name, mainRoute: project.mainRoute }}
+				project={{
+					id: project.id,
+					name: project.name,
+					mainRoute: project.mainRoute,
+				}}
 				route={menuRoute}
 				isTerminal={isTerminal}
 				className="min-w-0 flex-1"
