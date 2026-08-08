@@ -46,8 +46,8 @@ export function ExecutionTurn({
 }: {
 	turn: Turn;
 	index: number;
-	onCancel: () => void;
-	onRetry: () => void;
+	onCancel?: () => void;
+	onRetry?: () => void;
 	pending: boolean;
 }) {
 	const running = turn.status === "running";
@@ -70,15 +70,15 @@ export function ExecutionTurn({
 
 			<section
 				className={cn(
-					"min-w-0 border border-border bg-card p-3 shadow-[3px_3px_0_var(--border)] md:p-4",
-					running && "border-primary shadow-[3px_3px_0_var(--primary)]",
+					"min-w-0 rounded-xl border border-border/70 bg-card p-3 shadow-sm md:p-4",
+					running && "border-primary/60 ring-1 ring-primary/15",
 					failed && "border-destructive",
 				)}
 			>
 				<header className="mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-2">
 					<span
 						className={cn(
-							"flex size-6 shrink-0 items-center justify-center border border-border bg-muted/40",
+							"flex size-7 shrink-0 items-center justify-center rounded-full bg-muted",
 							running && "border-primary text-primary",
 							failed && "border-destructive text-destructive",
 						)}
@@ -97,7 +97,7 @@ export function ExecutionTurn({
 					<Text as="span" size="xs" tone="muted">
 						{EXECUTION_STATUS_LABELS[turn.status]} · {elapsedLabel(duration)}
 					</Text>
-					{running && (
+					{running && onCancel && (
 						<Button
 							variant="outline"
 							size="sm"
@@ -109,7 +109,7 @@ export function ExecutionTurn({
 							Interromper
 						</Button>
 					)}
-					{failed && (
+					{failed && onRetry && (
 						<Button
 							variant="outline"
 							size="sm"

@@ -1,11 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
-
-const executionSearchSchema = z.object({
-	projectId: z.string().optional(),
-	taskId: z.string().optional(),
-});
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/executar/")({
-	validateSearch: executionSearchSchema,
+	beforeLoad: () => {
+		throw redirect({ to: "/terminals", replace: true });
+	},
 });

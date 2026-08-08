@@ -42,23 +42,15 @@ export function ExecutePanel({
 	const patchClaudeSession = usePromptBarStore((s) => s.patchClaudeSession);
 	const patchCodexSession = usePromptBarStore((s) => s.patchCodexSession);
 
-	const {
-		promptPreview,
-		canExecute,
-		isRunning,
-		liveOutput,
-		elapsedLabel,
-		output,
-		error,
-		handleExecute,
-	} = usePromptExecution({
-		projectId,
-		projectName,
-		routePath,
-		taskId,
-		nextStage,
-		active: executeOpen,
-	});
+	const { promptPreview, canExecute, isRunning, liveOutput, output, error, handleExecute } =
+		usePromptExecution({
+			projectId,
+			projectName,
+			routePath,
+			taskId,
+			nextStage,
+			active: executeOpen,
+		});
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -111,14 +103,14 @@ export function ExecutePanel({
 				<Tooltip
 					label={
 						canExecute
-							? "Executar o prompt no projeto sem abrir terminal"
+							? "Abrir a conversa em um pane do terminal"
 							: "Escreva um prompt e abra uma rota com projeto"
 					}
 					triggerClassName="ml-auto inline-flex shrink-0"
 				>
 					<Button size="sm" disabled={!canExecute || isRunning} onClick={handleExecute}>
 						{isRunning ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-						{isRunning ? `Executando (${elapsedLabel})` : "Executar"}
+						{isRunning ? "Abrindo…" : "Abrir conversa"}
 					</Button>
 				</Tooltip>
 			</div>
@@ -129,9 +121,7 @@ export function ExecutePanel({
 				<div className="flex flex-col gap-1.5 border border-border bg-muted/20 px-2 py-1.5">
 					<div className="flex items-center gap-2">
 						<Loader2 size={14} className="animate-spin text-muted-foreground" />
-						<Text className="text-xs text-muted-foreground">
-							Rodando headless no projeto… {elapsedLabel}
-						</Text>
+						<Text className="text-xs text-muted-foreground">Criando o pane da conversa…</Text>
 					</div>
 					{liveOutput && <LiveOutput text={liveOutput} />}
 				</div>

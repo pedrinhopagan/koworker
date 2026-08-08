@@ -47,6 +47,19 @@ export type KwTerminalPane = {
 	agent_session_path?: string | null;
 };
 
+export type KwTerminalPaneProcessInfo = {
+	pane_id: string;
+	shell_pid: number;
+	foreground_process_group_id: number;
+	foreground_processes: {
+		pid: number;
+		name: string;
+		cmdline: string;
+		argv: string[];
+		cwd: string;
+	}[];
+};
+
 // A tarefa que o agent anunciou estar tocando (`pane report-task`). Só o `agent list` devolve.
 export type KwTerminalSessionTask = {
 	task_id: string;
@@ -331,6 +344,19 @@ export async function kwTerminalPaneList(params: {
 	return params.tabId ? panes.filter((pane) => pane.tab_id === params.tabId) : panes;
 }
 
+export async function kwTerminalPaneProcessInfo(
+	paneId: string,
+): Promise<KwTerminalPaneProcessInfo> {
+	const result = await runKwTerminalJson<{ process_info: KwTerminalPaneProcessInfo }>([
+		"pane",
+		"process-info",
+		"--pane",
+		paneId,
+	]);
+
+	return result.process_info;
+}
+
 export async function kwTerminalPaneRun(paneId: string, command: string): Promise<void> {
 	const { ok, stderr } = await runKwTerminal(["pane", "run", paneId, command]);
 	if (!ok) {
@@ -340,6 +366,15 @@ export async function kwTerminalPaneRun(paneId: string, command: string): Promis
 
 export async function kwTerminalPaneClose(paneId: string): Promise<boolean> {
 	return (await runKwTerminal(["pane", "close", paneId])).ok;
+}
+
+export async function kwTerminalIntegrationInstall(cli: "claude" | "codex"): Promise<void> {
+	const { ok, stderr } = await runKwTerminal(["integration", "install", cli]);
+	if (!ok) {
+		throw new Error(
+			`Falha ao instalar a integração ${cli} do kw-terminal: ${stderr.trim() || "erro"}`,
+		);
+	}
 }
 
 export async function kwTerminalAgentList(): Promise<KwTerminalAgent[]> {
@@ -360,6 +395,21 @@ export async function kwTerminalAgentSend(target: string, text: string): Promise
 	if (!ok) {
 		throw new Error(`Falha ao escrever no agent do kw-terminal: ${stderr.trim() || "erro"}`);
 	}
+}
+
+export async function kwTerminalAgentSubmit(
+	target: string,
+	text: string,
+	revalidate: () => void,
+): Promise<void> {
+	revalidate();
+	await kwTerminalAgentSend(target, text);
+	revalidate();
+	await kwTerminalPaneSendKeys(target, "Enter");
+}
+
+export async function kwTerminalAgentInterrupt(paneId: string): Promise<void> {
+	await kwTerminalPaneSendKeys(paneId, "C-c");
 }
 
 export async function kwTerminalPaneSendKeys(paneId: string, ...keys: string[]): Promise<void> {

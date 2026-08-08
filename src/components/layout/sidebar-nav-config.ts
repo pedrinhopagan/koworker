@@ -13,7 +13,6 @@ import {
 	OctagonX,
 	Presentation,
 	RefreshCw,
-	Rocket,
 	Settings,
 	Sparkles,
 	SquarePen,
@@ -79,19 +78,12 @@ export const sidebarNavGroups: SidebarNavGroup[] = [
 			{ kind: "route", path: "/projetos", label: "Projetos", icon: FolderKanban, altKey: "2" },
 			{ kind: "route", path: "/tarefas", label: "Tarefas", icon: ListChecks, altKey: "3" },
 			{ kind: "route", path: "/mostruario", label: "Mostruário", icon: Presentation, altKey: "4" },
-			{ kind: "route", path: "/executar", label: "Execução", icon: Rocket, altKey: "5" },
+			{ kind: "route", path: "/terminals", label: "Agents", icon: SquareTerminal, altKey: "5" },
 			{ kind: "route", path: "/media", label: "Mídia", icon: Image, altKey: "6" },
 		],
 	},
 	{
 		items: [
-			{
-				kind: "route",
-				path: "/terminals",
-				label: "Terminais",
-				icon: SquareTerminal,
-				altKey: "9",
-			},
 			{
 				kind: "action",
 				id: "openSwitcher",
@@ -105,7 +97,7 @@ export const sidebarNavGroups: SidebarNavGroup[] = [
 		items: [
 			{ kind: "route", path: "/skills", label: "Skills", icon: Sparkles, altKey: "7" },
 			{ kind: "route", path: "/vault", label: "Vault", icon: Archive, altKey: "8" },
-			{ kind: "route", path: "/agents", label: "Agents", icon: Bot, altKey: "0" },
+			{ kind: "route", path: "/agents", label: "Perfis de agents", icon: Bot, altKey: "0" },
 		],
 	},
 	{

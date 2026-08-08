@@ -5,6 +5,15 @@ import { orpcWs } from "@/client";
 import { mergeAgentSessionEvents, type AgentSessionEvent } from "@/lib/agent-session";
 import { subscribeWithRetry } from "@/lib/realtime-subscription";
 
+export function applyAgentRadarTranscriptEnvelope(
+	current: AgentSessionEvent[],
+	envelope: { events?: AgentSessionEvent[]; reset?: boolean },
+) {
+	const incoming = envelope.events ?? [];
+
+	return envelope.reset ? incoming : mergeAgentSessionEvents(current, incoming);
+}
+
 // A conversa que o CLI de um pane grava no disco. O lote marcado com `reset` é a conversa inteira
 // de novo (arquivo trocado, sessão nova): substituir é obrigatório, porque os `seq` recomeçaram.
 export function useAgentRadarTranscript(paneId: string) {
@@ -26,7 +35,6 @@ export function useAgentRadarTranscript(paneId: string) {
 			signal: controller.signal,
 			subscribe: (signal) => orpcWs.agentRadarTranscript.call({ paneId }, { signal }),
 			onEvent: (envelope) => {
-				const incoming = envelope.events ?? [];
 				setLoading(false);
 				setMissing(!!envelope.missing);
 
@@ -34,9 +42,7 @@ export function useAgentRadarTranscript(paneId: string) {
 					setSource(envelope.source);
 				}
 
-				setEvents((current) =>
-					envelope.reset ? incoming : mergeAgentSessionEvents(current, incoming),
-				);
+				setEvents((current) => applyAgentRadarTranscriptEnvelope(current, envelope));
 			},
 		});
 

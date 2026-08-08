@@ -139,7 +139,7 @@ describe("startPromptRun", () => {
 		projectId: "project-execucao",
 		title: "Tarefa",
 		prompt: "faça algo",
-		source: "global_bar",
+		source: "automation",
 		interactionMode: "unattended",
 		inputKind: "text",
 		cli: "claude",

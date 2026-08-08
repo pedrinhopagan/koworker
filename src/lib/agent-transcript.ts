@@ -36,7 +36,7 @@ export function createTranscriptParser(translate: (raw: unknown) => TranscriptPa
 
 // O espelho de uma conversa lida do disco: dá `seq` a cada bloco e guarda a ferramenta em aberto
 // para o resultado, que chega linhas depois, fechar o bloco certo em vez de virar um bloco novo.
-export function createTranscriptMirror(sessionId: string, maxEvents: number) {
+export function createTranscriptMirror(sessionId: string, maxEvents = Number.POSITIVE_INFINITY) {
 	let events: AgentSessionEvent[] = [];
 	let seq = 0;
 	const tools = new Map<string, AgentSessionEvent>();
@@ -46,8 +46,6 @@ export function createTranscriptMirror(sessionId: string, maxEvents: number) {
 		seq += 1;
 		events.push(event);
 
-		// A cauda é o que cabe na tela do celular: um transcript de horas não precisa viver inteiro na
-		// memória do servidor, e o começo dele ninguém rola para ler.
 		if (events.length > maxEvents) {
 			events = events.slice(-maxEvents);
 		}

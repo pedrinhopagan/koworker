@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
@@ -12,7 +13,6 @@ import {
 import { useAgentsQuery } from "@/hooks/use-agents";
 import { useSkillsQuery } from "@/hooks/use-skills";
 import { buildKoworkerPrompt, buildPromptBody, flattenPrompt } from "@/lib/build-prompt";
-import { newClientRequestId } from "@/lib/client-request-id";
 import { convertSkillCallsForCli } from "@/lib/build-prompt";
 import { type InvokeTarget, planInvocation, runInvocation } from "@/lib/invoke";
 import { usePromptBarStore } from "@/stores/prompt-bar";
@@ -73,7 +73,7 @@ export function useInvocation(params: {
 	const patchCodexSession = usePromptBarStore((s) => s.patchCodexSession);
 
 	const [invoking, setInvoking] = useState(false);
-	const requestId = useRef(newClientRequestId());
+	const navigate = useNavigate();
 
 	const projectsQuery = useQuery({
 		...orpc.projects.list.queryOptions(),
@@ -200,7 +200,6 @@ export function useInvocation(params: {
 
 		setInvoking(true);
 		void runInvocation({
-			clientRequestId: requestId.current,
 			project: {
 				id: project.id,
 				name: project.name,
@@ -215,10 +214,13 @@ export function useInvocation(params: {
 				text: effectiveText,
 				config: invoke,
 			},
-		}).finally(() => {
-			requestId.current = newClientRequestId();
-			setInvoking(false);
-		});
+		})
+			.then((result) => {
+				usePromptBarStore.getState().clear();
+				return navigate({ to: "/terminals/$paneId", params: { paneId: result.paneId } });
+			})
+			.catch(() => toast.error("Não foi possível abrir a conversa"))
+			.finally(() => setInvoking(false));
 	}
 
 	return {

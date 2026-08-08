@@ -8,6 +8,10 @@ const DETAIL_MAX_CHARS = 400;
 // O rollout que o `codex` grava em `~/.codex/sessions` mistura três coisas na mesma linha: o evento
 // da interface (`event_msg`), o item cru do modelo (`response_item`) e a configuração do turno. A
 // conversa está no primeiro; a ferramenta e o resultado dela, no segundo.
+const TranscriptContentSchema = z.array(
+	z.object({ type: z.string(), text: z.string().optional() }).passthrough(),
+);
+
 const RolloutLineSchema = z.object({
 	type: z.string(),
 	payload: z.object({
@@ -19,6 +23,12 @@ const RolloutLineSchema = z.object({
 		arguments: z.string().optional(),
 		input: z.string().optional(),
 		output: z.unknown().optional(),
+		item: z
+			.object({
+				type: z.string(),
+				content: TranscriptContentSchema.optional(),
+			})
+			.optional(),
 	}),
 });
 
@@ -135,8 +145,46 @@ export function translateCodexTranscriptLine(raw: unknown): TranscriptPatch[] {
 	}
 
 	const { type, payload } = parsed.data;
+	if (type === "compacted") {
+		return [
+			{
+				type: "append",
+				payload: {
+					kind: "notice",
+					label: "Contexto compactado",
+					detail: "O agente resumiu o contexto e continuou nesta mesma sessão.",
+					tone: "info",
+				},
+			},
+		];
+	}
 
 	if (type === "event_msg") {
+		if (payload.type === "item_completed" && payload.item) {
+			const text = payload.item.content
+				?.filter((block) => block.text?.trim())
+				.map((block) => block.text)
+				.join("\n\n");
+			const images = payload.item.content?.filter((block) => block.type === "image").length ?? 0;
+
+			if (payload.item.type === "UserMessage" && (text || images > 0)) {
+				return [
+					{
+						type: "append",
+						payload: {
+							kind: "user",
+							text: text || (images === 1 ? "Imagem enviada" : `${images} imagens enviadas`),
+							...(images > 0 ? { images } : {}),
+						},
+					},
+				];
+			}
+
+			if (payload.item.type === "AgentMessage" && text) {
+				return [{ type: "append", payload: { kind: "assistant", text } }];
+			}
+		}
+
 		if (payload.type === "user_message" && payload.message?.trim()) {
 			return [{ type: "append", payload: { kind: "user", text: payload.message } }];
 		}

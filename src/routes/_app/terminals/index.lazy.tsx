@@ -1,163 +1,122 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { Plus, SquareTerminal } from "lucide-react";
+import { Loader2, Plus, RotateCcw, SquareTerminal } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
-import type { RadarAgent } from "@/api/helpers/agent-radar/state";
-import { orpc, type RouterOutputs } from "@/client";
+import { orpc } from "@/client";
+import { AgentSidebar } from "@/components/agent-radar/agent-sidebar";
 import { PageShell } from "@/components/layout/page-shell";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { EmptyFeedback } from "@/components/ui/empty-feedback";
 import { useAgentRadar } from "@/hooks/use-agent-radar";
+import { errorMessage } from "@/lib/orpc-errors";
 import { NewSessionDialog } from "./-components/new-session-dialog";
-import { RestoreSnapshotCard } from "./-components/restore-snapshot-card";
 import { ShortcutsSection } from "./-components/shortcuts-section";
-import { TerminalsTable, type TerminalsWorkspace } from "./-components/terminals-table";
-import { resolveWorkspaceProject } from "./-utils/resolve-workspace-project";
-import { useKwTerminalActions } from "./-utils/use-kw-terminal-actions";
 
 export const Route = createLazyFileRoute("/_app/terminals/")({
 	component: TerminalsPage,
 });
 
-type Workspace = RouterOutputs["kwTerminal"]["overview"]["workspaces"][number];
-type Project = RouterOutputs["projects"]["list"][number];
-
-function buildWorkspaces(
-	workspaces: Workspace[],
-	agents: RadarAgent[],
-	focus: { workspaceId: string | null; tabId: string | null; paneId: string | null },
-	projects: Project[],
-): TerminalsWorkspace[] {
-	const groups = workspaces.map(function (workspace) {
-		const workspaceAgents = agents.filter(function (agent) {
-			return agent.workspaceId === workspace.workspace_id;
-		});
-		const resolved = resolveWorkspaceProject({
-			workspaceLabel: workspace.label,
-			agents: workspaceAgents,
-			projects,
-		});
-
-		return {
-			workspaceId: workspace.workspace_id,
-			label: workspace.label,
-			displayName: resolved.displayName,
-			number: workspace.number,
-			focused: focus.workspaceId === workspace.workspace_id,
-			focusedPaneId: focus.workspaceId === workspace.workspace_id ? focus.paneId : null,
-			agents: workspaceAgents,
-			tabs: workspace.tabs.map(function (tab) {
-				return {
-					tabId: tab.tab_id,
-					label: tab.label,
-					focused: focus.tabId === tab.tab_id,
-				};
-			}),
-			project: resolved.project,
-		};
-	});
-
-	const known = new Set(
-		workspaces.map(function (workspace) {
-			return workspace.workspace_id;
-		}),
-	);
-
-	for (const agent of agents) {
-		if (known.has(agent.workspaceId)) {
-			continue;
-		}
-
-		known.add(agent.workspaceId);
-
-		const orphanAgents = agents.filter(function (candidate) {
-			return candidate.workspaceId === agent.workspaceId;
-		});
-		const resolved = resolveWorkspaceProject({
-			workspaceLabel: agent.workspaceLabel,
-			agents: orphanAgents,
-			projects,
-		});
-
-		groups.push({
-			workspaceId: agent.workspaceId,
-			label: agent.workspaceLabel,
-			displayName: resolved.displayName,
-			number: Number.POSITIVE_INFINITY,
-			focused: focus.workspaceId === agent.workspaceId,
-			focusedPaneId: focus.workspaceId === agent.workspaceId ? focus.paneId : null,
-			agents: orphanAgents,
-			tabs: [],
-			project: resolved.project,
-		});
-	}
-
-	return groups.sort(function (left, right) {
-		return left.number - right.number;
-	});
-}
-
 function TerminalsPage() {
 	const [creating, setCreating] = useState(false);
-	const actions = useKwTerminalActions();
-	const { agents, focus, loading: radarLoading } = useAgentRadar();
-	const overview = useQuery(orpc.kwTerminal.overview.queryOptions());
-	const projects = useQuery(orpc.projects.list.queryOptions());
-	const workspaces = buildWorkspaces(
-		overview.data?.workspaces ?? [],
-		agents,
-		focus,
-		projects.data ?? [],
-	);
+	const queryClient = useQueryClient();
+	const { agents, loading: radarLoading } = useAgentRadar();
+	const savedTerminals = useQuery({
+		...orpc.agentRadar.savedTerminals.queryOptions(),
+		enabled: !radarLoading && agents.length === 0,
+	});
+	const reopen = useMutation({
+		...orpc.agentRadar.reopenSavedTerminals.mutationOptions(),
+		onSuccess: async (result) => {
+			const restoredLabel =
+				result.restored === 1 ? "1 terminal reaberto" : `${result.restored} terminais reabertos`;
+
+			if (result.failed > 0) {
+				const failedLabel = result.failed === 1 ? "1 falhou" : `${result.failed} falharam`;
+				toast.warning(`${restoredLabel}; ${failedLabel}`);
+			} else {
+				toast.success(restoredLabel);
+			}
+
+			await queryClient.invalidateQueries({
+				queryKey: orpc.agentRadar.savedTerminals.key(),
+			});
+		},
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível reabrir os terminais")),
+	});
+	const canReopen = !radarLoading && agents.length === 0 && (savedTerminals.data?.count ?? 0) > 0;
 
 	return (
 		<PageShell
-			title="Terminais"
-			description="Central de agents e workspaces do kw-terminal"
+			title="Agents"
+			description="A central mostra apenas agents abertos"
 			icon={SquareTerminal}
-			contentClassName="min-h-0 flex-1 overflow-y-auto px-4 pb-8"
+			headerClassName="mb-0"
+			contentClassName="flex min-h-0 max-w-none flex-col px-0"
 			actions={
-				<Button
-					size="sm"
-					onClick={function () {
-						setCreating(true);
-					}}
-				>
-					<Plus className="size-4" />
-					Abrir nova sessão
-				</Button>
+				<>
+					{canReopen && (
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={reopen.isPending}
+							aria-busy={reopen.isPending}
+							onClick={() => reopen.mutate({})}
+						>
+							{reopen.isPending ? (
+								<Loader2 className="size-4 animate-spin" />
+							) : (
+								<RotateCcw className="size-4" />
+							)}
+							{reopen.isPending ? "Reabrindo..." : "Reabrir terminais"}
+						</Button>
+					)}
+
+					<Button
+						size="sm"
+						onClick={function () {
+							setCreating(true);
+						}}
+					>
+						<Plus className="size-4" />
+						Abrir conversa
+					</Button>
+				</>
 			}
 		>
-			<div className="mx-auto w-full max-w-5xl space-y-5">
-				<RestoreSnapshotCard hasLiveAgents={agents.length > 0} />
+			<div
+				data-component="terminal-conversation-layout"
+				className="flex min-h-0 flex-1 flex-col md:flex-row"
+			>
+				<AgentSidebar agents={agents}>
+					<div className="space-y-5 pt-3">
+						{radarLoading && agents.length === 0 && (
+							<Text size="sm" tone="muted">
+								Conectando na central...
+							</Text>
+						)}
 
-				{(radarLoading || overview.isLoading) && workspaces.length === 0 && (
-					<Text size="sm" tone="muted">
-						Conectando na central...
-					</Text>
-				)}
+						{!radarLoading && agents.length === 0 && (
+							<EmptyFeedback
+								icon={SquareTerminal}
+								title="Nenhum agent aberto"
+								subtitle="Abra uma conversa ou inicie um agent no kw-terminal."
+							/>
+						)}
 
-				{overview.isError && workspaces.length === 0 && (
+						<ShortcutsSection />
+					</div>
+				</AgentSidebar>
+
+				<div className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-muted/10 p-6">
 					<EmptyFeedback
 						icon={SquareTerminal}
-						title="kw-terminal indisponível"
-						subtitle="Não foi possível falar com o servidor kw-terminal desta máquina."
+						title="Selecione um terminal"
+						subtitle="Escolha um agent na lista para abrir a conversa."
 					/>
-				)}
-
-				{!radarLoading && !overview.isLoading && !overview.isError && workspaces.length === 0 && (
-					<EmptyFeedback
-						icon={SquareTerminal}
-						title="Nenhum terminal aberto"
-						subtitle="Abra uma sessão por aqui ou suba um claude/codex no kw-terminal."
-					/>
-				)}
-
-				{workspaces.length > 0 && <TerminalsTable workspaces={workspaces} actions={actions} />}
-
-				<ShortcutsSection />
+				</div>
 			</div>
 
 			<NewSessionDialog

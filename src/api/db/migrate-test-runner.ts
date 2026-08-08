@@ -22,6 +22,10 @@ const { db } = await import("./connection");
 const { ensureDbSchema } = await import("./migrate");
 
 await db
+	.insertInto("users")
+	.values({ id: 1, name: "Teste", password: "x", user_type: "user" })
+	.execute();
+await db
 	.insertInto("projects")
 	.values({
 		id: "aaaaaaaa-0000-4000-8000-000000000001",
@@ -33,6 +37,37 @@ await db
 		task_layout_version: 1,
 		created_at: 1,
 	})
+	.execute();
+await db
+	.insertInto("agent_sessions")
+	.values([
+		{
+			id: "legacy-live",
+			user_id: 1,
+			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
+			title: "Viva",
+			cli: "claude",
+			cwd: projectRoute,
+			permission_mode: "default",
+			status: "live",
+			started_at: 1,
+			updated_at: 1,
+		},
+		{
+			id: "legacy-ended",
+			user_id: 1,
+			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
+			title: "Encerrada",
+			cli: "codex",
+			cwd: projectRoute,
+			permission_mode: "default",
+			status: "ended",
+			started_at: 1,
+			updated_at: 2,
+			ended_at: 2,
+			end_reason: "Motivo original",
+		},
+	])
 	.execute();
 await db
 	.insertInto("tasks")
@@ -68,10 +103,20 @@ const first = await db
 	.orderBy("t.created_at", "asc")
 	.execute();
 ensureDbSchema();
+const firstSessions = await db
+	.selectFrom("agent_sessions")
+	.select(["id", "status", "end_reason", "ended_at", "updated_at"])
+	.orderBy("id")
+	.execute();
 const second = await db
 	.selectFrom("tasks as t")
 	.select(["t.id", "t.folder_path", "t.storage_key", "t.storage_slug"])
 	.orderBy("t.created_at", "asc")
+	.execute();
+const secondSessions = await db
+	.selectFrom("agent_sessions")
+	.select(["id", "status", "end_reason", "ended_at", "updated_at"])
+	.orderBy("id")
 	.execute();
 const primeAgentRoutes = await db
 	.selectFrom("project_routes")
@@ -96,6 +141,8 @@ console.log(
 		mtimePreserved: (await stat(filePath)).mtimeMs === before.mtimeMs,
 		pathIndex,
 		primeAgentRoutes,
+		firstSessions,
 		second,
+		secondSessions,
 	}),
 );

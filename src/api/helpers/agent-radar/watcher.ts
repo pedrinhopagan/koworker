@@ -4,11 +4,13 @@ import {
 	normalizeAgentRadarStatus,
 } from "@/constants/agent-radar";
 import { dbProjects } from "../../db/projects";
+import { EXECUTION_WORKSPACE_LABEL } from "../execution-terminal";
 import { getSystemSettings } from "../system-settings";
 import {
 	ensureKwTerminalServer,
 	kwTerminalAgentList,
 	kwTerminalPaneList,
+	kwTerminalPaneProcessInfo,
 	kwTerminalSocketPath,
 	kwTerminalTabList,
 	kwTerminalWorkspaceList,
@@ -20,6 +22,7 @@ import {
 	paneStatusSubscription,
 } from "./events";
 import { openKwTerminalEventStream, type KwTerminalEventStream } from "./socket";
+import { resolveProcessTranscript } from "./transcript/process";
 import {
 	getRadarAgent,
 	getRadarFocus,
@@ -171,7 +174,7 @@ function scheduleReconnect(current: number) {
 	}
 
 	teardown();
-	void resetRadarAgents([]);
+	void resetRadarAgents([], { captureSnapshot: false });
 
 	const delay = reconnectDelay;
 	reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
@@ -232,48 +235,84 @@ async function syncRadar(current: number) {
 		return;
 	}
 
-	const workspaceLabels = new Map(
-		workspaces.map((workspace) => [workspace.workspace_id, workspace.label]),
+	const conversationalWorkspaces = workspaces.filter(
+		(workspace) => workspace.label !== EXECUTION_WORKSPACE_LABEL,
 	);
-	const tabLabels = new Map(tabs.map((tab) => [tab.tab_id, tab.label]));
+	const conversationalWorkspaceIds = new Set(
+		conversationalWorkspaces.map((workspace) => workspace.workspace_id),
+	);
+	const conversationalPanes = panes.filter((pane) =>
+		conversationalWorkspaceIds.has(pane.workspace_id),
+	);
+	const conversationalTabs = tabs.filter((tab) => conversationalWorkspaceIds.has(tab.workspace_id));
+	const workspaceLabels = new Map(
+		conversationalWorkspaces.map((workspace) => [workspace.workspace_id, workspace.label]),
+	);
+	const tabLabels = new Map(conversationalTabs.map((tab) => [tab.tab_id, tab.label]));
 	// A tarefa que o agent anunciou só vem no `agent list`; o resto do cartão vem do `pane list`.
 	const tasks = new Map(agents.map((agent) => [agent.pane_id, agent.session_task]));
+	const recoveredTranscripts = new Map(
+		await Promise.all(
+			conversationalPanes.map(async (pane) => {
+				if (!pane.agent || pane.agent_session_path) {
+					return [pane.pane_id, null] as const;
+				}
 
-	await resetRadarAgents(
-		panes.flatMap((pane) => {
-			if (!pane.agent) {
-				return [];
-			}
+				const processInfo = await kwTerminalPaneProcessInfo(pane.pane_id).catch(() => null);
+				const transcript = processInfo
+					? await resolveProcessTranscript({
+							agent: pane.agent,
+							processIds: processInfo.foreground_processes.map((process) => process.pid),
+						})
+					: null;
 
-			const project = matchProjectByCwd(projects, pane.cwd);
-			const known = getRadarAgent(pane.pane_id);
-			const status = toRadarStatus(pane.agent_status);
-			const task = tasks.get(pane.pane_id);
-
-			return [
-				{
-					paneId: pane.pane_id,
-					workspaceId: pane.workspace_id,
-					workspaceLabel: workspaceLabels.get(pane.workspace_id) ?? pane.workspace_id,
-					tabId: pane.tab_id,
-					tabLabel: tabLabels.get(pane.tab_id) ?? pane.tab_id,
-					agent: pane.agent,
-					status,
-					activity: pane.activity ?? null,
-					title: pane.title ?? null,
-					cwd: pane.cwd,
-					projectId: project?.id ?? null,
-					projectName: project?.name ?? null,
-					sessionId: pane.agent_session_id ?? null,
-					sessionPath: pane.agent_session_path ?? null,
-					taskId: task?.task_id ?? null,
-					taskTitle: task?.title ?? null,
-					changedAt: known?.status === status ? known.changedAt : Date.now(),
-				},
-			];
-		}),
-		deriveFocus({ workspaces, tabs, panes }),
+				return [pane.pane_id, transcript] as const;
+			}),
+		),
 	);
+
+	const nextAgents = conversationalPanes.flatMap((pane) => {
+		if (!pane.agent) {
+			return [];
+		}
+
+		const project = matchProjectByCwd(projects, pane.cwd);
+		const known = getRadarAgent(pane.pane_id);
+		const status = toRadarStatus(pane.agent_status);
+		const task = tasks.get(pane.pane_id);
+		const recoveredTranscript = recoveredTranscripts.get(pane.pane_id);
+
+		return [
+			{
+				paneId: pane.pane_id,
+				workspaceId: pane.workspace_id,
+				workspaceLabel: workspaceLabels.get(pane.workspace_id) ?? pane.workspace_id,
+				tabId: pane.tab_id,
+				tabLabel: tabLabels.get(pane.tab_id) ?? pane.tab_id,
+				agent: pane.agent,
+				status,
+				activity: pane.activity ?? null,
+				title: pane.title ?? null,
+				cwd: pane.cwd,
+				projectId: project?.id ?? null,
+				projectName: project?.name ?? null,
+				sessionId: pane.agent_session_id ?? recoveredTranscript?.sessionId ?? null,
+				sessionPath: pane.agent_session_path ?? recoveredTranscript?.path ?? null,
+				taskId: task?.task_id ?? null,
+				taskTitle: task?.title ?? null,
+				changedAt: known?.status === status ? known.changedAt : Date.now(),
+			},
+		];
+	});
+
+	await resetRadarAgents(nextAgents, {
+		focus: deriveFocus({
+			workspaces: conversationalWorkspaces,
+			tabs: conversationalTabs,
+			panes: conversationalPanes,
+		}),
+		captureSnapshot: nextAgents.length > 0,
+	});
 
 	await watchPanes(current);
 }
@@ -419,5 +458,5 @@ export async function stopAgentRadar() {
 	running = false;
 	generation += 1;
 	teardown();
-	await resetRadarAgents([]);
+	await resetRadarAgents([], { captureSnapshot: false });
 }

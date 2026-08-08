@@ -25,7 +25,10 @@ export function ThreadComposer({
 	hint: string;
 	placeholder?: string;
 	helperText?: string;
-	onSubmit: (prompt: string, inputKind: "text" | "audio_transcript") => void;
+	onSubmit: (
+		prompt: string,
+		inputKind: "text" | "audio_transcript",
+	) => boolean | void | Promise<boolean | void>;
 }) {
 	const [draft, setDraft] = useState(() => readPromptDraft(draftKey));
 	const [inputKind, setInputKind] = useState<"text" | "audio_transcript">("text");
@@ -37,19 +40,25 @@ export function ThreadComposer({
 		return () => clearTimeout(timer);
 	}, [draftKey, draft]);
 
-	function submit() {
+	async function submit() {
 		if (!draft.text.trim() || disabled || pending) {
 			return;
 		}
-		onSubmit(resolveImagePlaceholders(draft.text.trim(), draft.images), inputKind);
+		const accepted = await onSubmit(
+			resolveImagePlaceholders(draft.text.trim(), draft.images),
+			inputKind,
+		);
+		if (accepted === false) {
+			return;
+		}
 		setDraft({ text: "", images: [] });
 		clearPromptDraft(draftKey);
 		setInputKind("text");
 	}
 
 	return (
-		<div className="z-20 -mx-4 shrink-0 border-t border-border bg-background/95 px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur">
-			<div className="mx-auto w-full max-w-3xl">
+		<div className="z-20 -mx-4 shrink-0 border-t border-border/70 bg-background/90 px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-xl">
+			<div className="mx-auto w-full max-w-3xl rounded-xl border border-border/70 bg-card p-2 shadow-sm">
 				{dictating ? (
 					<div className="pb-1">
 						<AudioRecorder
@@ -88,7 +97,7 @@ export function ThreadComposer({
 								setInputKind("text");
 							}}
 							onImagesChange={(value) => setDraft((current) => ({ ...current, images: value }))}
-							onSubmit={submit}
+							onSubmit={() => void submit()}
 						/>
 						<Button
 							type="button"
@@ -104,7 +113,7 @@ export function ThreadComposer({
 						<Button
 							type="button"
 							aria-label="Enviar continuação"
-							onClick={submit}
+							onClick={() => void submit()}
 							disabled={disabled || pending || !draft.text.trim()}
 							className="size-12 shrink-0 p-0"
 						>

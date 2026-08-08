@@ -2,7 +2,6 @@ import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
 
 import type { AgentRadarTranscriptEnvelope } from "@/api/helpers/agent-radar/transcript";
 import type { RadarAgent, RadarFocus } from "@/api/helpers/agent-radar/state";
-import type { AgentSessionEvent, AgentSessionStatus } from "@/lib/agent-session";
 import type { AgentStep } from "@/lib/agent-stream";
 import type { TaskStage } from "@/constants/complexity";
 
@@ -32,14 +31,6 @@ export type PromptRunEvent = {
 // A conversa de uma sessão viva. `events` carrega blocos novos ou já conhecidos que mudaram de
 // estado (ferramenta que terminou, permissão respondida) — o `seq` de cada um é a identidade que o
 // front usa para juntar. `busy` é o agente trabalhando; `status` só aparece quando a sessão muda.
-export type AgentSessionEnvelope = {
-	sessionId: string;
-	events?: AgentSessionEvent[];
-	status?: AgentSessionStatus;
-	busy?: boolean;
-	endReason?: string;
-};
-
 type PubSubChannels = {
 	// A central de agents publica o mapa inteiro a cada mudança: a lista é curta e o snapshot completo
 	// dispensa o cliente reconstruir estado a partir de deltas depois de uma reconexão. `focus` é o
@@ -49,7 +40,6 @@ type PubSubChannels = {
 	agentRadarTranscript: AgentRadarTranscriptEnvelope;
 	flow: FlowEvent;
 	promptRun: PromptRunEvent;
-	agentSession: AgentSessionEnvelope;
 	notification: {
 		title: string;
 		message: string;

@@ -281,8 +281,7 @@ async function loadSkillSource(dir: string): Promise<CachedSkillSource | null> {
 		if (err?.code === "ENOENT" || err?.code === "ENOTDIR") {
 			return null;
 		}
-		console.error(`Skill ignorada em ${dir}:`, err);
-		return null;
+		throw err;
 	});
 	if (!manifest || !manifest.files.some((file) => file.path === "SKILL.md")) {
 		return null;

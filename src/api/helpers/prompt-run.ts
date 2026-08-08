@@ -225,7 +225,6 @@ async function finishRun(params: {
 		status: params.status,
 		...(params.output ? { output: params.output } : {}),
 		...(params.error ? { error: params.error } : {}),
-		...(params.cliSessionId ? { cli_session_id: params.cliSessionId } : {}),
 	});
 	if (!finished) {
 		return;
@@ -507,8 +506,8 @@ export async function startPromptRun(params: {
 	cwd: string;
 	prompt: string;
 	originalPrompt?: string;
-	source: "global_bar" | "execution_route" | "task_flow" | "desktop_terminal";
-	interactionMode: "unattended" | "interactive";
+	source: "merge_action" | "automation";
+	interactionMode: "unattended";
 	inputKind: "text" | "audio_transcript" | "task_flow";
 	cli: InvokeCli;
 	permissionMode?: string;
@@ -516,8 +515,6 @@ export async function startPromptRun(params: {
 	model?: string;
 	effort?: string;
 	approvalMode?: string;
-	parentRunId?: string;
-	resumeSessionId?: string;
 }) {
 	const requestFingerprint = JSON.stringify({
 		projectId: params.projectId,
@@ -534,8 +531,6 @@ export async function startPromptRun(params: {
 		model: params.model,
 		effort: params.effort,
 		approvalMode: params.approvalMode,
-		parentRunId: params.parentRunId,
-		resumeSessionId: params.resumeSessionId,
 	});
 	const existing = await dbExecutionRuns.getByRequestIdForUser(
 		params.clientRequestId,
@@ -565,12 +560,6 @@ export async function startPromptRun(params: {
 			project_id: params.projectId,
 			client_request_id: params.clientRequestId,
 			request_fingerprint: requestFingerprint,
-			...(params.parentRunId ? { parent_run_id: params.parentRunId } : {}),
-			...(params.resumeSessionId
-				? { cli_session_id: params.resumeSessionId }
-				: params.cli === "claude"
-					? { cli_session_id: runId }
-					: {}),
 			create_task_title: params.createTaskTitle,
 			...(params.taskId ? { task_id: params.taskId } : {}),
 			kind: "prompt",
@@ -601,12 +590,6 @@ export async function startPromptRun(params: {
 			}
 			// O índice único de sessão em andamento é a defesa contra dois turnos simultâneos no mesmo
 			// histórico do CLI. Sem tradução, o usuário recebia o texto cru da constraint do SQLite.
-			if (params.resumeSessionId && error instanceof Error && error.message.includes("UNIQUE")) {
-				throw new ORPCError("CONFLICT", {
-					message: "Esta sessão já tem uma continuação em andamento. Aguarde ela terminar.",
-				});
-			}
-
 			throw error;
 		});
 	if (created.id !== runId) {
@@ -763,9 +746,8 @@ export async function startPromptRun(params: {
 					model: params.model,
 					effort: params.effort,
 					approvalMode: params.approvalMode ?? "bypass",
-					persistSession: true,
+					persistSession: false,
 					structuredOutput: true,
-					...(params.resumeSessionId ? { resumeSessionId: params.resumeSessionId } : {}),
 				})
 			: buildClaudeArgv({
 					prompt,
@@ -774,9 +756,6 @@ export async function startPromptRun(params: {
 					agent: params.agent,
 					model: params.model,
 					effort: params.effort,
-					...(params.resumeSessionId
-						? { resumeSessionId: params.resumeSessionId }
-						: { sessionId: runId }),
 				});
 
 	const runParams = {
@@ -789,11 +768,7 @@ export async function startPromptRun(params: {
 		cli: params.cli,
 	};
 
-	if (params.source === "execution_route") {
-		void runViaKwTerminal(runParams);
-	} else {
-		void runInBackground(runParams);
-	}
+	void runViaKwTerminal(runParams);
 
 	return { runId };
 }
@@ -860,7 +835,7 @@ export async function getPromptRun(runId: string, userId: number) {
 				projectName: record.project_name ?? "Projeto removido",
 				taskTitle: record.task_title ?? undefined,
 				taskFolderPath: record.task_folder_path ?? undefined,
-				canContinue: record.status === "done" && !!record.cli_session_id,
+				canContinue: false,
 			})
 		: null;
 }
@@ -887,10 +862,6 @@ export async function getPromptThread(runId: string, userId: number) {
 	const last = turns.at(-1) ?? toPromptRunRecord(run);
 	// Retomar a sessão do CLI parte do último turno que chegou ao fim: se o turno mais recente falhou
 	// ou foi interrompido, a conversa continua do que ficou de pé em vez de morrer ali.
-	const resumable = run.cli_session_id
-		? turns.findLast((turn) => turn.status === "done")
-		: undefined;
-
 	return {
 		threadId: run.cli_session_id ?? run.id,
 		projectId: run.project_id,
@@ -901,9 +872,8 @@ export async function getPromptThread(runId: string, userId: number) {
 		cli: run.cli ?? "claude",
 		...(run.model ? { model: run.model } : {}),
 		latestRunId: last.runId,
-		...(resumable ? { continueFromRunId: resumable.runId } : {}),
 		status: last.status,
-		canContinue: !!resumable && last.status !== "running",
+		canContinue: false,
 		turns,
 	};
 }

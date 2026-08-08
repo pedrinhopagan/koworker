@@ -78,12 +78,12 @@ export function SessionTrace({ steps, total }: { steps: TrailStep[]; total: numb
 	}
 
 	return (
-		<div className="min-w-0 border border-border bg-muted/20">
+		<div className="min-w-0 rounded-lg bg-muted/35">
 			{hidden > 0 && (
 				<button
 					type="button"
 					onClick={() => setOpen((current) => !current)}
-					className="flex w-full cursor-pointer items-center gap-2 border-b border-border px-3 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+					className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 				>
 					<Route className="size-3.5 shrink-0 text-muted-foreground" />
 					<Text as="span" size="xs" tone="muted" className="shrink-0 font-mono">
@@ -104,7 +104,7 @@ export function SessionTrace({ steps, total }: { steps: TrailStep[]; total: numb
 			<ul
 				className={cn(
 					"min-w-0 px-3 py-1.5",
-					open && "max-h-[60vh] overflow-y-auto overscroll-contain",
+					open && "md:max-h-[60vh] md:overflow-y-auto md:overscroll-contain",
 				)}
 			>
 				{open ? steps.map(render) : last && render(last)}

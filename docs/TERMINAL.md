@@ -121,7 +121,8 @@ Procedures em `src/api/routers/kw-terminal.ts`, que é o que a rota `/terminals`
 | Procedure | Descrição |
 |-----------|-----------|
 | `overview` | Workspaces com suas tabs, do daemon |
-| `sessionStart` | Sessão livre: tab nova no workspace do projeto com claude/codex subindo nela e prompt inicial opcional; devolve o `paneId` para abrir a conversa |
+| `sessionStart` | Cria uma tab e sobe Claude/Codex com prompt, agent, modelo, esforço e modo seguro; devolve o `paneId` |
+| `sessionResumeLast` | Cria uma tab e executa `claude --continue` ou `codex resume --last` após ação explícita |
 | `tabCreate` / `tabFocus` / `tabRename` / `tabClose` | Ações de tab |
 | `workspaceFocus` / `workspaceRename` / `workspaceClose` | Ações de workspace |
 
@@ -138,13 +139,31 @@ Implementação: `src/api/helpers/terminal/names.ts`.
 
 ## ROTA /terminals
 
-Rota única para os terminais desta máquina, pensada para o celular. Os agents são o conteúdo (cartões
-ao vivo do radar); o cartão inteiro foca o agent no kw-terminal (`agentRadar.focus`), o botão "Ver
-agent" na direita abre a conversa em `/terminals/$paneId` e o botão direito abre as
-ações do agent: focar no kw-terminal (`agentRadar.focus`), ver diff no kw-diff (`agentRadar.openDiff`)
-e fechar o pane (`agentRadar.close`). O workspace é o agrupamento, e as ações dele (focar, nova tab,
-renomear, fechar) ficam num dropdown no header do grupo. Tab sem agent é shell puro: aparece atrás de
-um toggle, só com focar/renomear/fechar.
+`/terminals` mostra apenas agents abertos no daemon. Cada linha abre `/terminals/$paneId`; foco no
+cliente TUI, diff e fechamento são ações secundárias.
+
+No desktop, o detalhe mantém a lista à esquerda e a conversa à direita. No mobile, lista e detalhe
+são páginas separadas. O `paneId` é a identidade pública enquanto o pane existe; fechar o pane
+encerra envio, assinatura e validade da rota.
+
+A timeline prioriza `agent_session_path` informado pelo CLI ao daemon. Quando uma integração antiga
+não reporta o caminho, o backend usa `pane process-info`. No Codex, aceita somente o rollout raiz
+aberto pelos PIDs daquele pane e exclui subagentes pelo `session_meta`. No Claude, lê o registro
+`~/.claude/sessions/<pid>.json` do processo e procura o JSONL com aquele UUID exato. Não há escolha
+por `cwd`, data de modificação ou sessão recente do diretório.
+
+`sessionStart` e `sessionResumeLast` instalam a integração oficial do Claude ou Codex antes de subir
+o processo. Isso mantém o reporte nativo nas sessões seguintes; a resolução por processo cobre panes
+que já estavam abertos ou integrações que reportam apenas o ID.
+
+Ao abrir a conversa, o backend percorre o transcript inteiro em blocos e mantém todos os eventos
+traduzidos da sessão. Mensagens digitadas diretamente no CLI entram na mesma timeline; compactações
+aparecem como marcos próprios, sem substituir o histórico anterior nem atribuir o resumo automático
+ao usuário.
+
+Texto enviado pelo app usa `agent send` seguido de `Enter`, mas só aparece quando o transcript nativo
+o devolver. `working` bloqueia envio e oferece interrupção explícita por `C-c`. `blocked` oferece
+"Responder no terminal"; permissões e perguntas nativas são somente leitura no Koworker.
 
 O `done` do daemon entra no radar como `blocked` (`normalizeAgentRadarStatus`): agent que devolveu a vez
 cobra a mesma coisa que agent travado, então o koworker tem um estado só de "esperando você". Isso vale
@@ -156,25 +175,19 @@ assina `workspace.focused` / `tab.focused` / `pane.focused` no daemon e publica 
 `agentRadar` junto com o mapa de agents. Trocar de workspace ou tab no kw-terminal atualiza o koworker
 sem ação no app e sem releitura do `kwTerminal.overview`.
 
-## RETRATO E RESTAURAÇÃO DAS SESSÕES
+## REABERTURA DE TERMINAIS
 
-O daemon do kw-terminal morre com a máquina, então o radar volta vazio depois de um desligamento. Para
-não perder a lista de quem estava aberto, cada mudança do radar grava um retrato em
-`agent_session_snapshots` (`src/api/helpers/agent-radar/snapshot.ts`, chamado no `publish` do state,
-com debounce de 2s). O retrato é único e reescrito inteiro, e **nunca** é gravado vazio: radar vazio é
-tanto "fechei tudo" quanto "o daemon caiu", e é no segundo caso que o retrato precisa sobreviver. Cada
-linha guarda workspace/tab, agent, `cwd`, projeto, `status` no instante da captura e o id da sessão do
-CLI quando o agent o reportou.
+Enquanto há agents abertos, o radar grava um retrato de `workspaceLabel`, `tabLabel` e `cwd`. A queda
+do daemon e o encerramento do backend preservam esse retrato; fechar panes normalmente atualiza ou
+limpa a lista, para não reaparecer no próximo boot.
 
-`agentRadar.restoreSnapshot` (`helpers/agent-radar/restore.ts`) sobe tudo de uma vez: workspace por
-label (reaproveitado se existir), uma tab por agent (idempotente pelo label — tab que já tem agent é
-dada como restaurada) e o CLI retomando a conversa por `cliResumeArgv`: `claude --resume <id>` /
-`--continue` e `codex resume <id>` / `resume --last` quando não há id. Quem estava `working` na captura
-recebe um `continue` disparado fora da chamada da rota, depois de esperar o daemon reconhecer o agent
-no pane (até 60s). No fim o cliente TUI é revelado como no `focus`.
+Quando o radar volta vazio e existe um retrato pendente de uma execução anterior, `/terminals` mostra
+"Reabrir terminais". A ação recria workspaces e tabs idempotentemente, confirma cada criação pela
+leitura do daemon e abre o cliente TUI. Os panes ficam no shell do diretório original: nenhum CLI é
+iniciado, nenhuma conversa é retomada e nenhum comando ou prompt é enviado.
 
-Na rota `/terminals` isso é o card "Sessões da última vez", que só aparece quando não há agent vivo, com
-"Restaurar sessões" e "Descartar" (`agentRadar.snapshot` / `restoreSnapshot` / `discardSnapshot`).
+O retrato vive em `agent_session_snapshots`. Uma captura nova substitui a anterior; tabs restauradas
+são marcadas para o botão desaparecer até haver uma nova captura de agents vivos.
 
 ## KW-DIFF
 
@@ -183,26 +196,28 @@ Na rota `/terminals` isso é o card "Sessões da última vez", que só aparece q
 launcher `kw-diff-open --show` quando o servidor não está de pé e aponta a janela pelo deep-link
 `?cwd=<repo>` com `kw-diff-window --show`. Nada do estado do kw-diff é espelhado no Kowork.
 
-"Abrir nova sessão" é o caminho livre para subir um agent: escolhe projeto e CLI, aceita nome e
-primeira mensagem opcionais, cria a tab por `kwTerminal.sessionStart` e navega para a conversa. O
-pane entra no radar quando o daemon detecta o agent, então nada é rastreado em banco — diferente de
-`/executar`, que abre `execution_runs`.
+"Abrir conversa" escolhe projeto e CLI, aceita primeira mensagem e opções avançadas seguras, cria a
+tab por `kwTerminal.sessionStart` e navega ao pane. A barra global usa o mesmo caminho. Essas ações
+não escrevem `agent_sessions`, `agent_events` ou `execution_runs`.
 
 `/radar` e `/kw-terminal` deixaram de existir; `/radar` e `/radar/$paneId` seguem como redirects
 porque push já entregue aponta para lá.
 
-## EXECUÇÕES DA ROTA /executar
+## JOBS E ARQUIVO /executar
 
-Runs unattended com `source: "execution_route"` rodam dentro do kw-terminal quando o multiplexador
-configurado é `kw-terminal`: workspace dedicado `kw_execucoes`, uma tab por run
+`/executar` redireciona para `/terminals`. `/executar/$id` preserva sessões e runs antigos em modo
+somente leitura. Runs novos existem apenas para jobs `merge_action` e `automation`, sempre unattended,
+sem `parent_run_id`, sessão continuável ou composer.
+
+Jobs rodam no workspace dedicado `kw_execucoes`, uma tab por run
 (`{runId[0:8]}_{titulo}`), sem foco automático. O comando roda via script bash com a saída espelhada
 por `tee` para `$TMPDIR/kowork-executions/<runId>.log`; o backend acompanha esse log
 (`readNewLogBytes`) e mantém o rastreamento do run (status, passos, output) exatamente como no modo
 headless. Exit code sai em `<runId>.exit`. Cancelamento fecha a tab; fechar a tab por fora encerra o
 run como cancelado. Fallback: multiplexador diferente de kw-terminal ou falha ao abrir a tab caem no
-spawn headless. Implementação: `src/api/helpers/execution-terminal.ts` + `runViaKwTerminal` em
-`src/api/helpers/prompt-run.ts`. Sessões Claude vivas (`agent_sessions`) seguem headless: o
-protocolo de permissões/perguntas depende do stdin do processo.
+spawn headless. O watcher do radar exclui esse workspace, portanto o job não ganha entrada
+conversacional, preview de transcript ou composer. Implementação: `src/api/helpers/execution-terminal.ts`
+e `runViaKwTerminal` em `src/api/helpers/prompt-run.ts`.
 
 ## EVENTOS
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 
 import type { AgentStep } from "@/lib/agent-stream";
 import {
@@ -21,7 +21,7 @@ function step(seq: number, overrides: Partial<AgentStep> = {}): AgentStep {
 }
 
 describe("ThreadComposer", () => {
-	test("envia a continuação e limpa o campo", () => {
+	test("envia a continuação e limpa o campo", async () => {
 		const sent: string[] = [];
 		renderWithQuery(
 			<div data-theme-root>
@@ -30,7 +30,9 @@ describe("ThreadComposer", () => {
 					disabled={false}
 					pending={false}
 					hint=""
-					onSubmit={(prompt) => sent.push(prompt)}
+					onSubmit={(prompt) => {
+						sent.push(prompt);
+					}}
 				/>
 			</div>,
 		);
@@ -40,10 +42,10 @@ describe("ThreadComposer", () => {
 		fireEvent.click(screen.getByLabelText("Enviar continuação"));
 
 		expect(sent).toEqual(["siga com o refactor"]);
-		expect((field as HTMLTextAreaElement).value).toBe("");
+		await waitFor(() => expect((field as HTMLTextAreaElement).value).toBe(""));
 	});
 
-	test("ctrl+enter envia sem passar pelo botão", () => {
+	test("ctrl+enter envia sem passar pelo botão", async () => {
 		const sent: string[] = [];
 		renderWithQuery(
 			<div data-theme-root>
@@ -52,7 +54,9 @@ describe("ThreadComposer", () => {
 					disabled={false}
 					pending={false}
 					hint=""
-					onSubmit={(prompt) => sent.push(prompt)}
+					onSubmit={(prompt) => {
+						sent.push(prompt);
+					}}
 				/>
 			</div>,
 		);
@@ -62,7 +66,27 @@ describe("ThreadComposer", () => {
 		fireEvent.keyDown(field, { key: "Enter", ctrlKey: true });
 
 		expect(sent).toEqual(["continue daqui"]);
-		expect((field as HTMLTextAreaElement).value).toBe("");
+		await waitFor(() => expect((field as HTMLTextAreaElement).value).toBe(""));
+	});
+
+	test("preserva o rascunho quando o terminal rejeita o envio", async () => {
+		renderWithQuery(
+			<div data-theme-root>
+				<ThreadComposer
+					draftKey="draft-rejeitado"
+					disabled={false}
+					pending={false}
+					hint=""
+					onSubmit={() => Promise.resolve(false)}
+				/>
+			</div>,
+		);
+
+		const field = screen.getByPlaceholderText("Responda ao agente nesta mesma sessão…");
+		fireEvent.change(field, { target: { value: "não perca este texto" } });
+		fireEvent.click(screen.getByLabelText("Enviar continuação"));
+
+		await waitFor(() => expect((field as HTMLTextAreaElement).value).toBe("não perca este texto"));
 	});
 
 	test("a borracha limpa o rascunho inteiro", () => {
@@ -94,7 +118,9 @@ describe("ThreadComposer", () => {
 					disabled
 					pending={false}
 					hint="O agente está trabalhando."
-					onSubmit={(prompt) => sent.push(prompt)}
+					onSubmit={(prompt) => {
+						sent.push(prompt);
+					}}
 				/>
 			</div>,
 		);

@@ -44,8 +44,10 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
 | `src/routes/_app/agents/index.tsx` | `/_app/agents/` | `/agents` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/agents/$slug/index.tsx` | `/_app/agents/$slug/` | `/agents/$slug` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
 | `src/routes/_app/prompts/index.tsx` | `/_app/prompts/` | `/prompts` | `__root` + `AppShell` + `PageShell` |
-| `src/routes/_app/terminals/index.tsx` | `/_app/terminals/` | `/terminals` | `__root` + `AppShell` + `PageShell` (agents e workspaces do kw-terminal, ao vivo; abre sessão nova) |
-| `src/routes/_app/terminals/$paneId/index.tsx` | `/_app/terminals/$paneId/` | `/terminals/$paneId` | `__root` + `AppShell` + `PageShell` (conversa do agent daquele pane, lida do transcript do CLI) |
+| `src/routes/_app/terminals/index.tsx` | `/_app/terminals/` | `/terminals` | `__root` + `AppShell` + `PageShell` (lista primária dos agents abertos; tabs/workspaces são secundários) |
+| `src/routes/_app/terminals/$paneId/index.tsx` | `/_app/terminals/$paneId/` | `/terminals/$paneId` | `__root` + `AppShell` + `PageShell` (lista + conversa no desktop; conversa no mobile; transcript exato do pane) |
+| `src/routes/_app/executar/index.tsx` | `/_app/executar/` | `/executar` | Redirect para `/terminals` |
+| `src/routes/_app/executar/$executionId/index.tsx` | `/_app/executar/$executionId/` | `/executar/$executionId` | Arquivo somente leitura de sessão/run legado; jobs atuais mantêm cancelamento e repetição |
 | `src/routes/_app/radar/index.tsx` | `/_app/radar/` | `/radar` | Redirect legado para `/terminals` |
 | `src/routes/_app/radar/$paneId/index.tsx` | `/_app/radar/$paneId/` | `/radar/$paneId` | Redirect legado para `/terminals/$paneId` |
 | `src/routes/_app/configuracoes.tsx` | `/_app/configuracoes` | `/configuracoes` | `__root` + `AppShell` + `PageShell` |

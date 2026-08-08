@@ -53,8 +53,8 @@ export const PromptExecuteSchema = z
 		createTaskTitle: z.string().trim().optional(),
 		prompt: z.string().trim().min(1),
 		originalPrompt: z.string().trim().min(1).optional(),
-		source: z.enum(["global_bar", "execution_route", "task_flow", "desktop_terminal"]),
-		interactionMode: z.enum(["unattended", "interactive"]),
+		source: z.enum(["merge_action", "automation"]),
+		interactionMode: z.literal("unattended"),
 		inputKind: z.enum(["text", "audio_transcript", "task_flow"]),
 		cli: z.enum(["claude", "codex"]),
 		permissionMode: z.string().trim().min(1).optional(),
@@ -68,13 +68,6 @@ export const PromptExecuteSchema = z
 	});
 
 export type PromptExecuteInput = z.infer<typeof PromptExecuteSchema>;
-
-export const PromptRunContinueSchema = z.object({
-	runId: z.string().trim().min(1),
-	clientRequestId: z.string().uuid(),
-	prompt: z.string().trim().min(1),
-	inputKind: z.enum(["text", "audio_transcript"]),
-});
 
 export const PromptRunIdSchema = z.object({
 	runId: z.string().trim().min(1),

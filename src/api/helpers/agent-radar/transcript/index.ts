@@ -74,6 +74,10 @@ async function resolve(paneId: string) {
 	entry.tail = await openTail(paneId, source);
 }
 
+export async function refreshAgentRadarTranscript(paneId: string) {
+	await resolve(paneId);
+}
+
 function release(paneId: string) {
 	const entry = panes.get(paneId);
 	if (!entry) {

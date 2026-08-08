@@ -3,10 +3,8 @@ import { ORPCError } from "@orpc/server";
 import { protectedProcedure, publicProcedure } from "./auth/context";
 import { isLocalRequest } from "./auth/device";
 import { Auth } from "./auth/login";
-import { dbAgentSessions } from "./db/agent-sessions";
 import { getRadarFocus, listRadarAgents } from "./helpers/agent-radar/state";
 import { subscribeAgentRadarTranscript } from "./helpers/agent-radar/transcript";
-import { isSessionBusy, listSessionEvents } from "./helpers/agent-session/registry";
 import { getPromptRun } from "./helpers/prompt-run";
 import { PubSub } from "./pubsub";
 import { agentRadarRouter } from "./routers/agent-radar";
@@ -36,7 +34,6 @@ import { terminalRouter, terminalWsRouter } from "./routers/terminal";
 import { vaultRouter } from "./routers/vault";
 import {
 	AgentRadarPaneSchema,
-	AgentSessionIdSchema,
 	EndpointSchemas,
 	FlowTaskSchema,
 	PromptRunIdSchema,
@@ -163,28 +160,6 @@ export const wsRouter = {
 
 	// A conversa da sessão. Assina antes de ler o estado: um bloco publicado entre a leitura e a
 	// assinatura se perderia, e a rota ficaria mostrando um agente parado que na verdade respondeu.
-	agentSession: protectedProcedure.input(AgentSessionIdSchema).handler(async function* ({
-		input,
-		context,
-		signal,
-	}) {
-		const events = PubSub.subscribe("agentSession", input.sessionId, signal);
-
-		const session = await dbAgentSessions.getByIdForUser(input.sessionId, context.user.id);
-		if (!session) {
-			throw new ORPCError("NOT_FOUND", { message: "Sessão não encontrada" });
-		}
-
-		yield {
-			sessionId: session.id,
-			status: session.status,
-			busy: isSessionBusy(session.id),
-			events: await listSessionEvents(session.id),
-		};
-
-		yield* events;
-	}),
-
 	// Central de agents. Assina antes de emitir o snapshot: uma transição publicada entre a leitura do
 	// mapa e a assinatura sumiria, e o cartão ficaria mostrando um status que já mudou.
 	agentRadar: protectedProcedure.handler(async function* ({ signal }) {

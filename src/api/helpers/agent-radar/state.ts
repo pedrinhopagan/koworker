@@ -1,6 +1,8 @@
+import { realpathSync } from "node:fs";
+
 import type { AgentRadarStatus } from "@/constants/agent-radar";
 import { PubSub } from "../../pubsub";
-import { scheduleRadarSnapshotCapture } from "./snapshot";
+import { scheduleAgentSnapshotCapture } from "./snapshot";
 
 // Um agent aberto no kw-terminal, do jeito que a central mostra. É reflexo do daemon, que sobrevive
 // ao restart do backend: nada disso é persistido, e a subida reconstrói o mapa relistando os panes.
@@ -63,9 +65,11 @@ function sameFocus(left: RadarFocus, right: RadarFocus) {
 	);
 }
 
-function publish() {
+function publish(captureSnapshot: boolean) {
 	const agents = listRadarAgents();
-	scheduleRadarSnapshotCapture(agents);
+	if (captureSnapshot) {
+		scheduleAgentSnapshotCapture(agents);
+	}
 
 	return PubSub.publish("agentRadar", "global", { agents, focus });
 }
@@ -73,17 +77,20 @@ function publish() {
 export function putRadarAgent(agent: RadarAgent) {
 	agents.set(agent.paneId, agent);
 
-	return publish();
+	return publish(true);
 }
 
-export function resetRadarAgents(next: RadarAgent[], nextFocus: RadarFocus = EMPTY_FOCUS) {
+export function resetRadarAgents(
+	next: RadarAgent[],
+	options: { focus?: RadarFocus; captureSnapshot: boolean },
+) {
 	agents.clear();
 	for (const agent of next) {
 		agents.set(agent.paneId, agent);
 	}
-	focus = nextFocus;
+	focus = options.focus ?? EMPTY_FOCUS;
 
-	return publish();
+	return publish(options.captureSnapshot);
 }
 
 export function setRadarFocus(next: RadarFocus) {
@@ -93,7 +100,7 @@ export function setRadarFocus(next: RadarFocus) {
 
 	focus = next;
 
-	return publish();
+	return publish(false);
 }
 
 export function removeRadarPane(paneId: string) {
@@ -105,7 +112,7 @@ export function removeRadarPane(paneId: string) {
 		focus = { ...focus, paneId: null };
 	}
 
-	return publish();
+	return publish(true);
 }
 
 export function removeRadarWorkspace(workspaceId: string) {
@@ -118,14 +125,14 @@ export function removeRadarWorkspace(workspaceId: string) {
 	if (focus.workspaceId === workspaceId) {
 		focus = EMPTY_FOCUS;
 
-		return publish();
+		return publish(true);
 	}
 
 	if (doomed.length === 0) {
 		return;
 	}
 
-	return publish();
+	return publish(true);
 }
 
 export function renameRadarWorkspace(workspaceId: string, label: string) {
@@ -139,7 +146,7 @@ export function renameRadarWorkspace(workspaceId: string, label: string) {
 		agents.set(agent.paneId, { ...agent, workspaceLabel: label });
 	}
 
-	return publish();
+	return publish(true);
 }
 
 export function renameRadarTab(tabId: string, label: string) {
@@ -153,7 +160,7 @@ export function renameRadarTab(tabId: string, label: string) {
 		agents.set(agent.paneId, { ...agent, tabLabel: label });
 	}
 
-	return publish();
+	return publish(true);
 }
 
 // O projeto que dá nome ao cartão: o agent foi aberto dentro da pasta dele. Com raízes aninhadas
@@ -162,9 +169,27 @@ export function matchProjectByCwd<T extends { id: string; name: string; main_rou
 	projects: T[],
 	cwd: string,
 ): T | null {
+	function canonicalPath(path: string) {
+		try {
+			return realpathSync(path);
+		} catch {
+			return path;
+		}
+	}
+
+	const canonicalCwd = canonicalPath(cwd);
+	const candidates = projects.map(function (project) {
+		return { project, canonicalRoot: canonicalPath(project.main_route) };
+	});
+
 	return (
-		projects
-			.filter((project) => cwd === project.main_route || cwd.startsWith(`${project.main_route}/`))
-			.sort((left, right) => right.main_route.length - left.main_route.length)[0] ?? null
+		candidates
+			.filter(
+				(candidate) =>
+					canonicalCwd === candidate.canonicalRoot ||
+					canonicalCwd.startsWith(`${candidate.canonicalRoot}/`),
+			)
+			.sort((left, right) => right.canonicalRoot.length - left.canonicalRoot.length)[0]?.project ??
+		null
 	);
 }

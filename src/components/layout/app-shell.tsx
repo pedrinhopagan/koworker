@@ -33,11 +33,8 @@ export function AppShell({ children }: AppShellProps) {
 	const { accent } = useProjectFocus();
 	const isMobile = useIsMobileViewport();
 	const reading = useReadingModeStore((s) => s.reading);
-	// A rota da sessão é o cliente daquela conversa: ela tem composer próprio, que fala com o agente
-	// já de pé. A barra global despacharia uma execução nova, no projeto da rota — duas caixas de
-	// texto lado a lado com destinos diferentes.
 	const inSession = useRouterState({
-		select: (state) => /^\/executar\/[^/]+/.test(state.location.pathname),
+		select: (state) => state.location.pathname.startsWith("/terminals"),
 	});
 
 	const baseAccentStyle = {

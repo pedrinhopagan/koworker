@@ -377,10 +377,9 @@ const agentSessionSnapshotsSchema = type({
 	cwd: "string",
 	"project_id?": "string",
 	"project_name?": "string",
-	// Status no instante da captura: `working` é o que manda a restauração disparar o "continue".
+	// Status no instante da captura, preservado só como contexto histórico.
 	status: "string",
-	// A sessão do CLI, quando o agent a reportou: é o que permite retomar a conversa exata em vez de
-	// só abrir o CLI no mesmo diretório.
+	// A sessão do CLI, quando o agent a reportou, permanece no retrato como contexto histórico.
 	"session_id?": "string",
 	"session_path?": "string",
 	"title?": "string",

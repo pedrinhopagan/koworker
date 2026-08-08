@@ -47,6 +47,16 @@ export const dbAgentSessionSnapshots = {
 			.orderBy("tab_label", "asc")
 			.execute(),
 
+	listPendingBefore: (capturedBefore: number) =>
+		db
+			.selectFrom("agent_session_snapshots")
+			.selectAll()
+			.where("restored_at", "is", null)
+			.where("captured_at", "<", capturedBefore)
+			.orderBy("workspace_label", "asc")
+			.orderBy("tab_label", "asc")
+			.execute(),
+
 	// O retrato é um só: gravar é trocar a lista inteira, porque agent que fechou não deve reaparecer
 	// na restauração.
 	replaceAll: async (inputs: AgentSessionSnapshotInput[]) => {

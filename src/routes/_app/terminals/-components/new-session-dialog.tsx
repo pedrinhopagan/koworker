@@ -10,7 +10,14 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { INVOKE_CLI_OPTIONS, type InvokeCli } from "@/constants/invoke";
+import {
+	CODEX_APPROVAL_OPTIONS,
+	INVOKE_CLI_OPTIONS,
+	INVOKE_PERMISSION_OPTIONS,
+	type CodexApprovalMode,
+	type InvokeCli,
+	type InvokePermissionMode,
+} from "@/constants/invoke";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { errorMessage } from "@/lib/orpc-errors";
 
@@ -25,6 +32,14 @@ const CLI_ITEMS = INVOKE_CLI_OPTIONS.map((option) => ({
 	hint: option.hint,
 }));
 
+const CLAUDE_PERMISSION_ITEMS = INVOKE_PERMISSION_OPTIONS.filter(
+	(option) => option.value !== "bypass",
+).map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
+
+const CODEX_APPROVAL_ITEMS = CODEX_APPROVAL_OPTIONS.filter(
+	(option) => option.value !== "bypass",
+).map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
+
 export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -34,6 +49,12 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 	const [cli, setCli] = useState<InvokeCli>("claude");
 	const [label, setLabel] = useState("");
 	const [prompt, setPrompt] = useState("");
+	const [model, setModel] = useState("");
+	const [effort, setEffort] = useState("");
+	const [agent, setAgent] = useState("");
+	const [permissionMode, setPermissionMode] =
+		useState<Exclude<InvokePermissionMode, "bypass">>("default");
+	const [approvalMode, setApprovalMode] = useState<Exclude<CodexApprovalMode, "bypass">>("default");
 
 	const activeProjectId = projectId ?? selectedProjectId ?? null;
 
@@ -48,6 +69,15 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 			navigate({ to: "/terminals/$paneId", params: { paneId: result.paneId } });
 		},
 	});
+	const resume = useMutation({
+		...orpc.kwTerminal.sessionResumeLast.mutationOptions(),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível retomar a conversa")),
+		onSuccess: async (result) => {
+			await queryClient.invalidateQueries({ queryKey: orpc.kwTerminal.overview.key() });
+			onClose();
+			await navigate({ to: "/terminals/$paneId", params: { paneId: result.paneId } });
+		},
+	});
 
 	function submit() {
 		if (!activeProjectId) {
@@ -59,23 +89,55 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 			cli,
 			...(label.trim() ? { label: label.trim() } : {}),
 			...(prompt.trim() ? { prompt: prompt.trim() } : {}),
+			...(model.trim() ? { model: model.trim() } : {}),
+			...(effort.trim() ? { effort: effort.trim() } : {}),
+			...(cli === "claude" && agent.trim() ? { agent: agent.trim() } : {}),
+			...(cli === "claude" ? { permissionMode } : { approvalMode }),
 		});
 	}
+
+	function resumeLast() {
+		if (activeProjectId) {
+			resume.mutate({ projectId: activeProjectId, cli });
+		}
+	}
+
+	const pending = start.isPending || resume.isPending;
 
 	return (
 		<Dialog
 			open={open}
 			onClose={onClose}
-			title="Abrir nova sessão"
-			description="Uma tab nova no kw-terminal, com o CLI já subindo na pasta do projeto"
+			title="Abrir conversa"
+			description="A conversa sempre nasce em um pane real do kw-terminal"
 			className="max-w-md"
 			footer={
-				<div className="flex w-full justify-end gap-2">
-					<Button variant="outline" size="sm" onClick={onClose} disabled={start.isPending}>
+				<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={onClose}
+						disabled={pending}
+						className="w-full sm:w-auto"
+					>
 						Cancelar
 					</Button>
-					<Button size="sm" onClick={submit} disabled={!activeProjectId || start.isPending}>
-						Abrir sessão
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={resumeLast}
+						disabled={!activeProjectId || pending}
+						className="w-full sm:w-auto"
+					>
+						Retomar última conversa
+					</Button>
+					<Button
+						size="sm"
+						onClick={submit}
+						disabled={!activeProjectId || pending}
+						className="w-full sm:w-auto"
+					>
+						Abrir nova conversa
 					</Button>
 				</div>
 			}
@@ -116,7 +178,7 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 						value={label}
 						onChange={(event) => setLabel(event.target.value)}
 						placeholder="investigacao"
-						disabled={start.isPending}
+						disabled={pending}
 					/>
 				</div>
 
@@ -128,10 +190,58 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 						value={prompt}
 						onChange={(event) => setPrompt(event.target.value)}
 						placeholder="O que o agent deve fazer primeiro"
-						disabled={start.isPending}
+						disabled={pending}
 						className="min-h-24"
 					/>
 				</div>
+
+				<details className="border border-border bg-muted/20">
+					<summary className="cursor-pointer px-3 py-2 text-xs font-semibold">
+						Opções avançadas
+					</summary>
+					<div className="grid gap-3 border-t border-border p-3">
+						<Input
+							value={model}
+							onChange={(event) => setModel(event.target.value)}
+							placeholder="Modelo padrão"
+							disabled={pending}
+						/>
+						<Input
+							value={effort}
+							onChange={(event) => setEffort(event.target.value)}
+							placeholder="Esforço padrão"
+							disabled={pending}
+						/>
+						{cli === "claude" && (
+							<>
+								<Input
+									value={agent}
+									onChange={(event) => setAgent(event.target.value)}
+									placeholder="Agent opcional"
+									disabled={pending}
+								/>
+								<CustomSelect
+									items={CLAUDE_PERMISSION_ITEMS}
+									value={permissionMode}
+									onValueChange={(value) =>
+										setPermissionMode(value as Exclude<InvokePermissionMode, "bypass">)
+									}
+									renderItem={(item) => <span>{item.label}</span>}
+								/>
+							</>
+						)}
+						{cli === "codex" && (
+							<CustomSelect
+								items={CODEX_APPROVAL_ITEMS}
+								value={approvalMode}
+								onValueChange={(value) =>
+									setApprovalMode(value as Exclude<CodexApprovalMode, "bypass">)
+								}
+								renderItem={(item) => <span>{item.label}</span>}
+							/>
+						)}
+					</div>
+				</details>
 			</div>
 		</Dialog>
 	);

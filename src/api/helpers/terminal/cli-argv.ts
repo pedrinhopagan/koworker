@@ -3,13 +3,32 @@ import { buildCodexArgv } from "@/lib/codex-command";
 
 export type TerminalCli = "claude" | "codex";
 
-// CLI interativo subindo numa tab: mesmos flags de permissão da invocação (bypass). Sem prompt o
-// argumento final sai do argv, senão o CLI abriria com uma linha vazia como primeira mensagem.
-export function cliStartArgv(cli: TerminalCli, prompt = ""): string[] {
+export type CliStartParams = {
+	cli: TerminalCli;
+	prompt?: string;
+	model?: string;
+	effort?: string;
+	agent?: string;
+	permissionMode?: "plan" | "acceptEdits" | "default";
+	approvalMode?: "fullAuto" | "readOnly" | "default";
+};
+
+export function cliStartArgv(params: CliStartParams): string[] {
 	const argv =
-		cli === "codex"
-			? buildCodexArgv({ prompt, approvalMode: "bypass" })
-			: buildClaudeArgv({ prompt, permissionMode: "bypass" });
+		params.cli === "codex"
+			? buildCodexArgv({
+					prompt: params.prompt ?? "",
+					approvalMode: params.approvalMode ?? "default",
+					...(params.model ? { model: params.model } : {}),
+					...(params.effort ? { effort: params.effort } : {}),
+				})
+			: buildClaudeArgv({
+					prompt: params.prompt ?? "",
+					permissionMode: params.permissionMode ?? "default",
+					...(params.agent ? { agent: params.agent } : {}),
+					...(params.model ? { model: params.model } : {}),
+					...(params.effort ? { effort: params.effort } : {}),
+				});
 
 	return argv.filter((arg) => arg !== "");
 }
@@ -18,14 +37,10 @@ export function cliStartArgv(cli: TerminalCli, prompt = ""): string[] {
 // sem reportar ao daemon) cada CLI tem o seu jeito de dizer "a última daqui": `--continue` no claude e
 // `resume --last` no codex, ambos resolvidos pelo cwd da tab. Argv à mão porque os builders só montam
 // `--resume` no caminho headless, e aqui o CLI sobe interativo.
-export function cliResumeArgv(cli: TerminalCli, sessionId?: string | null): string[] {
+export function cliResumeArgv(cli: TerminalCli): string[] {
 	if (cli === "codex") {
-		return ["codex", "resume", sessionId || "--last", "--dangerously-bypass-approvals-and-sandbox"];
+		return ["codex", "resume", "--last"];
 	}
 
-	return [
-		"claude",
-		"--dangerously-skip-permissions",
-		...(sessionId ? ["--resume", sessionId] : ["--continue"]),
-	];
+	return ["claude", "--continue"];
 }

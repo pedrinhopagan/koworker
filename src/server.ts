@@ -9,8 +9,7 @@ import { resolveSessionDevice } from "./api/auth/context";
 import { registerWsSession, unregisterWsSession, type WsSessionData } from "./api/auth/ws-sessions";
 import { envVariables } from "./api/config/env";
 import { DbUsers } from "./api/db/users";
-import { handleSessionMcp } from "./api/helpers/agent-session/mcp";
-import { isLoopbackRequest, isNotifyAuthorized } from "./api/helpers/notify-auth";
+import { isNotifyAuthorized } from "./api/helpers/notify-auth";
 import { PubSub } from "./api/pubsub";
 import { TaskNotifySchema } from "./api/schemas";
 import { KwTerminalNavigateSchema } from "./api/schemas/kw-terminal";
@@ -140,10 +139,6 @@ await startRunReconciler();
 
 // Sessões vivas pertencem ao processo que as criou: as que sobraram de um executor morto viram
 // `crashed` no boot, com o botão de retomar na rota.
-const { shutdownSessions, startSessionReconciler } =
-	await import("./api/helpers/agent-session/registry");
-await startSessionReconciler();
-
 // Central de agents: escuta o socket do kw-terminal e mantém em memória o estado de quem está
 // trabalhando, travado ou pronto. Falhar aqui não derruba o servidor — o watcher reconecta sozinho.
 const { startAgentRadar, stopAgentRadar } = await import("./api/helpers/agent-radar/watcher");
@@ -165,11 +160,6 @@ async function shutdown(signal: string) {
 	}
 
 	await stopAgentRadar();
-
-	const closed = await shutdownSessions();
-	if (closed > 0) {
-		console.log(`[${signal}] ${closed} sessão(ões) de agente encerrada(s) junto com o servidor`);
-	}
 
 	process.exit(0);
 }
@@ -211,17 +201,6 @@ Bun.serve<WsSessionData>({
 		},
 		// Canal MCP da sessão: o CLI do agente, rodando nesta máquina, chama a ferramenta de perguntar
 		// ao usuário. Só loopback — a porta é pública na VPS e o id da sessão não é credencial.
-		"/mcp/session/:sessionId": (
-			request: Bun.BunRequest<"/mcp/session/:sessionId">,
-			server: Server<WsSessionData>,
-		) => {
-			const remoteAddress = server.requestIP(request)?.address;
-			if (!isLoopbackRequest({ headers: request.headers, remoteAddress })) {
-				return new Response("Unauthorized", { status: 401 });
-			}
-
-			return handleSessionMcp(request, request.params.sessionId);
-		},
 		"/api/kw-terminal/navigate": async (request: Request, server: Server<WsSessionData>) => {
 			const body = await readLoopbackBody(request, server, KwTerminalNavigateSchema);
 			if ("response" in body) {

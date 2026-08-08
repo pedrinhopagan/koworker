@@ -1,8 +1,6 @@
 import { dbAgentSessionSnapshots } from "../../db/agent-session-snapshots";
 import type { RadarAgent } from "./state";
 
-// O retrato é gravado com atraso: uma rajada de transições de status (o caso comum) vira uma escrita
-// só, e o que fica no banco é sempre o estado mais recente.
 const CAPTURE_DEBOUNCE_MS = 2_000;
 
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -17,8 +15,8 @@ async function flush() {
 		return;
 	}
 
-	try {
-		await dbAgentSessionSnapshots.replaceAll(
+	await dbAgentSessionSnapshots
+		.replaceAll(
 			agents.map((agent) => ({
 				paneId: agent.paneId,
 				workspaceLabel: agent.workspaceLabel,
@@ -34,20 +32,13 @@ async function flush() {
 				taskId: agent.taskId,
 				taskTitle: agent.taskTitle,
 			})),
-		);
-	} catch (error) {
-		console.error("[Radar] Falha ao gravar o retrato das sessões:", error);
-	}
+		)
+		.catch((error) => {
+			console.error("[Radar] Falha ao gravar terminais abertos:", error);
+		});
 }
 
-// Lista vazia nunca é gravada: o radar esvazia tanto quando o usuário fecha tudo quanto quando o
-// daemon cai (ou a máquina desliga), e são os dois casos em que o retrato precisa sobreviver. O preço
-// é que fechar todos os agents de propósito deixa o retrato de pé — quem não quer restaurar descarta.
-export function scheduleRadarSnapshotCapture(agents: RadarAgent[]) {
-	if (agents.length === 0) {
-		return;
-	}
-
+export function scheduleAgentSnapshotCapture(agents: RadarAgent[]) {
 	pending = agents;
 
 	if (timer) {

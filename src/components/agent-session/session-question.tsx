@@ -11,10 +11,12 @@ export function SessionQuestion({
 	payload,
 	pending,
 	onAnswer,
+	readOnly = false,
 }: {
 	payload: AgentEventPayloadOf<"question">;
 	pending: boolean;
 	onAnswer: (input: { answers: string[]; freeText?: string }) => void;
+	readOnly?: boolean;
 }) {
 	const [selected, setSelected] = useState<string[]>([]);
 	const [freeText, setFreeText] = useState("");
@@ -34,14 +36,14 @@ export function SessionQuestion({
 	return (
 		<section
 			className={cn(
-				"min-w-0 border border-border bg-card p-3 md:p-4",
-				!answered && "border-primary shadow-[3px_3px_0_var(--primary)]",
+				"min-w-0 rounded-xl border border-border/70 bg-card p-3 shadow-sm md:p-4",
+				!answered && "border-primary/60 ring-1 ring-primary/15",
 			)}
 		>
 			<header className="flex flex-wrap items-center gap-2">
 				<span
 					className={cn(
-						"flex size-6 shrink-0 items-center justify-center border border-border bg-muted/40",
+						"flex size-7 shrink-0 items-center justify-center rounded-full bg-muted",
 						!answered && "border-primary text-primary",
 					)}
 				>
@@ -63,6 +65,10 @@ export function SessionQuestion({
 				<Text size="xs" tone="muted" className="mt-3">
 					Você respondeu:{" "}
 					{[...(payload.answers ?? []), payload.freeText].filter(Boolean).join(", ")}
+				</Text>
+			) : readOnly ? (
+				<Text size="xs" tone="muted" className="mt-3">
+					Responda no terminal para preservar a interação nativa do agent.
 				</Text>
 			) : (
 				<div className="mt-3 space-y-2">

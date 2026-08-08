@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, type LucideIcon, RotateCcw } from "lucide-react";
+import { ChevronRight, Loader2, type LucideIcon, RotateCcw } from "lucide-react";
 import { memo } from "react";
 
 import { Text } from "@/components/typography";
@@ -14,6 +14,7 @@ export type EmptyFeedbackProps = {
 	hrefText?: string;
 	actionText?: string;
 	onAction?: () => void;
+	actionPending?: boolean;
 	className?: string;
 	iconClassName?: string;
 };
@@ -26,6 +27,7 @@ export const EmptyFeedback = memo(function EmptyFeedback({
 	hrefText,
 	actionText,
 	onAction,
+	actionPending,
 	className,
 	iconClassName,
 }: EmptyFeedbackProps) {
@@ -43,8 +45,19 @@ export const EmptyFeedback = memo(function EmptyFeedback({
 				</Text>
 			)}
 			{actionText && onAction && (
-				<Button variant="outline" size="sm" onClick={onAction} className="mb-2">
-					<RotateCcw className="size-3" />
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={onAction}
+					disabled={actionPending}
+					aria-busy={actionPending}
+					className="mb-2"
+				>
+					{actionPending ? (
+						<Loader2 className="size-3 animate-spin" />
+					) : (
+						<RotateCcw className="size-3" />
+					)}
 					{actionText}
 				</Button>
 			)}

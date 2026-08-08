@@ -11,7 +11,6 @@ import { newClientRequestId } from "@/lib/client-request-id";
 import { errorMessage, isNotFoundError } from "@/lib/orpc-errors";
 import { ExecutionTurn } from "./execution-turn";
 import { TaskLink } from "@/components/task-link";
-import { ThreadComposer } from "@/components/agent-session/thread-composer";
 
 // Execução de chamada única: o Codex e todo run anterior às sessões. Continua sendo uma sequência de
 // turnos independentes ligados pelo id de sessão do CLI — o composer aqui dispara um run novo, não
@@ -36,7 +35,9 @@ export function RunThread({ runId }: { runId: string }) {
 	});
 
 	const thread = threadQuery.data;
-	const running = thread?.status === "running";
+	const job = thread?.turns.every(
+		(turn) => turn.source === "merge_action" || turn.source === "automation",
+	);
 
 	async function refreshThread() {
 		await Promise.all([
@@ -45,18 +46,6 @@ export function RunThread({ runId }: { runId: string }) {
 		]);
 	}
 
-	const continueMutation = useMutation({
-		...orpc.prompt.continue.mutationOptions(),
-		onSuccess: async ({ runId: next }) => {
-			await refreshThread();
-			await navigate({
-				to: "/executar/$executionId",
-				params: { executionId: next },
-				replace: true,
-			});
-		},
-		onError: (error) => toast.error(errorMessage(error, "Não foi possível continuar a conversa")),
-	});
 	const retryMutation = useMutation({
 		...orpc.prompt.retry.mutationOptions(),
 		onSuccess: async ({ runId: next }) => {
@@ -73,7 +62,7 @@ export function RunThread({ runId }: { runId: string }) {
 
 	if (threadQuery.isLoading) {
 		return (
-			<PageShell title="Conversa" description="Carregando…" icon={TerminalSquare}>
+			<PageShell title="Arquivo de execução" description="Carregando…" icon={TerminalSquare}>
 				<div className="flex min-h-64 items-center justify-center">
 					<Loader2 className="size-6 animate-spin text-muted-foreground" />
 				</div>
@@ -83,12 +72,12 @@ export function RunThread({ runId }: { runId: string }) {
 
 	if (!thread) {
 		return (
-			<PageShell title="Conversa não encontrada" icon={TerminalSquare}>
+			<PageShell title="Execução não encontrada" icon={TerminalSquare}>
 				<div className="border border-dashed border-border p-8 text-center">
 					<Text tone="muted">Esta conversa não existe ou não está mais no histórico.</Text>
 					<div className="mt-4 flex justify-center">
 						<Button asChild variant="outline">
-							<Link to="/executar">Voltar ao histórico</Link>
+							<Link to="/terminals">Abrir nova conversa</Link>
 						</Button>
 					</div>
 				</div>
@@ -99,7 +88,7 @@ export function RunThread({ runId }: { runId: string }) {
 	return (
 		<PageShell
 			title={thread.taskTitle ?? thread.title}
-			description={`${thread.projectName} · ${thread.cli === "codex" ? "Codex" : "Claude"} · chamada única`}
+			description={`${thread.projectName} · ${thread.cli === "codex" ? "Codex" : "Claude"} · ${job ? "job" : "arquivo legado somente leitura"}`}
 			icon={TerminalSquare}
 			contentClassName="flex min-h-0 flex-col"
 			actions={
@@ -108,9 +97,9 @@ export function RunThread({ runId }: { runId: string }) {
 						<TaskLink taskId={thread.taskId} label={thread.taskTitle ?? "Tarefa"} />
 					)}
 					<Button asChild variant="outline" size="sm">
-						<Link to="/executar">
+						<Link to="/terminals">
 							<ArrowLeft className="size-4" />
-							Histórico
+							Agents
 						</Link>
 					</Button>
 				</div>
@@ -124,33 +113,19 @@ export function RunThread({ runId }: { runId: string }) {
 							turn={turn}
 							index={index}
 							pending={cancelMutation.isPending || retryMutation.isPending}
-							onCancel={() => cancelMutation.mutate({ runId: turn.runId })}
-							onRetry={() =>
-								retryMutation.mutate({ runId: turn.runId, clientRequestId: newClientRequestId() })
-							}
+							{...(job
+								? {
+										onCancel: () => cancelMutation.mutate({ runId: turn.runId }),
+										onRetry: () =>
+											retryMutation.mutate({
+												runId: turn.runId,
+												clientRequestId: newClientRequestId(),
+											}),
+									}
+								: {})}
 						/>
 					))}
 				</div>
-
-				<ThreadComposer
-					draftKey={`kowork-thread-draft-${thread.threadId}`}
-					{...(thread.projectName ? { projectName: thread.projectName } : {})}
-					disabled={running || !thread.canContinue}
-					pending={continueMutation.isPending}
-					hint={
-						running
-							? "O agente está trabalhando. Assim que ele terminar você continua daqui."
-							: "Este turno terminou sem sessão para retomar. Dispare uma nova execução pelo histórico."
-					}
-					onSubmit={(prompt, inputKind) =>
-						continueMutation.mutate({
-							runId: thread.continueFromRunId ?? thread.latestRunId,
-							clientRequestId: newClientRequestId(),
-							prompt,
-							inputKind,
-						})
-					}
-				/>
 			</div>
 		</PageShell>
 	);

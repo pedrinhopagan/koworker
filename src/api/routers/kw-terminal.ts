@@ -2,11 +2,12 @@ import { ORPCError } from "@orpc/server";
 
 import { protectedProcedure } from "../auth/context";
 import { dbProjects } from "../db/projects";
-import { cliStartArgv } from "../helpers/terminal/cli-argv";
+import { cliResumeArgv, cliStartArgv } from "../helpers/terminal/cli-argv";
 import { terminalCommandText } from "../helpers/terminal/command";
 import {
 	ensureKwTerminalServer,
 	findWorkspaceByLabel,
+	kwTerminalIntegrationInstall,
 	kwTerminalPaneRun,
 	kwTerminalTabClose,
 	kwTerminalTabCreate,
@@ -23,6 +24,7 @@ import {
 import { sessionNameForProject, sessionTabName } from "../helpers/terminal/names";
 import {
 	KwTerminalSessionStartSchema,
+	KwTerminalSessionResumeLastSchema,
 	KwTerminalTabCloseSchema,
 	KwTerminalTabCreateSchema,
 	KwTerminalTabFocusSchema,
@@ -117,6 +119,7 @@ export const kwTerminalRouter = {
 			}
 
 			await ensureKwTerminalServer();
+			await kwTerminalIntegrationInstall(input.cli);
 
 			const workspaceLabel = sessionNameForProject(project.name);
 			const workspace =
@@ -136,7 +139,44 @@ export const kwTerminalRouter = {
 
 			await kwTerminalPaneRun(
 				rootPane.pane_id,
-				terminalCommandText({ kind: "argv", argv: cliStartArgv(input.cli, input.prompt ?? "") }),
+				terminalCommandText({ kind: "argv", argv: cliStartArgv(input) }),
+			);
+
+			return {
+				paneId: rootPane.pane_id,
+				tabId: tab.tab_id,
+				workspaceId: workspace.workspace_id,
+			};
+		}),
+
+	sessionResumeLast: protectedProcedure
+		.input(KwTerminalSessionResumeLastSchema)
+		.handler(async ({ input }) => {
+			const project = await dbProjects.getById(input.projectId);
+			if (!project) {
+				throw new ORPCError("NOT_FOUND", { message: "Projeto não encontrado" });
+			}
+
+			await ensureKwTerminalServer();
+			await kwTerminalIntegrationInstall(input.cli);
+			const workspaceLabel = sessionNameForProject(project.name);
+			const workspace =
+				(await findWorkspaceByLabel(workspaceLabel)) ??
+				(await kwTerminalWorkspaceCreate({
+					cwd: project.main_route,
+					label: workspaceLabel,
+					focus: false,
+				}));
+			const { tab, rootPane } = await kwTerminalTabCreate({
+				workspaceId: workspace.workspace_id,
+				cwd: project.main_route,
+				label: sessionTabName(`Retomar ${input.cli}`),
+				focus: false,
+			});
+
+			await kwTerminalPaneRun(
+				rootPane.pane_id,
+				terminalCommandText({ kind: "argv", argv: cliResumeArgv(input.cli) }),
 			);
 
 			return {

@@ -9,8 +9,12 @@ const TranscriptLineSchema = z.object({
 	type: z.string().optional(),
 	isSidechain: z.boolean().optional(),
 	isMeta: z.boolean().optional(),
+	isCompactSummary: z.boolean().optional(),
 	message: z.object({ content: z.unknown().optional() }).optional(),
 });
+const UserContentBlocksSchema = z.array(
+	z.object({ type: z.string(), text: z.string().optional() }).passthrough(),
+);
 
 const SYSTEM_REMINDER = /<system-reminder>[\s\S]*?<\/system-reminder>/g;
 const COMMAND_NAME = /<command-name>([\s\S]*?)<\/command-name>/;
@@ -39,13 +43,50 @@ export function translateClaudeTranscriptLine(raw: unknown): TranscriptPatch[] {
 	if (line.isSidechain || line.isMeta) {
 		return [];
 	}
+	if (line.isCompactSummary) {
+		return [
+			{
+				type: "append",
+				payload: {
+					kind: "notice",
+					label: "Contexto compactado",
+					detail: "O agente resumiu o contexto e continuou nesta mesma sessão.",
+					tone: "info",
+				},
+			},
+		];
+	}
 
-	// A fala do usuário é sempre texto puro; o que chega em blocos é resultado de ferramenta ou
-	// contexto que o CLI injetou no lugar dele.
-	if (line.type === "user" && typeof line.message?.content === "string") {
-		const text = userText(line.message.content);
+	if (line.type === "user") {
+		if (typeof line.message?.content === "string") {
+			const text = userText(line.message.content);
 
-		return text ? [{ type: "append", payload: { kind: "user", text } }] : [];
+			return text ? [{ type: "append", payload: { kind: "user", text } }] : [];
+		}
+
+		const blocks = UserContentBlocksSchema.safeParse(line.message?.content);
+		if (blocks.success && !blocks.data.some((block) => block.type === "tool_result")) {
+			const text = userText(
+				blocks.data
+					.filter((block) => block.type === "text" && block.text?.trim())
+					.map((block) => block.text)
+					.join("\n\n"),
+			);
+			const images = blocks.data.filter((block) => block.type === "image").length;
+
+			if (text || images > 0) {
+				return [
+					{
+						type: "append",
+						payload: {
+							kind: "user",
+							text: text || (images === 1 ? "Imagem enviada" : `${images} imagens enviadas`),
+							...(images > 0 ? { images } : {}),
+						},
+					},
+				];
+			}
+		}
 	}
 
 	return translateClaudeLine(raw).filter(

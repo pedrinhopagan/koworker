@@ -11,10 +11,12 @@ export function SessionPermission({
 	payload,
 	pending,
 	onDecide,
+	readOnly = false,
 }: {
 	payload: AgentEventPayloadOf<"permission">;
 	pending: boolean;
 	onDecide: (decision: "allow" | "deny", reason?: string) => void;
+	readOnly?: boolean;
 }) {
 	const [reason, setReason] = useState("");
 	const [denying, setDenying] = useState(false);
@@ -23,14 +25,14 @@ export function SessionPermission({
 	return (
 		<section
 			className={cn(
-				"min-w-0 border border-border bg-card p-3 md:p-4",
-				!decided && "border-primary shadow-[3px_3px_0_var(--primary)]",
+				"min-w-0 rounded-xl border border-border/70 bg-card p-3 shadow-sm md:p-4",
+				!decided && "border-primary/60 ring-1 ring-primary/15",
 			)}
 		>
 			<header className="flex flex-wrap items-center gap-2">
 				<span
 					className={cn(
-						"flex size-6 shrink-0 items-center justify-center border border-border bg-muted/40",
+						"flex size-7 shrink-0 items-center justify-center rounded-full bg-muted",
 						!decided && "border-primary text-primary",
 					)}
 				>
@@ -52,6 +54,10 @@ export function SessionPermission({
 				<Text size="xs" tone="muted" className="mt-3">
 					{payload.decision === "allow" ? "Permitido por você." : "Negado por você."}
 					{payload.reason ? ` ${payload.reason}` : ""}
+				</Text>
+			) : readOnly ? (
+				<Text size="xs" tone="muted" className="mt-3">
+					Responda no terminal para preservar a interação nativa do agent.
 				</Text>
 			) : (
 				<div className="mt-3 space-y-2">

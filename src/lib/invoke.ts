@@ -1,15 +1,13 @@
 import { type InvokeCli, INVOKE_INHERIT } from "@/constants/invoke";
-import { toast } from "sonner";
 import { orpc } from "@/client";
 import { buildKoworkerPrompt, convertSkillCallsForCli, flattenPrompt } from "@/lib/build-prompt";
 import { buildClaudeArgv } from "@/lib/claude-command";
 import { buildCodexArgv } from "@/lib/codex-command";
-import { errorMessage } from "@/lib/orpc-errors";
 import { argvToShellCommand } from "@/lib/shell-argv";
 import { recordPromptHistory } from "@/lib/prompt-history";
-import { isTauri } from "@/lib/tauri";
-import { executeInTerminal, type ProjectInfo } from "@/lib/terminal";
 import type { InvokeConfig } from "@/stores/prompt-bar";
+
+type ProjectInfo = { id: string; name: string; mainRoute: string };
 
 // O alvo de uma invocação é exatamente um: um agent (roda `/kw` sob `--agent`, só no claude) ou uma
 // skill (roda `/<slug>` direto; no codex vira `$<slug>`). Model/effort vêm da sessão ativa em
@@ -74,8 +72,8 @@ export function planInvocation(request: InvokeRequest): InvokePlan {
 		const command = argvToShellCommand(
 			buildCodexArgv({
 				prompt,
-				approvalMode: config.codex.approvalMode,
-				headless: config.background || !isTauri(),
+				approvalMode:
+					config.codex.approvalMode === "bypass" ? "default" : config.codex.approvalMode,
 				...(model ? { model } : {}),
 				...(effort ? { effort } : {}),
 			}),
@@ -88,8 +86,8 @@ export function planInvocation(request: InvokeRequest): InvokePlan {
 	const command = argvToShellCommand(
 		buildClaudeArgv({
 			prompt,
-			permissionMode: config.claude.permissionMode,
-			headless: config.background || !isTauri(),
+			permissionMode:
+				config.claude.permissionMode === "bypass" ? "default" : config.claude.permissionMode,
 			...(target.kind === "agent" ? { agent: target.slug } : {}),
 			...(model ? { model } : {}),
 			...(effort ? { effort } : {}),
@@ -99,58 +97,32 @@ export function planInvocation(request: InvokeRequest): InvokePlan {
 	return { prompt, model, effort, command };
 }
 
-export async function runInvocation(params: {
-	project: ProjectInfo;
-	request: InvokeRequest;
-	clientRequestId: string;
-}) {
+export async function runInvocation(params: { project: ProjectInfo; request: InvokeRequest }) {
 	const { project, request } = params;
 	const { target, cli, routePath, text, config } = request;
 	const { prompt, model, effort } = planInvocation(request);
-	const permissionMode = cli === "codex" ? config.codex.approvalMode : config.claude.permissionMode;
-	const background = config.background || !isTauri();
-
-	if (isTauri()) {
-		await executeInTerminal(
-			project,
-			{ id: `${target.kind}_${target.slug}`, title: target.label },
-			prompt,
-			{
-				cli,
-				...(cli === "claude" && target.kind === "agent" ? { agent: target.slug } : {}),
-				...(model ? { model } : {}),
-				...(effort ? { effort } : {}),
-				permissionMode,
-				forceNew: config.forceNew,
-				background,
-			},
-		);
-	} else {
-		await orpc.prompt.execute
-			.call({
-				clientRequestId: params.clientRequestId,
-				projectId: project.id,
-				...(request.taskId ? { taskId: request.taskId } : {}),
-				prompt,
-				originalPrompt: text || prompt,
-				source: "global_bar",
-				interactionMode: "unattended",
-				inputKind: "text",
-				cli,
-				...(cli === "claude" ? { permissionMode } : { approvalMode: permissionMode }),
-				...(cli === "claude" && target.kind === "agent" ? { agent: target.slug } : {}),
-				...(model ? { model } : {}),
-				...(effort ? { effort } : {}),
-			})
-			.then(() => {
-				toast.success(`Executando em background: ${target.label}`, {
-					description: "Acompanhe o resultado na tela Executar.",
-				});
-			})
-			.catch((error) => {
-				toast.error(errorMessage(error, "Não foi possível iniciar a execução"));
-			});
-	}
+	const result = await orpc.kwTerminal.sessionStart.call({
+		projectId: project.id,
+		cli,
+		prompt,
+		label: target.label,
+		...(cli === "claude" && target.kind === "agent" ? { agent: target.slug } : {}),
+		...(model ? { model } : {}),
+		...(effort ? { effort } : {}),
+		...(cli === "claude"
+			? {
+					permissionMode:
+						config.claude.permissionMode === "bypass"
+							? ("default" as const)
+							: config.claude.permissionMode,
+				}
+			: {
+					approvalMode:
+						config.codex.approvalMode === "bypass"
+							? ("default" as const)
+							: config.codex.approvalMode,
+				}),
+	});
 
 	recordPromptHistory({
 		kind: target.kind,
@@ -163,4 +135,6 @@ export async function runInvocation(params: {
 		...(model ? { model } : {}),
 		...(effort ? { effort } : {}),
 	});
+
+	return result;
 }

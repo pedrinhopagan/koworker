@@ -15,7 +15,21 @@ let result: {
 		icon: string;
 		route: string;
 	}[];
+	firstSessions: {
+		id: string;
+		status: string;
+		end_reason: string | null;
+		ended_at: number | null;
+		updated_at: number;
+	}[];
 	second: { folder_path: string; storage_key: string | null; storage_slug: string | null }[];
+	secondSessions: {
+		id: string;
+		status: string;
+		end_reason: string | null;
+		ended_at: number | null;
+		updated_at: number;
+	}[];
 };
 
 beforeAll(async () => {
@@ -66,5 +80,22 @@ describe("ensureDbSchema", () => {
 				route: join(root, "project"),
 			},
 		]);
+	});
+
+	test("encerra sessões legadas vivas uma única vez", () => {
+		expect(result.firstSessions).toEqual(result.secondSessions);
+		expect(result.firstSessions[0]).toMatchObject({
+			id: "legacy-ended",
+			status: "ended",
+			end_reason: "Motivo original",
+			ended_at: 2,
+			updated_at: 2,
+		});
+		expect(result.firstSessions[1]).toMatchObject({
+			id: "legacy-live",
+			status: "ended",
+			end_reason: "Sessão encerrada pela migração para conversas no terminal.",
+		});
+		expect(result.firstSessions[1]?.ended_at).toBe(result.firstSessions[1]?.updated_at);
 	});
 });

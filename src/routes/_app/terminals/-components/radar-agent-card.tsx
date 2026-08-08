@@ -146,6 +146,7 @@ export function RadarAgentCard({
 	actions,
 }: RadarAgentCardProps) {
 	const { openTask } = useRadarAgentNav();
+	const navigate = useNavigate();
 	const [renaming, setRenaming] = useState(false);
 	const [closing, setClosing] = useState(false);
 	const paneId = agent.paneId;
@@ -161,9 +162,9 @@ export function RadarAgentCard({
 						<button
 							type="button"
 							onClick={function () {
-								actions.agentFocus.mutate({ paneId });
+								void navigate({ to: "/terminals/$paneId", params: { paneId } });
 							}}
-							aria-label={`Focar o agent ${agent.agent} no kw-terminal`}
+							aria-label={`Abrir a conversa de ${agent.agent}`}
 							className="absolute inset-0 cursor-pointer hover:bg-muted/20"
 						/>
 

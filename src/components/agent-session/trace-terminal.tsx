@@ -29,7 +29,7 @@ export function TraceTerminal({ payload }: { payload: AgentEventPayloadOf<"tool_
 				disabled={!command}
 				className="flex w-full min-w-0 cursor-pointer items-center gap-2 text-left disabled:cursor-default"
 			>
-				<TraceLabel tone={failed ? "error" : undefined}>Terminal</TraceLabel>
+				<TraceLabel tone={failed ? "error" : undefined}>Comando</TraceLabel>
 
 				<Text
 					as="span"

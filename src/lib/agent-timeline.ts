@@ -1,12 +1,14 @@
 import type { AgentSessionEvent } from "@/lib/agent-session";
+import { commandLabel } from "@/lib/shell-command";
 
 // Pensamento, ferramenta, aviso e narração entram no rastro; o resto da conversa é bloco próprio.
 // A narração é o que mais repete: o agente anuncia cada passo antes de dar, e cada anúncio virava um
 // cartão do tamanho de uma resposta. Aqui ela vale uma linha do rastro, e só a última fala do turno
 // — a que ficou de pé quando o agente parou de trabalhar — é lida como resposta.
-const TRAIL_KINDS = new Set(["thinking", "tool_use", "notice", "assistant"]);
+const TRAIL_KINDS = new Set(["thinking", "tool_use", "assistant"]);
 
 const REPEAT_MIN = 3;
+const RECENT_TEXT_LIMIT = 160;
 
 export const TRAIL_LABELS = {
 	thinking: "Pensando",
@@ -30,6 +32,10 @@ export function trailStepLabel(event: AgentSessionEvent) {
 
 	if (payload.kind === "assistant") {
 		return TRAIL_LABELS.assistant;
+	}
+
+	if (payload.kind === "tool_use" && payload.label === "Terminal") {
+		return commandLabel(payload.detail ?? "") ?? "Comando";
 	}
 
 	if (payload.kind === "notice" || payload.kind === "tool_use") {
@@ -132,4 +138,21 @@ export function toTimelineGroups(events: AgentSessionEvent[]): TimelineGroup[] {
 	}
 
 	return groups;
+}
+
+export function recentTranscriptText(events: AgentSessionEvent[]) {
+	for (const event of events.toReversed()) {
+		if (event.payload.kind !== "user" && event.payload.kind !== "assistant") {
+			continue;
+		}
+
+		const text = event.payload.text.trim();
+		if (!text) {
+			continue;
+		}
+
+		return text.length > RECENT_TEXT_LIMIT ? `${text.slice(0, RECENT_TEXT_LIMIT - 1)}…` : text;
+	}
+
+	return null;
 }

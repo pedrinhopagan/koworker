@@ -820,7 +820,7 @@ export const Terminal = {
 			workingDir: mainRoute,
 			taskId: windowName,
 			windowName,
-			command: alreadyOpen ? undefined : { kind: "argv", argv: cliStartArgv(params.cli) },
+			command: alreadyOpen ? undefined : { kind: "argv", argv: cliStartArgv({ cli: params.cli }) },
 			forceNew: false,
 			background: false,
 			killExistingOnForceNew: false,

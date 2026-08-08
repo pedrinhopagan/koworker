@@ -26,23 +26,13 @@ export {
 	PriorityUpdateSchema,
 } from "./priorities";
 export { FlowTaskSchema } from "./flow";
-export {
-	AgentSessionAnswerSchema,
-	AgentSessionClearSchema,
-	AgentSessionIdSchema,
-	AgentSessionListSchema,
-	AgentSessionModeSchema,
-	AgentSessionPermissionSchema,
-	AgentSessionStartSchema,
-	AgentSessionTurnSchema,
-} from "./agent-session";
+export { AgentSessionIdSchema, AgentSessionListSchema } from "./agent-session";
 export {
 	AudioTranscriptionSchema,
 	PromptAutofillResultSchema,
 	PromptAutofillSchema,
 	PromptExecuteSchema,
 	PromptRunClearSchema,
-	PromptRunContinueSchema,
 	PromptRunIdSchema,
 	PromptRunListSchema,
 	PromptRunRetrySchema,

@@ -28,6 +28,52 @@ describe("translateCodexTranscriptLine", () => {
 		]);
 	});
 
+	test("a conversa atual sai dos itens concluídos sem expor o contexto injetado", () => {
+		expect(
+			translateCodexTranscriptLine({
+				type: "event_msg",
+				payload: {
+					type: "item_completed",
+					item: {
+						type: "UserMessage",
+						content: [{ type: "text", text: "Revise o WIP e deixe a PR pronta" }],
+					},
+				},
+			}),
+		).toEqual([
+			{ type: "append", payload: { kind: "user", text: "Revise o WIP e deixe a PR pronta" } },
+		]);
+
+		expect(
+			translateCodexTranscriptLine({
+				type: "event_msg",
+				payload: {
+					type: "item_completed",
+					item: {
+						type: "AgentMessage",
+						content: [{ type: "Text", text: "Vou revisar, validar e organizar os commits." }],
+					},
+				},
+			}),
+		).toEqual([
+			{
+				type: "append",
+				payload: { kind: "assistant", text: "Vou revisar, validar e organizar os commits." },
+			},
+		]);
+
+		expect(
+			translateCodexTranscriptLine({
+				type: "response_item",
+				payload: {
+					type: "message",
+					role: "user",
+					content: [{ type: "input_text", text: "# AGENTS.md injetado" }],
+				},
+			}),
+		).toEqual([]);
+	});
+
 	test("a chamada de ferramenta mostra o comando, e a saída fecha o passo", () => {
 		expect(
 			translateCodexTranscriptLine({
@@ -146,6 +192,25 @@ describe("translateCodexTranscriptLine", () => {
 				payload: { type: "error", message: "conexão perdida" },
 			}),
 		).toEqual([{ type: "result", status: "failed", error: "conexão perdida" }]);
+	});
+
+	test("a compactação vira um marco da sessão", () => {
+		expect(
+			translateCodexTranscriptLine({
+				type: "compacted",
+				payload: { replacement_history: [], window_number: 2 },
+			}),
+		).toEqual([
+			{
+				type: "append",
+				payload: {
+					kind: "notice",
+					label: "Contexto compactado",
+					detail: "O agente resumiu o contexto e continuou nesta mesma sessão.",
+					tone: "info",
+				},
+			},
+		]);
 	});
 
 	test("o raciocínio cifrado e a configuração do turno ficam fora", () => {

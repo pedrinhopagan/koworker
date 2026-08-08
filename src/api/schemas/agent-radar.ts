@@ -8,3 +8,5 @@ export const AgentRadarSendSchema = z.object({
 	paneId: z.string().min(1),
 	text: z.string().trim().min(1).max(20_000),
 });
+
+export const AgentRadarInterruptSchema = AgentRadarPaneSchema;

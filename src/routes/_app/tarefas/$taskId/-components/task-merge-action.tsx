@@ -52,7 +52,7 @@ export function TaskMergeAction({
 			taskId,
 			prompt: `${cli === "codex" ? "$kw" : "/kw"} ${folderPath} ${cli === "codex" ? "$merge-worktree" : "/merge-worktree"}`,
 			originalPrompt: "Mergear PR",
-			source: "task_flow",
+			source: "merge_action",
 			interactionMode: "unattended",
 			inputKind: "task_flow",
 			cli,

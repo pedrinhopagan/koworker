@@ -152,9 +152,7 @@ const AppExecutarIndexRoute = AppExecutarIndexRouteImport.update({
   id: '/executar/',
   path: '/executar/',
   getParentRoute: () => AppRoute,
-} as any).lazy(() =>
-  import('./routes/_app/executar/index.lazy').then((d) => d.Route),
-)
+} as any)
 const AppAgentsIndexRoute = AppAgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',

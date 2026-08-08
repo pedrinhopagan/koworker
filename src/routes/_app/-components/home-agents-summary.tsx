@@ -68,9 +68,8 @@ export function HomeAgentsSummary() {
 		return agent.status === "blocked";
 	}).length;
 
-	function handleFocus(paneId: string) {
-		focus.mutate({ paneId });
-		void navigate({ to: "/terminals" });
+	function handleOpen(paneId: string) {
+		void navigate({ to: "/terminals/$paneId", params: { paneId } });
 	}
 
 	return (
@@ -136,9 +135,9 @@ export function HomeAgentsSummary() {
 												<button
 													type="button"
 													onClick={function () {
-														handleFocus(paneId);
+														handleOpen(paneId);
 													}}
-													aria-label={`Focar o agent ${agent.agent} no kw-terminal`}
+													aria-label={`Abrir a conversa de ${agent.agent}`}
 													className="absolute inset-0 cursor-pointer hover:bg-muted/20"
 												/>
 
@@ -217,7 +216,7 @@ export function HomeAgentsSummary() {
 										<ContextMenuContent>
 											<ContextMenuItem
 												onSelect={function () {
-													handleFocus(paneId);
+													focus.mutate({ paneId });
 												}}
 											>
 												<Target className="size-4" />

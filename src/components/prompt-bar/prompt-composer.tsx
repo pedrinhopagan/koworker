@@ -131,8 +131,8 @@ export function PromptComposer() {
 					onToggle={toggleInvokeOpen}
 				/>
 				<SectionTrigger
-					label="Execução"
-					hint="roda o prompt no projeto sem abrir terminal (headless)"
+					label="Conversa"
+					hint="abre o prompt em um pane real do terminal"
 					open={executeOpen}
 					onToggle={toggleExecuteOpen}
 				/>

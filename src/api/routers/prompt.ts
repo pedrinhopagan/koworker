@@ -19,7 +19,6 @@ import {
 	AudioTranscriptionSchema,
 	PromptExecuteSchema,
 	PromptRunClearSchema,
-	PromptRunContinueSchema,
 	PromptRunIdSchema,
 	PromptRunListSchema,
 	PromptRunRetrySchema,
@@ -102,6 +101,11 @@ export const promptRouter = {
 		if (!run) {
 			throw new ORPCError("NOT_FOUND", { message: "Execução não encontrada" });
 		}
+		if (run.source !== "merge_action" && run.source !== "automation") {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Esta execução pertence ao arquivo legado e não pode ser repetida",
+			});
+		}
 		const project = await dbProjects.getById(run.project_id);
 		if (!project?.main_route) {
 			throw new ORPCError("NOT_FOUND", { message: "Projeto não encontrado" });
@@ -144,55 +148,6 @@ export const promptRouter = {
 			cwd: project.main_route,
 		});
 	}),
-
-	continue: protectedProcedure
-		.input(PromptRunContinueSchema)
-		.handler(async ({ input, context }) => {
-			const run = await dbExecutionRuns.getByIdForUser(input.runId, context.user.id);
-			if (!run || run.kind !== "prompt") {
-				throw new ORPCError("NOT_FOUND", { message: "Execução não encontrada" });
-			}
-			if (run.status !== "done") {
-				throw new ORPCError("BAD_REQUEST", {
-					message: "Aguarde a execução ser concluída antes de continuar",
-				});
-			}
-			if (!run.cli_session_id) {
-				throw new ORPCError("BAD_REQUEST", {
-					message: "Esta execução não possui uma sessão que possa ser continuada",
-				});
-			}
-			const project = await dbProjects.getById(run.project_id);
-			if (!project?.main_route) {
-				throw new ORPCError("NOT_FOUND", { message: "Projeto não encontrado" });
-			}
-
-			const continuation = PromptExecuteSchema.parse({
-				clientRequestId: input.clientRequestId,
-				projectId: run.project_id,
-				taskId: run.task_id ?? undefined,
-				prompt: input.prompt,
-				originalPrompt: input.prompt,
-				source: "execution_route",
-				interactionMode: "unattended",
-				inputKind: input.inputKind,
-				cli: run.cli,
-				permissionMode: run.permission_mode ?? undefined,
-				agent: run.agent ?? undefined,
-				model: run.model ?? undefined,
-				effort: run.effort ?? undefined,
-				approvalMode: run.approval_mode ?? undefined,
-			});
-
-			return startPromptRun({
-				...continuation,
-				userId: context.user.id,
-				title: run.title,
-				cwd: project.main_route,
-				parentRunId: run.id,
-				resumeSessionId: run.cli_session_id,
-			});
-		}),
 
 	cancel: protectedProcedure.input(PromptRunIdSchema).handler(async ({ input, context }) => {
 		const run = await cancelPromptRun(input.runId, context.user.id);

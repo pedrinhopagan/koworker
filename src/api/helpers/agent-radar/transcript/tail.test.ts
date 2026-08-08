@@ -57,6 +57,36 @@ test("a abertura entrega a conversa que já está no arquivo", async () => {
 	});
 });
 
+test("a abertura entrega a sessão inteira mesmo acima dos antigos limites", async () => {
+	const dir = await mkdtemp(join(tmpdir(), "kowork-transcript-completo-"));
+	const path = join(dir, "sessao.jsonl");
+	const messages = Array.from({ length: 405 }, (_, index) =>
+		JSON.stringify({ type: "user", message: { role: "user", content: `mensagem ${index}` } }),
+	);
+	messages.splice(1, 0, JSON.stringify({ type: "service", padding: "x".repeat(2_100_000) }));
+	await Bun.write(path, `${messages.join("\n")}\n`);
+
+	const batches: { events: AgentSessionEvent[]; reset: boolean }[] = [];
+	const tail = await openTranscriptTail({
+		sessionId: "w5E:p3",
+		source: { cli: "claude", path },
+		onEvents: (events, reset) => batches.push({ events, reset }),
+		onError: (error) => expect.unreachable(String(error)),
+	});
+
+	try {
+		expect(batches[0]?.events).toHaveLength(405);
+		expect(batches[0]?.events[0]?.payload).toEqual({ kind: "user", text: "mensagem 0" });
+		expect(batches[0]?.events.at(-1)?.payload).toEqual({
+			kind: "user",
+			text: "mensagem 404",
+		});
+	} finally {
+		tail.close();
+		await rm(dir, { recursive: true, force: true });
+	}
+});
+
 test("o que o CLI acrescenta chega sozinho, sem reenviar a conversa", async () => {
 	await withTail(async ({ path, batches, waitFor }) => {
 		await Bun.write(path, `${USER_LINE}${ASSISTANT_LINE}`);

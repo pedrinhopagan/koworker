@@ -1,17 +1,11 @@
 import { expect, test } from "bun:test";
 
-import { claudeProjectSlug, locateAgentTranscript } from "./locate";
-
-test("a pasta da sessão do claude é o cwd com todo separador virando hífen", () => {
-	expect(claudeProjectSlug("/mnt/data/Projects/koworker")).toBe("-mnt-data-Projects-koworker");
-	expect(claudeProjectSlug("/home/pedro/.kw-workflow")).toBe("-home-pedro--kw-workflow");
-});
+import { locateAgentTranscript } from "./locate";
 
 test("o caminho reportado pelo próprio agent dispensa a busca no disco", async () => {
 	expect(
 		await locateAgentTranscript({
 			agent: "claude",
-			cwd: "/repo",
 			sessionPath: "/tmp/sessao.jsonl",
 		}),
 	).toEqual({ cli: "claude", path: "/tmp/sessao.jsonl" });
@@ -19,6 +13,18 @@ test("o caminho reportado pelo próprio agent dispensa a busca no disco", async 
 
 test("agent que não grava transcript não tem conversa para abrir", async () => {
 	expect(
-		await locateAgentTranscript({ agent: "nvim", cwd: "/repo", sessionPath: "/tmp/sessao.jsonl" }),
+		await locateAgentTranscript({ agent: "nvim", sessionPath: "/tmp/sessao.jsonl" }),
 	).toBeNull();
+});
+
+test("agent sem caminho reportado nunca recebe transcript por aproximação", async () => {
+	expect(await locateAgentTranscript({ agent: "claude", sessionPath: null })).toBeNull();
+	expect(await locateAgentTranscript({ agent: "codex", sessionPath: "  " })).toBeNull();
+});
+
+test("dois agents no mesmo diretório dependem dos próprios caminhos reportados", async () => {
+	const first = await locateAgentTranscript({ agent: "codex", sessionPath: "/tmp/primeiro.jsonl" });
+	const second = await locateAgentTranscript({ agent: "codex", sessionPath: "/tmp/segundo.jsonl" });
+
+	expect(first?.path).not.toBe(second?.path);
 });

@@ -1,4 +1,4 @@
-import { Bot, CircleCheck, Loader2, TriangleAlert } from "lucide-react";
+import { Bot, CircleCheck, CircleDot, Loader2, TriangleAlert } from "lucide-react";
 
 import { Text } from "@/components/typography";
 import type { AgentSessionEvent } from "@/lib/agent-session";
@@ -73,10 +73,10 @@ export function SessionTimeline({
 					return (
 						<section
 							key={group.key}
-							className="min-w-0 border border-border bg-card p-3 shadow-[3px_3px_0_var(--border)] md:p-4"
+							className="min-w-0 rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm md:p-4"
 						>
 							<header className="mb-2 flex items-center gap-2">
-								<span className="flex size-6 shrink-0 items-center justify-center border border-border bg-muted/40">
+								<span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
 									<Bot className="size-3" />
 								</span>
 								<Text as="span" className="text-[11px] font-bold uppercase tracking-[0.12em]">
@@ -94,6 +94,7 @@ export function SessionTimeline({
 							key={group.key}
 							payload={payload}
 							pending={!!pending || !onDecide}
+							readOnly={!onDecide}
 							onDecide={(decision, reason) => onDecide?.(payload.requestId, decision, reason)}
 						/>
 					);
@@ -105,8 +106,27 @@ export function SessionTimeline({
 							key={group.key}
 							payload={payload}
 							pending={!!pending || !onAnswer}
+							readOnly={!onAnswer}
 							onAnswer={(input) => onAnswer?.(payload.questionId, input)}
 						/>
+					);
+				}
+
+				if (payload.kind === "notice") {
+					return (
+						<div key={group.key} className="flex items-start gap-2 px-1 py-2">
+							<CircleDot className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+							<div className="min-w-0">
+								<Text as="span" size="xs" className="font-bold">
+									{payload.label}
+								</Text>
+								{payload.detail && (
+									<Text size="xs" tone="muted">
+										{payload.detail}
+									</Text>
+								)}
+							</div>
+						</div>
 					);
 				}
 
@@ -116,7 +136,7 @@ export function SessionTimeline({
 			{busy && (
 				<div
 					className={cn(
-						"flex items-center gap-2 border border-dashed border-primary px-3 py-3",
+						"flex items-center gap-2 rounded-lg bg-primary/8 px-3 py-2.5",
 						"text-primary",
 					)}
 				>

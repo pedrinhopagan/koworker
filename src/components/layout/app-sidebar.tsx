@@ -37,7 +37,7 @@ export function AppSidebar() {
 			</div>
 
 			{compact ? (
-				<SidebarTooltip label="Esconder" triggerClassName="flex w-full">
+				<SidebarTooltip label="Expandir" triggerClassName="flex w-full">
 					{collapseButton}
 				</SidebarTooltip>
 			) : (

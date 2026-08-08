@@ -16,6 +16,27 @@ describe("translateClaudeTranscriptLine", () => {
 		]);
 	});
 
+	test("preserva fala do usuário que veio com imagem em blocos", () => {
+		expect(
+			translateClaudeTranscriptLine({
+				type: "user",
+				isSidechain: false,
+				message: {
+					role: "user",
+					content: [
+						{ type: "text", text: "Corrija o gráfico desta tela" },
+						{ type: "image", source: { type: "base64", data: "..." } },
+					],
+				},
+			}),
+		).toEqual([
+			{
+				type: "append",
+				payload: { kind: "user", text: "Corrija o gráfico desta tela", images: 1 },
+			},
+		]);
+	});
+
 	test("o comando de skill vira o que o usuário leria: nome mais argumentos", () => {
 		expect(
 			translateClaudeTranscriptLine({
@@ -57,6 +78,26 @@ describe("translateClaudeTranscriptLine", () => {
 				message: { content: [{ type: "text", text: "resposta do subagente" }] },
 			}),
 		).toEqual([]);
+	});
+
+	test("o resumo automático da compactação não se passa pelo usuário", () => {
+		expect(
+			translateClaudeTranscriptLine({
+				type: "user",
+				isCompactSummary: true,
+				message: { role: "user", content: "This session is being continued..." },
+			}),
+		).toEqual([
+			{
+				type: "append",
+				payload: {
+					kind: "notice",
+					label: "Contexto compactado",
+					detail: "O agente resumiu o contexto e continuou nesta mesma sessão.",
+					tone: "info",
+				},
+			},
+		]);
 	});
 
 	test("o turno do agente vira fala e ferramenta, e o resultado fecha a ferramenta", () => {

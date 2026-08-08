@@ -495,6 +495,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS task_storage_runs_active_project_unique_idx
 	sqlite.exec(
 		"CREATE INDEX IF NOT EXISTS agent_sessions_status_heartbeat_idx ON agent_sessions (status, heartbeat_at)",
 	);
+	const legacySessionCutoff = Date.now();
+	sqlite
+		.query(
+			`UPDATE agent_sessions
+			 SET status = 'ended',
+				 end_reason = 'Sessão encerrada pela migração para conversas no terminal.',
+				 ended_at = ?,
+				 updated_at = ?
+			 WHERE status = 'live'`,
+		)
+		.run(legacySessionCutoff, legacySessionCutoff);
 	sqlite.exec(
 		"CREATE UNIQUE INDEX IF NOT EXISTS agent_sessions_live_task_idx ON agent_sessions (task_id) WHERE task_id IS NOT NULL AND status = 'live' AND deleted_at IS NULL",
 	);
