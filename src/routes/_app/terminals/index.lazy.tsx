@@ -13,7 +13,6 @@ import { EmptyFeedback } from "@/components/ui/empty-feedback";
 import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { errorMessage } from "@/lib/orpc-errors";
 import { NewSessionDialog } from "./-components/new-session-dialog";
-import { ShortcutsSection } from "./-components/shortcuts-section";
 
 export const Route = createLazyFileRoute("/_app/terminals/")({
 	component: TerminalsPage,
@@ -22,7 +21,7 @@ export const Route = createLazyFileRoute("/_app/terminals/")({
 function TerminalsPage() {
 	const [creating, setCreating] = useState(false);
 	const queryClient = useQueryClient();
-	const { agents, loading: radarLoading } = useAgentRadar();
+	const { agents, focus, loading: radarLoading } = useAgentRadar();
 	const savedTerminals = useQuery({
 		...orpc.agentRadar.savedTerminals.queryOptions(),
 		enabled: !radarLoading && agents.length === 0,
@@ -90,7 +89,7 @@ function TerminalsPage() {
 				data-component="terminal-conversation-layout"
 				className="flex min-h-0 flex-1 flex-col md:flex-row"
 			>
-				<AgentSidebar agents={agents}>
+				<AgentSidebar agents={agents} {...(focus.paneId ? { focusedPaneId: focus.paneId } : {})}>
 					<div className="space-y-5 pt-3">
 						{radarLoading && agents.length === 0 && (
 							<Text size="sm" tone="muted">
@@ -105,8 +104,6 @@ function TerminalsPage() {
 								subtitle="Abra uma conversa ou inicie um agent no kw-terminal."
 							/>
 						)}
-
-						<ShortcutsSection />
 					</div>
 				</AgentSidebar>
 

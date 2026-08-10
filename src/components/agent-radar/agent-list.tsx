@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Target } from "lucide-react";
 import { toast } from "sonner";
@@ -64,7 +64,15 @@ function CompactAgentListItem({ agent, selected }: { agent: RadarAgent; selected
 	);
 }
 
-function AgentListItem({ agent, selected }: { agent: RadarAgent; selected: boolean }) {
+function AgentListItem({
+	agent,
+	selected,
+	focused,
+}: {
+	agent: RadarAgent;
+	selected: boolean;
+	focused: boolean;
+}) {
 	const transcript = useAgentRadarTranscript(agent.paneId);
 	const visual = AGENT_RADAR_VISUALS[agent.status];
 	const focus = useMutation({
@@ -114,9 +122,14 @@ function AgentListItem({ agent, selected }: { agent: RadarAgent; selected: boole
 				variant="ghost"
 				size="icon"
 				aria-label={`Focar ${agent.agent} no terminal`}
+				aria-pressed={focused}
 				data-slot="focus-terminal"
+				data-selected={focused || undefined}
 				onClick={() => focus.mutate({ paneId: agent.paneId })}
-				className="absolute top-1.5 right-1.5 size-8 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+				className={cn(
+					"absolute top-1.5 right-1.5 size-8 border border-transparent opacity-0 transition-[color,background-color,border-color,opacity] group-hover:opacity-100 focus-visible:opacity-100",
+					focused && "border-primary/40 bg-primary/10 text-primary opacity-100 hover:bg-primary/15",
+				)}
 			>
 				<Target className="size-3.5" />
 			</Button>
@@ -127,33 +140,57 @@ function AgentListItem({ agent, selected }: { agent: RadarAgent; selected: boole
 export function AgentList({
 	agents,
 	selectedPaneId,
+	focusedPaneId,
 	compact = false,
 }: {
 	agents: RadarAgent[];
 	selectedPaneId?: string;
+	focusedPaneId?: string;
 	compact?: boolean;
 }) {
+	const projects = useQuery(orpc.projects.list.queryOptions()).data ?? [];
+	const projectColors = new Map(projects.map((project) => [project.id, project.color]));
+	const groups = groupAgentsByProject(agents);
+
 	if (compact) {
 		return (
-			<ul data-component="agent-list" className="flex flex-col items-center gap-1">
-				{groupAgentsByProject(agents).flatMap((group) =>
-					group.agents.map((agent) => (
-						<CompactAgentListItem
-							key={agent.paneId}
-							agent={agent}
-							selected={agent.paneId === selectedPaneId}
-						/>
-					)),
-				)}
-			</ul>
+			<div data-component="agent-list" className="-mx-2 flex flex-col divide-y divide-border/70">
+				{groups.map((group) => (
+					<ul
+						key={group.id}
+						className="flex flex-col items-center gap-1 px-2 py-2 first:pt-0 last:pb-0"
+					>
+						{group.agents.map((agent) => (
+							<CompactAgentListItem
+								key={agent.paneId}
+								agent={agent}
+								selected={agent.paneId === selectedPaneId}
+							/>
+						))}
+					</ul>
+				))}
+			</div>
 		);
 	}
 
 	return (
-		<div data-component="agent-list" className="space-y-4">
-			{groupAgentsByProject(agents).map((group) => (
-				<section key={group.id} data-component="agent-list-group">
-					<div className="mb-1.5 flex min-w-0 items-baseline gap-2 px-2">
+		<div data-component="agent-list" className="-mx-3 divide-y divide-border/70">
+			{groups.map((group) => (
+				<section
+					key={group.id}
+					data-component="agent-list-group"
+					className="px-3 py-3 first:pt-0 last:pb-0"
+				>
+					<div className="mb-1.5 flex min-w-0 items-center gap-2 px-2">
+						{group.projectId && (
+							<span
+								aria-hidden="true"
+								className="size-2.5 shrink-0 border border-foreground/15"
+								style={{
+									backgroundColor: projectColors.get(group.projectId) ?? "var(--muted)",
+								}}
+							/>
+						)}
 						<Text as="span" size="xs" className="truncate font-semibold">
 							{group.label}
 						</Text>
@@ -167,6 +204,7 @@ export function AgentList({
 								key={agent.paneId}
 								agent={agent}
 								selected={agent.paneId === selectedPaneId}
+								focused={agent.paneId === focusedPaneId}
 							/>
 						))}
 					</ul>

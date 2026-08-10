@@ -41,7 +41,7 @@ function TerminalPanePage() {
 	const { paneId } = Route.useParams();
 	const viewport = useRef<HTMLDivElement>(null);
 	const [pinned, setPinned] = useState(true);
-	const { agents, loading: radarLoading } = useAgentRadar();
+	const { agents, focus: radarFocus, loading: radarLoading } = useAgentRadar();
 	const agent = agents.find((candidate) => candidate.paneId === paneId) ?? null;
 	const transcript = useAgentRadarTranscript(paneId);
 	const closed = !agent && !radarLoading;
@@ -162,7 +162,11 @@ function TerminalPanePage() {
 		>
 			<div data-component="terminal-conversation-layout" className="flex min-h-0 flex-1">
 				<div className="hidden md:flex">
-					<AgentSidebar agents={agents} selectedPaneId={paneId} />
+					<AgentSidebar
+						agents={agents}
+						selectedPaneId={paneId}
+						{...(radarFocus.paneId ? { focusedPaneId: radarFocus.paneId } : {})}
+					/>
 				</div>
 
 				<div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-muted/10">

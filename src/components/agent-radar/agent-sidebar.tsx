@@ -12,10 +12,12 @@ import { useAgentSidebarStore } from "@/stores/agent-sidebar";
 export function AgentSidebar({
 	agents,
 	selectedPaneId,
+	focusedPaneId,
 	children,
 }: {
 	agents: RadarAgent[];
 	selectedPaneId?: string;
+	focusedPaneId?: string;
 	children?: ReactNode;
 }) {
 	const isMobile = useIsMobileViewport();
@@ -78,6 +80,7 @@ export function AgentSidebar({
 						agents={agents}
 						compact={compact}
 						{...(selectedPaneId ? { selectedPaneId } : {})}
+						{...(focusedPaneId ? { focusedPaneId } : {})}
 					/>
 				)}
 				{!compact && children}

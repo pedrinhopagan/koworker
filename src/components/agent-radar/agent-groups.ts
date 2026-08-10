@@ -3,6 +3,7 @@ import { sortRadarAgents } from "@/lib/agent-radar-status";
 
 export type AgentGroup = {
 	id: string;
+	projectId: string | null;
 	label: string;
 	workspaceLabels: string[];
 	agents: RadarAgent[];
@@ -17,6 +18,7 @@ export function groupAgentsByProject(agents: RadarAgent[]): AgentGroup[] {
 		string,
 		{
 			id: string;
+			projectId: string | null;
 			label: string;
 			workspaceLabels: Set<string>;
 			agents: RadarAgent[];
@@ -35,6 +37,7 @@ export function groupAgentsByProject(agents: RadarAgent[]): AgentGroup[] {
 
 		groups.set(id, {
 			id,
+			projectId: agent.projectId,
 			label: agent.projectName ?? cwdLabel(agent.cwd),
 			workspaceLabels: new Set([agent.workspaceLabel]),
 			agents: [agent],
@@ -46,6 +49,7 @@ export function groupAgentsByProject(agents: RadarAgent[]): AgentGroup[] {
 	for (const group of groups.values()) {
 		result.push({
 			id: group.id,
+			projectId: group.projectId,
 			label: group.label,
 			workspaceLabels: [...group.workspaceLabels].sort(),
 			agents: sortRadarAgents(group.agents),
