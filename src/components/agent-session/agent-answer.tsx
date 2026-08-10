@@ -1,5 +1,5 @@
 import { Expand, X } from "lucide-react";
-import { useState } from "react";
+import { memo, useMemo, useState } from "react";
 
 import { MarkdownEditor } from "@/components/markdown-doc";
 import { Text, Title } from "@/components/typography";
@@ -12,7 +12,8 @@ type Block = { kind: "text" | "code"; content: string };
 
 // A resposta chega em markdown, mas a conversa não comporta um leitor com rolagem própria dentro de
 // cada turno: no celular dois scrolls empilhados brigam pelo toque. Aqui o texto flui na altura
-// natural, o bloco cercado por crases vira código legível e o leitor completo abre sob demanda.
+// natural, o bloco cercado por crases vira código legível e o leitor completo abre sob demanda —
+// montado só quando abre, porque um diálogo por turno custava caro numa conversa longa.
 function toBlocks(output: string): Block[] {
 	const blocks: Block[] = [];
 	let buffer: string[] = [];
@@ -39,10 +40,16 @@ function toBlocks(output: string): Block[] {
 	return blocks;
 }
 
-export function AgentAnswer({ runId, output }: { runId: string; output: string }) {
+export const AgentAnswer = memo(function AgentAnswer({
+	runId,
+	output,
+}: {
+	runId: string;
+	output: string;
+}) {
 	const [reading, setReading] = useState(false);
 	const [expanded, setExpanded] = useState(false);
-	const blocks = toBlocks(output);
+	const blocks = useMemo(() => toBlocks(output), [output]);
 	const long = output.split("\n").length > PREVIEW_LINES || output.length > 1_400;
 
 	return (
@@ -85,38 +92,40 @@ export function AgentAnswer({ runId, output }: { runId: string; output: string }
 				</Button>
 			</div>
 
-			<Sheet open={reading} onOpenChange={setReading}>
-				<SheetContent
-					side="bottom"
-					showClose={false}
-					className="h-[94dvh] max-h-[94dvh] pb-[env(safe-area-inset-bottom)]"
-				>
-					<SheetHeader className="flex-row items-center justify-between gap-3 border-b border-border px-4 py-2">
-						<SheetTitle asChild>
-							<Title as="h2" size="sm">
-								Resposta do agente
-							</Title>
-						</SheetTitle>
-						<Button
-							variant="ghost"
-							size="icon"
-							onClick={() => setReading(false)}
-							aria-label="Fechar leitor"
-							className="size-11 shrink-0"
-						>
-							<X className="size-5" />
-						</Button>
-					</SheetHeader>
-					<div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-4 [&_.cm-scroller]:touch-pan-y [&_.cm-scroller]:overflow-y-auto [&_.cm-scroller]:overscroll-contain md:px-6">
-						<MarkdownEditor
-							initialContent={output}
-							onChange={() => {}}
-							proseMaxWidth="48rem"
-							readOnly
-						/>
-					</div>
-				</SheetContent>
-			</Sheet>
+			{reading && (
+				<Sheet open onOpenChange={setReading}>
+					<SheetContent
+						side="bottom"
+						showClose={false}
+						className="h-[94dvh] max-h-[94dvh] pb-[env(safe-area-inset-bottom)]"
+					>
+						<SheetHeader className="flex-row items-center justify-between gap-3 border-b border-border px-4 py-2">
+							<SheetTitle asChild>
+								<Title as="h2" size="sm">
+									Resposta do agente
+								</Title>
+							</SheetTitle>
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={() => setReading(false)}
+								aria-label="Fechar leitor"
+								className="size-11 shrink-0"
+							>
+								<X className="size-5" />
+							</Button>
+						</SheetHeader>
+						<div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-4 [&_.cm-scroller]:touch-pan-y [&_.cm-scroller]:overflow-y-auto [&_.cm-scroller]:overscroll-contain md:px-6">
+							<MarkdownEditor
+								initialContent={output}
+								onChange={() => {}}
+								proseMaxWidth="48rem"
+								readOnly
+							/>
+						</div>
+					</SheetContent>
+				</Sheet>
+			)}
 		</div>
 	);
-}
+});

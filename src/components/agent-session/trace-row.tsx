@@ -8,7 +8,7 @@ import {
 	TriangleAlert,
 	type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { memo, useState } from "react";
 
 import { Text } from "@/components/typography";
 import type { AgentSessionEvent } from "@/lib/agent-session";
@@ -61,7 +61,9 @@ function LongTextRow({ icon, label, text }: { icon: LucideIcon; label: string; t
 	);
 }
 
-export function TraceRow({ event }: { event: AgentSessionEvent }) {
+// Rastro aberto de um agente antigo tem centenas de linhas, e cada passo novo redesenhava todas. A
+// linha só refaz quando o próprio bloco muda de estado.
+export const TraceRow = memo(function TraceRow({ event }: { event: AgentSessionEvent }) {
 	const { payload } = event;
 
 	if (payload.kind === "thinking") {
@@ -118,4 +120,4 @@ export function TraceRow({ event }: { event: AgentSessionEvent }) {
 			)}
 		</TraceShell>
 	);
-}
+});
