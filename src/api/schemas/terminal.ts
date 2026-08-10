@@ -35,8 +35,6 @@ export const FocusAgentSchema = z.object({
 
 export const OpenForTaskSchema = z.object({
 	projectId: z.string(),
-	projectName: z.string(),
-	mainRoute: z.string(),
 	taskId: z.string(),
 	taskTitle: z.string(),
 	prompt: z.string().optional(),

@@ -130,7 +130,7 @@ Procedures em `src/api/routers/kw-terminal.ts`, que é o que a rota `/terminals`
 
 Labels estáveis entre reinícios do backend (lookup por nome, não por ID volátil):
 
-- **Sessão/workspace**: `kw_{primeira_palavra_do_projectName_lowercase}` (ex: `kw_kowork`)
+- **Sessão/workspace**: `kw_{projectName_completo_em_slug}` (ex: `Dogama Vault` vira `kw_dogama-vault`)
 - **Window/tab**: `{taskId[0:8]}_{sanitized_title}` (ex: `abcd1234_minha_tarefa`)
 - **Invocações**: `agent_*` ou `skill_*` (filtro `isInvocationWindow`)
 - **Sessão livre da rota `/terminals`**: `sess_{nome}` ou `sess_{hhmm}` (`sessionTabName`)

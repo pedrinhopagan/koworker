@@ -7,11 +7,10 @@ import {
 	windowNameForTask,
 } from "./names";
 
-// Labels estáveis entre reinícios: sessões criadas por versões anteriores precisam continuar
-// sendo encontradas pelo mesmo nome após restart do backend.
-test("sessionNameForProject: primeira palavra, minúscula, prefixo kw_", () => {
-	expect(sessionNameForProject("My Project")).toBe("kw_my");
-	expect(sessionNameForProject("koworker-app extra")).toBe("kw_koworker-app");
+test("sessionNameForProject: usa o nome inteiro para separar projetos", () => {
+	expect(sessionNameForProject("Dogama")).toBe("kw_dogama");
+	expect(sessionNameForProject("Dogama Vault")).toBe("kw_dogama-vault");
+	expect(sessionNameForProject("koworker-app extra")).toBe("kw_koworker-app-extra");
 });
 
 test("sessionNameForProject: vazio ou só símbolos cai em projeto", () => {

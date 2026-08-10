@@ -61,7 +61,12 @@ export function resolveWorkspaceProject(params: {
 		const project = projectFromList(projects, agentProjectId);
 
 		if (project) {
-			return { displayName: project.name, project };
+			const canonicalLabel = sessionNameForProject(project.name);
+			return {
+				displayName:
+					workspaceLabel === canonicalLabel ? project.name : `${project.name} · ${workspaceLabel}`,
+				project,
+			};
 		}
 
 		const agentName = projectNameFromAgents(agents, agentProjectId);

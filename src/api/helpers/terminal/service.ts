@@ -1,3 +1,5 @@
+import { realpathSync } from "node:fs";
+
 import { buildClaudeArgv } from "@/lib/claude-command";
 import { buildCodexArgv } from "@/lib/codex-command";
 import type { TerminalMultiplexer } from "@/constants/terminal";
@@ -8,7 +10,7 @@ import {
 	type TerminalCommand,
 	terminalCommandText,
 } from "./command";
-import { cliStartArgv } from "./cli-argv";
+import { cliResumeArgv, cliStartArgv } from "./cli-argv";
 import { type EmulatorProcess, spawnEmulator } from "./emulator";
 import { focusTerminalWindow } from "./focus";
 import {
@@ -19,6 +21,7 @@ import {
 	type KwTerminalAgent,
 	kwTerminalAgentFocus,
 	kwTerminalAgentList,
+	kwTerminalIntegrationInstall,
 	type KwTerminalTab,
 	kwTerminalClientAttached,
 	kwTerminalPaneList,
@@ -37,6 +40,7 @@ import {
 	isInvocationWindow,
 	sanitizeRouteName,
 	sessionNameForProject,
+	sessionTabName,
 	windowNameForTask,
 } from "./names";
 import {
@@ -137,6 +141,48 @@ function openTerminal(params: OpenParams): Promise<OpenTerminalResult> {
 	return openTmux({ ...params, sessionName });
 }
 
+async function projectWorkspace(params: { projectName: string; mainRoute: string }) {
+	const label = sessionNameForProject(params.projectName);
+	const existing = await findWorkspaceByLabel(label);
+	if (existing) {
+		return { workspace: existing, isNew: false };
+	}
+
+	const workspace = await kwTerminalWorkspaceCreate({
+		cwd: params.mainRoute,
+		label,
+		focus: false,
+	});
+
+	return { workspace, isNew: true };
+}
+
+async function createProjectSessionTab(params: {
+	projectName: string;
+	mainRoute: string;
+	cli: "claude" | "codex";
+	label?: string;
+	command: TerminalCommand;
+}) {
+	await ensureKwTerminalServer();
+	await kwTerminalIntegrationInstall(params.cli);
+	const { workspace } = await projectWorkspace(params);
+	const { tab, rootPane } = await kwTerminalTabCreate({
+		workspaceId: workspace.workspace_id,
+		cwd: params.mainRoute,
+		label: sessionTabName(params.label),
+		focus: false,
+	});
+
+	await kwTerminalPaneRun(rootPane.pane_id, terminalCommandText(params.command));
+
+	return {
+		paneId: rootPane.pane_id,
+		tabId: tab.tab_id,
+		workspaceId: workspace.workspace_id,
+	};
+}
+
 // O cliente TUI do kw-terminal é um só pra todos os projetos (todos os workspaces vivem no mesmo
 // server), então a janela dele tem um rótulo fixo — vira o título "kw-terminal - Kowork" e casa no
 // focus por WM.
@@ -177,9 +223,9 @@ async function openKwTerminal(
 	let isNewSession = false;
 	let isNewWindow = false;
 
-	let workspace = await findWorkspaceByLabel(sessionName);
-	if (!workspace) {
-		workspace = await kwTerminalWorkspaceCreate({ cwd: workingDir, label: sessionName });
+	const resolvedWorkspace = await projectWorkspace({ projectName, mainRoute: workingDir });
+	const workspace = resolvedWorkspace.workspace;
+	if (resolvedWorkspace.isNew) {
 		isNewSession = true;
 		publish({ eventType: "session_opened", projectId, sessionName });
 	}
@@ -758,14 +804,56 @@ export function selectAgentForCli(params: {
 		return matching[0] ?? null;
 	}
 
-	const inProject = matching.filter(
-		(agent) => agent.cwd === mainRoute || agent.cwd.startsWith(`${mainRoute}/`),
-	);
+	const canonicalPath = (path: string) => {
+		try {
+			return realpathSync(path);
+		} catch {
+			return path;
+		}
+	};
+	const canonicalRoute = canonicalPath(mainRoute);
+	const inProject = matching.filter((agent) => {
+		const cwd = canonicalPath(agent.cwd);
+		return cwd === canonicalRoute || cwd.startsWith(`${canonicalRoute}/`);
+	});
 
-	return inProject.find((agent) => agent.cwd === mainRoute) ?? inProject[0] ?? null;
+	return (
+		inProject.find((agent) => canonicalPath(agent.cwd) === canonicalRoute) ?? inProject[0] ?? null
+	);
 }
 
 export const Terminal = {
+	startSession(params: {
+		projectName: string;
+		mainRoute: string;
+		cli: "claude" | "codex";
+		label?: string;
+		prompt?: string;
+		model?: string;
+		effort?: string;
+		agent?: string;
+		permissionMode?: "plan" | "acceptEdits" | "default";
+		approvalMode?: "fullAuto" | "readOnly" | "default";
+	}) {
+		return createProjectSessionTab({
+			projectName: params.projectName,
+			mainRoute: params.mainRoute,
+			cli: params.cli,
+			...(params.label ? { label: params.label } : {}),
+			command: { kind: "argv", argv: cliStartArgv(params) },
+		});
+	},
+
+	resumeSession(params: { projectName: string; mainRoute: string; cli: "claude" | "codex" }) {
+		return createProjectSessionTab({
+			projectName: params.projectName,
+			mainRoute: params.mainRoute,
+			cli: params.cli,
+			label: `Retomar ${params.cli}`,
+			command: { kind: "argv", argv: cliResumeArgv(params.cli) },
+		});
+	},
+
 	// Traz pra frente a sessão do CLI ativo já aberta no kw-terminal: foca o agent no daemon, garante
 	// um cliente TUI visível e sobe a janela pelo WM. Sem agent daquele CLI (ou fora do modo
 	// kw-terminal) abre uma window `cli_<cli>` no projeto em foco e sobe o CLI nela; a window que já

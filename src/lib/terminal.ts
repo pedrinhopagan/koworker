@@ -106,8 +106,6 @@ export function openProjectTerminal(
 	return openTask(
 		{
 			projectId: project.id,
-			projectName: project.name,
-			mainRoute: project.mainRoute,
 			taskId: `project_${project.id.slice(0, 8)}`,
 			taskTitle: project.name,
 		},
@@ -141,8 +139,6 @@ export function executeInTerminal(
 	return openTask(
 		{
 			projectId: project.id,
-			projectName: project.name,
-			mainRoute: project.mainRoute,
 			taskId: task.id,
 			taskTitle: task.title,
 			prompt,
@@ -190,8 +186,6 @@ export function runTerminalInBackground(
 	return openTask(
 		{
 			projectId: project.id,
-			projectName: project.name,
-			mainRoute: project.mainRoute,
 			taskId: task.id,
 			taskTitle: task.title,
 			background: true,
@@ -209,8 +203,6 @@ export function forceNewTerminalTab(
 	return openTask(
 		{
 			projectId: project.id,
-			projectName: project.name,
-			mainRoute: project.mainRoute,
 			taskId: task.id,
 			taskTitle: task.title,
 			forceNew: true,

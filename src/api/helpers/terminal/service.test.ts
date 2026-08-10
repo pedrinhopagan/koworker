@@ -1,4 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { PubSub } from "../../pubsub";
 import { sessionNameForProject } from "./names";
@@ -67,6 +70,21 @@ test("não cai para o agent de outro projeto", () => {
 
 test("sem projeto em foco pega a primeira sessão do cli", () => {
 	expect(selectAgentForCli({ agents, cli: "claude" })?.cwd).toBe("/proj/app/pacote");
+});
+
+test("reconhece o agent aberto pelo caminho real de um projeto com symlink", () => {
+	const root = mkdtempSync(join(tmpdir(), "kowork-terminal-symlink-"));
+	const realRoot = join(root, "dogama-app");
+	const aliasRoot = join(root, "Dogama");
+	mkdirSync(realRoot);
+	symlinkSync(realRoot, aliasRoot);
+
+	try {
+		const agent = agentFixture("claude", realRoot);
+		expect(selectAgentForCli({ agents: [agent], cli: "claude", mainRoute: aliasRoot })).toBe(agent);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
 });
 
 test.skipIf(!hasTmux)("abre a sessão em background e rastreia a janela da tarefa", async () => {

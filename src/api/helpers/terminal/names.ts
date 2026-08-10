@@ -4,13 +4,14 @@
 // Alfanumérico Unicode, como o `char::is_alphanumeric` do Rust (letras + números de qualquer script).
 const WORD_CHAR = /[\p{L}\p{N}]/u;
 
-// `kw_<slug>`: o slug é a primeira palavra do nome do projeto, só com alfanuméricos/`-`/`_`, minúscula.
-// Vazio (nome só com símbolos ou em branco) cai em `projeto`.
+// `kw_<slug>`: o slug usa o nome inteiro do projeto, só com alfanuméricos/`-`/`_`, minúscula.
+// Separadores viram `-`; vazio (nome só com símbolos ou em branco) cai em `projeto`.
 export function sessionNameForProject(projectName: string): string {
-	const firstToken = projectName.split(/\s+/).find((part) => part.length > 0) ?? "projeto";
-	const slug = [...firstToken]
-		.filter((ch) => WORD_CHAR.test(ch) || ch === "-" || ch === "_")
-		.join("")
+	const slug = projectName
+		.trim()
+		.split(/[^\p{L}\p{N}_-]+/u)
+		.filter((part) => part.length > 0)
+		.join("-")
 		.toLowerCase();
 
 	return `kw_${slug || "projeto"}`;

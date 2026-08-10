@@ -2,26 +2,19 @@ import { ORPCError } from "@orpc/server";
 
 import { protectedProcedure } from "../auth/context";
 import { dbProjects } from "../db/projects";
-import { cliResumeArgv, cliStartArgv } from "../helpers/terminal/cli-argv";
-import { terminalCommandText } from "../helpers/terminal/command";
 import {
 	ensureKwTerminalServer,
-	findWorkspaceByLabel,
-	kwTerminalIntegrationInstall,
-	kwTerminalPaneRun,
 	kwTerminalTabClose,
-	kwTerminalTabCreate,
 	kwTerminalTabCreateInWorkspace,
 	kwTerminalTabFocus,
 	kwTerminalTabList,
 	kwTerminalTabRename,
 	kwTerminalWorkspaceClose,
-	kwTerminalWorkspaceCreate,
 	kwTerminalWorkspaceFocus,
 	kwTerminalWorkspaceList,
 	kwTerminalWorkspaceRename,
 } from "../helpers/terminal/kw-terminal";
-import { sessionNameForProject, sessionTabName } from "../helpers/terminal/names";
+import { Terminal } from "../helpers/terminal/service";
 import {
 	KwTerminalSessionStartSchema,
 	KwTerminalSessionResumeLastSchema,
@@ -118,35 +111,11 @@ export const kwTerminalRouter = {
 				throw new ORPCError("NOT_FOUND", { message: "Projeto não encontrado" });
 			}
 
-			await ensureKwTerminalServer();
-			await kwTerminalIntegrationInstall(input.cli);
-
-			const workspaceLabel = sessionNameForProject(project.name);
-			const workspace =
-				(await findWorkspaceByLabel(workspaceLabel)) ??
-				(await kwTerminalWorkspaceCreate({
-					cwd: project.main_route,
-					label: workspaceLabel,
-					focus: false,
-				}));
-
-			const { tab, rootPane } = await kwTerminalTabCreate({
-				workspaceId: workspace.workspace_id,
-				cwd: project.main_route,
-				label: sessionTabName(input.label),
-				focus: false,
+			return Terminal.startSession({
+				projectName: project.name,
+				mainRoute: project.main_route,
+				...input,
 			});
-
-			await kwTerminalPaneRun(
-				rootPane.pane_id,
-				terminalCommandText({ kind: "argv", argv: cliStartArgv(input) }),
-			);
-
-			return {
-				paneId: rootPane.pane_id,
-				tabId: tab.tab_id,
-				workspaceId: workspace.workspace_id,
-			};
 		}),
 
 	sessionResumeLast: protectedProcedure
@@ -157,32 +126,10 @@ export const kwTerminalRouter = {
 				throw new ORPCError("NOT_FOUND", { message: "Projeto não encontrado" });
 			}
 
-			await ensureKwTerminalServer();
-			await kwTerminalIntegrationInstall(input.cli);
-			const workspaceLabel = sessionNameForProject(project.name);
-			const workspace =
-				(await findWorkspaceByLabel(workspaceLabel)) ??
-				(await kwTerminalWorkspaceCreate({
-					cwd: project.main_route,
-					label: workspaceLabel,
-					focus: false,
-				}));
-			const { tab, rootPane } = await kwTerminalTabCreate({
-				workspaceId: workspace.workspace_id,
-				cwd: project.main_route,
-				label: sessionTabName(`Retomar ${input.cli}`),
-				focus: false,
+			return Terminal.resumeSession({
+				projectName: project.name,
+				mainRoute: project.main_route,
+				...input,
 			});
-
-			await kwTerminalPaneRun(
-				rootPane.pane_id,
-				terminalCommandText({ kind: "argv", argv: cliResumeArgv(input.cli) }),
-			);
-
-			return {
-				paneId: rootPane.pane_id,
-				tabId: tab.tab_id,
-				workspaceId: workspace.workspace_id,
-			};
 		}),
 };
