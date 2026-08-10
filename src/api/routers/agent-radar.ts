@@ -2,9 +2,10 @@ import { ORPCError } from "@orpc/server";
 
 import { protectedProcedure } from "../auth/context";
 import { getSavedTerminals, reopenSavedTerminals } from "../helpers/agent-radar/terminal-restore";
-import { type RadarAgent, getRadarAgent, putRadarAgent } from "../helpers/agent-radar/state";
+import { type RadarAgent, getRadarAgent } from "../helpers/agent-radar/state";
 import { refreshAgentRadarTranscript } from "../helpers/agent-radar/transcript";
-import { resolveProcessTranscript } from "../helpers/agent-radar/transcript/process";
+import { agentRadarTranscriptPreviews } from "../helpers/agent-radar/transcript/preview";
+import { syncPaneTranscriptSource } from "../helpers/agent-radar/transcript/sync";
 import { openKwDiff } from "../helpers/kw-diff";
 import {
 	ensureKwTerminalServer,
@@ -12,7 +13,6 @@ import {
 	kwTerminalAgentInterrupt,
 	kwTerminalAgentSubmit,
 	kwTerminalPaneClose,
-	kwTerminalPaneProcessInfo,
 } from "../helpers/terminal/kw-terminal";
 import { revealKwTerminalClient } from "../helpers/terminal/service";
 import { getSystemSettings } from "../helpers/system-settings";
@@ -61,23 +61,19 @@ export const agentRadarRouter = {
 		return { ok: true };
 	}),
 
+	// A última fala de cada agent aberto, para a lista lateral. É uma chamada só para todos os panes:
+	// cada cartão assinando a conversa inteira baixava o histórico completo de cada agent para
+	// escrever uma linha de texto.
+	transcriptPreviews: protectedProcedure.handler(() => agentRadarTranscriptPreviews()),
+
 	syncTranscript: protectedProcedure.input(AgentRadarPaneSchema).handler(async ({ input }) => {
-		const agent = agentOrThrow(input.paneId);
-		const processInfo = await kwTerminalPaneProcessInfo(input.paneId);
-		const transcript = await resolveProcessTranscript({
-			agent: agent.agent,
-			processIds: processInfo.foreground_processes.map((process) => process.pid),
-		});
+		agentOrThrow(input.paneId);
+		const transcript = await syncPaneTranscriptSource(input.paneId);
 
 		if (!transcript) {
 			return { found: false };
 		}
 
-		await putRadarAgent({
-			...agent,
-			sessionId: transcript.sessionId,
-			sessionPath: transcript.path,
-		});
 		await refreshAgentRadarTranscript(input.paneId);
 
 		return { found: true };

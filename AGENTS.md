@@ -276,6 +276,9 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - `agentRadarTranscript` é por `paneId` e entrega a conversa que o CLI aberto no kw-terminal grava em
   disco (`~/.claude/projects`, `~/.codex/sessions`), nos mesmos blocos de `agentSession`. Lote com
   `reset` é a conversa inteira de novo: o arquivo virou outro e os `seq` recomeçaram
+- Uma assinatura de `agentRadarTranscript` por vez, só para a conversa que está na tela: a lista
+  lateral usa `agentRadar.transcriptPreviews`, que lê a cauda de cada transcript e devolve só a
+  última fala. Assinar a conversa por cartão baixava o histórico completo de cada agent aberto
 - Origem do evento de task é marcada em `source`: `api`, `cli` ou `fs` (watcher de disco)
 - `promptRun` carrega o desfecho (`done`, `failed`…), a cauda de saída (`output`) e os passos do agente
   já interpretados (`step`, com ferramenta, alvo e resultado)

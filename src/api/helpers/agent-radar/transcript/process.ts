@@ -36,7 +36,16 @@ function transcriptFromPath(agent: string, path: string) {
 	return null;
 }
 
+// A primeira linha de um rollout do codex nunca muda, e essa pergunta se repete a cada releitura do
+// pane enquanto alguém acompanha a conversa: a resposta fica guardada por caminho.
+const codexRootSessions = new Map<string, boolean>();
+
 async function isCodexRootSession(path: string, sessionId: string) {
+	const known = codexRootSessions.get(path);
+	if (known !== undefined) {
+		return known;
+	}
+
 	try {
 		const firstLine = (await Bun.file(path).slice(0, 1_000_000).text()).split("\n", 1)[0];
 		if (!firstLine) {
@@ -44,8 +53,10 @@ async function isCodexRootSession(path: string, sessionId: string) {
 		}
 
 		const parsed = CodexRootSessionSchema.safeParse(JSON.parse(firstLine));
+		const root = parsed.success && parsed.data.payload.id === sessionId;
+		codexRootSessions.set(path, root);
 
-		return parsed.success && parsed.data.payload.id === sessionId;
+		return root;
 	} catch {
 		return false;
 	}

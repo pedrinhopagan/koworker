@@ -2,11 +2,14 @@ import type { AgentSessionEvent } from "@/lib/agent-session";
 import { PubSub } from "../../../pubsub";
 import { getRadarAgent } from "../state";
 import { locateAgentTranscript, type AgentTranscript } from "./locate";
+import { syncPaneTranscriptSource } from "./sync";
 import { openTranscriptTail, type TranscriptTail } from "./tail";
 
 // De quanto em quanto tempo o pane é reperguntado ao disco. É o que troca a conversa quando o mesmo
 // pane começa outra sessão: o arquivo antigo para de crescer e ninguém avisa que existe um novo.
-const RESOLVE_INTERVAL_MS = 15_000;
+// Só roda enquanto alguém está lendo a conversa, então o intervalo curto custa pouco e é o que faz um
+// `/clear` no terminal aparecer na tela em segundos, e não no minuto seguinte.
+const RESOLVE_INTERVAL_MS = 4_000;
 
 type PaneTranscript = {
 	tail: TranscriptTail | null;
@@ -49,8 +52,12 @@ async function resolve(paneId: string) {
 		return;
 	}
 
+	await syncPaneTranscriptSource(paneId).catch((error) =>
+		console.error(`[Radar] Falha ao reler a sessão do pane ${paneId}:`, error),
+	);
+
 	const agent = getRadarAgent(paneId);
-	const source = agent ? await locateAgentTranscript(agent) : null;
+	const source = agent ? locateAgentTranscript(agent) : null;
 
 	if (!panes.has(paneId)) {
 		return;
@@ -76,6 +83,12 @@ async function resolve(paneId: string) {
 
 export async function refreshAgentRadarTranscript(paneId: string) {
 	await resolve(paneId);
+}
+
+// A conversa que já está aberta em memória por causa de um leitor, ou nada. É o que deixa o preview
+// da lista sair sem tocar o disco quando alguém está com o pane na tela.
+export function openPaneTranscriptEvents(paneId: string) {
+	return panes.get(paneId)?.tail?.events() ?? null;
 }
 
 function release(paneId: string) {
