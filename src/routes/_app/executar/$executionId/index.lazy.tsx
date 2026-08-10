@@ -93,7 +93,7 @@ function LegacyExecutionPage() {
 			}
 		>
 			<div className="mx-auto w-full max-w-3xl pb-6">
-				<SessionTimeline events={events} busy={false} />
+				<SessionTimeline events={events} busy={false} agent={session.cli} />
 			</div>
 		</PageShell>
 	);

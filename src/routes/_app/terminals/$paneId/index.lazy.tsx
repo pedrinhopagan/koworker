@@ -3,8 +3,10 @@ import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import {
 	ArrowDown,
 	ArrowLeft,
+	GitCompare,
 	Loader2,
 	MoreVertical,
+	RefreshCw,
 	Square,
 	SquareTerminal,
 	Target,
@@ -13,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
+import { agentCliVisual } from "@/components/agent-radar/agent-cli";
 import { AgentSidebar } from "@/components/agent-radar/agent-sidebar";
 import { SessionTimeline } from "@/components/agent-session/session-timeline";
 import { ThreadComposer } from "@/components/agent-session/thread-composer";
@@ -40,10 +43,17 @@ export const Route = createLazyFileRoute("/_app/terminals/$paneId/")({
 function TerminalPanePage() {
 	const { paneId } = Route.useParams();
 	const viewport = useRef<HTMLDivElement>(null);
+	const content = useRef<HTMLDivElement>(null);
+	// O grude no fim é decidido a cada quadro de rolagem, então mora numa ref: virar estado a cada
+	// evento de scroll redesenhava a conversa inteira enquanto o dedo ainda estava na tela.
+	const anchored = useRef(true);
 	const [pinned, setPinned] = useState(true);
 	const { agents, focus: radarFocus, loading: radarLoading } = useAgentRadar();
 	const agent = agents.find((candidate) => candidate.paneId === paneId) ?? null;
 	const transcript = useAgentRadarTranscript(paneId);
+	const cli = agent
+		? agentCliVisual(agent.agent)
+		: { label: "Agent", icon: SquareTerminal, tone: "text-muted-foreground" };
 	const closed = !agent && !radarLoading;
 	const busy = agent?.status === "working";
 	const blocked = agent?.status === "blocked";
@@ -64,6 +74,10 @@ function TerminalPanePage() {
 		...orpc.agentRadar.close.mutationOptions(),
 		onError: (error) => toast.error(errorMessage(error, "Não foi possível fechar o agent")),
 	});
+	const openDiff = useMutation({
+		...orpc.agentRadar.openDiff.mutationOptions(),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível abrir o kw-diff")),
+	});
 	const syncTranscript = useMutation({
 		...orpc.agentRadar.syncTranscript.mutationOptions(),
 		onSuccess: ({ found }) => {
@@ -74,35 +88,54 @@ function TerminalPanePage() {
 		onError: (error) => toast.error(errorMessage(error, "Não foi possível sincronizar a conversa")),
 	});
 
+	// Salto seco em vez de rolagem animada: cada bloco novo disparava uma animação que a próxima
+	// cancelava, e o resultado era uma conversa que nunca parava de deslizar sob o dedo.
 	const scrollToEnd = useCallback(() => {
-		viewport.current?.scrollTo({ top: viewport.current.scrollHeight, behavior: "smooth" });
+		const node = viewport.current;
+		if (node) {
+			node.scrollTop = node.scrollHeight;
+		}
 	}, []);
 
+	const stickToEnd = useCallback(() => {
+		anchored.current = true;
+		setPinned(true);
+		scrollToEnd();
+	}, [scrollToEnd]);
+
+	// Um observador só, montado uma vez: o conteúdo cresce e a conversa acompanha enquanto o leitor
+	// estiver no fim. Refazer isso a cada bloco custava mais do que o próprio bloco.
 	useEffect(() => {
-		const node = viewport.current;
-		if (!node || !pinned) {
+		const node = content.current;
+		if (!node) {
 			return;
 		}
 
-		scrollToEnd();
-		const observer = new ResizeObserver(() => scrollToEnd());
-		observer.observe(node);
-		for (const child of node.children) {
-			observer.observe(child);
+		function follow() {
+			if (anchored.current) {
+				scrollToEnd();
+			}
 		}
-		window.visualViewport?.addEventListener("resize", scrollToEnd);
+
+		const observer = new ResizeObserver(follow);
+		observer.observe(node);
+		window.visualViewport?.addEventListener("resize", follow);
 
 		return () => {
 			observer.disconnect();
-			window.visualViewport?.removeEventListener("resize", scrollToEnd);
+			window.visualViewport?.removeEventListener("resize", follow);
 		};
-	}, [pinned, scrollToEnd, transcript.events.length]);
+	}, [scrollToEnd]);
+
+	useEffect(() => {
+		stickToEnd();
+	}, [paneId, stickToEnd]);
 
 	return (
 		<PageShell
-			title={agent?.title ?? agent?.agent ?? "Agent"}
-			description="A central mostra apenas agents abertos"
-			icon={SquareTerminal}
+			title={cli.label}
+			description={agent?.title ?? agent?.tabLabel ?? "A central mostra apenas agents abertos"}
+			icon={cli.icon}
 			headerClassName="mb-0"
 			contentClassName="flex min-h-0 max-w-none flex-col px-0"
 			actions={
@@ -148,6 +181,17 @@ function TerminalPanePage() {
 									<Target className="size-4" />
 									Focar no terminal
 								</DropdownMenuItem>
+								<DropdownMenuItem onSelect={() => openDiff.mutate({ paneId })}>
+									<GitCompare className="size-4" />
+									Ver mudanças
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onSelect={() => syncTranscript.mutate({ paneId })}
+									disabled={syncTranscript.isPending}
+								>
+									<RefreshCw className="size-4" />
+									Recarregar conversa
+								</DropdownMenuItem>
 								<DropdownMenuItem
 									onSelect={() => close.mutate({ paneId })}
 									className="text-destructive"
@@ -174,13 +218,18 @@ function TerminalPanePage() {
 
 					<div
 						ref={viewport}
+						data-component="conversation-viewport"
 						onScroll={(event) => {
 							const node = event.currentTarget;
-							setPinned(node.scrollHeight - node.scrollTop - node.clientHeight < 120);
+							const atEnd = node.scrollHeight - node.scrollTop - node.clientHeight < 120;
+							if (atEnd !== anchored.current) {
+								anchored.current = atEnd;
+								setPinned(atEnd);
+							}
 						}}
 						className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4"
 					>
-						<div className="mx-auto w-full max-w-3xl space-y-5 pb-4 pt-5">
+						<div ref={content} className="mx-auto w-full max-w-3xl space-y-5 pb-4 pt-5">
 							{transcript.loading && !closed && (
 								<div className="flex min-h-32 items-center justify-center">
 									<Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -217,26 +266,29 @@ function TerminalPanePage() {
 									/>
 								)}
 
-							{!closed && <SessionTimeline events={transcript.events} busy={!!busy} />}
+							{!closed && (
+								<SessionTimeline
+									events={transcript.events}
+									busy={!!busy}
+									{...(agent ? { agent: agent.agent } : {})}
+								/>
+							)}
 						</div>
 					</div>
 
-					{!pinned && (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => {
-								setPinned(true);
-								scrollToEnd();
-							}}
-							className="absolute bottom-24 left-1/2 z-20 -translate-x-1/2 bg-background"
-						>
-							<ArrowDown className="size-4" />
-							Ir para o fim
-						</Button>
-					)}
+					<div className="relative shrink-0 px-4">
+						{!pinned && (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={stickToEnd}
+								className="absolute -top-11 left-1/2 z-20 -translate-x-1/2 bg-background shadow-md"
+							>
+								<ArrowDown className="size-4" />
+								Ir para o fim
+							</Button>
+						)}
 
-					<div className="mx-auto w-full max-w-3xl px-4">
 						<ThreadComposer
 							draftKey={`kowork-radar-draft-${paneId}`}
 							{...(agent?.projectName ? { projectName: agent.projectName } : {})}
@@ -252,7 +304,7 @@ function TerminalPanePage() {
 											: "Envie uma mensagem para iniciar a conversa."
 							}
 							onSubmit={async (text) => {
-								setPinned(true);
+								stickToEnd();
 								try {
 									await send.mutateAsync({ paneId, text });
 									return true;
