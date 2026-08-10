@@ -52,6 +52,7 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - **UI**: usar `<Title>` e `<Text>` ao invés de `<h1>`/`<p>`
 - **Condição**: usar `&&` em vez de ternário para render condicional
 - **Ícones**: somente `lucide-react`
+- **Sombras**: o app roda no WebKitGTK com `WEBKIT_DISABLE_COMPOSITING_MODE=1` (`src-tauri/src/lib.rs`), então tudo que está visível é rasterizado no CPU a cada quadro e sombra com blur é o item mais caro da conta. `shadow-xs` e `shadow-sm` foram redefinidos em `src/index.css` para blur 0 e são os únicos degraus permitidos em superfície que rola (card, input, botão, turno de conversa). Blur (`shadow-md` pra cima) só em overlay flutuante — popover, dropdown, sheet, dialog, toast. Medido em `/terminals/$paneId` com 5.4k nós: p95 de 65ms por quadro com o `shadow-sm` borrado do Tailwind contra 14ms com o rente.
 - **Selects**: SEMPRE `CustomSelect` (`@/components/ui/custom-select`). Nunca recriar o Select do shadcn nem usar `<select>` nativo. Motivo: as vars de tema (`--popover`, `--card`...) vivem em `.light`/`.dark` aplicados no `[data-theme-root]` (div interna em `__root.tsx`), não no `:root` — qualquer overlay Radix portado para o `document.body` fica fora do tema e renderiza transparente/preto. Todo primitivo com Portal (popover, dropdown, sheet, context-menu, custom-select) porta para `document.querySelector("[data-theme-root]")`; novos overlays devem fazer o mesmo.
 
 ## VALIDAÇÃO
