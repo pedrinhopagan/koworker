@@ -1,4 +1,4 @@
-import { ChevronDown, MoreVertical, Pencil, Target, X } from "lucide-react";
+import { ChevronDown, MoreVertical, Pencil, SquareTerminal, Target, X } from "lucide-react";
 import { useState } from "react";
 
 import { Text } from "@/components/typography";
@@ -69,13 +69,11 @@ export function TerminalTabRow({
 								className="absolute inset-0 cursor-pointer hover:bg-muted/20"
 							/>
 
-							<span
-								className={cn(
-									TERMINALS_CELL,
-									"pointer-events-none relative gap-1.5 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-foreground",
-								)}
-							>
-								TERM
+							<span className={cn(TERMINALS_CELL, "pointer-events-none relative gap-1.5")}>
+								<SquareTerminal className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+								<span className="truncate font-mono text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+									Shell
+								</span>
 								{focused && <FocusOnScreenIndicator variant="item" />}
 							</span>
 

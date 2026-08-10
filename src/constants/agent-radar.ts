@@ -5,6 +5,11 @@ export const AGENT_RADAR_STATUSES = ["working", "blocked", "done", "idle", "unkn
 export type AgentRadarStatus = (typeof AGENT_RADAR_STATUSES)[number];
 
 const AGENT_RADAR_AGENT_LABELS: Record<string, string> = {
+	claude: "Claude Code",
+	"claude-code": "Claude Code",
+	codex: "Codex",
+	opencode: "OpenCode",
+	gemini: "Gemini CLI",
 	"prime-agent": "Prime Agent",
 	pi: "Pi",
 };

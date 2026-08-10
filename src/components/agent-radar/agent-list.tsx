@@ -1,24 +1,33 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Target } from "lucide-react";
+import { memo, useMemo } from "react";
 import { toast } from "sonner";
 
 import type { RadarAgent } from "@/api/helpers/agent-radar/state";
 import { orpc } from "@/client";
+import { AgentCliIcon } from "@/components/agent-radar/agent-cli";
 import { groupAgentsByProject } from "@/components/agent-radar/agent-groups";
 import { SidebarTooltip } from "@/components/layout/sidebar-tooltip";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";
 import { AGENT_RADAR_STATUS_LABELS, agentRadarAgentLabel } from "@/constants/agent-radar";
-import { useAgentRadarTranscript } from "@/hooks/use-agent-radar-transcript";
-import { recentTranscriptText } from "@/lib/agent-timeline";
+import { useAgentRadarPreviews } from "@/hooks/use-agent-radar-previews";
 import { AGENT_RADAR_VISUALS } from "@/lib/agent-radar-status";
 import { errorMessage } from "@/lib/orpc-errors";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 
-function CompactAgentListItem({ agent, selected }: { agent: RadarAgent; selected: boolean }) {
+// Cada cartão só refaz quando o próprio agent muda. O radar reemite a lista inteira a cada transição
+// de status, e sem isso um agent trabalhando redesenhava a lista toda a cada passo que dava.
+const CompactAgentListItem = memo(function CompactAgentListItem({
+	agent,
+	selected,
+}: {
+	agent: RadarAgent;
+	selected: boolean;
+}) {
 	const visual = AGENT_RADAR_VISUALS[agent.status];
 	const label = agent.taskTitle ?? agent.title ?? agent.projectName ?? agent.tabLabel;
 
@@ -55,25 +64,25 @@ function CompactAgentListItem({ agent, selected }: { agent: RadarAgent; selected
 						status={agent.status}
 						className={cn("absolute top-1.5 right-1.5", visual.tone)}
 					/>
-					<Text as="span" className="font-mono text-[10px] font-bold uppercase">
-						{agentRadarAgentLabel(agent.agent).slice(0, 2)}
-					</Text>
+					<AgentCliIcon agent={agent.agent} className="size-5" />
 				</Link>
 			</SidebarTooltip>
 		</li>
 	);
-}
+});
 
-function AgentListItem({
+const AgentListItem = memo(function AgentListItem({
 	agent,
 	selected,
 	focused,
+	preview,
 }: {
 	agent: RadarAgent;
 	selected: boolean;
 	focused: boolean;
+	// A última fala da conversa, servida em lote pelo radar. Nulo enquanto ainda não chegou.
+	preview: string | null;
 }) {
-	const transcript = useAgentRadarTranscript(agent.paneId);
 	const visual = AGENT_RADAR_VISUALS[agent.status];
 	const focus = useMutation({
 		...orpc.agentRadar.focus.mutationOptions(),
@@ -95,47 +104,59 @@ function AgentListItem({
 				to="/terminals/$paneId"
 				params={{ paneId: agent.paneId }}
 				data-slot="open-conversation"
-				className="block min-w-0 rounded-lg px-3 py-2.5 pr-11 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+				className="block min-w-0 rounded-lg px-3 py-2.5 pr-[7rem] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 			>
-				<div className="flex min-w-0 items-center gap-2">
-					<RadarStatusMark status={agent.status} className={visual.tone} />
+				<div className="flex min-w-0 items-center gap-1.5">
+					<AgentCliIcon agent={agent.agent} className="size-4" />
 					<Text as="span" size="xs" className="min-w-0 flex-1 truncate font-semibold">
-						{agent.taskTitle ?? agent.title ?? agent.projectName ?? agent.tabLabel}
-					</Text>
-					<Text as="span" size="xs" className={cn("shrink-0", visual.tone)}>
-						{AGENT_RADAR_STATUS_LABELS[agent.status]}
+						{agentRadarAgentLabel(agent.agent)}
 					</Text>
 				</div>
 
-				<Text size="xs" tone="muted" className="mt-1 truncate">
-					{agentRadarAgentLabel(agent.agent)} ·{" "}
-					{recentTranscriptText(transcript.events) ?? agent.activity ?? "Conversa sem falas"}
+				<Text size="xs" tone="muted" className="mt-1 min-w-0 truncate">
+					{preview ?? agent.activity ?? "Conversa sem falas"}
 				</Text>
 
-				<Text size="xs" tone="muted" className="mt-1 font-mono text-[10px]">
-					{agent.projectName ?? agent.cwd} · {relativeTimeFrom(agent.changedAt)}
+				<Text size="xs" tone="muted" className="mt-1 truncate font-mono text-[10px]">
+					{[
+						agent.taskTitle ?? agent.title,
+						agent.projectName ?? agent.cwd,
+						relativeTimeFrom(agent.changedAt),
+					]
+						.filter(Boolean)
+						.join(" · ")}
 				</Text>
 			</Link>
 
-			<Button
-				type="button"
-				variant="ghost"
-				size="icon"
-				aria-label={`Focar ${agent.agent} no terminal`}
-				aria-pressed={focused}
-				data-slot="focus-terminal"
-				data-selected={focused || undefined}
-				onClick={() => focus.mutate({ paneId: agent.paneId })}
-				className={cn(
-					"absolute top-1.5 right-1.5 size-8 border border-transparent opacity-0 transition-[color,background-color,border-color,opacity] group-hover:opacity-100 focus-visible:opacity-100",
-					focused && "border-primary/40 bg-primary/10 text-primary opacity-100 hover:bg-primary/15",
-				)}
-			>
-				<Target className="size-3.5" />
-			</Button>
+			<div className="pointer-events-none absolute inset-y-1.5 right-1.5 flex flex-col items-end justify-between gap-1">
+				<span className={cn("flex items-center gap-1.5 whitespace-nowrap", visual.tone)}>
+					<Text as="span" size="xs" className="text-[10px] leading-none font-semibold">
+						{AGENT_RADAR_STATUS_LABELS[agent.status]}
+					</Text>
+					<RadarStatusMark status={agent.status} />
+				</span>
+
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon"
+					aria-label={`Focar ${agentRadarAgentLabel(agent.agent)} no terminal`}
+					aria-pressed={focused}
+					data-slot="focus-terminal"
+					data-selected={focused || undefined}
+					onClick={() => focus.mutate({ paneId: agent.paneId })}
+					className={cn(
+						"pointer-events-auto size-6 border border-transparent opacity-0 transition-[color,background-color,border-color,opacity] group-hover:opacity-100 focus-visible:opacity-100",
+						focused &&
+							"border-primary/40 bg-primary/10 text-primary opacity-100 hover:bg-primary/15",
+					)}
+				>
+					<Target className="size-3" />
+				</Button>
+			</div>
 		</li>
 	);
-}
+});
 
 export function AgentList({
 	agents,
@@ -149,8 +170,13 @@ export function AgentList({
 	compact?: boolean;
 }) {
 	const projects = useQuery(orpc.projects.list.queryOptions()).data ?? [];
-	const projectColors = new Map(projects.map((project) => [project.id, project.color]));
-	const groups = groupAgentsByProject(agents);
+	const paneIds = useMemo(() => agents.map((agent) => agent.paneId), [agents]);
+	const previews = useAgentRadarPreviews(!compact, paneIds);
+	const projectColors = useMemo(
+		() => new Map(projects.map((project) => [project.id, project.color])),
+		[projects],
+	);
+	const groups = useMemo(() => groupAgentsByProject(agents), [agents]);
 
 	if (compact) {
 		return (
@@ -205,6 +231,7 @@ export function AgentList({
 								agent={agent}
 								selected={agent.paneId === selectedPaneId}
 								focused={agent.paneId === focusedPaneId}
+								preview={previews.get(agent.paneId) ?? null}
 							/>
 						))}
 					</ul>

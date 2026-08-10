@@ -1,6 +1,7 @@
 import { Radio } from "lucide-react";
 
 import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import { AgentCliName } from "@/components/agent-radar/agent-cli";
 import { Text } from "@/components/typography";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";
 import { AGENT_RADAR_STATUS_LABELS } from "@/constants/agent-radar";
@@ -35,6 +36,10 @@ export function PaneStatusStrip({ agent, closed }: { agent: RadarAgent | null; c
 				agent.status === "blocked" && "border-warning/40 bg-warning/8",
 			)}
 		>
+			<AgentCliName agent={agent.agent} className="shrink-0" />
+
+			<span className="h-3 w-px shrink-0 bg-border" aria-hidden />
+
 			<span className={visual.tone}>
 				<RadarStatusMark status={agent.status} />
 			</span>

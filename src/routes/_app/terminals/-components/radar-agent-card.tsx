@@ -3,6 +3,7 @@ import { GitCompare, MessagesSquare, MoreVertical, Target, Trash2 } from "lucide
 import { useState, type ComponentPropsWithoutRef, type ElementType } from "react";
 
 import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import { AgentCliIcon } from "@/components/agent-radar/agent-cli";
 import { AgentNavButtons } from "@/components/agent-radar/agent-nav-buttons";
 import { AgentNavMenuItems } from "@/components/agent-radar/agent-nav-menu-items";
 import { Text } from "@/components/typography";
@@ -164,17 +165,13 @@ export function RadarAgentCard({
 							onClick={function () {
 								void navigate({ to: "/terminals/$paneId", params: { paneId } });
 							}}
-							aria-label={`Abrir a conversa de ${agent.agent}`}
+							aria-label={`Abrir a conversa de ${agentLabel}`}
 							className="absolute inset-0 cursor-pointer hover:bg-muted/20"
 						/>
 
-						<span
-							className={cn(
-								TERMINALS_CELL,
-								"pointer-events-none relative gap-1.5 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-foreground",
-							)}
-						>
-							{agentLabel}
+						<span className={cn(TERMINALS_CELL, "pointer-events-none relative gap-1.5")}>
+							<AgentCliIcon agent={agent.agent} className="size-4" />
+							<span className="truncate text-xs font-semibold text-foreground">{agentLabel}</span>
 							{focused && <FocusOnScreenIndicator variant="item" />}
 						</span>
 
@@ -240,7 +237,7 @@ export function RadarAgentCard({
 								<DropdownMenuTrigger asChild>
 									<button
 										type="button"
-										aria-label={`Mais ações do agent ${agent.agent}`}
+										aria-label={`Mais ações do agent ${agentLabel}`}
 										className={TERMINALS_ACTION_BUTTON}
 									>
 										<MoreVertical className="size-3.5" aria-hidden />

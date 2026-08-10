@@ -2,6 +2,7 @@ import { MoreVertical, SquareTerminal } from "lucide-react";
 import { useState } from "react";
 
 import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import { AgentCliIcon } from "@/components/agent-radar/agent-cli";
 import { Text, Title } from "@/components/typography";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
@@ -13,7 +14,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";
-import { AGENT_RADAR_STATUS_LABELS } from "@/constants/agent-radar";
+import { AGENT_RADAR_STATUS_LABELS, agentRadarAgentLabel } from "@/constants/agent-radar";
 import { AGENT_RADAR_VISUALS, sortRadarAgents } from "@/lib/agent-radar-status";
 import { cn } from "@/lib/utils";
 import type { WorkspaceProjectRef } from "../-utils/resolve-workspace-project";
@@ -77,6 +78,13 @@ function WorkspaceSection({ workspace, actions }: WorkspaceSectionProps) {
 		return !agentTabIds.has(tab.tabId);
 	});
 	const sorted = sortRadarAgents(workspace.agents);
+	const clis = [
+		...new Set(
+			sorted.map(function (agent) {
+				return agent.agent;
+			}),
+		),
+	];
 	const empty = workspace.agents.length === 0 && plainTabs.length === 0;
 
 	return (
@@ -104,6 +112,25 @@ function WorkspaceSection({ workspace, actions }: WorkspaceSectionProps) {
 						<Title as="h2" size="xs" className="min-w-0 truncate uppercase tracking-[0.14em]">
 							{workspace.displayName}
 						</Title>
+
+						{clis.length > 0 && (
+							<span className="flex shrink-0 items-center gap-1.5">
+								{clis.map(function (cli) {
+									return (
+										<span
+											key={cli}
+											title={agentRadarAgentLabel(cli)}
+											className="inline-flex items-center gap-1 border border-border/70 bg-muted/40 px-1.5 py-0.5"
+										>
+											<AgentCliIcon agent={cli} className="size-3" />
+											<Text as="span" size="xs" tone="muted" className="text-[10px]">
+												{agentRadarAgentLabel(cli)}
+											</Text>
+										</span>
+									);
+								})}
+							</span>
+						)}
 
 						{workspace.focused && <FocusOnScreenIndicator variant="workspace" />}
 

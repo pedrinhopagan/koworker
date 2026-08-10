@@ -1,5 +1,5 @@
 export const TERMINALS_COLUMNS =
-	"grid grid-cols-[4.75rem_8.75rem_minmax(6rem,0.85fr)_minmax(10rem,1.35fr)_5.75rem_4.5rem] items-stretch";
+	"grid grid-cols-[9.5rem_8.75rem_minmax(6rem,0.85fr)_minmax(10rem,1.35fr)_5.75rem_4.5rem] items-stretch";
 
 export const TERMINALS_CELL = "flex min-w-0 items-center px-3 py-2.5";
 
