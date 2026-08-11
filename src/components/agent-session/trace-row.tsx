@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { memo, useState } from "react";
 
+import { MarkdownView } from "@/components/markdown-view";
 import { Text } from "@/components/typography";
 import type { AgentSessionEvent } from "@/lib/agent-session";
 import { TRAIL_LABELS } from "@/lib/agent-timeline";
@@ -45,17 +46,19 @@ function LongTextRow({ icon, label, text }: { icon: LucideIcon; label: string; t
 						/>
 					)}
 				</span>
-				<Text
-					as="span"
-					className={cn(
-						"mt-0.5 block break-words text-xs leading-5 text-muted-foreground",
-						open
-							? "max-h-64 overflow-y-auto overscroll-contain whitespace-pre-wrap"
-							: "line-clamp-2",
-					)}
-				>
-					{text}
-				</Text>
+				{open ? (
+					<MarkdownView
+						text={text}
+						className="mt-0.5 max-h-64 overflow-y-auto overscroll-contain text-xs leading-5 text-muted-foreground"
+					/>
+				) : (
+					<Text
+						as="span"
+						className="mt-0.5 block line-clamp-2 break-words text-xs leading-5 text-muted-foreground"
+					>
+						{text}
+					</Text>
+				)}
 			</button>
 		</TraceShell>
 	);

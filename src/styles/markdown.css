@@ -1,0 +1,278 @@
+/* ============================================================================
+   Visual do markdown — fonte única
+
+   Estas regras eram um `EditorView.baseTheme` dentro do live preview, o que as prendia ao DOM do
+   CodeMirror (`.cm-editor .cm-md-*`). A conversa dos agents renderiza o mesmo markdown fora de um
+   editor, então o visual saiu pra cá em CSS global com as MESMAS classes: o leitor de `.md` e a
+   fala do agente pintam heading, código, grifa, citação, régua e tabela pela mesma regra.
+
+   O que sobrou no `baseTheme` é só mecânica de editor (recolher heading, widget de copiar,
+   textarea de célula), que não existe na leitura estática.
+   ============================================================================ */
+
+.cm-md-h1 {
+	font-size: 1.7em;
+	font-weight: 700;
+	line-height: 1.3;
+}
+.cm-md-h2 {
+	font-size: 1.4em;
+	font-weight: 600;
+	line-height: 1.3;
+}
+.cm-md-h3 {
+	font-size: 1.2em;
+	font-weight: 500;
+	line-height: 1.35;
+}
+.cm-md-h4 {
+	font-size: 1.05em;
+	font-weight: 600;
+}
+.cm-md-h5 {
+	font-size: 1em;
+	font-weight: 600;
+}
+.cm-md-h6 {
+	font-size: 1em;
+	font-weight: 600;
+	opacity: 0.8;
+}
+.cm-md-heading {
+	position: relative;
+}
+
+/* Régua de `---`: ocupa a largura da linha como uma borda fina centrada verticalmente. */
+.cm-md-divider {
+	display: inline-block;
+	width: 100%;
+	height: 0;
+	vertical-align: middle;
+	border: 0;
+	border-top: 1px solid var(--border);
+}
+
+.cm-md-code-block {
+	font-family: var(--font-mono);
+	font-size: 0.88em;
+	line-height: 1.55;
+	background: color-mix(in oklab, var(--muted) 70%, transparent);
+	border-left: 1px solid var(--border);
+	border-right: 1px solid var(--border);
+	padding-left: 0.9em !important;
+	padding-right: 0.9em !important;
+	color: var(--foreground);
+}
+
+.cm-md-code-block-first {
+	position: relative;
+	border-top: 1px solid var(--border);
+	border-top-left-radius: 6px;
+	border-top-right-radius: 6px;
+	padding-top: 0.9em !important;
+}
+
+.cm-md-code-block-last {
+	border-bottom: 1px solid var(--border);
+	border-bottom-left-radius: 6px;
+	border-bottom-right-radius: 6px;
+	padding-bottom: 0.9em !important;
+}
+
+.cm-md-inline-code {
+	display: inline-block;
+	padding: 0.05em 0.4em;
+	margin: 0 0.05em;
+	font-family: var(--font-mono);
+	font-size: 0.92em;
+	line-height: 1.4;
+	color: var(--foreground);
+	background: color-mix(in oklab, var(--muted) 70%, transparent);
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	cursor: text;
+	transition:
+		background-color 0.15s ease,
+		border-color 0.15s ease;
+	vertical-align: baseline;
+}
+.cm-md-inline-code:hover {
+	background: color-mix(in oklab, var(--primary) 14%, var(--muted));
+	border-color: var(--primary);
+}
+
+.cm-md-highlight {
+	padding: 0.05em 0.15em;
+	border-radius: 3px;
+	/* Grifa âmbar translúcida — funciona sobre o fundo escuro mantendo o texto legível. */
+	background: color-mix(in oklab, #facc15 30%, transparent);
+	color: var(--foreground);
+	box-decoration-break: clone;
+}
+
+.cm-md-blockquote {
+	position: relative;
+	background: color-mix(in oklab, var(--muted) 45%, transparent);
+	border-left: 3px solid var(--muted-foreground);
+	padding-left: 0.9em !important;
+}
+
+.cm-md-task-checkbox {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 1em;
+	margin-right: 0.4em;
+	vertical-align: middle;
+}
+
+.cm-md-table-wrapper {
+	margin: 0.4em 0.5rem 0.7em 0;
+	overflow-x: auto;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	cursor: text;
+}
+
+.cm-md-table {
+	border-collapse: collapse;
+	width: 100%;
+	font-size: 0.92em;
+	line-height: 1.5;
+}
+
+.cm-md-table th,
+.cm-md-table td {
+	padding: 0.4em 0.75em;
+	text-align: left;
+	vertical-align: top;
+	border-right: 1px solid var(--border);
+	border-bottom: 1px solid var(--border);
+	/* O `.cm-content` ativa lineWrapping (`overflow-wrap: anywhere`, `word-break: break-word`),
+	   que é herdado e vaza pra dentro das células: quando a tabela é espremida, o navegador quebra
+	   as palavras letra a letra ("Forma/tion") em vez de pedir mais largura pra coluna. Resetando
+	   pra quebra normal, cada coluna exige ao menos a largura da sua palavra mais longa — a tabela
+	   cresce e o wrapper rola na horizontal em vez de comprimir tudo até ficar ilegível. */
+	word-break: normal;
+	overflow-wrap: normal;
+	white-space: normal;
+	min-width: 3rem;
+}
+
+.cm-md-table th:last-child,
+.cm-md-table td:last-child {
+	border-right: none;
+}
+.cm-md-table tbody tr:last-child td {
+	border-bottom: none;
+}
+.cm-md-table th {
+	font-weight: 600;
+	background: color-mix(in oklab, var(--muted) 60%, transparent);
+}
+.cm-md-table tbody tr:hover {
+	background: color-mix(in oklab, var(--muted) 35%, transparent);
+}
+.cm-md-table code {
+	padding: 0.05em 0.35em;
+	font-family: var(--font-mono);
+	font-size: 0.9em;
+	background: color-mix(in oklab, var(--muted) 70%, transparent);
+	border: 1px solid var(--border);
+	border-radius: 4px;
+}
+
+/* ============================================================================
+   Leitura estática (`MarkdownView`)
+
+   O editor separa os blocos por linha; aqui cada bloco é um elemento próprio e precisa do respiro
+   vertical que a linha do CodeMirror dava de graça. Só espaçamento e fluxo — cor, borda e peso
+   continuam vindo das classes acima.
+   ============================================================================ */
+
+.md-view {
+	font-family: var(--font-reading);
+	line-height: 1.7;
+	overflow-wrap: anywhere;
+}
+
+.md-view > :first-child {
+	margin-top: 0;
+}
+.md-view > :last-child {
+	margin-bottom: 0;
+}
+
+.md-view p {
+	margin: 0.5em 0;
+}
+
+.md-view .cm-md-heading {
+	margin: 1.1em 0 0.45em;
+}
+.md-view .cm-md-h1,
+.md-view .cm-md-h2 {
+	margin-top: 1.3em;
+}
+
+.md-view hr.cm-md-divider {
+	margin: 1.1em 0;
+}
+
+.md-view ul,
+.md-view ol {
+	margin: 0.5em 0;
+	padding-left: 1.4em;
+}
+.md-view ul {
+	list-style: disc;
+}
+.md-view ol {
+	list-style: decimal;
+}
+.md-view li {
+	margin: 0.2em 0;
+}
+.md-view li::marker {
+	color: var(--muted-foreground);
+}
+/* Item de tarefa carrega o próprio checkbox; o marcador da lista viraria um segundo bullet. */
+.md-view li.md-view-task {
+	list-style: none;
+	margin-left: -1.4em;
+	padding-left: 1.4em;
+}
+
+.md-view .cm-md-blockquote {
+	margin: 0.7em 0;
+	padding: 0.5em 0.9em;
+	border-radius: 0 6px 6px 0;
+}
+
+.md-view pre.cm-md-code-block {
+	margin: 0.7em 0;
+	padding: 0.9em;
+	overflow-x: auto;
+	white-space: pre;
+}
+
+.md-view a {
+	color: var(--primary);
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+.md-view .cm-md-table-wrapper {
+	margin: 0.7em 0;
+}
+
+.md-view img {
+	max-width: 100%;
+	border-radius: 6px;
+}
+
+/* Lista apertada: o `<p>` que o parser cria dentro do item não deve abrir o mesmo respiro de um
+   parágrafo solto, senão uma lista de cinco itens ocupa meia tela. */
+.md-view li > p {
+	margin: 0.15em 0;
+}

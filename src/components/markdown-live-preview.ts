@@ -980,23 +980,11 @@ function livePreviewPlugin(callbacks: Callbacks) {
 	);
 }
 
+// Só a mecânica de editor mora aqui: o visual do markdown (heading, código, grifa, citação, régua,
+// tabela) é CSS global em `src/styles/markdown.css`, com as mesmas classes `cm-md-*`, porque a
+// conversa dos agents pinta o mesmo markdown fora de um CodeMirror.
 const baseTheme = EditorView.baseTheme({
-	".cm-md-h1": { fontSize: "1.7em", fontWeight: "700", lineHeight: "1.3" },
-	".cm-md-h2": { fontSize: "1.4em", fontWeight: "600", lineHeight: "1.3" },
-	".cm-md-h3": { fontSize: "1.2em", fontWeight: "500", lineHeight: "1.35" },
-	".cm-md-h4": { fontSize: "1.05em", fontWeight: "600" },
-	".cm-md-h5": { fontSize: "1em", fontWeight: "600" },
-	".cm-md-h6": { fontSize: "1em", fontWeight: "600", opacity: "0.8" },
-	".cm-md-heading": { position: "relative" },
 	".cm-md-collapsed": { display: "none" },
-	// Régua de `---`: ocupa a largura da linha como uma borda fina centrada verticalmente.
-	".cm-md-divider": {
-		display: "inline-block",
-		width: "100%",
-		height: "0",
-		verticalAlign: "middle",
-		borderTop: "1px solid var(--border)",
-	},
 	// Headings recolhidos ganham margem inferior maior conforme o nível (h1 > h2 > h3…),
 	// pra criar respiro proporcional onde antes havia o conteúdo escondido.
 	".cm-md-h1.cm-md-heading-collapsed": { paddingBottom: "1.2em" },
@@ -1042,25 +1030,8 @@ const baseTheme = EditorView.baseTheme({
 		color: "var(--primary)",
 		borderColor: "var(--primary)",
 	},
-	".cm-md-code-block": {
-		fontFamily: "var(--font-mono)",
-		fontSize: "0.88em",
-		lineHeight: "1.55",
-		background: "color-mix(in oklab, var(--muted) 70%, transparent)",
-		borderLeft: "1px solid var(--border)",
-		borderRight: "1px solid var(--border)",
-		paddingLeft: "0.9em !important",
-		paddingRight: "0.9em !important",
-		marginRight: "0.5rem",
-		color: "var(--foreground)",
-	},
-	".cm-md-code-block-first": {
-		position: "relative",
-		borderTop: "1px solid var(--border)",
-		borderTopLeftRadius: "6px",
-		borderTopRightRadius: "6px",
-		paddingTop: "0.9em !important",
-	},
+	// A folga à direita abre espaço pro botão de copiar, que só existe dentro do editor.
+	".cm-md-code-block": { marginRight: "0.5rem" },
 	".cm-md-code-copy": {
 		position: "absolute",
 		top: "0.35em",
@@ -1084,46 +1055,7 @@ const baseTheme = EditorView.baseTheme({
 		color: "var(--primary)",
 		borderColor: "var(--primary)",
 	},
-	".cm-md-code-block-last": {
-		borderBottom: "1px solid var(--border)",
-		borderBottomLeftRadius: "6px",
-		borderBottomRightRadius: "6px",
-		paddingBottom: "0.9em !important",
-	},
-	".cm-md-inline-code": {
-		display: "inline-block",
-		padding: "0.05em 0.4em",
-		margin: "0 0.05em",
-		fontFamily: "var(--font-mono)",
-		fontSize: "0.92em",
-		lineHeight: "1.4",
-		color: "var(--foreground)",
-		background: "color-mix(in oklab, var(--muted) 70%, transparent)",
-		border: "1px solid var(--border)",
-		borderRadius: "4px",
-		cursor: "text",
-		transition: "background-color 0.15s ease, border-color 0.15s ease",
-		verticalAlign: "baseline",
-	},
-	".cm-md-inline-code:hover": {
-		background: "color-mix(in oklab, var(--primary) 14%, var(--muted))",
-		borderColor: "var(--primary)",
-	},
-	".cm-md-highlight": {
-		padding: "0.05em 0.15em",
-		borderRadius: "3px",
-		// Grifa âmbar translúcida — funciona sobre o fundo escuro mantendo o texto legível.
-		background: "color-mix(in oklab, #facc15 30%, transparent)",
-		color: "var(--foreground)",
-		boxDecorationBreak: "clone",
-	},
-	".cm-md-blockquote": {
-		position: "relative",
-		background: "color-mix(in oklab, var(--muted) 45%, transparent)",
-		borderLeft: "3px solid var(--muted-foreground)",
-		paddingLeft: "0.9em !important",
-		marginRight: "0.5rem",
-	},
+	".cm-md-blockquote": { marginRight: "0.5rem" },
 	".cm-md-blockquote-copy": {
 		position: "absolute",
 		top: "0.35em",
@@ -1148,60 +1080,6 @@ const baseTheme = EditorView.baseTheme({
 	".cm-md-blockquote-copy:hover": {
 		color: "var(--primary)",
 		borderColor: "var(--primary)",
-	},
-	".cm-md-task-checkbox": {
-		display: "inline-flex",
-		alignItems: "center",
-		justifyContent: "center",
-		height: "1em",
-		marginRight: "0.4em",
-		verticalAlign: "middle",
-	},
-	".cm-md-table-wrapper": {
-		margin: "0.4em 0.5rem 0.7em 0",
-		overflowX: "auto",
-		border: "1px solid var(--border)",
-		borderRadius: "6px",
-		cursor: "text",
-	},
-	".cm-md-table": {
-		borderCollapse: "collapse",
-		width: "100%",
-		fontSize: "0.92em",
-		lineHeight: "1.5",
-	},
-	".cm-md-table th, .cm-md-table td": {
-		padding: "0.4em 0.75em",
-		textAlign: "left",
-		verticalAlign: "top",
-		borderRight: "1px solid var(--border)",
-		borderBottom: "1px solid var(--border)",
-		// O `.cm-content` ativa lineWrapping (`overflow-wrap: anywhere`, `word-break: break-word`),
-		// que é herdado e vaza pra dentro das células: quando a tabela é espremida, o navegador quebra
-		// as palavras letra a letra ("Forma/tion") em vez de pedir mais largura pra coluna. Resetando
-		// pra quebra normal, cada coluna exige ao menos a largura da sua palavra mais longa — a tabela
-		// cresce e o wrapper rola na horizontal em vez de comprimir tudo até ficar ilegível.
-		wordBreak: "normal",
-		overflowWrap: "normal",
-		whiteSpace: "normal",
-		minWidth: "3rem",
-	},
-	".cm-md-table th:last-child, .cm-md-table td:last-child": { borderRight: "none" },
-	".cm-md-table tbody tr:last-child td": { borderBottom: "none" },
-	".cm-md-table th": {
-		fontWeight: "600",
-		background: "color-mix(in oklab, var(--muted) 60%, transparent)",
-	},
-	".cm-md-table tbody tr:hover": {
-		background: "color-mix(in oklab, var(--muted) 35%, transparent)",
-	},
-	".cm-md-table code": {
-		padding: "0.05em 0.35em",
-		fontFamily: "var(--font-mono)",
-		fontSize: "0.9em",
-		background: "color-mix(in oklab, var(--muted) 70%, transparent)",
-		border: "1px solid var(--border)",
-		borderRadius: "4px",
 	},
 	".cm-md-table-input": {
 		display: "block",

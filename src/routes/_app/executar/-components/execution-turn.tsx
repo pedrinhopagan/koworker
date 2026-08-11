@@ -133,7 +133,16 @@ export function ExecutionTurn({
 
 				{turn.output && (
 					<div className="mt-3 border-t border-border pt-3">
-						<AgentAnswer runId={turn.runId} output={turn.output} />
+						<AgentAnswer
+							runId={turn.runId}
+							output={turn.output}
+							meta={{
+								...(turn.cli ? { agent: turn.cli } : {}),
+								at: turn.finishedAt ?? turn.startedAt,
+								projectName: turn.projectName,
+								...(turn.taskTitle ? { taskTitle: turn.taskTitle } : {}),
+							}}
+						/>
 					</div>
 				)}
 

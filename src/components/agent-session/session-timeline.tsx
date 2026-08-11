@@ -133,7 +133,15 @@ const TimelineGroupView = memo(function TimelineGroupView({
 						{cli?.label ?? "Agente"}
 					</Text>
 				</header>
-				<AgentAnswer runId={group.event.id} output={payload.text} />
+				<AgentAnswer
+					runId={group.event.id}
+					output={payload.text}
+					meta={{
+						...(agent ? { agent } : {}),
+						at: group.event.at,
+						seq: group.event.seq,
+					}}
+				/>
 			</section>
 		);
 	}

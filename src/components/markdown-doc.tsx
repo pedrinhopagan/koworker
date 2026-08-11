@@ -1,16 +1,8 @@
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import {
-	HighlightStyle,
-	LanguageDescription,
-	syntaxHighlighting,
-	syntaxTree,
-} from "@codemirror/language";
-import { languages } from "@codemirror/language-data";
+import { syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import { EditorSelection, EditorState, Prec } from "@codemirror/state";
 import { type Command, EditorView, keymap, placeholder } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
-import { tags as t } from "@lezer/highlight";
-import type { DelimiterType, MarkdownConfig } from "@lezer/markdown";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
@@ -25,6 +17,11 @@ import {
 	lineForAnchor,
 	offsetOfLine,
 } from "@/lib/heading-anchor";
+import {
+	highlightExtension,
+	markdownHighlightStyle,
+	resolveCodeLanguage,
+} from "@/lib/markdown-engine";
 import { extractFrontmatter } from "@/lib/skills/parser";
 import { useThemeStore } from "@/stores/theme";
 
@@ -77,51 +74,6 @@ function restoreAnchor(view: EditorView, anchor: HeadingAnchor) {
 	});
 }
 
-const highlightStyle = HighlightStyle.define([
-	{ tag: t.strong, fontWeight: "700" },
-	{ tag: t.emphasis, fontStyle: "italic" },
-	{ tag: t.strikethrough, textDecoration: "line-through" },
-	{ tag: t.link, color: "var(--primary)", textDecoration: "underline" },
-	{ tag: t.url, color: "var(--muted-foreground)" },
-	{ tag: t.contentSeparator, fontFamily: "var(--font-mono)" },
-	{ tag: t.quote, color: "var(--muted-foreground)", fontStyle: "italic" },
-	{ tag: t.list, color: "var(--muted-foreground)" },
-	{ tag: t.heading, fontWeight: "700" },
-	// Palavras-chave / controle de fluxo → vermelho terroso (mesma hue do destructive).
-	{
-		tag: [t.keyword, t.moduleKeyword, t.operatorKeyword, t.controlKeyword],
-		color: "var(--syntax-keyword)",
-	},
-	// Strings → verde oliva (hue do primary), o "conteúdo literal" do tema.
-	{ tag: [t.string, t.special(t.string), t.regexp], color: "var(--syntax-string)" },
-	// Números, booleanos e átomos → âmbar (hue do warning).
-	{ tag: [t.number, t.bool, t.null, t.atom], color: "var(--syntax-number)" },
-	// Comentários → cinza apagado do tema, em itálico.
-	{
-		tag: [t.comment, t.lineComment, t.blockComment],
-		color: "var(--muted-foreground)",
-		fontStyle: "italic",
-	},
-	// Variáveis e propriedades → texto base.
-	{ tag: [t.variableName, t.propertyName], color: "var(--foreground)" },
-	// Funções → ciano dessaturado, único tom frio pra destacar a chamada sem brigar com o verde.
-	{
-		tag: [t.function(t.variableName), t.function(t.propertyName)],
-		color: "var(--syntax-function)",
-	},
-	// Tipos, classes e namespaces → teal esverdeado.
-	{ tag: [t.typeName, t.className, t.namespace], color: "var(--syntax-type)" },
-	// Tags HTML/JSX e colchetes angulares → verde oliva, como as strings.
-	{ tag: [t.tagName, t.angleBracket], color: "var(--syntax-string)" },
-	// Atributos → âmbar, igual aos valores literais.
-	{ tag: [t.attributeName], color: "var(--syntax-number)" },
-	// Operadores e pontuação → texto base levemente apagado.
-	{
-		tag: [t.operator, t.punctuation, t.separator, t.derefOperator],
-		color: "var(--muted-foreground)",
-	},
-]);
-
 const createEditorTheme = (dark: boolean, fontSize: string, proseMaxWidth?: string) =>
 	EditorView.theme(
 		{
@@ -167,51 +119,6 @@ const createEditorTheme = (dark: boolean, fontSize: string, proseMaxWidth?: stri
 		},
 		{ dark },
 	);
-
-// `==texto==` não faz parte do CommonMark. Espelha o Strikethrough do GFM: um delimitador
-// `==` simétrico que o parser casa e envolve num nó Highlight, com os `==` virando HighlightMark
-// (escondidos no live preview). Vira um nó de verdade pra `markdownLivePreview` poder estilizar
-// o miolo e sumir com os marcadores quando o cursor sai da linha, igual a *bold*/_italic_.
-const highlightDelimiter: DelimiterType = { resolve: "Highlight", mark: "HighlightMark" };
-
-// Apelidos amigáveis pro info string da fence (```react) que não batem direto com os nomes do
-// `@codemirror/language-data`. O resto resolve por nome/alias/extensão via matchLanguageName.
-const languageAliases: Record<string, string> = {
-	react: "jsx",
-	"react-ts": "tsx",
-	js: "javascript",
-	ts: "typescript",
-	py: "python",
-	sh: "shell",
-	bash: "shell",
-	zsh: "shell",
-	yml: "yaml",
-	golang: "go",
-	// Django não tem parser próprio no language-data; templates Django usam a mesma sintaxe de
-	// Jinja (`{% %}` / `{{ }}`), então reaproveitamos esse modo.
-	django: "jinja",
-};
-
-// Carrega o parser da linguagem declarada na fence (```js, ```python, ```go…) pro CodeMirror
-// aplicar a sintaxe dentro do bloco. Retorna null quando não reconhece (fica texto puro).
-function resolveCodeLanguage(info: string) {
-	const name = languageAliases[info.toLowerCase()] ?? info;
-	return LanguageDescription.matchLanguageName(languages, name, true);
-}
-
-const highlightExtension: MarkdownConfig = {
-	defineNodes: [{ name: "Highlight" }, { name: "HighlightMark" }],
-	parseInline: [
-		{
-			name: "Highlight",
-			parse(cx, next, pos) {
-				// 61 = código de "="; precisa de `==` para abrir/fechar a grifa.
-				if (next !== 61 || cx.char(pos + 1) !== 61) return -1;
-				return cx.addDelimiter(highlightDelimiter, pos, pos + 2, true, true);
-			},
-		},
-	],
-};
 
 // Toggle de estilo "de nó": como os marcadores (`**`, `_`, `~~`, `==`) ficam escondidos no
 // preview, a remoção não pode depender da borda da seleção. Com o cursor em qualquer ponto de
@@ -451,7 +358,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 					extensions: [highlightExtension],
 					codeLanguages: resolveCodeLanguage,
 				}),
-				syntaxHighlighting(highlightStyle),
+				syntaxHighlighting(markdownHighlightStyle),
 				markdownLivePreview(stableCallbacks),
 				formattingKeymap,
 				createEditorTheme(dark, fontSize, proseMaxWidth),
