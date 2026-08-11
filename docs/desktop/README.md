@@ -21,6 +21,8 @@ A primeira instância inicia oculta. `--show`, `--hide`, `--toggle` e `--quit` c
 
 Fechar a janela esconde o app no tray. O item Sair encerra o backend que o próprio shell iniciou. Um backend externo ou gerenciado por systemd permanece vivo.
 
+Em produção, o app se registra para iniciar oculto com a sessão do usuário.
+
 O atalho continua no gerenciador de janelas:
 
 - Produção: `Alt+K` executa `kowork --toggle`.

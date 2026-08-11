@@ -1,3 +1,5 @@
+import { mkdir, rename, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell, Tray } from "electron";
@@ -151,6 +153,50 @@ function createTray() {
 	tray.on("click", toggleWindow);
 }
 
+function desktopEntryArgument(value: string) {
+	return `"${value
+		.replaceAll("\\", "\\\\")
+		.replaceAll('"', '\\"')
+		.replaceAll("`", "\\`")
+		.replaceAll("$", "\\$")
+		.replaceAll("%", "%%")}"`;
+}
+
+async function enableAutostart() {
+	if (isDevelopment) {
+		return;
+	}
+
+	if (process.platform !== "linux") {
+		app.setLoginItemSettings(
+			process.platform === "win32"
+				? { openAtLogin: true, args: ["--hide"] }
+				: { openAtLogin: true },
+		);
+
+		return;
+	}
+
+	const configDir = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), ".config");
+	const autostartDir = join(configDir, "autostart");
+	const target = join(autostartDir, "kowork.desktop");
+	const staging = `${target}.staging`;
+	const executable = process.env.APPIMAGE ?? app.getPath("exe");
+	const desktopEntry = [
+		"[Desktop Entry]",
+		"Type=Application",
+		"Name=Kowork",
+		`Exec=${desktopEntryArgument(executable)} --hide`,
+		"Terminal=false",
+		"X-GNOME-Autostart-enabled=true",
+		"",
+	].join("\n");
+
+	await mkdir(autostartDir, { recursive: true });
+	await writeFile(staging, desktopEntry);
+	await rename(staging, target);
+}
+
 async function createWindow() {
 	const apiOrigin = `http://localhost:${backend.port}`;
 	const icon = join(
@@ -255,6 +301,9 @@ async function runPrimaryInstance() {
 		registerIpc();
 		await createWindow();
 		createTray();
+		await enableAutostart().catch((error) => {
+			console.error("[KOWORK] Falha ao configurar inicialização automática", error);
+		});
 
 		if (firstCommand === "show" || firstCommand === "toggle") {
 			showWindow();

@@ -162,6 +162,10 @@ export class BackendProcess {
 	}
 
 	async start() {
+		if (app.isPackaged) {
+			await preparePackagedRuntime();
+		}
+
 		if (await backendIsHealthy(this.port)) {
 			return;
 		}
@@ -170,8 +174,6 @@ export class BackendProcess {
 		const dataDir = koworkerDataDir();
 
 		if (app.isPackaged) {
-			await preparePackagedRuntime();
-
 			const backendPath = installedBackendPath(dataDir);
 			await chmod(backendPath, 0o755);
 			this.child = spawn(backendPath, [], {
