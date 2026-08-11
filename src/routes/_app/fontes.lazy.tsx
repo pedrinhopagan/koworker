@@ -1,24 +1,21 @@
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import { Check, Type } from "lucide-react";
+import { Type } from "lucide-react";
 
 import { PageShell } from "@/components/layout/page-shell";
 import { MarkdownEditor } from "@/components/markdown-doc";
 import { Text, Title } from "@/components/typography";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { type FontId, FONTS } from "@/lib/constants/fonts";
-import { cn } from "@/lib/utils";
 import { useFontStore } from "@/stores/fonts";
 
 export const Route = createLazyFileRoute("/_app/fontes")({
 	component: FontesPage,
 });
 
-const categoryLabel = {
-	mono: "mono",
-	sans: "sans",
-	serif: "serif",
-} as const;
-
-const fontEntries = Object.entries(FONTS) as [FontId, (typeof FONTS)[FontId]][];
+const fontOptions = Object.entries(FONTS).map(([id, font]) => ({
+	id: id as FontId,
+	label: font.label,
+}));
 
 const sampleMarkdown = `# Refatorar o fluxo de criação de tarefa
 
@@ -52,51 +49,22 @@ function FontPicker({
 	onChange: (font: FontId) => void;
 }) {
 	return (
-		<section className="space-y-3">
+		<section className="space-y-2">
 			<div className="space-y-1">
-				<Title as="h2" size="sm" className="uppercase tracking-[0.12em]">
+				<Title as="h2" size="sm">
 					{title}
 				</Title>
 				<Text size="xs" tone="muted">
 					{description}
 				</Text>
 			</div>
-
-			<div className="grid gap-2 sm:grid-cols-2">
-				{fontEntries.map(([id, font]) => {
-					const active = id === value;
-
-					return (
-						<button
-							key={id}
-							type="button"
-							onClick={() => onChange(id)}
-							className={cn(
-								"group flex flex-col gap-2 border p-3 text-left transition-colors",
-								active
-									? "border-primary bg-primary/5"
-									: "border-border bg-card hover:border-primary/40 hover:bg-muted/40",
-							)}
-						>
-							<div className="flex items-center justify-between gap-2">
-								<span className="text-xs uppercase tracking-wider text-muted-foreground">
-									{font.label}
-								</span>
-								<span className="flex items-center gap-2">
-									<span className="border border-border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
-										{categoryLabel[font.category]}
-									</span>
-									{active && <Check className="size-3.5 text-primary" />}
-								</span>
-							</div>
-							<span className="text-lg leading-snug" style={{ fontFamily: font.family }}>
-								Koworker — Refatorar o fluxo {`{ projectId }`}
-							</span>
-							<span className="text-xs text-muted-foreground">{font.note}</span>
-						</button>
-					);
-				})}
-			</div>
+			<CustomSelect
+				items={fontOptions}
+				value={value}
+				onValueChange={(font) => onChange(font as FontId)}
+				renderItem={(font) => font.label}
+				triggerClassName="h-9 w-full"
+			/>
 		</section>
 	);
 }
@@ -108,7 +76,7 @@ function FontesPage() {
 	return (
 		<PageShell
 			title="Tipografia"
-			description="Compare fontes e aplique no app inteiro em tempo real"
+			description="Escolha as fontes usadas na interface e na leitura"
 			icon={Type}
 			onBack={() => navigate({ to: "/configuracoes" })}
 			contentClassName="min-h-0 flex-1 overflow-y-auto px-4 pb-8"
@@ -117,13 +85,13 @@ function FontesPage() {
 				<div className="space-y-8">
 					<FontPicker
 						title="Fonte da interface"
-						description="Usada em tudo: menus, listas, botões, IDs e código. Trocar aqui muda o app inteiro na hora."
+						description="Usada em menus, listas, botões e títulos."
 						value={uiFont}
 						onChange={setUiFont}
 					/>
 					<FontPicker
 						title="Fonte de leitura"
-						description="Usada na leitura e escrita de .md e prompts (editor de markdown). Aqui vale uma fonte confortável para texto longo."
+						description="Usada na leitura e escrita de documentos Markdown."
 						value={readingFont}
 						onChange={setReadingFont}
 					/>
