@@ -11,6 +11,7 @@ import { AudioRecorder } from "./audio-recorder";
 export function ThreadComposer({
 	draftKey,
 	projectName,
+	cli,
 	disabled,
 	pending,
 	hint,
@@ -20,6 +21,7 @@ export function ThreadComposer({
 }: {
 	draftKey: string;
 	projectName?: string;
+	cli?: string;
 	disabled: boolean;
 	pending: boolean;
 	hint: string;
@@ -40,14 +42,14 @@ export function ThreadComposer({
 		return () => clearTimeout(timer);
 	}, [draftKey, draft]);
 
-	async function submit() {
-		if (!draft.text.trim() || disabled || pending) {
+	// O texto pode chegar por fora do rascunho: o menu de barra aplica o comando e despacha no mesmo
+	// gesto, antes de o estado do campo ter voltado do React.
+	async function submit(override?: string) {
+		const text = (override ?? draft.text).trim();
+		if (!text || disabled || pending) {
 			return;
 		}
-		const accepted = await onSubmit(
-			resolveImagePlaceholders(draft.text.trim(), draft.images),
-			inputKind,
-		);
+		const accepted = await onSubmit(resolveImagePlaceholders(text, draft.images), inputKind);
 		if (accepted === false) {
 			return;
 		}
@@ -87,6 +89,7 @@ export function ThreadComposer({
 							value={draft.text}
 							images={draft.images}
 							{...(projectName ? { projectName } : {})}
+							{...(cli ? { cli } : {})}
 							disabled={disabled}
 							placeholder={disabled ? hint : placeholder}
 							className="min-w-0 flex-1"
@@ -97,7 +100,7 @@ export function ThreadComposer({
 								setInputKind("text");
 							}}
 							onImagesChange={(value) => setDraft((current) => ({ ...current, images: value }))}
-							onSubmit={() => void submit()}
+							onSubmit={(text) => void submit(text)}
 						/>
 						<Button
 							type="button"

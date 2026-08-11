@@ -105,7 +105,13 @@ export function usePromptExecution(params: {
 			projectId: project.id,
 			cli,
 			prompt: promptPreview,
-			label: selection?.kind === "agent" ? selection.agent.label : selection?.skill.label,
+			tab: selection
+				? {
+						kind: "invocation" as const,
+						invoked: selection.kind,
+						slug: selection.kind === "agent" ? selection.agent.slug : selection.skill.slug,
+					}
+				: { kind: "session" as const },
 			...(agent && cli === "claude" ? { agent } : {}),
 			...(executionPlan.model ? { model: executionPlan.model } : {}),
 			...(executionPlan.effort ? { effort: executionPlan.effort } : {}),

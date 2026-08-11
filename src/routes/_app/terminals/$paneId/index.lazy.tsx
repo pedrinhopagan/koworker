@@ -292,6 +292,8 @@ function TerminalPanePage() {
 						<ThreadComposer
 							draftKey={`kowork-radar-draft-${paneId}`}
 							{...(agent?.projectName ? { projectName: agent.projectName } : {})}
+							{...(agent ? { cli: agent.agent } : {})}
+							helperText={`Ctrl+Enter envia · / abre skills e comandos do ${cli.label} · cole imagens.`}
 							disabled={closed || !!busy || !!blocked}
 							pending={send.isPending}
 							hint={

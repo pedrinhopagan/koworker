@@ -17,7 +17,14 @@ afterEach(() => {
 });
 
 function step(seq: number, overrides: Partial<AgentStep> = {}): AgentStep {
-	return { seq, kind: "tool", label: `Passo ${seq}`, status: "ok", at: seq, ...overrides };
+	return {
+		seq,
+		kind: "tool",
+		label: `Passo ${seq}`,
+		status: "ok",
+		at: seq,
+		...overrides,
+	};
 }
 
 describe("ThreadComposer", () => {
@@ -130,6 +137,81 @@ describe("ThreadComposer", () => {
 		fireEvent.click(screen.getByLabelText("Enviar continuação"));
 
 		expect(sent).toEqual([]);
+	});
+
+	test("o menu sugere o comando da CLI e o enter despacha na hora", async () => {
+		const sent: string[] = [];
+		renderWithQuery(
+			<div data-theme-root>
+				<ThreadComposer
+					draftKey="draft-comando"
+					cli="claude"
+					disabled={false}
+					pending={false}
+					hint=""
+					onSubmit={(prompt) => {
+						sent.push(prompt);
+					}}
+				/>
+			</div>,
+		);
+
+		const field = screen.getByPlaceholderText("Responda ao agente nesta mesma sessão…");
+		fireEvent.change(field, { target: { value: "/new", selectionStart: 4 } });
+
+		expect(screen.getByText("/clear")).toBeTruthy();
+
+		fireEvent.keyDown(field, { key: "Enter" });
+
+		expect(sent).toEqual(["/clear"]);
+		await waitFor(() => expect((field as HTMLTextAreaElement).value).toBe(""));
+	});
+
+	test("o tab completa o comando sem enviar", () => {
+		const sent: string[] = [];
+		renderWithQuery(
+			<div data-theme-root>
+				<ThreadComposer
+					draftKey="draft-tab"
+					cli="codex"
+					disabled={false}
+					pending={false}
+					hint=""
+					onSubmit={(prompt) => {
+						sent.push(prompt);
+					}}
+				/>
+			</div>,
+		);
+
+		const field = screen.getByPlaceholderText("Responda ao agente nesta mesma sessão…");
+		fireEvent.change(field, { target: { value: "/appr", selectionStart: 5 } });
+		fireEvent.keyDown(field, { key: "Tab" });
+
+		expect((field as HTMLTextAreaElement).value).toBe("/approvals ");
+		expect(sent).toEqual([]);
+	});
+
+	test("comando no meio do texto não vira sugestão de CLI", () => {
+		renderWithQuery(
+			<div data-theme-root>
+				<ThreadComposer
+					draftKey="draft-meio"
+					cli="claude"
+					disabled={false}
+					pending={false}
+					hint=""
+					onSubmit={() => {}}
+				/>
+			</div>,
+		);
+
+		const field = screen.getByPlaceholderText("Responda ao agente nesta mesma sessão…");
+		fireEvent.change(field, {
+			target: { value: "reveja isso /new", selectionStart: 16 },
+		});
+
+		expect(screen.queryByText("/clear")).toBeNull();
 	});
 
 	test("adapta a escrita para uma sessão nova", () => {

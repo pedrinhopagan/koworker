@@ -1,6 +1,7 @@
 import { Eraser, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { AgentCliIcon } from "@/components/agent-radar/agent-cli";
 import {
 	PromptImageChips,
 	PromptInputBackdrop,
@@ -11,10 +12,9 @@ import { useSkillsQuery } from "@/hooks/use-skills";
 import { imagePlaceholder, nextImageIndex } from "@/lib/build-prompt";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { PromptUndoHistory, type PromptSnapshot } from "@/lib/prompt-undo";
-import { searchSkills } from "@/lib/skill-search";
+import { buildSlashItems, searchSlashItems, type SlashItem } from "@/lib/slash-menu";
 import { cn } from "@/lib/utils";
 import type { PromptImage } from "@/stores/prompt-bar";
-import type { TaskSkill } from "@/types/skills";
 
 type SlashTrigger = { triggerPos: number; query: string };
 
@@ -42,6 +42,7 @@ export function PromptField({
 	value,
 	images,
 	projectName,
+	cli,
 	placeholder,
 	disabled,
 	className,
@@ -56,6 +57,7 @@ export function PromptField({
 	value: string;
 	images: PromptImage[];
 	projectName?: string;
+	cli?: string;
 	placeholder: string;
 	disabled?: boolean;
 	className?: string;
@@ -65,14 +67,18 @@ export function PromptField({
 	inputRef?: React.RefObject<HTMLTextAreaElement | null>;
 	onChange: (text: string) => void;
 	onImagesChange: (images: PromptImage[]) => void;
-	onSubmit?: () => void;
+	onSubmit?: (text?: string) => void;
 }) {
 	const fallbackRef = useRef<HTMLTextAreaElement>(null);
 	const textareaRef = inputRef ?? fallbackRef;
 	const backdropRef = useRef<HTMLDivElement>(null);
 
 	const [undoHistory] = useState(() => new PromptUndoHistory());
-	const snapshotRef = useRef<PromptSnapshot>({ text: value, caret: value.length, images });
+	const snapshotRef = useRef<PromptSnapshot>({
+		text: value,
+		caret: value.length,
+		images,
+	});
 
 	useEffect(() => {
 		if (snapshotRef.current.text === value) {
@@ -109,7 +115,10 @@ export function PromptField({
 		...(projectName ? { projectName } : {}),
 		onUploaded: (uploaded) => {
 			const base = nextImageIndex(images);
-			const added = uploaded.map((image, offset) => ({ ...image, index: base + offset }));
+			const added = uploaded.map((image, offset) => ({
+				...image,
+				index: base + offset,
+			}));
 			const node = textareaRef.current;
 			const start = node?.selectionStart ?? value.length;
 			const end = node?.selectionEnd ?? start;
@@ -189,13 +198,28 @@ export function PromptField({
 
 	const [trigger, setTrigger] = useState<SlashTrigger | null>(null);
 	const [activeIndex, setActiveIndex] = useState(0);
-	const { taskSkills } = useSkillsQuery(projectName, { enabled: trigger !== null });
+	const { taskSkills } = useSkillsQuery(projectName, {
+		enabled: trigger !== null,
+	});
 
+	// Barra na primeira coluna é comando da CLI mais skill; no meio do texto, só skill.
+	const atStart = trigger?.triggerPos === 0;
 	const matches = useMemo(
-		() => (trigger ? searchSkills(taskSkills, trigger.query) : []),
-		[trigger, taskSkills],
+		() =>
+			trigger
+				? searchSlashItems(
+						buildSlashItems({
+							skills: taskSkills,
+							...(cli ? { cli } : {}),
+							atStart,
+						}),
+						trigger.query,
+					)
+				: [],
+		[trigger, taskSkills, cli, atStart],
 	);
 	const menuOpen = trigger !== null && matches.length > 0;
+	const highlighted = Math.min(activeIndex, Math.max(matches.length - 1, 0));
 
 	useEffect(() => {
 		setActiveIndex(0);
@@ -211,18 +235,29 @@ export function PromptField({
 		}
 		const next = event.target.value;
 		undoHistory.record(snapshotRef.current, next);
-		snapshotRef.current = { text: next, caret: event.target.selectionStart, images };
+		snapshotRef.current = {
+			text: next,
+			caret: event.target.selectionStart,
+			images,
+		};
 		commit(next);
 		syncTrigger(next, event.target.selectionStart);
 	}
 
-	function applySkill(skill: TaskSkill) {
+	function applyItem(item: SlashItem, submit = false) {
 		if (!trigger) return;
 		const caret = textareaRef.current?.selectionStart ?? value.length;
-		const insertion = `/${skill.slug} `;
+		const insertion = `/${item.name} `;
+		const next = value.slice(0, trigger.triggerPos) + insertion + value.slice(caret);
 
-		commit(value.slice(0, trigger.triggerPos) + insertion + value.slice(caret));
+		commit(next);
 		setTrigger(null);
+
+		if (submit && onSubmit) {
+			onSubmit(next.trim());
+			return;
+		}
+
 		moveCaret(trigger.triggerPos + insertion.length);
 	}
 
@@ -287,9 +322,10 @@ export function PromptField({
 				setActiveIndex((index) => (index - 1 + matches.length) % matches.length);
 				return;
 			}
-			if (event.key === "Enter" || event.key === "Tab") {
+			// Tab completa e devolve o cursor; Enter na primeira coluna despacha na hora, como na CLI.
+			if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
 				event.preventDefault();
-				applySkill(matches[activeIndex]);
+				applyItem(matches[highlighted], event.key === "Enter" && atStart);
 				return;
 			}
 			if (event.key === "Escape") {
@@ -299,9 +335,20 @@ export function PromptField({
 			}
 		}
 
-		if (onSubmit && event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+		if (!onSubmit || event.key !== "Enter") {
+			return;
+		}
+
+		if (event.ctrlKey || event.metaKey) {
 			event.preventDefault();
 			onSubmit();
+			return;
+		}
+
+		// Linha que começa com barra é comando: uma linha só, enviada com Enter seco.
+		if (!event.shiftKey && !event.altKey && value.startsWith("/") && !value.includes("\n")) {
+			event.preventDefault();
+			onSubmit(value.trim());
 		}
 	}
 
@@ -315,29 +362,38 @@ export function PromptField({
 							menuAbove && "md:top-auto md:bottom-full md:mt-0 md:mb-2",
 						)}
 					>
-						{matches.map((skill, index) => (
+						{matches.map((item, index) => (
 							<button
-								key={skill.slug}
+								key={item.key}
 								type="button"
 								onMouseDown={(event) => {
 									event.preventDefault();
-									applySkill(skill);
+									applyItem(item);
 								}}
 								onMouseEnter={() => setActiveIndex(index)}
 								className={cn(
 									"flex min-h-12 w-full items-center gap-3 px-3 py-2 text-left transition-colors",
-									index === activeIndex ? "bg-secondary" : "hover:bg-secondary/50",
+									index === highlighted ? "bg-secondary" : "hover:bg-secondary/50",
 								)}
 							>
-								<div
-									className="flex h-7 w-7 shrink-0 items-center justify-center border bg-muted/30"
-									style={{ borderColor: skill.color, color: skill.color }}
-								>
-									<LucideIcon name={skill.icon} className="size-4" />
-								</div>
+								{item.kind === "command" ? (
+									<div className="flex h-7 w-7 shrink-0 items-center justify-center border border-border bg-muted/30">
+										<AgentCliIcon agent={cli ?? ""} className="size-4" />
+									</div>
+								) : (
+									<div
+										className="flex h-7 w-7 shrink-0 items-center justify-center border bg-muted/30"
+										style={{
+											borderColor: item.skill.color,
+											color: item.skill.color,
+										}}
+									>
+										<LucideIcon name={item.skill.icon} className="size-4" />
+									</div>
+								)}
 								<div className="min-w-0 flex-1">
-									<div className="truncate font-mono text-sm text-foreground">/{skill.slug}</div>
-									<div className="truncate text-xs text-muted-foreground">{skill.description}</div>
+									<div className="truncate font-mono text-sm text-foreground">/{item.name}</div>
+									<div className="truncate text-xs text-muted-foreground">{item.description}</div>
 								</div>
 							</button>
 						))}
