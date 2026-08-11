@@ -33,6 +33,24 @@ export const dbAgentSessions = {
 			.executeTakeFirstOrThrow();
 	},
 
+	// Sessões que o koworker abriu e sabe a qual tarefa pertencem. No claude o `id` é o próprio
+	// `--session-id` do CLI; no codex quem casa com o rollout é o `cli_session_id`.
+	listCliLinks() {
+		return db
+			.selectFrom("agent_sessions as s")
+			.leftJoin("tasks as t", "t.id", "s.task_id")
+			.select([
+				"s.id",
+				"s.cli",
+				"s.cli_session_id",
+				"s.task_id",
+				"s.project_id",
+				"t.title as task_title",
+			])
+			.where("s.task_id", "is not", null)
+			.execute();
+	},
+
 	getByIdForUser(id: string, userId: number) {
 		return db
 			.selectFrom("agent_sessions as s")

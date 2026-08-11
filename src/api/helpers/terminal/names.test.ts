@@ -1,9 +1,11 @@
 import { expect, test } from "bun:test";
 
 import {
+	invocationTabName,
 	isInvocationWindow,
 	sanitizeRouteName,
 	sessionNameForProject,
+	terminalTabLabel,
 	windowNameForTask,
 } from "./names";
 
@@ -38,4 +40,33 @@ test("isInvocationWindow: só agent_/skill_", () => {
 	expect(isInvocationWindow("skill_fo_foo")).toBe(true);
 	expect(isInvocationWindow("abcd1234_minha_tarefa")).toBe(false);
 	expect(isInvocationWindow("build")).toBe(false);
+});
+
+test("invocationTabName: prefixo do tipo + slug, com hífen preservado", () => {
+	expect(invocationTabName("agent", "task-runner")).toBe("agent_task-runner");
+	expect(invocationTabName("skill", "Merge Worktree")).toBe("skill_merge_worktree");
+	expect(invocationTabName("agent", "!!!")).toBe("agent_sem-nome");
+});
+
+test("terminalTabLabel: um rótulo por alvo, sem ninguém montar o nome à mão", () => {
+	expect(terminalTabLabel({ kind: "task", taskId: "abcd1234ef", title: "Minha Tarefa" })).toBe(
+		"abcd1234_minha_tarefa",
+	);
+	expect(terminalTabLabel({ kind: "run", runId: "abcd1234ef", title: "Job" })).toBe("abcd1234_job");
+	expect(terminalTabLabel({ kind: "route", name: "Build Prod" })).toBe("build_prod");
+	expect(terminalTabLabel({ kind: "cli", cli: "codex" })).toBe("cli_codex");
+	expect(terminalTabLabel({ kind: "invocation", invoked: "skill", slug: "commit" })).toBe(
+		"skill_commit",
+	);
+	expect(terminalTabLabel({ kind: "session", label: "Retomar claude" })).toBe(
+		"sess_retomar_claude",
+	);
+});
+
+test("terminalTabLabel: invocação é reconhecida pelo filtro de varredura", () => {
+	expect(
+		isInvocationWindow(terminalTabLabel({ kind: "invocation", invoked: "agent", slug: "kw" })),
+	).toBe(true);
+	expect(isInvocationWindow(terminalTabLabel({ kind: "cli", cli: "claude" }))).toBe(false);
+	expect(isInvocationWindow(terminalTabLabel({ kind: "session", label: "livre" }))).toBe(false);
 });

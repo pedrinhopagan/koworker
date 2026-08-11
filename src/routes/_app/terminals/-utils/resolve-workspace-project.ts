@@ -1,5 +1,5 @@
 import type { RadarAgent } from "@/api/helpers/agent-radar/state";
-import { sessionNameForProject } from "@/api/helpers/terminal/names";
+import { NO_PROJECT_SESSION_NAME, sessionNameForProject } from "@/api/helpers/terminal/names";
 import type { RouterOutputs } from "@/client";
 
 type Project = RouterOutputs["projects"]["list"][number];
@@ -96,6 +96,10 @@ export function resolveWorkspaceProject(params: {
 				routes: project.routes,
 			},
 		};
+	}
+
+	if (workspaceLabel === NO_PROJECT_SESSION_NAME) {
+		return { displayName: "Sem projeto", project: null };
 	}
 
 	return { displayName: workspaceLabel, project: null };

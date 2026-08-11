@@ -7,6 +7,7 @@ import { getRadarFocus, listRadarAgents } from "./helpers/agent-radar/state";
 import { subscribeAgentRadarTranscript } from "./helpers/agent-radar/transcript";
 import { getPromptRun } from "./helpers/prompt-run";
 import { PubSub } from "./pubsub";
+import { agentHistoryRouter } from "./routers/agent-history";
 import { agentRadarRouter } from "./routers/agent-radar";
 import { agentSessionsRouter } from "./routers/agent-sessions";
 import { agentsRouter } from "./routers/agents";
@@ -84,6 +85,7 @@ export const router = {
 	skills: skillsRouter,
 	skillCategories: skillCategoriesRouter,
 	agents: agentsRouter,
+	agentHistory: agentHistoryRouter,
 	agentRadar: agentRadarRouter,
 	agentSessions: agentSessionsRouter,
 	prompt: promptRouter,

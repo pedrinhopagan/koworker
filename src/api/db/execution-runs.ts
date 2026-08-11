@@ -63,6 +63,18 @@ export const dbExecutionRuns = {
 			.executeTakeFirstOrThrow();
 	},
 
+	// Turnos que rodaram numa sessão de CLI e já nasceram amarrados a uma tarefa. Vale para o
+	// histórico: o rollout no disco é o mesmo que o run apontou.
+	listCliSessionLinks() {
+		return db
+			.selectFrom("execution_runs as er")
+			.leftJoin("tasks as t", "t.id", "er.task_id")
+			.select(["er.cli_session_id", "er.task_id", "t.title as task_title"])
+			.where("er.cli_session_id", "is not", null)
+			.where("er.task_id", "is not", null)
+			.execute();
+	},
+
 	getByIdForUser(id: string, userId: number) {
 		return db
 			.selectFrom("execution_runs as er")

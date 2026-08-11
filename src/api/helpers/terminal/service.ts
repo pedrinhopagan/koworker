@@ -10,11 +10,12 @@ import {
 	type TerminalCommand,
 	terminalCommandText,
 } from "./command";
-import { cliResumeArgv, cliStartArgv } from "./cli-argv";
+import { cliResumeArgv, cliResumeByIdArgv, cliStartArgv } from "./cli-argv";
 import { type EmulatorProcess, spawnEmulator } from "./emulator";
 import { focusTerminalWindow } from "./focus";
 import {
 	ensureKwTerminalServer,
+	ensureWorkspaceByLabel,
 	findTabByLabel,
 	findWorkspaceByLabel,
 	KW_TERMINAL_CLIENT_ARGV,
@@ -32,16 +33,15 @@ import {
 	kwTerminalTabList,
 	type KwTerminalWorkspace,
 	kwTerminalWorkspaceClose,
-	kwTerminalWorkspaceCreate,
 	kwTerminalWorkspaceFocus,
 	kwTerminalWorkspaceList,
 } from "./kw-terminal";
 import {
 	isInvocationWindow,
-	sanitizeRouteName,
+	NO_PROJECT_SESSION_NAME,
 	sessionNameForProject,
-	sessionTabName,
-	windowNameForTask,
+	type TerminalTabTarget,
+	terminalTabLabel,
 } from "./names";
 import {
 	sessionHasTerminalAttached,
@@ -119,7 +119,9 @@ type OpenParams = {
 	projectName: string;
 	workingDir: string;
 	taskId: string;
-	windowName: string;
+	// O alvo, não o rótulo: o nome da window/tab sai daqui em `openTerminal` e só de lá, para os três
+	// multiplexadores enxergarem o mesmo nome para o mesmo alvo.
+	tab: TerminalTabTarget;
 	command: TerminalCommand | undefined;
 	forceNew: boolean;
 	background: boolean;
@@ -127,41 +129,49 @@ type OpenParams = {
 	killExistingOnForceNew: boolean;
 };
 
+type ResolvedOpenParams = OpenParams & { sessionName: string; windowName: string };
+
 function openTerminal(params: OpenParams): Promise<OpenTerminalResult> {
-	const sessionName = sessionNameForProject(params.projectName);
+	const resolved = {
+		...params,
+		sessionName: sessionNameFor(params.projectName),
+		windowName: terminalTabLabel(params.tab),
+	};
 
 	if (params.config.multiplexer === "none") {
-		return Promise.resolve(openNone({ ...params, sessionName }));
+		return Promise.resolve(openNone(resolved));
 	}
 
 	if (params.config.multiplexer === "kw-terminal") {
-		return openKwTerminal({ ...params, sessionName });
+		return openKwTerminal(resolved);
 	}
 
-	return openTmux({ ...params, sessionName });
+	return openTmux(resolved);
 }
 
-async function projectWorkspace(params: { projectName: string; mainRoute: string }) {
-	const label = sessionNameForProject(params.projectName);
-	const existing = await findWorkspaceByLabel(label);
-	if (existing) {
-		return { workspace: existing, isNew: false };
-	}
+// O grupo do kw-terminal é o projeto, sempre pelo nome cadastrado — nunca pela pasta onde o comando
+// calhou de rodar. Sem projeto cobrindo o cwd, o grupo é o dos avulsos, e não `kw_<basename>`.
+export function sessionNameFor(projectName: string | null): string {
+	return projectName ? sessionNameForProject(projectName) : NO_PROJECT_SESSION_NAME;
+}
 
-	const workspace = await kwTerminalWorkspaceCreate({
+// Ponto único de resolução do workspace de um projeto: quem abre terminal no kw-terminal passa por
+// aqui, então o mesmo projeto cai sempre no mesmo grupo.
+export function projectWorkspace(params: { projectName: string | null; mainRoute: string }) {
+	return ensureWorkspaceByLabel({
+		label: sessionNameFor(params.projectName),
 		cwd: params.mainRoute,
-		label,
-		focus: false,
 	});
-
-	return { workspace, isNew: true };
 }
 
 async function createProjectSessionTab(params: {
-	projectName: string;
+	projectName: string | null;
 	mainRoute: string;
 	cli: "claude" | "codex";
-	label?: string;
+	tab: TerminalTabTarget;
+	// A tab nasce na raiz do projeto por padrão; conversa retomada do histórico nasce na pasta onde
+	// ela rodou, que pode ser um worktree ou uma subpasta.
+	cwd?: string;
 	command: TerminalCommand;
 }) {
 	await ensureKwTerminalServer();
@@ -169,8 +179,8 @@ async function createProjectSessionTab(params: {
 	const { workspace } = await projectWorkspace(params);
 	const { tab, rootPane } = await kwTerminalTabCreate({
 		workspaceId: workspace.workspace_id,
-		cwd: params.mainRoute,
-		label: sessionTabName(params.label),
+		cwd: params.cwd ?? params.mainRoute,
+		label: terminalTabLabel(params.tab),
 		focus: false,
 	});
 
@@ -212,9 +222,7 @@ export async function revealKwTerminalClient(params: {
 // Modo kw-terminal: 1 tab = 1 window lógica (paridade tmux). Workspace = sessão do projeto (label
 // `sessionName`), tab = tarefa/rota (label `windowName`), pane raiz da tab recebe o comando. IDs
 // kw-terminal são voláteis; recuperamos workspace/tab por label pra sobreviver a restart do backend.
-async function openKwTerminal(
-	params: OpenParams & { sessionName: string },
-): Promise<OpenTerminalResult> {
+async function openKwTerminal(params: ResolvedOpenParams): Promise<OpenTerminalResult> {
 	const { config, projectId, projectName, sessionName, windowName, workingDir, background } =
 		params;
 
@@ -303,7 +311,7 @@ async function openKwTerminal(
 	return { sessionName, windowName, isNewSession, isNewWindow };
 }
 
-async function openTmux(params: OpenParams & { sessionName: string }): Promise<OpenTerminalResult> {
+async function openTmux(params: ResolvedOpenParams): Promise<OpenTerminalResult> {
 	const { config, projectId, projectName, sessionName, windowName, workingDir, background } =
 		params;
 	const title = `${projectName} - Kowork`;
@@ -404,7 +412,7 @@ function spawnAttach(params: {
 	});
 }
 
-function openNone(params: OpenParams & { sessionName: string }): OpenTerminalResult {
+function openNone(params: ResolvedOpenParams): OpenTerminalResult {
 	const { projectId, projectName, sessionName, windowName, workingDir, command } = params;
 	const shell = process.env.SHELL ?? "/bin/sh";
 
@@ -762,12 +770,6 @@ function invocationArgv(params: {
 	});
 }
 
-// Window dedicada ao CLI do projeto. Não colide com tarefas (UUID hex), rotas (nome sanitizado) nem
-// com invocações (`agent_`/`skill_`), então a sessão do CLI é sempre reencontrada pelo mesmo label.
-function cliWindowName(cli: "claude" | "codex"): string {
-	return `cli_${cli}`;
-}
-
 async function windowExists(params: {
 	config: TerminalConfig;
 	projectId: string;
@@ -789,20 +791,20 @@ async function windowExists(params: {
 	return await tmuxWindowExists(params.sessionName, params.windowName);
 }
 
-// Sessão do CLI ativo a focar: só os agents daquele binário e, quando há projeto em foco, só os
-// abertos dentro dele (cwd exato antes de subpasta). Sem match no projeto não caímos pro agent de
-// outro projeto — focar a janela errada é pior que avisar que não há sessão.
+// Sessão do CLI ativo a focar: só os agents daquele binário abertos dentro do projeto (cwd exato
+// antes de subpasta). Sem projeto não há a quem focar — o agent que o usuário deixou rodando em `~`
+// não é a sessão do projeto, e focá-lo joga o kw-terminal num grupo que não é o da tela.
 export function selectAgentForCli(params: {
 	agents: KwTerminalAgent[];
 	cli: string;
 	mainRoute?: string;
 }): KwTerminalAgent | null {
 	const { mainRoute } = params;
-	const matching = params.agents.filter((agent) => agent.agent === params.cli);
-
 	if (!mainRoute) {
-		return matching[0] ?? null;
+		return null;
 	}
+
+	const matching = params.agents.filter((agent) => agent.agent === params.cli);
 
 	const canonicalPath = (path: string) => {
 		try {
@@ -827,7 +829,9 @@ export const Terminal = {
 		projectName: string;
 		mainRoute: string;
 		cli: "claude" | "codex";
-		label?: string;
+		// Sessão livre da rota `/terminals` ou invocação de agent/skill: quem dispara diz o alvo, o
+		// rótulo sai do motor de nomes.
+		tab?: TerminalTabTarget;
 		prompt?: string;
 		model?: string;
 		effort?: string;
@@ -839,7 +843,7 @@ export const Terminal = {
 			projectName: params.projectName,
 			mainRoute: params.mainRoute,
 			cli: params.cli,
-			...(params.label ? { label: params.label } : {}),
+			tab: params.tab ?? { kind: "session" },
 			command: { kind: "argv", argv: cliStartArgv(params) },
 		});
 	},
@@ -849,15 +853,39 @@ export const Terminal = {
 			projectName: params.projectName,
 			mainRoute: params.mainRoute,
 			cli: params.cli,
-			label: `Retomar ${params.cli}`,
+			tab: { kind: "session", label: `Retomar ${params.cli}` },
 			command: { kind: "argv", argv: cliResumeArgv(params.cli) },
 		});
 	},
 
-	// Traz pra frente a sessão do CLI ativo já aberta no kw-terminal: foca o agent no daemon, garante
-	// um cliente TUI visível e sobe a janela pelo WM. Sem agent daquele CLI (ou fora do modo
-	// kw-terminal) abre uma window `cli_<cli>` no projeto em foco e sobe o CLI nela; a window que já
-	// existe é só focada, sem reexecutar o comando.
+	// Uma conversa antiga escolhida no histórico. A tab nasce na pasta onde a sessão rodou porque é
+	// de lá que as duas CLIs enxergam o próprio histórico; o grupo continua sendo o do projeto que
+	// cobre essa pasta, e o dos avulsos quando nenhum cobre.
+	resumeSessionById(params: {
+		projectName: string | null;
+		mainRoute: string;
+		cwd: string;
+		cli: "claude" | "codex";
+		sessionId: string;
+	}) {
+		return createProjectSessionTab({
+			projectName: params.projectName,
+			mainRoute: params.mainRoute,
+			cwd: params.cwd,
+			cli: params.cli,
+			tab: { kind: "session", label: `Retomar ${params.cli}` },
+			command: { kind: "argv", argv: cliResumeByIdArgv(params.cli, params.sessionId) },
+		});
+	},
+
+	// Traz pra frente a sessão do CLI ativo do projeto já aberta no kw-terminal: foca o agent no
+	// daemon, garante um cliente TUI visível e sobe a janela pelo WM. Sem agent daquele CLI dentro do
+	// projeto (ou fora do modo kw-terminal) abre a tab `cli_<cli>` no grupo do projeto e sobe o CLI
+	// nela; a tab que já existe é só focada, sem reexecutar o comando.
+	//
+	// O projeto é obrigatório: focar "a primeira sessão daquele CLI" levava o kw-terminal para o grupo
+	// de uma pasta qualquer (um codex esquecido em `~` vira o grupo `pedro`), que nunca é o que a tela
+	// está mostrando.
 	async focusAgent(params: {
 		config: TerminalConfig;
 		cli: "claude" | "codex";
@@ -865,13 +893,18 @@ export const Terminal = {
 		projectName?: string;
 		mainRoute?: string;
 	}) {
+		const { projectId, projectName, mainRoute } = params;
+		if (!projectId || !projectName || !mainRoute) {
+			throw new Error(`Escolha o projeto antes de focar a sessão ${params.cli}`);
+		}
+
 		if (params.config.multiplexer === "kw-terminal") {
 			await ensureKwTerminalServer();
 
 			const agent = selectAgentForCli({
 				agents: await kwTerminalAgentList(),
 				cli: params.cli,
-				...(params.mainRoute ? { mainRoute: params.mainRoute } : {}),
+				mainRoute,
 			});
 
 			if (agent) {
@@ -885,20 +918,12 @@ export const Terminal = {
 			}
 		}
 
-		const { projectId, projectName, mainRoute } = params;
-		if (!projectId || !projectName || !mainRoute) {
-			throw new Error(
-				`Nenhuma sessão ${params.cli} aberta e nenhum projeto em foco para abrir uma`,
-			);
-		}
-
-		const sessionName = sessionNameForProject(projectName);
-		const windowName = cliWindowName(params.cli);
+		const tab: TerminalTabTarget = { kind: "cli", cli: params.cli };
 		const alreadyOpen = await windowExists({
 			config: params.config,
 			projectId,
-			sessionName,
-			windowName,
+			sessionName: sessionNameFor(projectName),
+			windowName: terminalTabLabel(tab),
 		});
 
 		await openTerminal({
@@ -906,8 +931,8 @@ export const Terminal = {
 			projectId,
 			projectName,
 			workingDir: mainRoute,
-			taskId: windowName,
-			windowName,
+			taskId: terminalTabLabel(tab),
+			tab,
 			command: alreadyOpen ? undefined : { kind: "argv", argv: cliStartArgv({ cli: params.cli }) },
 			forceNew: false,
 			background: false,
@@ -943,7 +968,7 @@ export const Terminal = {
 			projectName: params.projectName,
 			workingDir: params.mainRoute,
 			taskId: params.taskId,
-			windowName: windowNameForTask(params.taskId, params.taskTitle),
+			tab: { kind: "task", taskId: params.taskId, title: params.taskTitle },
 			command,
 			forceNew: params.forceNew ?? false,
 			background: params.background ?? false,
@@ -968,7 +993,7 @@ export const Terminal = {
 			projectName: params.projectName,
 			workingDir: params.routePath,
 			taskId: params.routeId,
-			windowName: sanitizeRouteName(params.routeName),
+			tab: { kind: "route", name: params.routeName },
 			command: params.command ? { kind: "script", script: params.command } : undefined,
 			forceNew: params.forceNew ?? false,
 			background: params.background ?? false,
@@ -981,7 +1006,7 @@ export const Terminal = {
 		projectId: string;
 		projectName: string;
 	}): Promise<void> {
-		const sessionName = sessionNameForProject(params.projectName);
+		const sessionName = sessionNameFor(params.projectName);
 
 		if (params.config.multiplexer === "none") {
 			// O `.exited` de cada processo dispara handleNoneWindowClosed de forma assíncrona (não durante
@@ -1035,8 +1060,12 @@ export const Terminal = {
 		taskId: string;
 		taskTitle: string;
 	}): Promise<void> {
-		const sessionName = sessionNameForProject(params.projectName);
-		const windowName = windowNameForTask(params.taskId, params.taskTitle);
+		const sessionName = sessionNameFor(params.projectName);
+		const windowName = terminalTabLabel({
+			kind: "task",
+			taskId: params.taskId,
+			title: params.taskTitle,
+		});
 
 		if (params.config.multiplexer === "none") {
 			const window = findSession(params.projectId)?.windows.find(
@@ -1108,7 +1137,7 @@ export const Terminal = {
 	}): Promise<InvocationSessionInfo[]> {
 		const infos = await Promise.all(
 			params.projects.map(async (project) => {
-				const sessionName = sessionNameForProject(project.name);
+				const sessionName = sessionNameFor(project.name);
 				const windowCount = (
 					await invocationWindowNames({ config: params.config, projectId: project.id, sessionName })
 				).length;
@@ -1130,7 +1159,7 @@ export const Terminal = {
 		let killed = 0;
 
 		for (const project of params.projects) {
-			const sessionName = sessionNameForProject(project.name);
+			const sessionName = sessionNameFor(project.name);
 			const windowNames = await invocationWindowNames({
 				config: params.config,
 				projectId: project.id,

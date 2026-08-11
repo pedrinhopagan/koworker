@@ -30,10 +30,24 @@ export const KwTerminalWorkspaceCloseSchema = z.object({
 	workspaceId: z.string(),
 });
 
+// O alvo da tab, não o rótulo: quem dispara diz se é sessão livre ou invocação de agent/skill, e o
+// motor de nomes (`terminal/names.ts`) decide o slug. Sem `tab`, é sessão livre sem nome.
+export const KwTerminalTabTargetSchema = z.discriminatedUnion("kind", [
+	z.object({
+		kind: z.literal("session"),
+		label: z.string().trim().max(60).optional(),
+	}),
+	z.object({
+		kind: z.literal("invocation"),
+		invoked: z.enum(["agent", "skill"]),
+		slug: z.string().trim().min(1).max(100),
+	}),
+]);
+
 export const KwTerminalSessionStartSchema = z.object({
 	projectId: z.string().min(1),
 	cli: z.enum(["claude", "codex"]),
-	label: z.string().trim().max(60).optional(),
+	tab: KwTerminalTabTargetSchema.optional(),
 	prompt: z.string().trim().max(20_000).optional(),
 	model: z.string().trim().min(1).max(100).optional(),
 	effort: z.string().trim().min(1).max(40).optional(),

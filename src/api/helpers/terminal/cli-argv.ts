@@ -44,3 +44,14 @@ export function cliResumeArgv(cli: TerminalCli): string[] {
 
 	return ["claude", "--continue"];
 }
+
+// Uma conversa antiga escolhida no histórico, retomada pelo id que o próprio CLI gravou no
+// transcript. Vale para as duas CLIs porque as duas resolvem a sessão pelo id, e não pela ordem em
+// que ela foi encerrada — o pane sobe exatamente naquela conversa.
+export function cliResumeByIdArgv(cli: TerminalCli, sessionId: string): string[] {
+	if (cli === "codex") {
+		return ["codex", "resume", sessionId];
+	}
+
+	return ["claude", "--resume", sessionId];
+}

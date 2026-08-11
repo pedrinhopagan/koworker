@@ -73,6 +73,16 @@ export const dbTasks = {
 			.where("t.deleted_at", "is", null)
 			.executeTakeFirst(),
 
+	// O índice que casa uma conversa antiga de CLI com as tarefas que ela tocou: a pasta citada no
+	// transcript e o worktree onde o agente rodou. Vale para todos os projetos porque o histórico é
+	// filtrado depois, pelo diretório da sessão.
+	listPathIndex: () =>
+		db
+			.selectFrom("tasks as t")
+			.select(["t.id", "t.project_id", "t.title", "t.folder_path", "t.worktree_path"])
+			.where("t.deleted_at", "is", null)
+			.execute(),
+
 	listStorageKeys: () =>
 		db
 			.selectFrom("tasks as t")

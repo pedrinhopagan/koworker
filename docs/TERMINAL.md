@@ -106,7 +106,7 @@ Procedures em `src/api/routers/terminal.ts`:
 
 | Procedure | Descrição |
 |-----------|-----------|
-| `focusAgent` | Foca a sessão já aberta do CLI ativo (claude/codex) no kw-terminal, preferindo a do projeto; sem sessão, abre a window `cli_<cli>` no projeto em foco e sobe o CLI nela |
+| `focusAgent` | Foca a sessão do CLI ativo (claude/codex) aberta **dentro do projeto em foco**; sem sessão lá, abre a tab `cli_<cli>` no grupo do projeto e sobe o CLI nela. Exige projeto: um agent aberto em outra pasta nunca é focado, porque levaria o kw-terminal para um grupo que não é o da tela |
 | `openForTask` | Abre/cria sessão e window para tarefa |
 | `openForRoute` | Abre tab para rota customizada do projeto |
 | `closeProjectSession` | Fecha sessão inteira do projeto |
@@ -126,16 +126,37 @@ Procedures em `src/api/routers/kw-terminal.ts`, que é o que a rota `/terminals`
 | `tabCreate` / `tabFocus` / `tabRename` / `tabClose` | Ações de tab |
 | `workspaceFocus` / `workspaceRename` / `workspaceClose` | Ações de workspace |
 
+Procedures em `src/api/routers/agent-history.ts`, que é o que a rota `/terminals/history` consome:
+
+| Procedure | Descrição |
+|-----------|-----------|
+| `list` | Conversas antigas de Claude e Codex lidas do disco, filtradas por projeto, CLI e busca |
+| `get` | Uma conversa antiga inteira, já traduzida em blocos |
+| `resume` | Sobe a CLI de novo naquela conversa (ou devolve o pane vivo, se já houver um) |
+| `openDiff` | Abre o kw-diff na pasta onde a sessão rodou |
+
 ## NOMENCLATURA
 
 Labels estáveis entre reinícios do backend (lookup por nome, não por ID volátil):
 
 - **Sessão/workspace**: `kw_{projectName_completo_em_slug}` (ex: `Dogama Vault` vira `kw_dogama-vault`)
-- **Window/tab**: `{taskId[0:8]}_{sanitized_title}` (ex: `abcd1234_minha_tarefa`)
-- **Invocações**: `agent_*` ou `skill_*` (filtro `isInvocationWindow`)
+- **Sem projeto**: `kw_sem-projeto` (`NO_PROJECT_SESSION_NAME`), o grupo de quem roda numa pasta que
+  nenhum projeto cadastrado cobre — uma conversa antiga retomada de `~`, por exemplo
+- **Window/tab de tarefa ou de job**: `{id[0:8]}_{sanitized_title}` (ex: `abcd1234_minha_tarefa`)
+- **Rota do projeto**: nome da rota sanitizado (`sanitizeRouteName`)
+- **Tab do CLI do projeto**: `cli_claude` / `cli_codex`
+- **Invocações**: `agent_{slug}` ou `skill_{slug}` (filtro `isInvocationWindow`)
 - **Sessão livre da rota `/terminals`**: `sess_{nome}` ou `sess_{hhmm}` (`sessionTabName`)
 
-Implementação: `src/api/helpers/terminal/names.ts`.
+Implementação: `src/api/helpers/terminal/names.ts`. **Ninguém monta esses nomes à mão.** Quem abre
+terminal descreve o alvo (`TerminalTabTarget`: `task`, `run`, `route`, `cli`, `invocation`,
+`session`) e `terminalTabLabel` devolve o rótulo — é o que garante que a mesma tarefa, rota ou CLI
+caia sempre na mesma tab, seja qual for a tela que disparou a ação.
+
+O grupo sai do **nome do projeto no banco**, nunca da pasta onde o comando calhou de rodar: um
+`basename(cwd)` faria uma conversa de `~` criar o grupo `kw_pedro`. `projectWorkspace`
+(`terminal/service.ts`) e `ensureWorkspaceByLabel` (`terminal/kw-terminal.ts`) são os únicos caminhos
+para obter um workspace; jobs (`kw_execucoes`) e a reabertura do retrato passam pelo mesmo `ensure`.
 
 ## ROTA /terminals
 
@@ -160,6 +181,13 @@ Ao abrir a conversa, o backend percorre o transcript inteiro em blocos e mantém
 traduzidos da sessão. Mensagens digitadas diretamente no CLI entram na mesma timeline; compactações
 aparecem como marcos próprios, sem substituir o histórico anterior nem atribuir o resumo automático
 ao usuário.
+
+A barra no campo de escrita abre um menu só, com skills e comandos da CLI do pane misturados e
+buscáveis juntos (`src/lib/slash-menu.ts` sobre `src/constants/cli-commands.ts`). Comando aparece
+apenas quando a barra é o primeiro caractere do input, porque é assim que a própria CLI o lê; no meio
+de uma frase só sobram as skills. `Tab` e clique completam e devolvem o cursor; `Enter` completa e
+despacha quando a barra está na primeira coluna, e uma linha única começando com `/` também vai com
+`Enter` seco. Comando é texto comum no `agentRadar.send`: quem o interpreta é a CLI do outro lado.
 
 Texto enviado pelo app usa `agent send` seguido de `Enter`, mas só aparece quando o transcript nativo
 o devolver. `working` bloqueia envio e oferece interrupção explícita por `C-c`. `blocked` oferece
@@ -188,6 +216,41 @@ iniciado, nenhuma conversa é retomada e nenhum comando ou prompt é enviado.
 
 O retrato vive em `agent_session_snapshots`. Uma captura nova substitui a anterior; tabs restauradas
 são marcadas para o botão desaparecer até haver uma nova captura de agents vivos.
+
+## HISTÓRICO DE CONVERSAS
+
+`/terminals/history` mostra o que Claude e Codex já gravaram em disco, não o que está aberto no
+daemon: `~/.claude/projects/<cwd-slug>/<sessionId>.jsonl` e `~/.codex/sessions/<ano>/<mês>/<dia>/
+rollout-*.jsonl`. As duas CLIs entram na mesma lista, em ordem de última escrita, com filtro de
+projeto, de CLI e busca por assunto, pasta ou branch. Sem projeto escolhido no search a lista segue o
+projeto em destaque do app; `?projectId=todos` é a escolha explícita de ver tudo.
+
+O recorte vive na URL (`projectId`, `cli`, `q`) porque a lista e a conversa aberta são a mesma tela
+em dois passos: `/terminals/history/$cli/$sessionId` mantém o histórico à esquerda no desktop e
+carrega o mesmo recorte, então trocar de sessão não perde o filtro que levou até ela.
+
+Filtrar por projeto não abre arquivo: a pasta do claude é o `cwd` com todo caractere fora de
+`[a-zA-Z0-9]` virando `-`, e o prefixo já descarta as outras raízes (a raiz entra pelo caminho
+cadastrado e pelo real, porque o projeto pode estar registrado por link simbólico). No codex não há
+essa pista, então o `cwd` sai do `session_meta` da primeira linha, que também é o que exclui rollout
+de subagente. Cabeçalho lido é guardado por caminho — o começo de um transcript nunca é reescrito.
+
+A conversa vira blocos pelos mesmos tradutores da conversa ao vivo (`claude-transcript.ts`,
+`codex-transcript.ts`) e é lida por inteiro a cada abertura, sem assinatura e sem composer: histórico
+é registro, não canal.
+
+O vínculo com tarefas vem de três lugares, nesta ordem: o registro do koworker (`agent_sessions`,
+`execution_runs`, `agent_session_snapshots` casados pelo id da sessão do CLI), o worktree onde a
+sessão rodou (`tasks.worktree_path` contendo o `cwd`) e a pasta da tarefa citada na conversa. A
+menção só conta a partir da segunda ocorrência: caminho que aparece uma vez só é quase sempre
+respingo de uma listagem, enquanto a tarefa trabalhada é lida e escrita dezenas de vezes. Por isso a
+varredura é do arquivo inteiro, e só das conversas que vão aparecer na página.
+
+Retomar (`agentHistory.resume`) cria uma tab no workspace do projeto que cobre a pasta da sessão —
+ou no grupo `kw_sem-projeto`, quando nenhum a cobre —, na pasta onde a sessão rodou,
+rodando `claude --resume <id>` ou `codex resume <id>`, e leva para `/terminals/$paneId`. Se aquela
+mesma sessão já está viva num pane (o radar conhece o `sessionId`), nada sobe: o botão vira "Ir para
+o terminal" e navega direto.
 
 ## KW-DIFF
 

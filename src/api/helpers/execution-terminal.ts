@@ -5,15 +5,14 @@ import { join } from "node:path";
 import { shellQuote } from "@/lib/shell-argv";
 import {
 	ensureKwTerminalServer,
+	ensureWorkspaceByLabel,
 	findTabByLabel,
-	findWorkspaceByLabel,
 	kwTerminalPaneRun,
 	kwTerminalTabClose,
 	kwTerminalTabCreate,
 	kwTerminalTabList,
-	kwTerminalWorkspaceCreate,
 } from "./terminal/kw-terminal";
-import { windowNameForTask } from "./terminal/names";
+import { terminalTabLabel } from "./terminal/names";
 
 export const EXECUTION_WORKSPACE_LABEL = "kw_execucoes";
 
@@ -36,13 +35,10 @@ export async function openExecutionTerminal(params: {
 }): Promise<ExecutionTerminalHandle> {
 	await ensureKwTerminalServer();
 
-	const workspace =
-		(await findWorkspaceByLabel(EXECUTION_WORKSPACE_LABEL)) ??
-		(await kwTerminalWorkspaceCreate({
-			cwd: params.cwd,
-			label: EXECUTION_WORKSPACE_LABEL,
-			focus: false,
-		}));
+	const { workspace } = await ensureWorkspaceByLabel({
+		label: EXECUTION_WORKSPACE_LABEL,
+		cwd: params.cwd,
+	});
 
 	await mkdir(RUN_FILES_DIR, { recursive: true });
 	const logPath = join(RUN_FILES_DIR, `${params.runId}.log`);
@@ -59,7 +55,7 @@ export async function openExecutionTerminal(params: {
 		].join("\n"),
 	);
 
-	const label = windowNameForTask(params.runId, params.title);
+	const label = terminalTabLabel({ kind: "run", runId: params.runId, title: params.title });
 	const existing = await findTabByLabel(workspace.workspace_id, label);
 	if (existing) {
 		await kwTerminalTabClose(existing.tab_id);

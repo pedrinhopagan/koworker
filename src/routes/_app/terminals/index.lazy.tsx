@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createLazyFileRoute } from "@tanstack/react-router";
-import { Loader2, Plus, RotateCcw, SquareTerminal } from "lucide-react";
+import { createLazyFileRoute, Link } from "@tanstack/react-router";
+import { History, Loader2, Plus, RotateCcw, SquareTerminal } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -72,6 +72,13 @@ function TerminalsPage() {
 							{reopen.isPending ? "Reabrindo..." : "Reabrir terminais"}
 						</Button>
 					)}
+
+					<Button asChild variant="outline" size="sm">
+						<Link to="/terminals/history">
+							<History className="size-4" />
+							Histórico
+						</Link>
+					</Button>
 
 					<Button
 						size="sm"

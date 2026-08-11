@@ -87,7 +87,7 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 		start.mutate({
 			projectId: activeProjectId,
 			cli,
-			...(label.trim() ? { label: label.trim() } : {}),
+			tab: { kind: "session", ...(label.trim() ? { label: label.trim() } : {}) },
 			...(prompt.trim() ? { prompt: prompt.trim() } : {}),
 			...(model.trim() ? { model: model.trim() } : {}),
 			...(effort.trim() ? { effort: effort.trim() } : {}),

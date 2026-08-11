@@ -4,6 +4,11 @@
 // Alfanumérico Unicode, como o `char::is_alphanumeric` do Rust (letras + números de qualquer script).
 const WORD_CHAR = /[\p{L}\p{N}]/u;
 
+// Workspace de tudo que roda fora de um projeto cadastrado (conversa antiga retomada de uma pasta
+// que nenhum projeto cobre). O grupo é sempre um projeto ou este; nunca o nome da pasta, que faria o
+// kw-terminal ganhar um grupo `kw_pedro` por ter rodado em `~`.
+export const NO_PROJECT_SESSION_NAME = "kw_sem-projeto";
+
 // `kw_<slug>`: o slug usa o nome inteiro do projeto, só com alfanuméricos/`-`/`_`, minúscula.
 // Separadores viram `-`; vazio (nome só com símbolos ou em branco) cai em `projeto`.
 export function sessionNameForProject(projectName: string): string {
@@ -55,10 +60,51 @@ export function sessionTabName(label?: string): string {
 	return `sess_${hours}${minutes}`;
 }
 
-// Discrimina a window de uma invocação de agent/skill. O taskId da invocação é `agent_<slug>` /
-// `skill_<slug>` (ver `src/lib/invoke.ts`) e `windowNameForTask` o trunca em 8 chars como prefixo,
-// então a window sempre começa com `agent_` / `skill_`. Tarefas (UUID hex) e rotas (nome sanitizado)
-// nunca colidem com esses prefixos.
+// Slug de nome próprio (agent, skill): mantém `-`, que é o separador que os slugs do disco usam.
+function sanitizeSlug(slug: string): string {
+	return [...slug.toLowerCase().replaceAll(" ", "_")]
+		.filter((ch) => WORD_CHAR.test(ch) || ch === "_" || ch === "-")
+		.join("")
+		.slice(0, 20);
+}
+
+// Invocação de agent/skill: `agent_<slug>` / `skill_<slug>`, os prefixos que `isInvocationWindow`
+// reconhece para contar e varrer só essas tabs.
+export function invocationTabName(invoked: "agent" | "skill", slug: string): string {
+	return `${invoked}_${sanitizeSlug(slug) || "sem-nome"}`;
+}
+
+// Discrimina a window de uma invocação de agent/skill. Tarefas (`<id8>_<titulo>`, com id hex),
+// rotas (nome sanitizado), a tab do CLI (`cli_`) e a sessão livre (`sess_`) nunca colidem com esses
+// prefixos.
 export function isInvocationWindow(windowName: string): boolean {
 	return windowName.startsWith("agent_") || windowName.startsWith("skill_");
+}
+
+// O alvo de uma abertura de terminal, do qual sai o rótulo da tab. Todo caminho que abre ou foca
+// terminal descreve o alvo aqui em vez de montar o rótulo por conta: é o que garante que a mesma
+// tarefa, rota ou CLI caia sempre na mesma tab, seja qual for a tela que disparou a ação.
+export type TerminalTabTarget =
+	| { kind: "task"; taskId: string; title: string }
+	| { kind: "run"; runId: string; title: string }
+	| { kind: "route"; name: string }
+	| { kind: "cli"; cli: string }
+	| { kind: "invocation"; invoked: "agent" | "skill"; slug: string }
+	| { kind: "session"; label?: string };
+
+export function terminalTabLabel(target: TerminalTabTarget): string {
+	switch (target.kind) {
+		case "task":
+			return windowNameForTask(target.taskId, target.title);
+		case "run":
+			return windowNameForTask(target.runId, target.title);
+		case "route":
+			return sanitizeRouteName(target.name);
+		case "cli":
+			return `cli_${target.cli}`;
+		case "invocation":
+			return invocationTabName(target.invoked, target.slug);
+		case "session":
+			return sessionTabName(target.label);
+	}
 }

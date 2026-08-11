@@ -2,10 +2,9 @@ import { dbAgentSessionSnapshots } from "../../db/agent-session-snapshots";
 import { getSystemSettings } from "../system-settings";
 import {
 	ensureKwTerminalServer,
+	ensureWorkspaceByLabel,
 	findTabByLabel,
-	findWorkspaceByLabel,
 	kwTerminalTabCreate,
-	kwTerminalWorkspaceCreate,
 	type KwTerminalWorkspace,
 } from "../terminal/kw-terminal";
 import { revealKwTerminalClient } from "../terminal/service";
@@ -52,24 +51,19 @@ export function groupSavedTerminals(rows: SavedTerminalSource[]): SavedTerminal[
 	return [...terminals.values()];
 }
 
+// O retrato guarda o label do grupo como ele estava, então a reabertura o recria verbatim — inclusive
+// grupos que o próprio kw-terminal nomeou. Confere a criação porque o retrato é a única fonte aqui.
 async function ensureWorkspace(terminal: SavedTerminal) {
-	const existing = await findWorkspaceByLabel(terminal.workspaceLabel);
-	if (existing) {
-		return existing;
-	}
-
-	await kwTerminalWorkspaceCreate({
-		cwd: terminal.cwd,
+	const { workspace, isNew } = await ensureWorkspaceByLabel({
 		label: terminal.workspaceLabel,
-		focus: false,
+		cwd: terminal.cwd,
 	});
 
-	const created = await findWorkspaceByLabel(terminal.workspaceLabel);
-	if (!created) {
+	if (isNew && !workspace.workspace_id) {
 		throw new Error(`O workspace ${terminal.workspaceLabel} não foi criado`);
 	}
 
-	return created;
+	return workspace;
 }
 
 async function ensureTab(terminal: SavedTerminal, workspace: KwTerminalWorkspace) {

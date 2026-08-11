@@ -68,8 +68,9 @@ test("não cai para o agent de outro projeto", () => {
 	expect(selectAgentForCli({ agents, cli: "codex", mainRoute: "/proj/outro" })).toBeNull();
 });
 
-test("sem projeto em foco pega a primeira sessão do cli", () => {
-	expect(selectAgentForCli({ agents, cli: "claude" })?.cwd).toBe("/proj/app/pacote");
+test("sem projeto em foco não foca sessão nenhuma", () => {
+	expect(selectAgentForCli({ agents, cli: "claude" })).toBeNull();
+	expect(selectAgentForCli({ agents, cli: "codex" })).toBeNull();
 });
 
 test("reconhece o agent aberto pelo caminho real de um projeto com symlink", () => {

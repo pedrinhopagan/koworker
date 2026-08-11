@@ -431,3 +431,24 @@ export async function findTabByLabel(
 ): Promise<KwTerminalTab | null> {
 	return (await kwTerminalTabList(workspaceId)).find((tab) => tab.label === label) ?? null;
 }
+
+// Único jeito de obter um workspace no kw-terminal: reusa o que já tem o label, cria só quando não
+// existe. Criar sem consultar duplicaria o grupo do projeto a cada restart do backend, já que o ID
+// do daemon é volátil e o label é o que sobrevive.
+export async function ensureWorkspaceByLabel(params: {
+	label: string;
+	cwd: string;
+}): Promise<{ workspace: KwTerminalWorkspace; isNew: boolean }> {
+	const existing = await findWorkspaceByLabel(params.label);
+	if (existing) {
+		return { workspace: existing, isNew: false };
+	}
+
+	const workspace = await kwTerminalWorkspaceCreate({
+		cwd: params.cwd,
+		label: params.label,
+		focus: false,
+	});
+
+	return { workspace, isNew: true };
+}

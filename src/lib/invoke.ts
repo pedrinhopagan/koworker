@@ -105,7 +105,7 @@ export async function runInvocation(params: { project: ProjectInfo; request: Inv
 		projectId: project.id,
 		cli,
 		prompt,
-		label: target.label,
+		tab: { kind: "invocation", invoked: target.kind, slug: target.slug },
 		...(cli === "claude" && target.kind === "agent" ? { agent: target.slug } : {}),
 		...(model ? { model } : {}),
 		...(effort ? { effort } : {}),

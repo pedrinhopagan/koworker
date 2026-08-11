@@ -31,6 +31,7 @@ import { Route as AppMediaIndexRouteImport } from './routes/_app/media/index'
 import { Route as AppExecutarIndexRouteImport } from './routes/_app/executar/index'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents/index'
 import { Route as AppVaultFileNameIndexRouteImport } from './routes/_app/vault/$fileName/index'
+import { Route as AppTerminalsHistoryIndexRouteImport } from './routes/_app/terminals/history/index'
 import { Route as AppTerminalsPaneIdIndexRouteImport } from './routes/_app/terminals/$paneId/index'
 import { Route as AppTarefasTaskIdIndexRouteImport } from './routes/_app/tarefas/$taskId/index'
 import { Route as AppSkillsSlugIndexRouteImport } from './routes/_app/skills/$slug/index'
@@ -43,6 +44,7 @@ import { Route as AppAgentsSlugIndexRouteImport } from './routes/_app/agents/$sl
 import { Route as AppTarefasTaskIdFileRouteImport } from './routes/_app/tarefas/$taskId/$file'
 import { Route as AppTarefasTaskIdFileCanonicalFileRouteImport } from './routes/_app/tarefas/$taskId/$file_/$canonicalFile'
 import { Route as AppProjetosProjetoIdDocsSplatRouteImport } from './routes/_app/projetos/$projetoId/docs/$'
+import { Route as AppTerminalsHistoryCliSessionIdIndexRouteImport } from './routes/_app/terminals/history/$cli/$sessionId/index'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -165,6 +167,14 @@ const AppVaultFileNameIndexRoute = AppVaultFileNameIndexRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/vault/$fileName/index.lazy').then((d) => d.Route),
 )
+const AppTerminalsHistoryIndexRoute =
+  AppTerminalsHistoryIndexRouteImport.update({
+    id: '/terminals/history/',
+    path: '/terminals/history/',
+    getParentRoute: () => AppRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/terminals/history/index.lazy').then((d) => d.Route),
+  )
 const AppTerminalsPaneIdIndexRoute = AppTerminalsPaneIdIndexRouteImport.update({
   id: '/terminals/$paneId/',
   path: '/terminals/$paneId/',
@@ -253,6 +263,16 @@ const AppProjetosProjetoIdDocsSplatRoute =
       (d) => d.Route,
     ),
   )
+const AppTerminalsHistoryCliSessionIdIndexRoute =
+  AppTerminalsHistoryCliSessionIdIndexRouteImport.update({
+    id: '/terminals/history/$cli/$sessionId/',
+    path: '/terminals/history/$cli/$sessionId/',
+    getParentRoute: () => AppRoute,
+  } as any).lazy(() =>
+    import('./routes/_app/terminals/history/$cli/$sessionId/index.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -285,9 +305,11 @@ export interface FileRoutesByFullPath {
   '/skills/$slug/': typeof AppSkillsSlugIndexRoute
   '/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/terminals/$paneId/': typeof AppTerminalsPaneIdIndexRoute
+  '/terminals/history/': typeof AppTerminalsHistoryIndexRoute
   '/vault/$fileName/': typeof AppVaultFileNameIndexRoute
   '/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
   '/tarefas/$taskId/$file/$canonicalFile': typeof AppTarefasTaskIdFileCanonicalFileRoute
+  '/terminals/history/$cli/$sessionId/': typeof AppTerminalsHistoryCliSessionIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/dispositivo': typeof DispositivoRoute
@@ -320,9 +342,11 @@ export interface FileRoutesByTo {
   '/skills/$slug': typeof AppSkillsSlugIndexRoute
   '/tarefas/$taskId': typeof AppTarefasTaskIdIndexRoute
   '/terminals/$paneId': typeof AppTerminalsPaneIdIndexRoute
+  '/terminals/history': typeof AppTerminalsHistoryIndexRoute
   '/vault/$fileName': typeof AppVaultFileNameIndexRoute
   '/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
   '/tarefas/$taskId/$file/$canonicalFile': typeof AppTarefasTaskIdFileCanonicalFileRoute
+  '/terminals/history/$cli/$sessionId': typeof AppTerminalsHistoryCliSessionIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -357,9 +381,11 @@ export interface FileRoutesById {
   '/_app/skills/$slug/': typeof AppSkillsSlugIndexRoute
   '/_app/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/_app/terminals/$paneId/': typeof AppTerminalsPaneIdIndexRoute
+  '/_app/terminals/history/': typeof AppTerminalsHistoryIndexRoute
   '/_app/vault/$fileName/': typeof AppVaultFileNameIndexRoute
   '/_app/projetos/$projetoId/docs/$': typeof AppProjetosProjetoIdDocsSplatRoute
   '/_app/tarefas/$taskId/$file_/$canonicalFile': typeof AppTarefasTaskIdFileCanonicalFileRoute
+  '/_app/terminals/history/$cli/$sessionId/': typeof AppTerminalsHistoryCliSessionIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -394,9 +420,11 @@ export interface FileRouteTypes {
     | '/skills/$slug/'
     | '/tarefas/$taskId/'
     | '/terminals/$paneId/'
+    | '/terminals/history/'
     | '/vault/$fileName/'
     | '/projetos/$projetoId/docs/$'
     | '/tarefas/$taskId/$file/$canonicalFile'
+    | '/terminals/history/$cli/$sessionId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/dispositivo'
@@ -429,9 +457,11 @@ export interface FileRouteTypes {
     | '/skills/$slug'
     | '/tarefas/$taskId'
     | '/terminals/$paneId'
+    | '/terminals/history'
     | '/vault/$fileName'
     | '/projetos/$projetoId/docs/$'
     | '/tarefas/$taskId/$file/$canonicalFile'
+    | '/terminals/history/$cli/$sessionId'
   id:
     | '__root__'
     | '/_app'
@@ -465,9 +495,11 @@ export interface FileRouteTypes {
     | '/_app/skills/$slug/'
     | '/_app/tarefas/$taskId/'
     | '/_app/terminals/$paneId/'
+    | '/_app/terminals/history/'
     | '/_app/vault/$fileName/'
     | '/_app/projetos/$projetoId/docs/$'
     | '/_app/tarefas/$taskId/$file_/$canonicalFile'
+    | '/_app/terminals/history/$cli/$sessionId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -633,6 +665,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppVaultFileNameIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/terminals/history/': {
+      id: '/_app/terminals/history/'
+      path: '/terminals/history'
+      fullPath: '/terminals/history/'
+      preLoaderRoute: typeof AppTerminalsHistoryIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/terminals/$paneId/': {
       id: '/_app/terminals/$paneId/'
       path: '/terminals/$paneId'
@@ -717,6 +756,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjetosProjetoIdDocsSplatRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/terminals/history/$cli/$sessionId/': {
+      id: '/_app/terminals/history/$cli/$sessionId/'
+      path: '/terminals/history/$cli/$sessionId'
+      fullPath: '/terminals/history/$cli/$sessionId/'
+      preLoaderRoute: typeof AppTerminalsHistoryCliSessionIdIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -748,9 +794,11 @@ interface AppRouteChildren {
   AppSkillsSlugIndexRoute: typeof AppSkillsSlugIndexRoute
   AppTarefasTaskIdIndexRoute: typeof AppTarefasTaskIdIndexRoute
   AppTerminalsPaneIdIndexRoute: typeof AppTerminalsPaneIdIndexRoute
+  AppTerminalsHistoryIndexRoute: typeof AppTerminalsHistoryIndexRoute
   AppVaultFileNameIndexRoute: typeof AppVaultFileNameIndexRoute
   AppProjetosProjetoIdDocsSplatRoute: typeof AppProjetosProjetoIdDocsSplatRoute
   AppTarefasTaskIdFileCanonicalFileRoute: typeof AppTarefasTaskIdFileCanonicalFileRoute
+  AppTerminalsHistoryCliSessionIdIndexRoute: typeof AppTerminalsHistoryCliSessionIdIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -781,10 +829,13 @@ const AppRouteChildren: AppRouteChildren = {
   AppSkillsSlugIndexRoute: AppSkillsSlugIndexRoute,
   AppTarefasTaskIdIndexRoute: AppTarefasTaskIdIndexRoute,
   AppTerminalsPaneIdIndexRoute: AppTerminalsPaneIdIndexRoute,
+  AppTerminalsHistoryIndexRoute: AppTerminalsHistoryIndexRoute,
   AppVaultFileNameIndexRoute: AppVaultFileNameIndexRoute,
   AppProjetosProjetoIdDocsSplatRoute: AppProjetosProjetoIdDocsSplatRoute,
   AppTarefasTaskIdFileCanonicalFileRoute:
     AppTarefasTaskIdFileCanonicalFileRoute,
+  AppTerminalsHistoryCliSessionIdIndexRoute:
+    AppTerminalsHistoryCliSessionIdIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
