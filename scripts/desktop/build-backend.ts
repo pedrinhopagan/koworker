@@ -4,13 +4,14 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(scriptDir, "../..");
-const outputDir = join(rootDir, "src-tauri/bin");
-const outputPath = join(outputDir, "kowork-backend");
+const outputDir = join(rootDir, "electron/bin");
+const fileName = process.platform === "win32" ? "kowork-backend.exe" : "kowork-backend";
+const outputPath = join(outputDir, fileName);
 
 await mkdir(outputDir, { recursive: true });
 
 const result = Bun.spawnSync(
-	["bun", "build", "src/server.ts", "--compile", "--outfile", "src-tauri/bin/kowork-backend"],
+	["bun", "build", "src/server.ts", "--compile", "--outfile", `electron/bin/${fileName}`],
 	{
 		cwd: rootDir,
 		env: {

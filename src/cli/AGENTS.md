@@ -34,7 +34,7 @@ cli/
 
 - Acesso ao DB via `dbTasks` (mesma camada da API); sem schema duplicado.
 - A CLI roda no cwd de outro projeto, então o entry point define `DATABASE_URL`
-  (app data dir do Tauri) antes de importar a camada de DB.
+  (app data dir do desktop) antes de importar a camada de DB.
 - Erros em pt-BR e exit code != 0.
 - Mutations que tocam storage de tarefa (`create`, `done`, `task set/done/reopen/rm/merge-*`,
   `task file *`, `feature create`) rodam sob `withProjectStorageLock` (`api/helpers/task-storage-coordinator.ts`),

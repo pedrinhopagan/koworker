@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
-import { isTauri } from "@/lib/tauri";
+import { isDesktop } from "@/lib/desktop";
 
 function applicationServerKey(value: string) {
 	const padding = "=".repeat((4 - (value.length % 4)) % 4);
@@ -12,7 +12,7 @@ function applicationServerKey(value: string) {
 	return Uint8Array.from(atob(base64), (character) => character.codePointAt(0) ?? 0);
 }
 
-// Push exige service worker, que exige contexto seguro. O Tauri fica de fora: o desktop recebe o
+// Push exige service worker, que exige contexto seguro. O shell desktop fica de fora e recebe o
 // mesmo alerta pelo canal in-app.
 function browserSupportsPush() {
 	return (
@@ -20,7 +20,7 @@ function browserSupportsPush() {
 		"Notification" in window &&
 		"serviceWorker" in navigator &&
 		"PushManager" in window &&
-		!isTauri()
+		!isDesktop()
 	);
 }
 

@@ -33,7 +33,7 @@ let result: {
 };
 
 beforeAll(async () => {
-	const child = Bun.spawn(["bun", "run", "src/api/db/migrate-test-runner.ts", root], {
+	const child = Bun.spawn([process.execPath, "run", "src/api/db/migrate-test-runner.ts", root], {
 		cwd: process.cwd(),
 		stdout: "pipe",
 		stderr: "pipe",

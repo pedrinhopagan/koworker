@@ -41,15 +41,18 @@ await dbTaskGroups.create({
 });
 
 async function runCli(args: string[], cwd = projectRoute) {
-	const child = Bun.spawn(["bun", "run", join(process.cwd(), "src/cli/index.ts"), ...args], {
-		cwd,
-		env: {
-			...process.env,
-			KOWORK_DATABASE_URL: databasePath,
+	const child = Bun.spawn(
+		[process.execPath, "run", join(process.cwd(), "src/cli/index.ts"), ...args],
+		{
+			cwd,
+			env: {
+				...process.env,
+				KOWORK_DATABASE_URL: databasePath,
+			},
+			stdout: "pipe",
+			stderr: "pipe",
 		},
-		stdout: "pipe",
-		stderr: "pipe",
-	});
+	);
 	const [exitCode, stdout, stderr] = await Promise.all([
 		child.exited,
 		new Response(child.stdout).text(),

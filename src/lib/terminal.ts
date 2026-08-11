@@ -5,7 +5,7 @@ import type { InvokeCli } from "@/constants/invoke";
 import { errorMessage } from "@/lib/orpc-errors";
 
 // O terminal agora é um serviço do backend (spawn via Bun.spawn na máquina local), então funciona
-// igual no browser e no desktop — sem gate de Tauri. Cada função dispara a procedure e traduz o
+// igual no browser e no desktop. Cada função dispara a procedure e traduz o
 // resultado num toast; a capacidade `canOpenTerminal` (há emulador configurado?) esconde a UI quando
 // não há terminal.
 

@@ -16,21 +16,13 @@ import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 
 import { koworkerDataDir } from "../../src/lib/app-paths";
-import { buildProductionIndexHtml } from "./inject-prod-index";
-import { buildProductionServiceWorker } from "./inject-prod-sw";
 import { installSharpVendor } from "./install-sharp-vendor";
-import { requireReplace } from "./require-replace";
 
 type BumpType = "patch" | "minor" | "major";
 
 const rootDir = process.cwd();
 
-const VERSION_FILES = [
-	"package.json",
-	"src-tauri/tauri.conf.json",
-	"src-tauri/Cargo.toml",
-	"src-tauri/Cargo.lock",
-];
+const VERSION_FILES = ["package.json"];
 
 function run(command: string[], cwd = rootDir, env?: Record<string, string>) {
 	const result = Bun.spawnSync(command, {
@@ -136,41 +128,12 @@ async function chooseBumpType(currentVersion: string): Promise<BumpType> {
 
 async function updateVersions(worktreeDir: string, nextVersion: string) {
 	const packageJsonPath = join(worktreeDir, "package.json");
-	const tauriConfigPath = join(worktreeDir, "src-tauri", "tauri.conf.json");
-	const cargoTomlPath = join(worktreeDir, "src-tauri", "Cargo.toml");
 
 	const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
 		version?: string;
 	};
 	packageJson.version = nextVersion;
 	await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, "\t")}\n`);
-
-	const tauriConfig = JSON.parse(await readFile(tauriConfigPath, "utf8")) as {
-		version?: string;
-	};
-	tauriConfig.version = nextVersion;
-	await writeFile(tauriConfigPath, `${JSON.stringify(tauriConfig, null, "\t")}\n`);
-
-	await writeFile(
-		cargoTomlPath,
-		requireReplace(
-			await readFile(cargoTomlPath, "utf8"),
-			/(\[package\][\s\S]*?\nversion\s*=\s*")([^"]+)(")/,
-			`$1${nextVersion}$3`,
-			"atualizar a versao em src-tauri/Cargo.toml",
-		),
-	);
-
-	const cargoLockPath = join(worktreeDir, "src-tauri", "Cargo.lock");
-	await writeFile(
-		cargoLockPath,
-		requireReplace(
-			await readFile(cargoLockPath, "utf8"),
-			/(\[\[package\]\]\nname = "kowork"\nversion = ")([^"]+)(")/,
-			`$1${nextVersion}$3`,
-			"atualizar a versao do pacote kowork em src-tauri/Cargo.lock",
-		),
-	);
 }
 
 function releaseTagExists(tag: string): boolean {
@@ -217,19 +180,14 @@ async function pathExists(path: string): Promise<boolean> {
 	}
 }
 
-async function findArtifact(
-	bundleDir: string,
-	folder: string,
-	extension: string,
-): Promise<string | null> {
-	const dir = join(bundleDir, folder);
-	if (!(await pathExists(dir))) {
+async function findArtifact(releaseDir: string, extension: string): Promise<string | null> {
+	if (!(await pathExists(releaseDir))) {
 		return null;
 	}
 
-	const files = await readdir(dir);
+	const files = await readdir(releaseDir);
 	const found = files.find((file) => file.endsWith(extension));
-	return found ? join(dir, found) : null;
+	return found ? join(releaseDir, found) : null;
 }
 
 function withElevation(command: string[]): string[] {
@@ -245,9 +203,9 @@ function withElevation(command: string[]): string[] {
 }
 
 async function installLocally(worktreeDir: string) {
-	const binaryPath = join(worktreeDir, "src-tauri", "target", "release", "kowork");
-	if (!(await pathExists(binaryPath))) {
-		throw new Error("Executavel de release nao encontrado para instalacao local.");
+	const binaryPath = await findArtifact(join(worktreeDir, "electron", "release"), ".AppImage");
+	if (!binaryPath) {
+		throw new Error("AppImage de release nao encontrada para instalacao local.");
 	}
 
 	const home = process.env.HOME;
@@ -260,7 +218,7 @@ async function installLocally(worktreeDir: string) {
 	const appDir = join(home, ".local", "share", "applications");
 	const iconDir = join(home, ".local", "share", "icons", "hicolor", "128x128", "apps");
 	const desktopPath = join(appDir, "kowork.desktop");
-	const iconSource = join(worktreeDir, "src-tauri", "icons", "128x128.png");
+	const iconSource = join(worktreeDir, "electron", "icons", "128x128.png");
 	const iconTarget = join(iconDir, "kowork.png");
 
 	await mkdir(localBinDir, { recursive: true });
@@ -275,7 +233,7 @@ async function installLocally(worktreeDir: string) {
 
 	const appDataDir = koworkerDataDir();
 	const backendBinDir = join(home, ".local", "lib", "kowork", "bin");
-	const backendSource = join(worktreeDir, "src-tauri", "bin", "kowork-backend");
+	const backendSource = join(worktreeDir, "electron", "bin", "kowork-backend");
 	const distSource = join(worktreeDir, "dist");
 
 	if (await pathExists(backendSource)) {
@@ -305,75 +263,7 @@ async function installLocally(worktreeDir: string) {
 		run(["update-desktop-database", appDir]);
 	}
 
-	return `binario local atualizado em ${localBinaryPath}`;
-}
-
-async function fallbackPrepare(worktreeDir: string) {
-	const distDir = join(worktreeDir, "dist");
-	await rm(distDir, { force: true, recursive: true });
-	await mkdir(distDir, { recursive: true });
-
-	run(["bun", "x", "tsr", "generate"], worktreeDir);
-	run(
-		[
-			"bun",
-			"build",
-			"src/main.tsx",
-			"--outdir",
-			"dist",
-			"--target",
-			"browser",
-			"--production",
-			"--minify",
-			"--splitting",
-		],
-		worktreeDir,
-	);
-	run(
-		["bun", "x", "@tailwindcss/cli", "-i", "src/index.css", "-o", "dist/index.css", "--minify"],
-		worktreeDir,
-	);
-
-	const builtMainJs = await readFile(join(distDir, "main.js"), "utf8");
-
-	if (builtMainJs.includes(".development.js")) {
-		throw new Error("Build de produção contém React em modo development");
-	}
-
-	const sourceIndex = await readFile(join(worktreeDir, "src", "index.html"), "utf8");
-	const packageJson = JSON.parse(await readFile(join(worktreeDir, "package.json"), "utf8")) as {
-		version?: string;
-	};
-	const appVersion = packageJson.version || "0.0.0";
-	const builtIndex = buildProductionIndexHtml(sourceIndex, appVersion);
-	await writeFile(join(distDir, "index.html"), builtIndex);
-
-	const staticDir = join(worktreeDir, "static");
-	if (await pathExists(staticDir)) {
-		await cp(staticDir, join(distDir, "static"), { recursive: true });
-
-		const sourceSwPath = join(staticDir, "sw.js");
-		if (await pathExists(sourceSwPath)) {
-			const sourceSw = await readFile(sourceSwPath, "utf8");
-			const cacheVersion = Bun.hash(
-				`${sourceSw}\n${builtMainJs}\n${await readFile(join(distDir, "index.css"), "utf8")}\n${await readFile(join(staticDir, "fonts/fonts.css"), "utf8")}`,
-			).toString(36);
-			const builtSw = buildProductionServiceWorker(sourceSw, `${appVersion}-${cacheVersion}`);
-			await writeFile(join(distDir, "sw.js"), builtSw);
-		}
-	}
-
-	await mkdir(join(worktreeDir, "src-tauri", "bin"), { recursive: true });
-	run(
-		["bun", "build", "src/server.ts", "--compile", "--outfile", "src-tauri/bin/kowork-backend"],
-		worktreeDir,
-		{
-			DATABASE_URL: "/tmp/kowork-build.db",
-			JWT_SECRET: "kowork-build-secret",
-			NODE_ENV: "production",
-		},
-	);
-	await chmod(join(worktreeDir, "src-tauri", "bin", "kowork-backend"), 0o755);
+	return `AppImage local atualizada em ${localBinaryPath}`;
 }
 
 async function main() {
@@ -399,21 +289,15 @@ async function main() {
 
 		run(["bun", "install", "--frozen-lockfile", "--cwd", worktreeDir]);
 
-		if (packageJson.scripts?.["desktop:build"]) {
-			run(["bun", "run", "--cwd", worktreeDir, "desktop:build"]);
-		} else {
-			if (packageJson.scripts?.["desktop:prepare"]) {
-				run(["bun", "run", "--cwd", worktreeDir, "desktop:prepare"]);
-			} else {
-				await fallbackPrepare(worktreeDir);
-			}
-
-			run(["cargo", "tauri", "build"], worktreeDir);
+		if (!packageJson.scripts?.["desktop:build"]) {
+			throw new Error("A branch de release não possui o build desktop Electron");
 		}
 
-		const bundleDir = join(worktreeDir, "src-tauri", "target", "release", "bundle");
-		const debFile = await findArtifact(bundleDir, "deb", ".deb");
-		const rpmFile = await findArtifact(bundleDir, "rpm", ".rpm");
+		run(["bun", "run", "--cwd", worktreeDir, "desktop:build"]);
+
+		const bundleDir = join(worktreeDir, "electron", "release");
+		const debFile = await findArtifact(bundleDir, ".deb");
+		const rpmFile = await findArtifact(bundleDir, ".rpm");
 
 		let installMessage = "";
 		if (debFile && commandExists("dpkg")) {
@@ -447,12 +331,6 @@ async function main() {
 		if (await pathExists(bundleDir)) {
 			await cp(bundleDir, join(releaseDir, "bundle"), { recursive: true });
 		}
-		const releaseBinary = join(worktreeDir, "src-tauri", "target", "release", "kowork");
-		if (await pathExists(releaseBinary)) {
-			await copyFile(releaseBinary, join(releaseDir, "kowork"));
-			await chmod(join(releaseDir, "kowork"), 0o755);
-		}
-
 		await rm(latestLink, { force: true, recursive: true });
 		await symlink(releaseDir, latestLink);
 

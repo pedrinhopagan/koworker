@@ -2,8 +2,8 @@ import { useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { orpcWs } from "@/client";
+import { showWindow } from "@/lib/desktop";
 import { subscribeWithRetry } from "@/lib/realtime-subscription";
-import { safeGetCurrentWindow } from "@/lib/tauri";
 
 // O kw-terminal manda a rota da tarefa que o agente está trabalhando. A janela
 // vem para a frente junto com a navegação: o clique aconteceu no terminal, e
@@ -17,9 +17,7 @@ export function useNavigateEvents() {
 		async function goTo(route: string) {
 			await router.navigate({ to: route });
 
-			const window = await safeGetCurrentWindow();
-			await window?.show();
-			await window?.setFocus();
+			await showWindow();
 		}
 
 		subscribeWithRetry({

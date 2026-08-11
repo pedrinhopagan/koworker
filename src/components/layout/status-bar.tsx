@@ -24,7 +24,7 @@ import { INVOKE_CLI_OPTIONS, type InvokeCli } from "@/constants/invoke";
 import { useProjectFocus } from "@/hooks";
 import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
 import { getAppEnv, getAppVersionFallback, isDevelopmentEnvironment } from "@/lib/env";
-import { isTauri, openDevtools } from "@/lib/tauri";
+import { getDesktopVersion, isDesktop, openDevtools } from "@/lib/desktop";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 
@@ -60,25 +60,17 @@ export function StatusBar() {
 	useEffect(() => {
 		let active = true;
 
-		if (!isTauri()) {
+		if (!isDesktop()) {
 			return () => {
 				active = false;
 			};
 		}
 
-		(async () => {
-			try {
-				const { getVersion } = await import("@tauri-apps/api/app");
-				const resolvedVersion = await getVersion();
-				if (active) {
-					setAppVersion(resolvedVersion);
-				}
-			} catch {
-				if (active) {
-					setAppVersion(getAppVersionFallback());
-				}
+		void getDesktopVersion().then((resolvedVersion) => {
+			if (active && resolvedVersion) {
+				setAppVersion(resolvedVersion);
 			}
-		})();
+		});
 
 		return () => {
 			active = false;
@@ -86,7 +78,7 @@ export function StatusBar() {
 	}, []);
 
 	async function handleOpenConsole() {
-		if (!isTauri()) {
+		if (!isDesktop()) {
 			toast.info("No navegador, use F12 para abrir o console");
 			return;
 		}

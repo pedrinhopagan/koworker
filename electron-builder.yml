@@ -1,0 +1,43 @@
+appId: com.pedro.kowork
+productName: Kowork
+executableName: kowork
+asar: true
+npmRebuild: false
+directories:
+  output: electron/release
+files:
+  - electron/out/**
+  - electron/icons/**
+  - package.json
+extraResources:
+  - from: dist
+    to: dist
+  - from: electron/bin
+    to: bin
+  - from: node_modules/@img
+    to: vendor/node_modules/@img
+linux:
+  icon: electron/icons
+  category: Development
+  maintainer: pedrinhopagan <pedrinhopagan@users.noreply.github.com>
+  syncDesktopName: true
+  target:
+    - AppImage
+    - deb
+    - rpm
+  desktop:
+    entry:
+      Name: Kowork
+      Comment: Gestão de projetos e tarefas com AI Coding Agents
+      Categories: Development;ProjectManagement;
+      StartupWMClass: kowork
+win:
+  icon: electron/icons/icon.ico
+  target:
+    - nsis
+mac:
+  icon: electron/icons/icon.icns
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+artifactName: kowork-${version}-${os}-${arch}.${ext}

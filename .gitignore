@@ -6,10 +6,10 @@ out
 dist
 *.tgz
 
-# Tauri
-src-tauri/target
-src-tauri/bin
-src-tauri/gen/schemas
+# Electron
+electron/out
+electron/release
+electron/bin
 
 # desktop artifacts
 releases

@@ -23,7 +23,7 @@ function alertText(agent: RadarAgent) {
 	};
 }
 
-// Push para todo aparelho aprovado e aviso in-app na mesma batida: o desktop roda no Tauri, onde não
+// Push para todo aparelho aprovado e aviso in-app na mesma batida: o desktop roda no Electron, onde não
 // existe service worker, e só enxerga o alerta pelo canal de notificação. O `tag` por pane faz a
 // notificação nova substituir a anterior daquele agent em vez de empilhar.
 export async function alertRadarTransition(agent: RadarAgent) {

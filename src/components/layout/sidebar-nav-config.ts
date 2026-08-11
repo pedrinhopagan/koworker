@@ -45,7 +45,7 @@ export type SidebarNavActionItem = {
 	label: string;
 	icon: LucideIcon;
 	altKey?: string;
-	tauriOnly?: boolean;
+	desktopOnly?: boolean;
 };
 
 export type SidebarNavSelectProjectItem = {
@@ -127,7 +127,7 @@ export const sidebarNavGroups: SidebarNavGroup[] = [
 				id: "hideWindow",
 				label: "Esconder janela",
 				icon: X,
-				tauriOnly: true,
+				desktopOnly: true,
 			},
 		],
 	},

@@ -8,7 +8,7 @@ const domTests = allTests.filter((path) => path.includes(DOM_TEST_SUFFIX));
 const nodeTests = allTests.filter((path) => !path.includes(DOM_TEST_SUFFIX));
 
 function run(args: string[], env?: Record<string, string>) {
-	const result = Bun.spawnSync(["bun", "test", ...args], {
+	const result = Bun.spawnSync([process.execPath, "test", ...args], {
 		stdio: ["inherit", "inherit", "inherit"],
 		...(env ? { env: { ...process.env, ...env } } : {}),
 	});

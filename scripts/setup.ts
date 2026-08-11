@@ -11,7 +11,6 @@ const envExample = join(root, ".env.example");
 const log = (msg: string) => console.log(`\u001B[36m[setup]\u001B[0m ${msg}`);
 const ok = (msg: string) => console.log(`\u001B[32m  ✓\u001B[0m ${msg}`);
 const skip = (msg: string) => console.log(`\u001B[33m  –\u001B[0m ${msg}`);
-const fail = (msg: string) => console.error(`\u001B[31m  ✗\u001B[0m ${msg}`);
 
 // 1. .env
 log("Verificando .env...");
@@ -51,27 +50,13 @@ await $`bun run build:web`.cwd(root);
 ok("Frontend buildado em dist/");
 
 // 6. Build backend binary
-log("Compilando backend (src-tauri/bin/kowork-backend)...");
+log("Compilando backend (electron/bin/kowork-backend)...");
 await $`bun run build:backend`.cwd(root);
 ok("Backend compilado");
 
-// 7. Verificar cargo tauri
-log("Verificando cargo-tauri...");
-try {
-	await $`cargo tauri --version`.quiet();
-	ok("cargo-tauri instalado");
-} catch {
-	fail("cargo-tauri não encontrado. Instale com: cargo install tauri-cli");
-}
-
-// 8. Verificar dependências de sistema (webkit2gtk)
-log("Verificando dependências de sistema...");
-try {
-	await $`pkg-config --exists javascriptcoregtk-4.1`.quiet();
-	ok("webkit2gtk-4.1 instalado");
-} catch {
-	fail("webkit2gtk-4.1 não encontrado. Instale com: sudo pacman -S webkit2gtk-4.1");
-}
+log("Compilando shell Electron...");
+await $`bun run electron:build`.cwd(root);
+ok("Shell Electron compilado");
 
 console.log("");
 log("\u001B[32mSetup concluído! Rode \u001B[1mbun dev\u001B[0m\u001B[32m para iniciar.\u001B[0m");

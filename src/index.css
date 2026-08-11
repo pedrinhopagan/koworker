@@ -173,14 +173,6 @@
 	--radius-lg: var(--radius);
 	--radius-xl: calc(var(--radius) + 4px);
 
-	/* Sombras rentes ao elemento (blur 0) nos dois degraus usados por superfície fixa: card, input,
-	   botão, turno de conversa. O WebKitGTK do Tauri roda com WEBKIT_DISABLE_COMPOSITING_MODE=1
-	   (src-tauri/src/lib.rs), então cada quadro de rolagem rasteriza no CPU tudo que está visível —
-	   e sombra com blur é o item mais caro dessa conta. Medido na conversa do /terminals/$paneId,
-	   5.4k nós: 38ms por quadro com o `shadow-sm` padrão do Tailwind, 21ms com uma única camada
-	   borrada, 12ms sem blur nenhum. O desenho já é reto (--radius: 0), então o fio de 1px entrega
-	   a mesma separação. Os degraus de overlay (md/lg/xl) ficam borrados de propósito: flutuam
-	   sobre o conteúdo, são poucos e não repintam a cada quadro. */
 	--shadow-xs: 0 1px 0 0 rgb(0 0 0 / 0.06);
 	--shadow-sm: 0 1px 0 0 rgb(0 0 0 / 0.12);
 }
@@ -204,11 +196,6 @@
 		line-height: 1.45;
 		@apply bg-background text-foreground;
 	}
-	/* Seleção de texto explícita: sem esta regra o WebKitGTK (Tauri/Linux) pinta a seleção com o
-	   accent do tema GTK do sistema (verde no CachyOS) sobre texto preto — contraste péssimo. Tom
-	   NEUTRO derivado do foreground (não do --primary, que pode ser um preset verde tipo Olive/
-	   Emerald): fica um realce cinza legível nos dois modos, nunca verde. Escopado no `[data-theme-
-	   root]` (onde a classe de tema vive) pra `var()` resolver. */
 	[data-theme-root] ::selection {
 		background-color: color-mix(in oklab, var(--foreground) 22%, transparent);
 		color: var(--foreground);
@@ -216,7 +203,6 @@
 }
 
 @layer utilities {
-	/* Oculta para Chrome, Safari e Edge (WebView2 do Tauri) */
 	.no-scrollbar::-webkit-scrollbar {
 		display: none;
 	}
@@ -227,12 +213,6 @@
 		scrollbar-width: none; /* Firefox */
 	}
 
-	/* Com o switcher de sessões aberto, trava o overflow dos scrollers da página. O backdrop opaco
-	   cobre o conteúdo, mas no WebKitGTK (Tauri/Linux) a scrollbar de overlay é pintada ACIMA do
-	   conteúdo e ignora ::-webkit-scrollbar/scrollbar-width — z-index/opacidade não a cobrem. Sem
-	   overflow rolável não existe barra, em qualquer engine. O overlay cobre tudo, então o reflow
-	   não aparece; ao fechar, o overflow volta. O `:not(.doc-switcher-list)` isenta o scroller do
-	   PRÓPRIO overlay — ele fica acima do backdrop e precisa rolar quando há sessões demais. */
 	.doc-switcher-open .cm-scroller,
 	.doc-switcher-open main,
 	.doc-switcher-open [class*="overflow-y-auto"]:not(.doc-switcher-list),
@@ -240,6 +220,14 @@
 	.doc-switcher-open [class*="overflow-y-scroll"]:not(.doc-switcher-list),
 	.doc-switcher-open [class*="overflow-scroll"]:not(.doc-switcher-list) {
 		overflow: hidden !important;
+	}
+
+	.desktop-drag-region {
+		-webkit-app-region: drag;
+	}
+
+	.desktop-drag-region :is(a, button, input, textarea, select, [role="button"]) {
+		-webkit-app-region: no-drag;
 	}
 }
 

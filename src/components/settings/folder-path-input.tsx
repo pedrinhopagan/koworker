@@ -6,7 +6,7 @@ import { orpc } from "@/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getCapabilities } from "@/lib/capabilities";
-import { pickProjectFolder } from "@/lib/tauri";
+import { pickProjectFolder } from "@/lib/desktop";
 import { cn } from "@/lib/utils";
 
 type FolderPathInputProps = {
@@ -21,7 +21,7 @@ type FolderPathInputProps = {
 	inputClassName?: string;
 };
 
-// Campo de pasta que troca de forma conforme o cliente: no Tauri, o botão "..." abre o diálogo
+// Campo de pasta que troca de forma conforme o cliente: no desktop, o botão "..." abre o diálogo
 // nativo; no browser, um autocomplete servido pelo backend (system.browseDirectory) valida e sugere
 // diretórios reais. Sempre controlado — cada tela integra com seu próprio estado/form.
 export function FolderPathInput(props: FolderPathInputProps) {

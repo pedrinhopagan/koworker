@@ -13,8 +13,6 @@ function buildAllowedOrigins(): Set<string> {
 		"http://localhost:3000",
 		DEFAULT_KOWORK_API_ORIGIN,
 		KOWORK_PROD_API_ORIGIN,
-		"tauri://localhost",
-		"http://tauri.localhost",
 	]);
 
 	const extra = envVariables.KOWORK_ALLOWED_ORIGINS;

@@ -35,7 +35,7 @@ const BROWSER_MATCHERS = [
 	{ pattern: /firefox/i, label: "Firefox" },
 	{ pattern: /chrome|chromium/i, label: "Chrome" },
 	{ pattern: /safari/i, label: "Safari" },
-	{ pattern: /tauri|wry|webkit2gtk/i, label: "App desktop" },
+	{ pattern: /electron/i, label: "App desktop" },
 ];
 
 export function deviceNameFromUserAgent(userAgent: string | null | undefined) {

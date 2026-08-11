@@ -16,7 +16,7 @@ import { useProjectFocus } from "@/hooks";
 import { useAgentRadarAttention } from "@/hooks/use-agent-radar";
 import { useNavActionDialogsStore } from "@/hooks/use-nav-action-dialogs";
 import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
-import { hideWindow, isTauri } from "@/lib/tauri";
+import { hideWindow, isDesktop } from "@/lib/desktop";
 import { sweepAllActiveTerminals } from "@/lib/terminal";
 import { getWindowToggleShortcutTooltip } from "@/lib/window-shortcut";
 import { cn } from "@/lib/utils";
@@ -324,7 +324,7 @@ export function SidebarNavContent({
 	}
 
 	function renderActionItem(item: SidebarNavActionItem) {
-		if (item.tauriOnly && !isTauri()) {
+		if (item.desktopOnly && !isDesktop()) {
 			return null;
 		}
 

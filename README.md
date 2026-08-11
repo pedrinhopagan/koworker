@@ -7,22 +7,6 @@ ERP full-stack brasileiro focado em projetos e tarefas com AI Coding Agents.
 ### Runtime
 
 - [Bun](https://bun.sh) (runtime e package manager)
-- [Rust + Cargo](https://rustup.rs) (para o Tauri)
-- `cargo-tauri` — instale com `cargo install tauri-cli`
-
-### Dependências de sistema (Linux)
-
-O Tauri precisa de libs nativas para compilar. No Arch/CachyOS:
-
-```bash
-sudo pacman -S webkit2gtk-4.1
-```
-
-No Ubuntu/Debian:
-
-```bash
-sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-```
 
 ## Setup
 
@@ -39,8 +23,8 @@ O que ele faz:
 3. Cria o banco SQLite e roda migrações
 4. Roda seed (usuário admin via env, categorias, prioridades, skills)
 5. Builda o frontend em `dist/`
-6. Compila o backend binary em `src-tauri/bin/kowork-backend`
-7. Verifica se `cargo-tauri` e `webkit2gtk` estão instalados
+6. Compila o backend em `electron/bin/kowork-backend`
+7. Compila o processo principal e o preload do Electron
 
 Após o setup, rode:
 
@@ -110,7 +94,7 @@ O servidor recria as tabelas automaticamente ao iniciar.
 
 ### Desktop
 
-- **Tauri 2** — wrapper desktop com window management e global shortcuts
+- **Electron** — janela, tray, instância única e empacotamento
 
 ## Estrutura
 
@@ -124,11 +108,10 @@ src/
 ├── stores/        # Zustand stores
 ├── types/         # TypeScript types
 ├── cli/           # CLI Kowork (acesso direto ao DB)
-├── desktop/       # Integração Tauri
 ├── server.ts      # Entry point do backend Bun
 └── main.tsx       # Entry point do frontend React
 
-src-tauri/         # App Tauri (Rust)
+electron/          # Main process, preload, ícones e artefatos desktop
 scripts/           # Setup, seed, build, deploy
 docs/              # Documentação adicional
 ```
@@ -139,14 +122,15 @@ docs/              # Documentação adicional
 
 ```bash
 bun setup          # Prepara tudo (env, db, builds)
-bun dev            # Dev completo (frontend + backend + Tauri)
-bun dev:web        # Apenas frontend + backend (sem Tauri)
+bun dev            # Dev completo (frontend + backend + Electron)
+bun dev:web        # Apenas frontend + backend
 ```
 
 ### Build e deploy
 
 ```bash
-bun run desktop:build    # Build desktop Linux (deb/rpm)
+bun run desktop:pack     # Pasta executável do host
+bun run desktop:build    # Pacotes do host (AppImage/deb/rpm, NSIS ou DMG)
 bun run deploy           # Deploy com bump de versão interativo
 bun run desktop:update   # Atualiza do remoto e rebuilda
 ```

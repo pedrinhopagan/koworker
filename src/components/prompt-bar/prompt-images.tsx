@@ -9,7 +9,6 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { IMAGE_MIME_BY_EXT } from "@/constants/koworker";
 import { useObjectUrl } from "@/hooks/use-object-url";
 import { imagePlaceholder } from "@/lib/build-prompt";
-import { isTauri, readClipboardImageFile } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import type { PromptImage } from "@/stores/prompt-bar";
 
@@ -27,8 +26,6 @@ export function usePromptImagePaste(params: {
 	const [uploading, setUploading] = useState(false);
 
 	async function handlePaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
-		// No navegador a imagem colada chega nos `items` via `getAsFile()` (síncrono de propósito: depois
-		// do `await` o `clipboardData` já foi neutralizado).
 		const files: File[] = [];
 		for (const item of event.clipboardData.items) {
 			if (item.kind !== "file" || !ACCEPTED_IMAGE_MIMES.has(item.type)) continue;
@@ -37,17 +34,10 @@ export function usePromptImagePaste(params: {
 		}
 
 		if (files.length === 0) {
-			// Sem imagem nos items: se há texto, é uma cola normal — deixa seguir. Sem texto e dentro do
-			// Tauri, o print colado ficou só no clipboard do OS (WebKitGTK não o entrega ao evento web):
-			// barra o paste e lê de lá.
-			if (event.clipboardData.getData("text/plain") || !isTauri()) return;
-			event.preventDefault();
-			const image = await readClipboardImageFile();
-			if (!image) return;
-			files.push(image);
-		} else {
-			event.preventDefault();
+			return;
 		}
+
+		event.preventDefault();
 
 		const project = projectsQuery.data?.find((entry) => entry.name === params.projectName);
 		if (!project) {

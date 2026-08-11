@@ -1,7 +1,7 @@
 # KOWORK ROADMAP
 
 **Status:** v2 em uso, paridade com o WorkOpilot v1 alcançada e ultrapassada
-**Atualizado:** 2026-07-24 (cada linha conferida contra o código)
+**Atualizado:** 2026-08-11 (cada linha conferida contra o código)
 
 Este arquivo descreve o que existe e o que falta. Quando divergir do código, o código vence e este
 arquivo é o errado. Schema e convenções ficam no `AGENTS.md` da raiz.
@@ -14,7 +14,7 @@ arquivo é o errado. Schema e convenções ficam no `AGENTS.md` da raiz.
 
 | Item | Estado | Onde |
 |---|---|---|
-| Tauri: janela, tray, sidecar do backend | Pronto | `src-tauri/src/{lib,tray,window,backend}.rs` |
+| Electron: janela, tray e ciclo do backend | Pronto | `electron/{main,preload,backend}.ts` |
 | SQLite via `@lobomfz/db` + Kysely | Pronto | `src/api/db/connection.ts` |
 | API ORPC, um router por domínio | Pronto | `src/api/router.ts`, `src/api/routers/` |
 | WebSocket ORPC (`wsRouter`) | Pronto | `src/api/router.ts` + `src/api/pubsub/` |
@@ -109,7 +109,7 @@ Itens confirmados como ausentes ou incompletos hoje. Sem estimativa: entram quan
 
 ### Mantido
 
-- Tauri para janela, tray e empacotamento.
+- Electron para janela, tray e empacotamento.
 - SQLite local, TypeScript para toda lógica, React + TanStack Router/Query.
 - Integração com terminal (tmux / kw-terminal).
 

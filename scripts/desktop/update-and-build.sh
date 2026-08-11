@@ -42,17 +42,13 @@ git worktree add --detach "${WORKTREE_DIR}" "${TARGET_REF}"
 
 bun install --frozen-lockfile --cwd "${WORKTREE_DIR}"
 
-if [ -f "${WORKTREE_DIR}/scripts/desktop/build-web.ts" ] && [ -f "${WORKTREE_DIR}/scripts/desktop/build-backend.ts" ]; then
-	bun run --cwd "${WORKTREE_DIR}" desktop:build
-else
-	bun run --cwd "${WORKTREE_DIR}" tauri:build
-fi
+bun run --cwd "${WORKTREE_DIR}" desktop:build
 
 SHORT_SHA="$(git -C "${WORKTREE_DIR}" rev-parse --short HEAD)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 RELEASE_DIR="${ROOT_DIR}/releases/linux/${TARGET_BRANCH}-${SHORT_SHA}-${STAMP}"
 LATEST_LINK="${ROOT_DIR}/releases/linux/latest"
-BUNDLE_DIR="${WORKTREE_DIR}/src-tauri/target/release/bundle"
+BUNDLE_DIR="${WORKTREE_DIR}/electron/release"
 
 if [ ! -d "${BUNDLE_DIR}" ]; then
 	echo "Build concluido, mas pasta de bundle nao foi encontrada em ${BUNDLE_DIR}."

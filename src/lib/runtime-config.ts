@@ -7,18 +7,18 @@ type AppEnv = "development" | "production";
 
 type ResolveApiOriginParams = {
 	windowOrigin?: string;
-	isTauriEnvironment: boolean;
+	isDesktopEnvironment: boolean;
 	appEnv?: AppEnv;
 };
 
 export function resolveApiOrigin(params: ResolveApiOriginParams): string {
-	const { windowOrigin, isTauriEnvironment, appEnv = "development" } = params;
+	const { windowOrigin, isDesktopEnvironment, appEnv = "development" } = params;
 
 	// Navegador web fala sempre com a mesma origem que serviu o app (Caddy faz o proxy de /rpc).
-	if (!isTauriEnvironment && windowOrigin) {
+	if (!isDesktopEnvironment && windowOrigin) {
 		return windowOrigin;
 	}
 
-	// Tauri (ou SSR sem origem) roda o backend localmente: 2842 em prod, 2841 em dev.
+	// O shell desktop (ou SSR sem origem) roda o backend localmente: 2842 em prod, 2841 em dev.
 	return appEnv === "production" ? KOWORK_PROD_API_ORIGIN : DEFAULT_KOWORK_API_ORIGIN;
 }

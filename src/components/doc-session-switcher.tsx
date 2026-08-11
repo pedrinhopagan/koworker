@@ -389,9 +389,6 @@ export function DocSessionSwitcher() {
 		// também são divs clicáveis com botões de fixar/remover dentro. Clicar no fundo fecha.
 		/** biome-ignore lint/a11y/noStaticElementInteractions: backdrop só fecha no clique; Esc também fecha. */
 		<div
-			// Backdrop translúcido com blur (z-[100]). A scrollbar do CodeMirror (WebKitGTK) vazava pelos
-			// vãos quando translúcido — por isso o hack `.doc-switcher-open` esconde as scrollbars da
-			// página enquanto o overlay está aberto. Se voltar a vazar, reverter pra `bg-background` opaco.
 			className="fixed inset-0 z-[100] flex flex-col items-center gap-4 overflow-hidden bg-background/80 px-6 pt-16 pb-8 backdrop-blur-sm"
 			onClick={close}
 		>

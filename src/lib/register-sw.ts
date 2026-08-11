@@ -1,12 +1,12 @@
 import { getAppEnv } from "@/lib/env";
-import { isTauri } from "@/lib/tauri";
+import { isDesktop } from "@/lib/desktop";
 
 export function registerServiceWorker(): void {
 	if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
 		return;
 	}
 
-	if (isTauri()) {
+	if (isDesktop()) {
 		return;
 	}
 

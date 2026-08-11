@@ -5,7 +5,10 @@
 	"description": "Koworker - ERP full-stack brasileiro com projetos e tarefas para AI Coding Agents",
 	"homepage": "https://github.com/pedrinhopagan/koworker",
 	"license": "UNLICENSED",
-	"author": "pedrinhopagan",
+	"author": {
+		"name": "pedrinhopagan",
+		"email": "pedrinhopagan@users.noreply.github.com"
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/pedrinhopagan/koworker.git"
@@ -14,22 +17,23 @@
 		"kw-cli": "./src/cli/index.ts"
 	},
 	"type": "module",
+	"main": "electron/out/main.cjs",
 	"scripts": {
 		"setup": "bun run scripts/setup.ts",
-		"dev": "concurrently -k 'tsr watch' 'NODE_ENV=development KOWORK_DIST_DIR= KOWORK_PORT=2841 bun --watch src/server.ts' 'cargo tauri dev --config src-tauri/tauri.dev.conf.json'",
+		"dev": "bun run electron:build && concurrently -k --success first 'tsr watch' 'electron . --show'",
+		"dev:electron": "bun run dev",
 		"dev:web": "concurrently 'tsr watch' 'bun --watch src/server.ts'",
 		"build:web": "bun run scripts/desktop/build-web.ts",
 		"build:backend": "bun run scripts/desktop/build-backend.ts",
-		"desktop:prepare": "bun run build:web && bun run build:backend",
-		"desktop:build": "bun run desktop:prepare && cargo tauri build",
+		"electron:build": "bun run scripts/desktop/build-electron.ts",
+		"desktop:prepare": "NODE_ENV=production bun run electron:build && bun run build:web && bun run build:backend",
+		"desktop:pack": "bun run desktop:prepare && electron-builder --dir",
+		"desktop:build": "bun run desktop:prepare && bun run scripts/desktop/build-packages.ts",
 		"desktop:update": "bash ./scripts/desktop/update-and-build.sh",
 		"deploy": "bun run scripts/desktop/deploy.ts",
 		"deploy:fast": "bun run scripts/desktop/hot-deploy.ts",
-		"tauri": "cargo tauri",
-		"tauri:dev": "cargo tauri dev --config src-tauri/tauri.dev.conf.json",
-		"tauri:build": "cargo tauri build",
 		"cli": "bun run src/cli/index.ts",
-		"oxlint": "oxlint src scripts --ignore-pattern='*.gen.ts'",
+		"oxlint": "oxlint src scripts electron --ignore-pattern='*.gen.ts'",
 		"typecheck": "tsc --noEmit",
 		"test": "bun run scripts/test.ts",
 		"check": "bun run typecheck && bun run oxlint && bun run test",
@@ -64,8 +68,6 @@
 		"@radix-ui/react-switch": "^1.2.6",
 		"@tanstack/react-query": "^5.90.20",
 		"@tanstack/react-router": "^1.157.10",
-		"@tauri-apps/api": "^2.9.1",
-		"@tauri-apps/plugin-clipboard-manager": "^2.3.2",
 		"@uiw/react-codemirror": "^4.25.10",
 		"arktype": "^2.1.29",
 		"chokidar": "^3.6.0",
@@ -106,6 +108,8 @@
 		"@typescript/native-preview": "^7.0.0-dev.20260124.1",
 		"bun-plugin-tailwind": "^0.1.2",
 		"concurrently": "^9.2.1",
+		"electron": "^43.3.0",
+		"electron-builder": "^26.15.3",
 		"knip": "^5.82.1",
 		"lefthook": "^2.0.15",
 		"oxfmt": "^0.26.0",
@@ -116,5 +120,6 @@
 		"@radix-ui/react-dismissable-layer": "1.1.14",
 		"@radix-ui/react-focus-guards": "1.1.4",
 		"@radix-ui/react-focus-scope": "1.1.11"
-	}
+	},
+	"desktopName": "kowork.desktop"
 }

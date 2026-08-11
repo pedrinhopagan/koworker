@@ -1,13 +1,6 @@
-/**
- * TabBar - Main navigation component
- * Desktop: Home, Projetos, Tarefas + copiar rota no centro
- * Mobile: hamburger + título da rota + Nova nota no vault
- * Supports window dragging in Tauri environment
- */
-
 import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Menu, SquarePen, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { tv } from "tailwind-variants";
 import { getActiveTabLabel, MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
@@ -17,7 +10,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useNavActionDialogsStore } from "@/hooks/use-nav-action-dialogs";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { copyToClipboard } from "@/lib/build-prompt";
-import { hideWindow, isTauri, startWindowDrag } from "@/lib/tauri";
+import { hideWindow, isDesktop } from "@/lib/desktop";
 import { cn } from "@/lib/utils";
 import { getWindowToggleShortcutTooltip } from "@/lib/window-shortcut";
 import { useSidebarNavStore } from "@/stores/sidebar-nav";
@@ -84,10 +77,6 @@ export function TabBar() {
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [navigate]);
 
-	const handleMouseDown = useCallback((e: React.MouseEvent) => {
-		startWindowDrag(e);
-	}, []);
-
 	async function handleCopyRoutePath() {
 		const ok = await copyToClipboard(displayPath);
 		toast[ok ? "success" : "error"](ok ? "Rota copiada" : "Falha ao copiar rota");
@@ -98,9 +87,8 @@ export function TabBar() {
 			<nav
 				className={cn(
 					"flex items-center border-b gap-2 md:gap-4 border-border bg-chrome select-none",
-					isTauri() && "cursor-grab active:cursor-grabbing",
+					isDesktop() && "desktop-drag-region cursor-grab active:cursor-grabbing",
 				)}
-				onMouseDown={handleMouseDown}
 			>
 				<button
 					type="button"
@@ -158,8 +146,6 @@ export function TabBar() {
 					/>
 				</div>
 
-				{/* Réplica desktop das ações de "nova tarefa" e "esconder janela": nova tarefa abre o
-				    dialog global (já montado no AppShell); esconder janela só no Tauri, como na sidebar. */}
 				<div className="hidden items-center pr-1 md:flex">
 					<Tooltip label="Nova tarefa">
 						<button
@@ -171,7 +157,7 @@ export function TabBar() {
 							<SquarePen size={16} />
 						</button>
 					</Tooltip>
-					{isTauri() ? (
+					{isDesktop() ? (
 						<Tooltip label={`Esconder janela — ${getWindowToggleShortcutTooltip()}`}>
 							<button
 								type="button"

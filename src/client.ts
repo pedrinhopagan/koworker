@@ -6,7 +6,7 @@ import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { getAppEnv } from "@/lib/env";
 import { createResilientWebSocket } from "@/lib/resilient-websocket";
 import { DEFAULT_KOWORK_API_ORIGIN, resolveApiOrigin } from "@/lib/runtime-config";
-import { isTauri } from "@/lib/tauri";
+import { isDesktop } from "@/lib/desktop";
 import type { API, WsAPI } from "./server";
 
 const apiOrigin = (() => {
@@ -16,7 +16,7 @@ const apiOrigin = (() => {
 
 	return resolveApiOrigin({
 		windowOrigin: window.location.origin,
-		isTauriEnvironment: isTauri(),
+		isDesktopEnvironment: isDesktop(),
 		appEnv: getAppEnv(),
 	});
 })();

@@ -1,4 +1,4 @@
-import { access, chmod, cp, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, chmod, cp, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,9 +12,9 @@ const rootDir = join(scriptDir, "../..");
 const home = homedir();
 
 const distSource = join(rootDir, "dist");
-const guiSource = join(rootDir, "src-tauri/target/release/kowork");
-const backendSource = join(rootDir, "src-tauri/bin/kowork-backend");
-const cliSource = join(rootDir, "src-tauri/bin/kw-cli");
+const electronReleaseDir = join(rootDir, "electron/release");
+const backendSource = join(rootDir, "electron/bin/kowork-backend");
+const cliSource = join(rootDir, "electron/bin/kw-cli");
 
 const appDataDir = koworkerDataDir();
 const distTarget = join(appDataDir, "dist");
@@ -56,6 +56,16 @@ function runAllowingFailure(command: string[]): string | null {
 	return `${command.join(" ")} saiu com codigo ${result.exitCode}`;
 }
 
+async function findAppImage() {
+	if (!(await pathExists(electronReleaseDir))) {
+		return null;
+	}
+
+	const file = (await readdir(electronReleaseDir)).find((entry) => entry.endsWith(".AppImage"));
+
+	return file ? join(electronReleaseDir, file) : null;
+}
+
 async function pathExists(path: string): Promise<boolean> {
 	try {
 		await access(path);
@@ -65,9 +75,6 @@ async function pathExists(path: string): Promise<boolean> {
 	}
 }
 
-// Padrao ancorado em ^: casa o caminho absoluto no inicio da argv. Assim nao atinge o app de dev
-// (target/debug/kowork), nem o backend (caminho diferente), nem a propria linha de relancamento
-// (que comeca com "setsid"), nem o build (outfile em src-tauri/bin).
 function kill(absolutePath: string, signal?: string) {
 	const args = signal ? ["-f", signal, `^${absolutePath}`] : ["-f", `^${absolutePath}`];
 	Bun.spawnSync(["pkill", ...args], { stdio: ["ignore", "ignore", "ignore"] });
@@ -212,32 +219,25 @@ run(["bun", "run", "build:backend"]);
 console.log("→ Build da CLI (binario standalone)...");
 run(["bun", "build", "src/cli/index.ts", "--compile", "--outfile", cliSource]);
 
-let guiAvailable = false;
+console.log("→ Build da GUI Electron (AppImage)...");
+run(["bun", "run", "electron:build"], { NODE_ENV: "production" });
+const electronError = runAllowingFailure(["bun", "x", "electron-builder", "--linux", "AppImage"]);
+const guiSource = electronError ? null : await findAppImage();
+const guiAvailable = !!guiSource;
 
-if (backendManagedBySystemd) {
+if (electronError) {
 	warnings.push(
-		`Backend gerenciado por systemd (${systemdBackendUnit}): build e relancamento da GUI foram pulados nesta maquina.`,
+		`Build da GUI falhou (${electronError}); dist, backend e CLI seguiram mesmo assim.`,
 	);
-} else {
-	console.log("→ cargo tauri build (re-embute o frontend novo na GUI)...");
-	const cargoError = runAllowingFailure(["cargo", "tauri", "build", "--no-bundle"]);
-
-	if (cargoError) {
-		warnings.push(`Build da GUI falhou (${cargoError}); dist, backend e CLI seguiram mesmo assim.`);
-	} else if (await pathExists(guiSource)) {
-		guiAvailable = true;
-	} else {
-		warnings.push(
-			`cargo nao gerou a GUI em ${guiSource}; dist, backend e CLI seguiram mesmo assim.`,
-		);
-	}
+} else if (!guiSource) {
+	warnings.push("electron-builder não gerou a AppImage; dist, backend e CLI seguiram mesmo assim.");
 }
 
 if (!(await pathExists(backendSource))) {
-	throw new Error("build:backend nao gerou src-tauri/bin/kowork-backend");
+	throw new Error("build:backend nao gerou electron/bin/kowork-backend");
 }
 if (!(await pathExists(cliSource))) {
-	throw new Error("build da CLI nao gerou src-tauri/bin/kw-cli");
+	throw new Error("build da CLI nao gerou electron/bin/kw-cli");
 }
 if (!(await pathExists(join(distSource, "index.html")))) {
 	throw new Error("build:web nao gerou dist/index.html");
@@ -250,7 +250,7 @@ if (backendManagedBySystemd) {
 // Instala com prod antigo ainda no ar; os renames atomicos so trocam tudo no fim.
 try {
 	console.log("→ Instalando backend, CLI, dist e vendor do sharp...");
-	if (guiAvailable) {
+	if (guiSource) {
 		await installFile(guiSource, guiTarget);
 	}
 	await installFile(backendSource, backendTarget);
@@ -260,6 +260,8 @@ try {
 
 	console.log("→ Reiniciando o app de prod...");
 	if (guiAvailable) {
+		Bun.spawnSync([guiTarget, "--quit"], { stdio: ["ignore", "ignore", "ignore"] });
+		await Bun.sleep(500);
 		kill(guiTarget);
 
 		const guiDead = await waitFor(guiGone, 5000, 100);
@@ -270,13 +272,15 @@ try {
 	}
 
 	if (backendManagedBySystemd) {
-		// Nao usar pkill no backend: systemd ressuscitaria o processo antigo (inode velho) no meio do deploy.
 		restartBackendViaSystemd();
 		const live = await waitForBackendHealth(40000, 500);
 		if (!live) {
 			throw new Error(
 				`Backend systemd nao respondeu 200 em ${healthUrl} apos restart de ${systemdBackendUnit}.`,
 			);
+		}
+		if (guiAvailable) {
+			launchGui();
 		}
 	} else if (guiAvailable) {
 		kill(backendTarget);

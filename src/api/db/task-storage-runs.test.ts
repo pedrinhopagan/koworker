@@ -17,11 +17,14 @@ let result: {
 };
 
 beforeAll(async () => {
-	const child = Bun.spawn(["bun", "run", "src/api/db/task-storage-runs-test-runner.ts", root], {
-		cwd: process.cwd(),
-		stdout: "pipe",
-		stderr: "pipe",
-	});
+	const child = Bun.spawn(
+		[process.execPath, "run", "src/api/db/task-storage-runs-test-runner.ts", root],
+		{
+			cwd: process.cwd(),
+			stdout: "pipe",
+			stderr: "pipe",
+		},
+	);
 	const [exitCode, stdout, stderr] = await Promise.all([
 		child.exited,
 		new Response(child.stdout).text(),
