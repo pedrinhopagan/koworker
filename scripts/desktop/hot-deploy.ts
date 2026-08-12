@@ -259,7 +259,7 @@ try {
 	await installSharpVendor(rootDir);
 
 	console.log("→ Reiniciando o app de prod...");
-	if (guiAvailable) {
+	if (guiAvailable && !backendManagedBySystemd) {
 		Bun.spawnSync([guiTarget, "--quit"], { stdio: ["ignore", "ignore", "ignore"] });
 		await Bun.sleep(500);
 		kill(guiTarget);
@@ -278,9 +278,6 @@ try {
 			throw new Error(
 				`Backend systemd nao respondeu 200 em ${healthUrl} apos restart de ${systemdBackendUnit}.`,
 			);
-		}
-		if (guiAvailable) {
-			launchGui();
 		}
 	} else if (guiAvailable) {
 		kill(backendTarget);
@@ -311,7 +308,7 @@ try {
 	if (backendManagedBySystemd) {
 		restartBackendViaSystemd();
 	}
-	if (guiAvailable) {
+	if (guiAvailable && !backendManagedBySystemd) {
 		launchGui();
 	}
 	throw error;

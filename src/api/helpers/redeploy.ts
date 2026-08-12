@@ -138,14 +138,9 @@ export function spawnRedeployDetached(): void {
 export async function getRedeployStatus() {
 	const { lockPath, logPath } = dataPaths();
 
-	let inProgress = false;
-
-	try {
-		await stat(lockPath);
-		inProgress = true;
-	} catch {
-		inProgress = false;
-	}
+	const age = await lockAgeMs(lockPath);
+	const staleLock = age !== null && age >= LOCK_MAX_AGE_MS;
+	const inProgress = age !== null && !staleLock;
 
 	let logTail: string[] = [];
 
@@ -157,9 +152,14 @@ export async function getRedeployStatus() {
 	}
 
 	const persisted = await readRedeployState();
-	const state = inProgress ? "running" : persisted.state === "running" ? "failed" : persisted.state;
-	const message =
-		!inProgress && persisted.state === "running"
+	const state = inProgress
+		? "running"
+		: staleLock || persisted.state === "running"
+			? "failed"
+			: persisted.state;
+	const message = staleLock
+		? "A atualização parou de responder antes de concluir"
+		: !inProgress && persisted.state === "running"
 			? "A atualização foi interrompida antes de concluir"
 			: persisted.message;
 

@@ -6,7 +6,7 @@ anchors:
   - scripts/desktop/hot-deploy.ts#persistRepoDirForBackend
   - src/lib/redeploy-state.ts#writeRedeployState
   - src/lib/register-sw.ts#activateLatestPwa
-timestamp: 2026-08-11T21:04:11-03:00
+timestamp: 2026-08-11T21:27:00-03:00
 ---
 
 # Atualização remota do PWA
@@ -16,6 +16,8 @@ timestamp: 2026-08-11T21:04:11-03:00
 A confirmação na interface inicia um processo destacado sob lock atômico. O processo faz `fetch`, abre `origin/main` num worktree descartável e executa o deploy a partir desse snapshot. O clone canônico pode estar em outra branch ou conter arquivos locais sem contaminar o build.
 
 O deploy instala os artefatos por troca atômica e preserva no serviço o caminho do clone canônico, não o worktree temporário. Assim o próximo clique continua encontrando o repositório depois que o worktree é removido.
+
+Quando o backend é gerenciado por systemd, o deploy instala a AppImage sem abrir ou encerrar a GUI Electron. Só o serviço do backend reinicia; misturar os dois ciclos pode prender o deploy num processo gráfico e impedir a verificação de saúde.
 
 O estado `running | succeeded | failed`, o commit e a mensagem vivem fora do processo do backend. A interface continua acompanhando o mesmo deploy durante o restart e só considera sucesso depois da verificação de saúde executada pelo deploy.
 
