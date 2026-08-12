@@ -9,6 +9,7 @@ import {
 	ensureKwTerminalServer,
 	kwTerminalAgentList,
 	kwTerminalPaneList,
+	kwTerminalPaneSession,
 	kwTerminalSocketPath,
 	kwTerminalTabList,
 	kwTerminalWorkspaceList,
@@ -249,6 +250,7 @@ async function syncRadar(current: number) {
 			const known = getRadarAgent(pane.pane_id);
 			const status = toRadarStatus(pane.agent_status);
 			const task = tasks.get(pane.pane_id);
+			const session = kwTerminalPaneSession(pane);
 
 			return [
 				{
@@ -264,8 +266,7 @@ async function syncRadar(current: number) {
 					cwd: pane.cwd,
 					projectId: project?.id ?? null,
 					projectName: project?.name ?? null,
-					sessionId: pane.agent_session_id ?? null,
-					sessionPath: pane.agent_session_path ?? null,
+					...session,
 					taskId: task?.task_id ?? null,
 					taskTitle: task?.title ?? null,
 					changedAt: known?.status === status ? known.changedAt : Date.now(),

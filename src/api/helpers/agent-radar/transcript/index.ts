@@ -1,17 +1,20 @@
 import type { AgentSessionEvent } from "@/lib/agent-session";
 import { PubSub } from "../../../pubsub";
-import { getRadarAgent } from "../state";
+import { kwTerminalPaneGet, kwTerminalPaneSession } from "../../terminal/kw-terminal";
+import { setRadarAgentSession } from "../state";
 import { locateAgentTranscript, type AgentTranscript } from "./locate";
 import { openTranscriptTail, type TranscriptTail } from "./tail";
 
-// De quanto em quanto tempo o pane é reperguntado ao disco. É o que troca a conversa quando o mesmo
-// pane começa outra sessão: o arquivo antigo para de crescer e ninguém avisa que existe um novo.
-const RESOLVE_INTERVAL_MS = 15_000;
+// De quanto em quanto tempo a sessão atual do pane é relida no daemon. É o que troca a conversa
+// quando o mesmo pane começa outra sessão sem mudar de status nem emitir um evento de ciclo de vida.
+const RESOLVE_INTERVAL_MS = 2_000;
 
 type PaneTranscript = {
 	tail: TranscriptTail | null;
 	readers: number;
 	timer: ReturnType<typeof setInterval>;
+	resolving: boolean;
+	missing: boolean;
 };
 
 const panes = new Map<string, PaneTranscript>();
@@ -45,33 +48,63 @@ async function openTail(paneId: string, source: AgentTranscript) {
 // arquivo (sessão nova no mesmo pane). Uma resolução só serve para abrir; manter aberto é reresolver.
 async function resolve(paneId: string) {
 	const entry = panes.get(paneId);
-	if (!entry) {
+	if (!entry || entry.resolving) {
 		return;
 	}
+	entry.resolving = true;
 
-	const agent = getRadarAgent(paneId);
-	const source = agent ? await locateAgentTranscript(agent) : null;
-
-	if (!panes.has(paneId)) {
-		return;
-	}
-
-	if (!source) {
-		if (entry.tail) {
-			entry.tail.close();
-			entry.tail = null;
+	try {
+		const pane = await kwTerminalPaneGet(paneId);
+		const session = pane ? kwTerminalPaneSession(pane) : { sessionId: null, sessionPath: null };
+		if (pane) {
+			await setRadarAgentSession(paneId, session);
 		}
-		await publish({ paneId, missing: true });
+		const source = pane?.agent
+			? await locateAgentTranscript({
+					agent: pane.agent,
+					cwd: pane.cwd,
+					...session,
+				})
+			: null;
 
-		return;
+		if (panes.get(paneId) !== entry) {
+			return;
+		}
+
+		if (!source) {
+			if (entry.tail) {
+				entry.tail.close();
+				entry.tail = null;
+			}
+			if (!entry.missing) {
+				entry.missing = true;
+				await publish({ paneId, missing: true, reset: true, events: [] });
+			}
+
+			return;
+		}
+
+		if (entry.tail?.source.cli === source.cli && entry.tail.source.path === source.path) {
+			return;
+		}
+
+		entry.tail?.close();
+		entry.tail = null;
+		const tail = await openTail(paneId, source);
+		if (panes.get(paneId) !== entry) {
+			tail.close();
+
+			return;
+		}
+		entry.tail = tail;
+		entry.missing = false;
+	} catch (error) {
+		console.error(`[Radar] Falha ao resolver a conversa do pane ${paneId}:`, error);
+	} finally {
+		if (panes.get(paneId) === entry) {
+			entry.resolving = false;
+		}
 	}
-
-	if (entry.tail?.source.path === source.path) {
-		return;
-	}
-
-	entry.tail?.close();
-	entry.tail = await openTail(paneId, source);
 }
 
 function release(paneId: string) {
@@ -108,6 +141,8 @@ export async function* subscribeAgentRadarTranscript(paneId: string, signal?: Ab
 		panes.set(paneId, {
 			tail: null,
 			readers: 1,
+			resolving: false,
+			missing: false,
 			timer: setInterval(() => void resolve(paneId), RESOLVE_INTERVAL_MS).unref(),
 		});
 		await resolve(paneId);

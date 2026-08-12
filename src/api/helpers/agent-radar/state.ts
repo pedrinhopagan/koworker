@@ -76,6 +76,23 @@ export function putRadarAgent(agent: RadarAgent) {
 	return publish();
 }
 
+export function setRadarAgentSession(
+	paneId: string,
+	session: Pick<RadarAgent, "sessionId" | "sessionPath">,
+) {
+	const agent = agents.get(paneId);
+	if (
+		!agent ||
+		(agent.sessionId === session.sessionId && agent.sessionPath === session.sessionPath)
+	) {
+		return;
+	}
+
+	agents.set(paneId, { ...agent, ...session });
+
+	return publish();
+}
+
 export function resetRadarAgents(next: RadarAgent[], nextFocus: RadarFocus = EMPTY_FOCUS) {
 	agents.clear();
 	for (const agent of next) {

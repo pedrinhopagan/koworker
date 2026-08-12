@@ -17,6 +17,7 @@ const MAX_EVENTS = 400;
 // O CLI escreve linha a linha e o watcher dispara por escrita: sem espera, um turno viraria dezenas
 // de publicações de um bloco cada.
 const DEBOUNCE_MS = 120;
+const POLL_MS = 1_000;
 
 const TRANSLATORS: Record<TranscriptCli, (raw: unknown) => TranscriptPatch[]> = {
 	claude: translateClaudeTranscriptLine,
@@ -70,6 +71,8 @@ export async function openTranscriptTail(input: {
 	let offset = 0;
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let closed = false;
+	let pulling = false;
+	let pending = false;
 
 	async function pull() {
 		const chunk = await readTail(input.source.path, offset);
@@ -86,19 +89,35 @@ export async function openTranscriptTail(input: {
 	}
 
 	function schedule() {
-		if (timer || closed) {
+		if (closed) {
+			return;
+		}
+		if (pulling) {
+			pending = true;
+
+			return;
+		}
+		if (timer) {
 			return;
 		}
 
 		timer = setTimeout(() => {
 			timer = null;
+			pulling = true;
 			void pull()
 				.then(({ events, reset }) => {
 					if (!closed && (events.length > 0 || reset)) {
 						input.onEvents(events, reset);
 					}
 				})
-				.catch(input.onError);
+				.catch(input.onError)
+				.finally(() => {
+					pulling = false;
+					if (pending && !closed) {
+						pending = false;
+						schedule();
+					}
+				});
 		}, DEBOUNCE_MS);
 		timer.unref();
 	}
@@ -108,16 +127,24 @@ export async function openTranscriptTail(input: {
 
 	const watcher: FSWatcher = watch(input.source.path, { persistent: false }, () => schedule());
 	watcher.on("error", input.onError);
+	const poll = setInterval(() => {
+		if (Bun.file(input.source.path).size !== offset) {
+			schedule();
+		}
+	}, POLL_MS);
+	poll.unref();
 
 	return {
 		source: input.source,
 		events: () => mirror.list(),
 		close() {
 			closed = true;
+			pending = false;
 			if (timer) {
 				clearTimeout(timer);
 			}
 
+			clearInterval(poll);
 			watcher.close();
 		},
 	};

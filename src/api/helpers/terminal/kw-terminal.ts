@@ -1,4 +1,18 @@
 import { spawnEnv } from "@/api/helpers/spawn";
+import { z } from "zod";
+
+const KwTerminalAgentSessionSchema = z
+	.object({
+		agent: z.string(),
+		kind: z.enum(["id", "path"]),
+		source: z.string(),
+		value: z.string().trim().min(1),
+	})
+	.strict();
+
+const KwTerminalErrorSchema = z.object({
+	error: z.object({ code: z.string(), message: z.string() }),
+});
 
 // Wrappers finos sobre o binário `kw-terminal`. O estado de verdade do "que está aberto" vive no
 // servidor kw-terminal (um daemon independente que sobrevive ao restart do backend), então lemos dele
@@ -41,11 +55,30 @@ export type KwTerminalPane = {
 	agent?: string;
 	activity?: string;
 	title?: string;
-	// Preenchidos só quando o agent reporta a sessão que está gravando (`pane report-agent-session`);
-	// sem a integração instalada o daemon devolve nulo e quem precisa do transcript o procura no disco.
+	agent_session?: z.infer<typeof KwTerminalAgentSessionSchema> | null;
 	agent_session_id?: string | null;
 	agent_session_path?: string | null;
 };
+
+export function kwTerminalPaneSession(
+	pane: Pick<KwTerminalPane, "agent" | "agent_session" | "agent_session_id" | "agent_session_path">,
+) {
+	const parsed = KwTerminalAgentSessionSchema.safeParse(pane.agent_session);
+	if (parsed.success && parsed.data.agent === pane.agent) {
+		return parsed.data.kind === "id"
+			? { sessionId: parsed.data.value, sessionPath: null }
+			: { sessionId: null, sessionPath: parsed.data.value };
+	}
+	if (pane.agent_session !== undefined && pane.agent_session !== null) {
+		return { sessionId: null, sessionPath: null };
+	}
+
+	const sessionPath = pane.agent_session_path?.trim() || null;
+
+	return sessionPath
+		? { sessionId: null, sessionPath }
+		: { sessionId: pane.agent_session_id?.trim() || null, sessionPath: null };
+}
 
 // A tarefa que o agent anunciou estar tocando (`pane report-task`). Só o `agent list` devolve.
 export type KwTerminalSessionTask = {
@@ -329,6 +362,28 @@ export async function kwTerminalPaneList(params: {
 	const panes = result.panes;
 
 	return params.tabId ? panes.filter((pane) => pane.tab_id === params.tabId) : panes;
+}
+
+export async function kwTerminalPaneGet(paneId: string): Promise<KwTerminalPane | null> {
+	const { ok, stdout, stderr } = await runKwTerminal(["pane", "get", paneId]);
+	if (!ok) {
+		let payload: unknown = null;
+		try {
+			payload = JSON.parse(stdout);
+		} catch {
+			payload = null;
+		}
+		const parsed = KwTerminalErrorSchema.safeParse(payload);
+		if (parsed.success && parsed.data.error.code === "pane_not_found") {
+			return null;
+		}
+
+		throw new Error(
+			`Falha ao consultar pane kw-terminal: ${parsed.success ? parsed.data.error.message : stderr.trim() || "erro"}`,
+		);
+	}
+
+	return parseKwTerminalResult<{ pane: KwTerminalPane }>(stdout).pane;
 }
 
 export async function kwTerminalPaneRun(paneId: string, command: string): Promise<void> {
