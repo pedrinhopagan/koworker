@@ -20,3 +20,33 @@ export function registerServiceWorker(): void {
 		});
 	});
 }
+
+export async function activateLatestPwa(): Promise<void> {
+	if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
+		window.location.reload();
+		return;
+	}
+
+	const registration = await navigator.serviceWorker.ready;
+	const previousController = navigator.serviceWorker.controller;
+	const controllerChanged = new Promise<void>((resolve) => {
+		const timeout = window.setTimeout(resolve, 15_000);
+
+		navigator.serviceWorker.addEventListener(
+			"controllerchange",
+			() => {
+				window.clearTimeout(timeout);
+				resolve();
+			},
+			{ once: true },
+		);
+	});
+
+	await registration.update();
+
+	if (previousController && (registration.installing || registration.waiting)) {
+		await controllerChanged;
+	}
+
+	window.location.reload();
+}

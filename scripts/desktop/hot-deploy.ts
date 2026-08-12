@@ -97,7 +97,7 @@ async function persistRepoDirForBackend() {
 		.split("\n")
 		.filter((line) => line && !line.startsWith(prefix));
 
-	lines.push(`${prefix}${JSON.stringify(rootDir)}`);
+	lines.push(`${prefix}${JSON.stringify(process.env.KOWORK_REPO_DIR?.trim() || rootDir)}`);
 
 	await mkdir(appDataDir, { recursive: true });
 	await writeFile(backendEnvPath, `${lines.join("\n")}\n`);

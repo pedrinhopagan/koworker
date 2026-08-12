@@ -1,11 +1,12 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 import { ORPCError } from "@orpc/server";
 
 import { envVariables } from "@/api/config/env";
 import { koworkerDataDir } from "@/lib/app-paths";
+import { readRedeployState, writeRedeployState } from "@/lib/redeploy-state";
 
 const LOCK_MAX_AGE_MS = 15 * 60 * 1000;
 const REDEPLOY_SCRIPT = "scripts/desktop/remote-redeploy.ts";
@@ -52,17 +53,55 @@ export async function acquireRedeployLock(): Promise<void> {
 	const { lockPath } = dataPaths();
 	const age = await lockAgeMs(lockPath);
 
-	if (age !== null && age < LOCK_MAX_AGE_MS) {
-		throw new ORPCError("CONFLICT", { message: "redeploy em andamento" });
+	if (age !== null) {
+		if (age < LOCK_MAX_AGE_MS) {
+			throw new ORPCError("CONFLICT", { message: "redeploy em andamento" });
+		}
+
+		await rm(lockPath, { force: true });
 	}
 
 	await mkdir(koworkerDataDir(), { recursive: true });
-	await writeFile(lockPath, String(Date.now()));
+
+	try {
+		const lock = await open(lockPath, "wx");
+		await lock.writeFile(String(Date.now()));
+		await lock.close();
+	} catch (error) {
+		if (error instanceof Error && "code" in error && error.code === "EEXIST") {
+			throw new ORPCError("CONFLICT", { message: "redeploy em andamento" });
+		}
+		throw error;
+	}
+
+	try {
+		await writeRedeployState({
+			state: "running",
+			startedAt: Date.now(),
+			finishedAt: null,
+			commit: null,
+			message: "Preparando atualização",
+		});
+	} catch (error) {
+		await rm(lockPath, { force: true });
+		throw error;
+	}
 }
 
 export async function releaseRedeployLock(): Promise<void> {
 	const { lockPath } = dataPaths();
 	await rm(lockPath, { force: true });
+}
+
+export async function failRedeployStart(message: string): Promise<void> {
+	const current = await readRedeployState();
+	await writeRedeployState({
+		state: "failed",
+		startedAt: current.startedAt,
+		finishedAt: Date.now(),
+		commit: null,
+		message,
+	});
 }
 
 export function spawnRedeployDetached(): void {
@@ -96,7 +135,7 @@ export function spawnRedeployDetached(): void {
 	}
 }
 
-export async function getRedeployStatus(): Promise<{ inProgress: boolean; logTail: string[] }> {
+export async function getRedeployStatus() {
 	const { lockPath, logPath } = dataPaths();
 
 	let inProgress = false;
@@ -117,7 +156,14 @@ export async function getRedeployStatus(): Promise<{ inProgress: boolean; logTai
 		logTail = [];
 	}
 
-	return { inProgress, logTail };
+	const persisted = await readRedeployState();
+	const state = inProgress ? "running" : persisted.state === "running" ? "failed" : persisted.state;
+	const message =
+		!inProgress && persisted.state === "running"
+			? "A atualização foi interrompida antes de concluir"
+			: persisted.message;
+
+	return { ...persisted, state, message, inProgress, logTail };
 }
 
 export function assertAdminUser(userType: string | null | undefined): void {

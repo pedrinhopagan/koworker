@@ -1,17 +1,38 @@
-import { appendFile, mkdir, rm } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, rm, utimes } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { koworkerDataDir } from "../../src/lib/app-paths";
+import { readRedeployState, writeRedeployState } from "../../src/lib/redeploy-state";
 
 const REPO_DIR = process.env.KOWORK_REPO_DIR ?? process.cwd();
 const dataDir = koworkerDataDir();
 const logPath = join(dataDir, "redeploy.log");
 const lockPath = join(dataDir, "redeploy.lock");
+const worktreeDir = await mkdtemp(join(tmpdir(), "kowork-remote-deploy-"));
+let worktreeMounted = false;
+const initialState = await readRedeployState();
+const startedAt = initialState.startedAt ?? Date.now();
 
 async function log(message: string) {
 	const line = `[${new Date().toISOString()}] ${message}\n`;
 	await mkdir(dataDir, { recursive: true });
 	await appendFile(logPath, line);
+	await utimes(lockPath, new Date(), new Date()).catch(() => {});
+}
+
+async function updateState(
+	state: "running" | "succeeded" | "failed",
+	message: string,
+	commit: string | null = null,
+) {
+	await writeRedeployState({
+		state,
+		startedAt,
+		finishedAt: state === "running" ? null : Date.now(),
+		commit,
+		message,
+	});
 }
 
 async function drainStream(
@@ -48,12 +69,12 @@ async function drainStream(
 	}
 }
 
-async function runCommand(label: string, command: string[]) {
+async function runCommand(label: string, command: string[], cwd = REPO_DIR) {
 	await log(`→ ${label}: ${command.join(" ")}`);
 
 	const proc = Bun.spawn(command, {
-		cwd: REPO_DIR,
-		env: process.env,
+		cwd,
+		env: { ...process.env, KOWORK_REPO_DIR: REPO_DIR },
 		stdout: "pipe",
 		stderr: "pipe",
 		stdin: "ignore",
@@ -67,17 +88,64 @@ async function runCommand(label: string, command: string[]) {
 	}
 }
 
+function capture(command: string[], cwd = REPO_DIR) {
+	const result = Bun.spawnSync(command, {
+		cwd,
+		stdin: "ignore",
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+
+	if (result.exitCode !== 0) {
+		throw new Error(result.stderr.toString().trim() || `Comando falhou: ${command.join(" ")}`);
+	}
+
+	return result.stdout.toString().trim();
+}
+
 await log("=== Redeploy remoto iniciado ===");
 
 try {
-	await runCommand("git fetch", ["git", "fetch", "origin"]);
-	await runCommand("git pull", ["git", "pull", "--ff-only"]);
-	await runCommand("deploy:fast", ["bun", "run", "deploy:fast"]);
-	await log("=== Redeploy concluído com sucesso ===");
+	await updateState("running", "Buscando a versão mais recente da main");
+	await runCommand("git fetch", ["git", "fetch", "origin", "--prune"]);
+
+	capture(["git", "show-ref", "--verify", "refs/remotes/origin/main"]);
+
+	await updateState("running", "Preparando build isolado");
+	await runCommand("git worktree", [
+		"git",
+		"worktree",
+		"add",
+		"--detach",
+		worktreeDir,
+		"origin/main",
+	]);
+	worktreeMounted = true;
+
+	const commit = capture(["git", "rev-parse", "--short=12", "HEAD"], worktreeDir);
+	await updateState("running", `Instalando dependências de ${commit}`, commit);
+	await runCommand("bun install", ["bun", "install", "--frozen-lockfile"], worktreeDir);
+
+	await updateState("running", `Publicando ${commit}`, commit);
+	await runCommand("deploy:fast", ["bun", "run", "deploy:fast"], worktreeDir);
+
+	await updateState("succeeded", "Aplicativo atualizado e verificado", commit);
+	await log(`=== Redeploy concluído com sucesso em ${commit} ===`);
 } catch (error) {
 	const message = error instanceof Error ? error.message : String(error);
+	await updateState("failed", message);
 	await log(`=== Redeploy falhou: ${message} ===`);
 	process.exitCode = 1;
 } finally {
+	if (worktreeMounted) {
+		await runCommand("remover worktree", [
+			"git",
+			"worktree",
+			"remove",
+			"--force",
+			worktreeDir,
+		]).catch((error) => log(`Falha ao remover worktree: ${String(error)}`));
+	}
+	await rm(worktreeDir, { force: true, recursive: true });
 	await rm(lockPath, { force: true });
 }

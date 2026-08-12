@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
 	Flag,
@@ -12,6 +12,7 @@ import {
 	Type,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useEffect, useState } from "react";
 
 import { orpc } from "@/client";
 import { ConfigCard } from "@/components/settings/config-card";
@@ -21,8 +22,10 @@ import { PriorityManagerDrawer } from "@/components/tasks/PriorityManagerDrawer"
 import { Text, Title } from "@/components/typography";
 import { Icon } from "@/components/ui/icon";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useDevices } from "@/hooks/use-devices";
 import { useManageDrawerStore } from "@/stores/manage-drawers";
+import { activateLatestPwa } from "@/lib/register-sw";
 import { PageShell } from "../../components/layout/page-shell";
 
 export const Route = createFileRoute("/_app/configuracoes")({
@@ -39,10 +42,19 @@ function isRedeployConflict(error: unknown): boolean {
 }
 
 function RedeployAppCard() {
+	const [confirming, setConfirming] = useState(false);
+	const queryClient = useQueryClient();
+	const status = useQuery({
+		...orpc.system.redeployStatus.queryOptions(),
+		refetchInterval: (query) => (query.state.data?.inProgress ? 1_500 : false),
+	});
 	const { isPending, mutate } = useMutation({
 		...orpc.system.redeploy.mutationOptions(),
-		onSuccess: () => {
-			toast.success("Build iniciado no PC. O aplicativo vai reiniciar em alguns minutos.");
+		onSuccess: async () => {
+			localStorage.setItem("kowork-redeploy-requested-at", String(Date.now()));
+			setConfirming(false);
+			await queryClient.invalidateQueries({ queryKey: orpc.system.redeployStatus.key() });
+			toast.success("Atualização iniciada. Você pode acompanhar o progresso neste card.");
 		},
 		onError: (error) => {
 			if (isRedeployConflict(error)) {
@@ -54,18 +66,69 @@ function RedeployAppCard() {
 		},
 	});
 
+	useEffect(() => {
+		const deployment = status.data;
+		if (deployment?.state !== "succeeded" || !deployment.finishedAt) {
+			return;
+		}
+
+		const requestedAt = Number(localStorage.getItem("kowork-redeploy-requested-at"));
+		const appliedAt = Number(localStorage.getItem("kowork-redeploy-applied-at"));
+		if (
+			!requestedAt ||
+			deployment.finishedAt < requestedAt ||
+			appliedAt === deployment.finishedAt
+		) {
+			return;
+		}
+
+		localStorage.setItem("kowork-redeploy-applied-at", String(deployment.finishedAt));
+		toast.success("Nova versão publicada. Atualizando o PWA...");
+		void activateLatestPwa().catch(() => {
+			localStorage.removeItem("kowork-redeploy-applied-at");
+			toast.error("A versão foi publicada, mas o PWA não recarregou. Feche e abra o aplicativo.");
+		});
+	}, [status.data]);
+
+	const deployment = status.data;
+	const running = deployment?.inProgress || deployment?.state === "running";
+	const failed = deployment?.state === "failed";
+	const title = running
+		? "Atualizando aplicativo"
+		: failed
+			? "Atualização falhou"
+			: "Atualizar aplicativo";
+	const description = running
+		? (deployment?.message ?? "Preparando a publicação da main")
+		: failed
+			? (deployment.message ?? "Abra novamente para tentar outra vez")
+			: deployment?.state === "succeeded" && deployment.commit
+				? `Versão ${deployment.commit} publicada e verificada. Toque para buscar novas mudanças.`
+				: "Busca a main mais recente, publica frontend e backend e atualiza este PWA.";
+
 	return (
-		<ConfigCard
-			icon={RefreshCw}
-			title={isPending ? "Iniciando build" : "Atualizar aplicativo"}
-			description={
-				isPending
-					? "Enviando a solicitação de build para o PC."
-					: "Dispara no PC o build da versão mais recente e publica a atualização."
-			}
-			onClick={() => mutate({})}
-			className={isPending ? "pointer-events-none opacity-60" : undefined}
-		/>
+		<>
+			<ConfigCard
+				icon={RefreshCw}
+				title={isPending ? "Iniciando atualização" : title}
+				description={description}
+				onClick={() => setConfirming(true)}
+				disabled={!!running || isPending}
+				className={
+					running || isPending ? "border-primary/40" : failed ? "border-destructive/60" : undefined
+				}
+			/>
+
+			<ConfirmDialog
+				open={confirming}
+				onClose={() => setConfirming(false)}
+				onConfirm={() => mutate({})}
+				title="Publicar a versão mais recente?"
+				description="A VPS buscará origin/main, fará o build isolado, trocará frontend e backend de forma atômica e só então atualizará o PWA. O aplicativo pode ficar indisponível por alguns segundos."
+				confirmLabel="Atualizar agora"
+				loading={isPending}
+			/>
+		</>
 	);
 }
 

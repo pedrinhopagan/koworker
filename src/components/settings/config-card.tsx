@@ -10,17 +10,27 @@ type ConfigCardProps = {
 	description: string;
 	onClick: () => void;
 	className?: string;
+	disabled?: boolean;
 };
 
-export function ConfigCard({ icon, title, description, onClick, className }: ConfigCardProps) {
+export function ConfigCard({
+	icon,
+	title,
+	description,
+	onClick,
+	className,
+	disabled,
+}: ConfigCardProps) {
 	return (
 		<button
 			type="button"
 			onClick={onClick}
+			disabled={disabled}
 			className={cn(
 				"group flex w-full items-start gap-3 border border-border bg-card p-4 text-left",
 				"transition-colors hover:border-primary/40 hover:bg-muted/40",
 				"focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+				"disabled:pointer-events-none disabled:opacity-70",
 				className,
 			)}
 		>

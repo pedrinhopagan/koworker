@@ -11,6 +11,7 @@ import {
 import {
 	acquireRedeployLock,
 	assertAdminUser,
+	failRedeployStart,
 	getRedeployStatus,
 	releaseRedeployLock,
 	spawnRedeployDetached,
@@ -97,8 +98,9 @@ export const systemRouter = {
 			try {
 				spawnRedeployDetached();
 			} catch (error) {
-				await releaseRedeployLock();
 				const message = error instanceof Error ? error.message : String(error);
+				await failRedeployStart(message);
+				await releaseRedeployLock();
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: `Falha ao iniciar redeploy: ${message}`,
 				});
