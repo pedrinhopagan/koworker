@@ -52,8 +52,8 @@ export const KwTerminalSessionStartSchema = z.object({
 	model: z.string().trim().min(1).max(100).optional(),
 	effort: z.string().trim().min(1).max(40).optional(),
 	agent: z.string().trim().min(1).max(100).optional(),
-	permissionMode: z.enum(["plan", "acceptEdits", "default"]).optional(),
-	approvalMode: z.enum(["fullAuto", "readOnly", "default"]).optional(),
+	permissionMode: z.enum(["bypass", "plan", "acceptEdits", "default"]).optional(),
+	approvalMode: z.enum(["bypass", "fullAuto", "readOnly", "default"]).optional(),
 });
 
 export const KwTerminalSessionResumeLastSchema = z.object({

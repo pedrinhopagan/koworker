@@ -190,8 +190,24 @@ despacha quando a barra está na primeira coluna, e uma linha única começando 
 `Enter` seco. Comando é texto comum no `agentRadar.send`: quem o interpreta é a CLI do outro lado.
 
 Texto enviado pelo app usa `agent send` seguido de `Enter`, mas só aparece quando o transcript nativo
-o devolver. `working` bloqueia envio e oferece interrupção explícita por `C-c`. `blocked` oferece
-"Responder no terminal"; permissões e perguntas nativas são somente leitura no Koworker.
+o devolver. `working` bloqueia envio e oferece interrupção explícita por `C-c`. Em `blocked`, o campo
+continua aceitando respostas e o controle do prompt envia somente as teclas de navegação, confirmação
+e cancelamento admitidas pelo schema; permissões e perguntas nativas podem ser respondidas pelo PWA
+mesmo quando o transcript não contém o texto do seletor da CLI.
+
+A pergunta estruturada do claude (`AskUserQuestion`) vira bloco `question` na conversa, com as opções
+completas, porque o `tool_use` dela já está no transcript antes da resposta; a resposta chega pelo
+`tool_result` do mesmo id e fecha o bloco com o que foi escolhido. Com o pane em `blocked`, clicar
+numa opção de escolha única dirige o seletor do CLI às cegas (N `Down` + `Enter`, cursor na primeira
+opção); seleção múltipla e texto livre ficam nos controles manuais. O menu de permissão nunca é
+gravado no arquivo, então ele não tem bloco — por isso sessões nascidas do PWA sobem em bypass por
+padrão (`--dangerously-skip-permissions` no claude, `--dangerously-bypass-approvals-and-sandbox` no
+codex), com os modos restritivos ainda disponíveis nas opções avançadas.
+
+O modelo em uso na sessão sai do próprio transcript (`message.model` das linhas `assistant` no
+claude, `turn_context.payload.model` no codex) e viaja no envelope de `agentRadarTranscript` e no
+`transcriptPreviews`: a faixa do pane e o cartão da lista mostram o modelo real, não o que o spawn
+pediu — um `/model` no meio da conversa aparece na próxima resposta.
 
 O `done` do daemon entra no radar como `blocked` (`normalizeAgentRadarStatus`): agent que devolveu a vez
 cobra a mesma coisa que agent travado, então o koworker tem um estado só de "esperando você". Isso vale

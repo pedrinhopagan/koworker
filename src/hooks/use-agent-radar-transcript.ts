@@ -10,6 +10,7 @@ type TranscriptEnvelope = {
 	reset?: boolean;
 	missing?: boolean;
 	source?: AgentTranscript;
+	model?: string;
 };
 
 // Um agente em rajada escreve vários blocos por segundo. Aplicar lote a lote punha a conversa inteira
@@ -30,6 +31,7 @@ export function applyAgentRadarTranscriptEnvelope(
 export function useAgentRadarTranscript(paneId: string) {
 	const [events, setEvents] = useState<AgentSessionEvent[]>([]);
 	const [source, setSource] = useState<AgentTranscript | null>(null);
+	const [model, setModel] = useState<string | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const pending = useRef<TranscriptEnvelope[]>([]);
@@ -38,6 +40,7 @@ export function useAgentRadarTranscript(paneId: string) {
 	useEffect(() => {
 		setEvents([]);
 		setSource(null);
+		setModel(null);
 		setMissing(false);
 		setLoading(true);
 		pending.current = [];
@@ -59,6 +62,20 @@ export function useAgentRadarTranscript(paneId: string) {
 			const nextSource = batch.findLast((envelope) => envelope.source)?.source;
 			if (nextSource) {
 				setSource(nextSource);
+			}
+
+			// O `reset` recomeça a conversa em outro arquivo: o modelo da sessão anterior não vale mais
+			// até o transcript novo reportar o dele.
+			let nextModel: string | null | undefined;
+			for (const envelope of batch) {
+				if (envelope.reset) {
+					nextModel = envelope.model ?? null;
+				} else if (envelope.model) {
+					nextModel = envelope.model;
+				}
+			}
+			if (nextModel !== undefined) {
+				setModel(nextModel);
 			}
 
 			setEvents((current) =>
@@ -88,5 +105,5 @@ export function useAgentRadarTranscript(paneId: string) {
 		};
 	}, [paneId]);
 
-	return { events, source, missing, loading };
+	return { events, source, model, missing, loading };
 }

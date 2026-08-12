@@ -10,3 +10,11 @@ export const AgentRadarSendSchema = z.object({
 });
 
 export const AgentRadarInterruptSchema = AgentRadarPaneSchema;
+
+export const AgentRadarSendKeysSchema = AgentRadarPaneSchema.extend({
+	// Até 12 teclas: responder uma pergunta pelo app envia N descidas e um Enter de uma vez.
+	keys: z
+		.array(z.enum(["Up", "Down", "Left", "Right", "Enter", "Escape"]))
+		.min(1)
+		.max(12),
+});

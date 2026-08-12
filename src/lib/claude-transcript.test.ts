@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { translateClaudeTranscriptLine } from "./claude-transcript";
+import { claudeTranscriptModel, translateClaudeTranscriptLine } from "./claude-transcript";
 
 describe("translateClaudeTranscriptLine", () => {
 	test("a fala do usuário é o texto puro da linha", () => {
@@ -143,6 +143,87 @@ describe("translateClaudeTranscriptLine", () => {
 				toolUseResult: { filePath: "/repo/src/app.ts" },
 			}),
 		).toEqual([{ type: "settle", toolUseId: "toolu_1", ok: true }]);
+	});
+
+	test("AskUserQuestion vira bloco de pergunta com as opções, não passo de ferramenta", () => {
+		expect(
+			translateClaudeTranscriptLine({
+				type: "assistant",
+				message: {
+					model: "claude-opus-5",
+					content: [
+						{
+							type: "tool_use",
+							id: "toolu_q",
+							name: "AskUserQuestion",
+							input: {
+								questions: [
+									{
+										question: "Qual direção seguir?",
+										header: "Direção",
+										multiSelect: false,
+										options: [{ label: "Neutro", description: "Risco zero" }, { label: "Radical" }],
+									},
+								],
+							},
+						},
+					],
+				},
+			}),
+		).toEqual([
+			{
+				type: "append",
+				payload: {
+					kind: "question",
+					questionId: "toolu_q",
+					question: "Qual direção seguir?",
+					options: [{ label: "Neutro", description: "Risco zero" }, { label: "Radical" }],
+					multiSelect: false,
+				},
+			},
+		]);
+	});
+
+	test("a resposta do usuário à pergunta vira patch de answer", () => {
+		expect(
+			translateClaudeTranscriptLine({
+				type: "user",
+				message: {
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "toolu_q",
+							content:
+								'The user answered: "Qual direção seguir?"="Neutro". Read the answers carefully — follow what they actually say.',
+						},
+					],
+				},
+			}),
+		).toEqual([
+			{ type: "answer", toolUseId: "toolu_q", text: '"Qual direção seguir?"="Neutro".' },
+			{ type: "settle", toolUseId: "toolu_q", ok: true },
+		]);
+	});
+
+	test("o modelo sai da linha assistant e ignora resposta sintética e subagente", () => {
+		expect(
+			claudeTranscriptModel({
+				type: "assistant",
+				message: { model: "claude-opus-5", content: [] },
+			}),
+		).toBe("claude-opus-5");
+		expect(
+			claudeTranscriptModel({ type: "assistant", message: { model: "<synthetic>", content: [] } }),
+		).toBeNull();
+		expect(
+			claudeTranscriptModel({
+				type: "assistant",
+				isSidechain: true,
+				message: { model: "claude-haiku-4-5-20251001", content: [] },
+			}),
+		).toBeNull();
+		expect(claudeTranscriptModel({ type: "user", message: { content: "oi" } })).toBeNull();
 	});
 
 	test("linha de serviço do arquivo não vira bloco", () => {

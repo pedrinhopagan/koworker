@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { translateCodexTranscriptLine } from "./codex-transcript";
+import { codexTranscriptModel, translateCodexTranscriptLine } from "./codex-transcript";
 
 describe("translateCodexTranscriptLine", () => {
 	test("a conversa sai dos eventos de interface", () => {
@@ -227,5 +227,17 @@ describe("translateCodexTranscriptLine", () => {
 				payload: { cwd: "/repo", model: "gpt-5.6" },
 			}),
 		).toEqual([]);
+	});
+
+	test("o modelo do turno sai do turn_context", () => {
+		expect(
+			codexTranscriptModel({
+				type: "turn_context",
+				payload: { cwd: "/repo", model: "gpt-5.6-sol" },
+			}),
+		).toBe("gpt-5.6-sol");
+		expect(
+			codexTranscriptModel({ type: "event_msg", payload: { type: "agent_message" } }),
+		).toBeNull();
 	});
 });

@@ -15,6 +15,7 @@ import { RadarStatusMark } from "@/components/ui/radar-status-mark";
 import { AGENT_RADAR_STATUS_LABELS, agentRadarAgentLabel } from "@/constants/agent-radar";
 import { useAgentRadarPreviews } from "@/hooks/use-agent-radar-previews";
 import { AGENT_RADAR_VISUALS } from "@/lib/agent-radar-status";
+import { modelDisplayLabel } from "@/lib/model-label";
 import { errorMessage } from "@/lib/orpc-errors";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
@@ -80,8 +81,8 @@ const AgentListItem = memo(function AgentListItem({
 	agent: RadarAgent;
 	selected: boolean;
 	focused: boolean;
-	// A última fala da conversa, servida em lote pelo radar. Nulo enquanto ainda não chegou.
-	preview: string | null;
+	// A última fala e o modelo da conversa, servidos em lote pelo radar. Nulos enquanto não chegaram.
+	preview: { text: string | null; model: string | null } | null;
 }) {
 	const visual = AGENT_RADAR_VISUALS[agent.status];
 	const focus = useMutation({
@@ -114,11 +115,12 @@ const AgentListItem = memo(function AgentListItem({
 				</div>
 
 				<Text size="xs" tone="muted" className="mt-1 min-w-0 truncate">
-					{preview ?? agent.activity ?? "Conversa sem falas"}
+					{preview?.text ?? agent.activity ?? "Conversa sem falas"}
 				</Text>
 
 				<Text size="xs" tone="muted" className="mt-1 truncate font-mono text-[10px]">
 					{[
+						preview?.model ? modelDisplayLabel(preview.model) : null,
 						agent.taskTitle ?? agent.title,
 						agent.projectName ?? agent.cwd,
 						relativeTimeFrom(agent.changedAt),

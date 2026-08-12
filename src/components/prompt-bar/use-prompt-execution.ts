@@ -116,18 +116,8 @@ export function usePromptExecution(params: {
 			...(executionPlan.model ? { model: executionPlan.model } : {}),
 			...(executionPlan.effort ? { effort: executionPlan.effort } : {}),
 			...(cli === "claude"
-				? {
-						permissionMode:
-							invoke.claude.permissionMode === "bypass"
-								? ("default" as const)
-								: invoke.claude.permissionMode,
-					}
-				: {
-						approvalMode:
-							invoke.codex.approvalMode === "bypass"
-								? ("default" as const)
-								: invoke.codex.approvalMode,
-					}),
+				? { permissionMode: invoke.claude.permissionMode }
+				: { approvalMode: invoke.codex.approvalMode }),
 		});
 
 		recordPromptHistory({

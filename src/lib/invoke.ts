@@ -72,8 +72,7 @@ export function planInvocation(request: InvokeRequest): InvokePlan {
 		const command = argvToShellCommand(
 			buildCodexArgv({
 				prompt,
-				approvalMode:
-					config.codex.approvalMode === "bypass" ? "default" : config.codex.approvalMode,
+				approvalMode: config.codex.approvalMode,
 				...(model ? { model } : {}),
 				...(effort ? { effort } : {}),
 			}),
@@ -86,8 +85,7 @@ export function planInvocation(request: InvokeRequest): InvokePlan {
 	const command = argvToShellCommand(
 		buildClaudeArgv({
 			prompt,
-			permissionMode:
-				config.claude.permissionMode === "bypass" ? "default" : config.claude.permissionMode,
+			permissionMode: config.claude.permissionMode,
 			...(target.kind === "agent" ? { agent: target.slug } : {}),
 			...(model ? { model } : {}),
 			...(effort ? { effort } : {}),
@@ -110,18 +108,8 @@ export async function runInvocation(params: { project: ProjectInfo; request: Inv
 		...(model ? { model } : {}),
 		...(effort ? { effort } : {}),
 		...(cli === "claude"
-			? {
-					permissionMode:
-						config.claude.permissionMode === "bypass"
-							? ("default" as const)
-							: config.claude.permissionMode,
-				}
-			: {
-					approvalMode:
-						config.codex.approvalMode === "bypass"
-							? ("default" as const)
-							: config.codex.approvalMode,
-				}),
+			? { permissionMode: config.claude.permissionMode }
+			: { approvalMode: config.codex.approvalMode }),
 	});
 
 	recordPromptHistory({

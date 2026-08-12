@@ -27,7 +27,7 @@ export function useAgentRadarPreviews(enabled: boolean, paneIds: string[]) {
 	}, [enabled, panes, refetch]);
 
 	return useMemo(
-		() => new Map((query.data ?? []).map((preview) => [preview.paneId, preview.text])),
+		() => new Map((query.data ?? []).map((preview) => [preview.paneId, preview])),
 		[query.data],
 	);
 }

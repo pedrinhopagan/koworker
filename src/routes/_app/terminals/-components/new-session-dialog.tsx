@@ -38,13 +38,17 @@ const CLI_ITEMS = INVOKE_CLI_OPTIONS.map((option) => ({
 	hint: option.hint,
 }));
 
-const CLAUDE_PERMISSION_ITEMS = INVOKE_PERMISSION_OPTIONS.filter(
-	(option) => option.value !== "bypass",
-).map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
+const CLAUDE_PERMISSION_ITEMS = INVOKE_PERMISSION_OPTIONS.map((option) => ({
+	id: option.value,
+	label: option.label,
+	hint: option.hint,
+}));
 
-const CODEX_APPROVAL_ITEMS = CODEX_APPROVAL_OPTIONS.filter(
-	(option) => option.value !== "bypass",
-).map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
+const CODEX_APPROVAL_ITEMS = CODEX_APPROVAL_OPTIONS.map((option) => ({
+	id: option.value,
+	label: option.label,
+	hint: option.hint,
+}));
 
 function selectItems(options: { value: string; label: string; hint: string }[]) {
 	return options.map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
@@ -62,9 +66,8 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 	const [model, setModel] = useState(INVOKE_INHERIT);
 	const [effort, setEffort] = useState(INVOKE_INHERIT);
 	const [agent, setAgent] = useState("");
-	const [permissionMode, setPermissionMode] =
-		useState<Exclude<InvokePermissionMode, "bypass">>("default");
-	const [approvalMode, setApprovalMode] = useState<Exclude<CodexApprovalMode, "bypass">>("default");
+	const [permissionMode, setPermissionMode] = useState<InvokePermissionMode>("bypass");
+	const [approvalMode, setApprovalMode] = useState<CodexApprovalMode>("bypass");
 
 	const activeProjectId = projectId ?? selectedProjectId ?? null;
 
@@ -265,9 +268,7 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 								<CustomSelect
 									items={CLAUDE_PERMISSION_ITEMS}
 									value={permissionMode}
-									onValueChange={(value) =>
-										setPermissionMode(value as Exclude<InvokePermissionMode, "bypass">)
-									}
+									onValueChange={(value) => setPermissionMode(value as InvokePermissionMode)}
 									renderItem={(item) => <span>{item.label}</span>}
 								/>
 							</>
@@ -276,9 +277,7 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 							<CustomSelect
 								items={CODEX_APPROVAL_ITEMS}
 								value={approvalMode}
-								onValueChange={(value) =>
-									setApprovalMode(value as Exclude<CodexApprovalMode, "bypass">)
-								}
+								onValueChange={(value) => setApprovalMode(value as CodexApprovalMode)}
 								renderItem={(item) => <span>{item.label}</span>}
 							/>
 						)}

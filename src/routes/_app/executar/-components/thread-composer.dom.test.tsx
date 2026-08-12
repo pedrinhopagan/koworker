@@ -2,11 +2,13 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { screen, waitFor } from "@testing-library/react";
 
 import type { AgentStep } from "@/lib/agent-stream";
+import { get } from "../../../../../tests/web/dom";
 import {
 	cleanup,
 	fireEvent,
 	render,
 	renderWithQuery,
+	userEvent,
 } from "../../../../../tests/web/testing-library";
 import { AgentSteps } from "./agent-steps";
 import { ThreadComposer } from "@/components/agent-session/thread-composer";
@@ -231,6 +233,34 @@ describe("ThreadComposer", () => {
 
 		expect(screen.getByPlaceholderText("O que a nova sessão deve fazer?")).toBeTruthy();
 		expect(screen.getByText("A nova sessão lê a tarefa antes de começar.")).toBeTruthy();
+	});
+
+	test("mostra somente modelo e effort como atalhos da sessão", async () => {
+		const commands: string[] = [];
+		renderWithQuery(
+			<div data-theme-root>
+				<ThreadComposer
+					draftKey="draft-configuracao"
+					cli="claude"
+					disabled={false}
+					pending={false}
+					hint=""
+					onSubmit={() => {}}
+					onCommand={(command) => {
+						commands.push(command);
+					}}
+				/>
+			</div>,
+		);
+		const user = userEvent.setup();
+
+		expect(screen.queryByText("Skills e comandos")).toBeNull();
+		await user.click(screen.getByLabelText("Selecionar modelo da sessão"));
+		await user.click(get("custom-select-item", { value: "opus" }));
+		await user.click(screen.getByLabelText("Selecionar effort da sessão"));
+		await user.click(get("custom-select-item", { value: "high" }));
+
+		expect(commands).toEqual(["/model opus", "/effort high"]);
 	});
 });
 

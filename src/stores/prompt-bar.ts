@@ -60,12 +60,12 @@ const DEFAULT_INVOKE: InvokeConfig = {
 	claude: {
 		model: "opus",
 		effort: "medium",
-		permissionMode: "default",
+		permissionMode: "bypass",
 	},
 	codex: {
 		model: "gpt-5.6-sol",
 		effort: "medium",
-		approvalMode: "default",
+		approvalMode: "bypass",
 	},
 };
 
@@ -363,14 +363,8 @@ export const usePromptBarStore = create<PromptBarState>()(
 				if (!VALID_PERMISSION_MODES.has(invoke.claude.permissionMode)) {
 					invoke.claude.permissionMode = DEFAULT_INVOKE.claude.permissionMode;
 				}
-				if (invoke.claude.permissionMode === "bypass") {
-					invoke.claude.permissionMode = "default";
-				}
 				if (!VALID_APPROVAL_MODES.has(invoke.codex.approvalMode)) {
 					invoke.codex.approvalMode = DEFAULT_INVOKE.codex.approvalMode;
-				}
-				if (invoke.codex.approvalMode === "bypass") {
-					invoke.codex.approvalMode = "default";
 				}
 				invoke.codex.model = normalizeCodexModel(invoke.codex.model);
 				const cli: InvokeCli = saved.cli === "codex" ? "codex" : "claude";

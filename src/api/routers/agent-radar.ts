@@ -13,6 +13,7 @@ import {
 	kwTerminalAgentInterrupt,
 	kwTerminalAgentSubmit,
 	kwTerminalPaneClose,
+	kwTerminalPaneSendKeys,
 } from "../helpers/terminal/kw-terminal";
 import { revealKwTerminalClient } from "../helpers/terminal/service";
 import { getSystemSettings } from "../helpers/system-settings";
@@ -20,6 +21,7 @@ import {
 	AgentRadarInterruptSchema,
 	AgentRadarPaneSchema,
 	AgentRadarSendSchema,
+	AgentRadarSendKeysSchema,
 } from "../schemas/agent-radar";
 
 function agentOrThrow(paneId: string): RadarAgent {
@@ -57,6 +59,13 @@ export const agentRadarRouter = {
 	interrupt: protectedProcedure.input(AgentRadarInterruptSchema).handler(async ({ input }) => {
 		agentOrThrow(input.paneId);
 		await kwTerminalAgentInterrupt(input.paneId);
+
+		return { ok: true };
+	}),
+
+	sendKeys: protectedProcedure.input(AgentRadarSendKeysSchema).handler(async ({ input }) => {
+		agentOrThrow(input.paneId);
+		await kwTerminalPaneSendKeys(input.paneId, ...input.keys);
 
 		return { ok: true };
 	}),

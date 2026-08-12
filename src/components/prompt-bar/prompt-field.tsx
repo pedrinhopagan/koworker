@@ -1,4 +1,4 @@
-import { Eraser, Loader2, Sparkles } from "lucide-react";
+import { Eraser, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AgentCliIcon } from "@/components/agent-radar/agent-cli";
@@ -54,7 +54,6 @@ export function PromptField({
 	onChange,
 	onImagesChange,
 	onSubmit,
-	quickMenu,
 	toolbar,
 }: {
 	value: string;
@@ -72,7 +71,6 @@ export function PromptField({
 	onChange: (text: string) => void;
 	onImagesChange: (images: PromptImage[]) => void;
 	onSubmit?: (text?: string) => void;
-	quickMenu?: boolean;
 	toolbar?: React.ReactNode;
 }) {
 	const fallbackRef = useRef<HTMLTextAreaElement>(null);
@@ -265,20 +263,6 @@ export function PromptField({
 		}
 
 		moveCaret(trigger.triggerPos + insertion.length);
-	}
-
-	function openQuickMenu() {
-		const node = textareaRef.current;
-		const caret = node?.selectionStart ?? value.length;
-		const before = value[caret - 1];
-		const prefix = caret === 0 || before === " " || before === "\n" ? "/" : " /";
-		const triggerPos = caret + prefix.length - 1;
-		const next = value.slice(0, caret) + prefix + value.slice(caret);
-
-		commit(next);
-		setTrigger({ triggerPos, query: "" });
-		setActiveIndex(0);
-		moveCaret(triggerPos + 1);
 	}
 
 	function deleteAdjacentImageToken(event: React.KeyboardEvent<HTMLTextAreaElement>): boolean {
@@ -494,19 +478,8 @@ export function PromptField({
 				}}
 			/>
 
-			{(quickMenu || toolbar) && (
+			{toolbar && (
 				<div className="flex min-w-0 items-center gap-2 pt-2">
-					{quickMenu && (
-						<button
-							type="button"
-							onClick={openQuickMenu}
-							disabled={disabled || uploading}
-							className="inline-flex h-10 min-w-0 items-center gap-2 border border-border bg-background px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-						>
-							<Sparkles className="size-4 shrink-0 text-primary" />
-							<span className="truncate">Skills e comandos</span>
-						</button>
-					)}
 					<div className="ml-auto flex min-w-0 items-center gap-2">{toolbar}</div>
 				</div>
 			)}

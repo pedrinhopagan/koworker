@@ -1,11 +1,17 @@
-import { Cpu, Loader2, Mic, Send } from "lucide-react";
+import { Brain, Cpu, Loader2, Mic, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PromptField } from "@/components/prompt-bar/prompt-field";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { CODEX_MODEL_OPTIONS, INVOKE_INHERIT, INVOKE_MODEL_OPTIONS } from "@/constants/invoke";
+import {
+	CODEX_EFFORT_OPTIONS,
+	CODEX_MODEL_OPTIONS,
+	INVOKE_EFFORT_OPTIONS,
+	INVOKE_INHERIT,
+	INVOKE_MODEL_OPTIONS,
+} from "@/constants/invoke";
 import { resolveImagePlaceholders } from "@/lib/build-prompt";
 import { clearPromptDraft, readPromptDraft, writePromptDraft } from "@/lib/prompt-draft";
 import { AudioRecorder } from "./audio-recorder";
@@ -39,12 +45,17 @@ export function ThreadComposer({
 	const [draft, setDraft] = useState(() => readPromptDraft(draftKey));
 	const [inputKind, setInputKind] = useState<"text" | "audio_transcript">("text");
 	const [dictating, setDictating] = useState(false);
-	const [selectedModel, setSelectedModel] = useState<string>();
-	const [switchingModel, setSwitchingModel] = useState(false);
+	const [selectedModel, setSelectedModel] = useState("");
+	const [selectedEffort, setSelectedEffort] = useState("");
+	const [switching, setSwitching] = useState<"model" | "effort">();
 	const modelItems = (cli === "codex" ? CODEX_MODEL_OPTIONS : INVOKE_MODEL_OPTIONS)
 		.filter((option) => option.value !== INVOKE_INHERIT)
 		.map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
+	const effortItems = (cli === "codex" ? CODEX_EFFORT_OPTIONS : INVOKE_EFFORT_OPTIONS)
+		.filter((option) => option.value !== INVOKE_INHERIT)
+		.map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
 	const selectedModelItem = modelItems.find((item) => item.id === selectedModel);
+	const selectedEffortItem = effortItems.find((item) => item.id === selectedEffort);
 
 	useEffect(() => {
 		const timer = setTimeout(() => writePromptDraft(draftKey, draft), 300);
@@ -68,19 +79,23 @@ export function ThreadComposer({
 		setInputKind("text");
 	}
 
-	async function switchModel(value: string) {
-		if (!onCommand || disabled || pending || switchingModel) {
+	async function switchSessionSetting(kind: "model" | "effort", value: string) {
+		if (!onCommand || disabled || pending || switching) {
 			return;
 		}
 
-		setSwitchingModel(true);
+		setSwitching(kind);
 		try {
-			const accepted = await onCommand(`/model ${value}`);
+			const accepted = await onCommand(`/${kind} ${value}`);
 			if (accepted !== false) {
-				setSelectedModel(value);
+				if (kind === "model") {
+					setSelectedModel(value);
+				} else {
+					setSelectedEffort(value);
+				}
 			}
 		} finally {
-			setSwitchingModel(false);
+			setSwitching(undefined);
 		}
 	}
 
@@ -122,7 +137,6 @@ export function ThreadComposer({
 							inputClassName="max-h-[200px] min-h-12"
 							menuAbove
 							menuAboveOnMobile
-							quickMenu
 							onChange={(value) => {
 								setDraft((current) => ({ ...current, text: value }));
 								setInputKind("text");
@@ -135,21 +149,50 @@ export function ThreadComposer({
 										<CustomSelect
 											items={modelItems}
 											value={selectedModel}
-											disabled={disabled || pending || switchingModel}
+											disabled={disabled || pending || !!switching}
 											fitContent
 											ariaLabel="Selecionar modelo da sessão"
 											label="Modelo da sessão"
 											placeholder="Modelo"
 											triggerClassName="h-10 max-w-32 px-2 sm:max-w-44"
-											onValueChange={(value) => void switchModel(value)}
+											onValueChange={(value) => void switchSessionSetting("model", value)}
 											renderTrigger={() => (
 												<>
-													{switchingModel ? (
+													{switching === "model" ? (
 														<Loader2 className="size-4 shrink-0 animate-spin" />
 													) : (
 														<Cpu className="size-4 shrink-0" />
 													)}
 													<span className="truncate">{selectedModelItem?.label ?? "Modelo"}</span>
+												</>
+											)}
+											renderItem={(item) => (
+												<div className="min-w-0">
+													<div className="truncate font-semibold">{item.label}</div>
+													<div className="truncate text-xs text-muted-foreground">{item.hint}</div>
+												</div>
+											)}
+										/>
+									)}
+									{onCommand && effortItems.length > 0 && (
+										<CustomSelect
+											items={effortItems}
+											value={selectedEffort}
+											disabled={disabled || pending || !!switching}
+											fitContent
+											ariaLabel="Selecionar effort da sessão"
+											label="Effort da sessão"
+											placeholder="Effort"
+											triggerClassName="h-10 max-w-32 px-2 sm:max-w-44"
+											onValueChange={(value) => void switchSessionSetting("effort", value)}
+											renderTrigger={() => (
+												<>
+													{switching === "effort" ? (
+														<Loader2 className="size-4 shrink-0 animate-spin" />
+													) : (
+														<Brain className="size-4 shrink-0" />
+													)}
+													<span className="truncate">{selectedEffortItem?.label ?? "Effort"}</span>
 												</>
 											)}
 											renderItem={(item) => (

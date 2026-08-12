@@ -4,7 +4,6 @@ import {
 	ChevronsUpDown,
 	Copy,
 	Bot,
-	Cpu,
 	Crosshair,
 	Loader2,
 	type LucideIcon as LucideIconType,
@@ -20,12 +19,7 @@ import { InvokePanel } from "@/components/prompt-bar/invoke-panel";
 import { PromptField } from "@/components/prompt-bar/prompt-field";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
-import {
-	CODEX_MODEL_OPTIONS,
-	INVOKE_CLI_OPTIONS,
-	INVOKE_MODEL_OPTIONS,
-	type InvokeCli,
-} from "@/constants/invoke";
+import { INVOKE_CLI_OPTIONS, type InvokeCli } from "@/constants/invoke";
 import { useRouteDocTarget } from "@/hooks/use-route-doc-target";
 import {
 	buildKoworkerPrompt,
@@ -240,12 +234,9 @@ function PromptInputArea({ projectName }: { projectName?: string }) {
 	const images = usePromptBarStore((s) => s.images);
 	const expanded = usePromptBarStore((s) => s.expanded);
 	const cli = usePromptBarStore((s) => s.cli);
-	const invoke = usePromptBarStore((s) => s.invoke);
 	const setText = usePromptBarStore((s) => s.setText);
 	const setImages = usePromptBarStore((s) => s.setImages);
 	const setCli = usePromptBarStore((s) => s.setCli);
-	const patchClaudeSession = usePromptBarStore((s) => s.patchClaudeSession);
-	const patchCodexSession = usePromptBarStore((s) => s.patchCodexSession);
 
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -276,33 +267,17 @@ function PromptInputArea({ projectName }: { projectName?: string }) {
 			inputClassName="max-h-64 min-h-20"
 			inputRef={textareaRef}
 			menuAbove
-			quickMenu
 			clearShortcut={expanded}
 			onChange={setText}
 			onImagesChange={setImages}
 			toolbar={
-				<>
-					<MiniSelect
-						icon={Bot}
-						value={cli}
-						onChange={(value) => setCli(value as InvokeCli)}
-						options={INVOKE_CLI_OPTIONS}
-						ariaLabel="Selecionar CLI"
-					/>
-					<MiniSelect
-						icon={Cpu}
-						value={cli === "codex" ? invoke.codex.model : invoke.claude.model}
-						onChange={(value) => {
-							if (cli === "codex") {
-								patchCodexSession({ model: value });
-								return;
-							}
-							patchClaudeSession({ model: value });
-						}}
-						options={cli === "codex" ? CODEX_MODEL_OPTIONS : INVOKE_MODEL_OPTIONS}
-						ariaLabel="Selecionar modelo"
-					/>
-				</>
+				<MiniSelect
+					icon={Bot}
+					value={cli}
+					onChange={(value) => setCli(value as InvokeCli)}
+					options={INVOKE_CLI_OPTIONS}
+					ariaLabel="Selecionar CLI"
+				/>
 			}
 		/>
 	);

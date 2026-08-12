@@ -836,8 +836,8 @@ export const Terminal = {
 		model?: string;
 		effort?: string;
 		agent?: string;
-		permissionMode?: "plan" | "acceptEdits" | "default";
-		approvalMode?: "fullAuto" | "readOnly" | "default";
+		permissionMode?: "bypass" | "plan" | "acceptEdits" | "default";
+		approvalMode?: "bypass" | "fullAuto" | "readOnly" | "default";
 	}) {
 		return createProjectSessionTab({
 			projectName: params.projectName,

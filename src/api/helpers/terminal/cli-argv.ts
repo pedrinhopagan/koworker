@@ -9,8 +9,8 @@ export type CliStartParams = {
 	model?: string;
 	effort?: string;
 	agent?: string;
-	permissionMode?: "plan" | "acceptEdits" | "default";
-	approvalMode?: "fullAuto" | "readOnly" | "default";
+	permissionMode?: "bypass" | "plan" | "acceptEdits" | "default";
+	approvalMode?: "bypass" | "fullAuto" | "readOnly" | "default";
 };
 
 export function cliStartArgv(params: CliStartParams): string[] {

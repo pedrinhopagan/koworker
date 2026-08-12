@@ -1,8 +1,11 @@
 import type { AgentEventPayload, AgentSessionEvent, AgentSessionPatch } from "@/lib/agent-session";
 
-// O que um transcript no disco sabe produzir: a conversa e o desfecho de cada turno. Permissão e
-// pergunta não entram porque o arquivo é o registro do que já aconteceu, não um canal de resposta.
-export type TranscriptPatch = Extract<AgentSessionPatch, { type: "append" | "settle" | "result" }>;
+// O que um transcript no disco sabe produzir: a conversa, o desfecho de cada turno e, no claude, a
+// pergunta estruturada (AskUserQuestion) com a resposta que o usuário escolheu. Permissão continua de
+// fora porque o menu de aprovação nunca é gravado no arquivo.
+export type TranscriptPatch =
+	| Extract<AgentSessionPatch, { type: "append" | "settle" | "result" }>
+	| { type: "answer"; toolUseId: string; text: string };
 
 // O arquivo cresce por acréscimo e a leitura corta em qualquer byte: a linha partida no fim de um
 // pedaço espera o próximo. Não há `flush` porque o fim do arquivo não é o fim da sessão.
@@ -40,6 +43,7 @@ export function createTranscriptMirror(sessionId: string, maxEvents = Number.POS
 	let events: AgentSessionEvent[] = [];
 	let seq = 0;
 	const tools = new Map<string, AgentSessionEvent>();
+	const questions = new Map<string, AgentSessionEvent[]>();
 
 	function append(payload: AgentEventPayload) {
 		const event = { id: crypto.randomUUID(), sessionId, seq, at: Date.now(), payload };
@@ -73,6 +77,56 @@ export function createTranscriptMirror(sessionId: string, maxEvents = Number.POS
 		return updated;
 	}
 
+	// O texto da resposta chega como um `tool_result` único ("The user answered: \"Q\"=\"A\", ..."),
+	// mesmo quando o bloco fez mais de uma pergunta: cada pergunta pesca a própria resposta pelo texto.
+	function answeredValue(text: string, question: string) {
+		const marker = `"${question}"="`;
+		const start = text.indexOf(marker);
+		if (start === -1) {
+			return null;
+		}
+
+		const from = start + marker.length;
+		const ends = [text.indexOf('", "', from), text.indexOf('".', from)].filter(
+			(index) => index !== -1,
+		);
+		const end = ends.length > 0 ? Math.min(...ends) : text.lastIndexOf('"');
+
+		return end > from ? text.slice(from, end) : null;
+	}
+
+	function answer(patch: Extract<TranscriptPatch, { type: "answer" }>) {
+		const targets = questions.get(patch.toolUseId);
+		if (!targets || targets.length === 0) {
+			return [];
+		}
+
+		questions.delete(patch.toolUseId);
+		const updates = targets.flatMap((target): AgentSessionEvent[] => {
+			if (target.payload.kind !== "question" || target.payload.answers) {
+				return [];
+			}
+
+			const value = answeredValue(patch.text, target.payload.question);
+			const fallback = targets.length === 1 ? patch.text : null;
+			const chosen = value ?? fallback;
+			if (!chosen) {
+				return [];
+			}
+
+			return [{ ...target, payload: { ...target.payload, answers: [chosen] } }];
+		});
+
+		if (updates.length === 0) {
+			return [];
+		}
+
+		const bySeq = new Map(updates.map((event) => [event.seq, event]));
+		events = events.map((event) => bySeq.get(event.seq) ?? event);
+
+		return updates;
+	}
+
 	return {
 		list() {
 			return events;
@@ -81,6 +135,7 @@ export function createTranscriptMirror(sessionId: string, maxEvents = Number.POS
 		reset() {
 			events = [];
 			tools.clear();
+			questions.clear();
 			seq = 0;
 		},
 
@@ -90,6 +145,10 @@ export function createTranscriptMirror(sessionId: string, maxEvents = Number.POS
 					const updated = settle(patch);
 
 					return updated ? [updated] : [];
+				}
+
+				if (patch.type === "answer") {
+					return answer(patch);
 				}
 
 				if (patch.type === "result") {
@@ -107,6 +166,12 @@ export function createTranscriptMirror(sessionId: string, maxEvents = Number.POS
 				const event = append(patch.payload);
 				if (patch.payload.kind === "tool_use" && patch.payload.toolUseId) {
 					tools.set(patch.payload.toolUseId, event);
+				}
+				// O bloco de pergunta nasce do `tool_use` e a resposta chega pelo `tool_result` daquele
+				// mesmo id: o `questionId` carrega o id da ferramenta (com `#n` quando há mais de uma).
+				if (patch.payload.kind === "question") {
+					const toolUseId = patch.payload.questionId.split("#")[0] ?? patch.payload.questionId;
+					questions.set(toolUseId, [...(questions.get(toolUseId) ?? []), event]);
 				}
 
 				return [event];

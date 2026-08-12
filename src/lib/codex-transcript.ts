@@ -138,6 +138,22 @@ function outputPatch(payload: z.infer<typeof RolloutLineSchema>["payload"]): Tra
 	];
 }
 
+// O `turn_context` que o codex grava a cada turno carrega o modelo em vigor; um `/model` no meio da
+// conversa aparece no turno seguinte.
+const CodexModelLineSchema = z.object({
+	type: z.string(),
+	payload: z.object({ model: z.string().optional() }).optional(),
+});
+
+export function codexTranscriptModel(raw: unknown): string | null {
+	const parsed = CodexModelLineSchema.safeParse(raw);
+	if (!parsed.success || parsed.data.type !== "turn_context") {
+		return null;
+	}
+
+	return parsed.data.payload?.model?.trim() || null;
+}
+
 export function translateCodexTranscriptLine(raw: unknown): TranscriptPatch[] {
 	const parsed = RolloutLineSchema.safeParse(raw);
 	if (!parsed.success) {

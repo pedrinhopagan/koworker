@@ -9,7 +9,7 @@ import { openTranscriptTail, type TranscriptTail } from "./tail";
 // pane começa outra sessão: o arquivo antigo para de crescer e ninguém avisa que existe um novo.
 // Só roda enquanto alguém está lendo a conversa, então o intervalo curto custa pouco e é o que faz um
 // `/clear` no terminal aparecer na tela em segundos, e não no minuto seguinte.
-const RESOLVE_INTERVAL_MS = 4_000;
+const RESOLVE_INTERVAL_MS = 2_000;
 
 type PaneTranscript = {
 	tail: TranscriptTail | null;
@@ -29,6 +29,9 @@ export type AgentRadarTranscriptEnvelope = {
 	// O agent existe no radar mas não há transcript para ele: CLI sem arquivo de sessão, ou sessão
 	// que ainda não escreveu a primeira linha.
 	missing?: boolean;
+	// O modelo que o CLI reportou por último no próprio transcript; ausente enquanto a sessão não
+	// escreveu nenhuma resposta.
+	model?: string;
 };
 
 function publish(envelope: AgentRadarTranscriptEnvelope) {
@@ -39,7 +42,8 @@ async function openTail(paneId: string, source: AgentTranscript) {
 	return await openTranscriptTail({
 		sessionId: paneId,
 		source,
-		onEvents: (events, reset) => void publish({ paneId, events, reset, source }),
+		onEvents: (events, reset, model) =>
+			void publish({ paneId, events, reset, source, ...(model ? { model } : {}) }),
 		onError: (error) => console.error(`[Radar] Falha ao ler a conversa do pane ${paneId}:`, error),
 	});
 }
@@ -91,6 +95,10 @@ export function openPaneTranscriptEvents(paneId: string) {
 	return panes.get(paneId)?.tail?.events() ?? null;
 }
 
+export function openPaneTranscriptModel(paneId: string) {
+	return panes.get(paneId)?.tail?.model() ?? null;
+}
+
 function release(paneId: string) {
 	const entry = panes.get(paneId);
 	if (!entry) {
@@ -115,11 +123,13 @@ export async function* subscribeAgentRadarTranscript(paneId: string, signal?: Ab
 
 	if (known) {
 		known.readers += 1;
+		const model = known.tail?.model();
 		yield {
 			paneId,
 			reset: true,
 			events: known.tail?.events() ?? [],
 			...(known.tail ? { source: known.tail.source } : { missing: true }),
+			...(model ? { model } : {}),
 		};
 	} else {
 		panes.set(paneId, {

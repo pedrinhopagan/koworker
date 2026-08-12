@@ -6,12 +6,22 @@ import { Text } from "@/components/typography";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";
 import { AGENT_RADAR_STATUS_LABELS } from "@/constants/agent-radar";
 import { AGENT_RADAR_VISUALS } from "@/lib/agent-radar-status";
+import { modelDisplayLabel } from "@/lib/model-label";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 
 // A faixa que fica colada no topo da conversa: de longe é a cor do ponto, de perto é a atividade que
 // o daemon reporta. É o que responde "e agora?" sem ninguém precisar ler o rastro.
-export function PaneStatusStrip({ agent, closed }: { agent: RadarAgent | null; closed: boolean }) {
+export function PaneStatusStrip({
+	agent,
+	closed,
+	model,
+}: {
+	agent: RadarAgent | null;
+	closed: boolean;
+	// O modelo que o transcript da sessão reportou por último; nulo enquanto não há resposta gravada.
+	model?: string | null;
+}) {
 	if (closed) {
 		return (
 			<div className="sticky top-0 z-10 flex items-center gap-2 border border-dashed border-border bg-background/95 px-3 py-2 backdrop-blur">
@@ -37,6 +47,12 @@ export function PaneStatusStrip({ agent, closed }: { agent: RadarAgent | null; c
 			)}
 		>
 			<AgentCliName agent={agent.agent} className="shrink-0" />
+
+			{model && (
+				<Text as="span" size="xs" tone="muted" className="shrink-0 font-mono text-[11px]">
+					{modelDisplayLabel(model)}
+				</Text>
+			)}
 
 			<span className="h-3 w-px shrink-0 bg-border" aria-hidden />
 

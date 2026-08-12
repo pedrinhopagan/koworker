@@ -35,6 +35,7 @@ import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { useAgentRadarTranscript } from "@/hooks/use-agent-radar-transcript";
 import { errorMessage } from "@/lib/orpc-errors";
 import { PaneStatusStrip } from "../-components/pane-status-strip";
+import { TerminalPromptControls } from "../-components/terminal-prompt-controls";
 
 export const Route = createLazyFileRoute("/_app/terminals/$paneId/")({
 	component: TerminalPanePage,
@@ -66,6 +67,11 @@ function TerminalPanePage() {
 		...orpc.agentRadar.interrupt.mutationOptions(),
 		onError: (error) => toast.error(errorMessage(error, "Não foi possível interromper o agent")),
 	});
+	const sendKeys = useMutation({
+		...orpc.agentRadar.sendKeys.mutationOptions(),
+		onError: (error) =>
+			toast.error(errorMessage(error, "Não foi possível controlar o prompt do terminal")),
+	});
 	const focus = useMutation({
 		...orpc.agentRadar.focus.mutationOptions(),
 		onError: (error) => toast.error(errorMessage(error, "Não foi possível focar o agent")),
@@ -87,6 +93,34 @@ function TerminalPanePage() {
 		},
 		onError: (error) => toast.error(errorMessage(error, "Não foi possível sincronizar a conversa")),
 	});
+
+	// Responder a pergunta pelo PWA é dirigir o seletor do CLI às cegas: o cursor nasce na primeira
+	// opção, então a opção escolhida vira N descidas e um Enter. Vale só para escolha única — seleção
+	// múltipla e texto livre continuam nos controles manuais do prompt.
+	const answerQuestion = useCallback(
+		(questionId: string, input: { answers: string[]; freeText?: string }) => {
+			const event = transcript.events.find(
+				(candidate) =>
+					candidate.payload.kind === "question" && candidate.payload.questionId === questionId,
+			);
+			if (!event || event.payload.kind !== "question") {
+				return;
+			}
+
+			const chosen = input.answers[0];
+			const index = event.payload.options.findIndex((option) => option.label === chosen);
+			if (event.payload.multiSelect || input.freeText || input.answers.length !== 1 || index < 0) {
+				toast.info("Use os controles do prompt abaixo para responder esta pergunta");
+				return;
+			}
+
+			sendKeys.mutate({
+				paneId,
+				keys: [...Array.from({ length: index }, () => "Down" as const), "Enter" as const],
+			});
+		},
+		[transcript.events, sendKeys, paneId],
+	);
 
 	// Salto seco em vez de rolagem animada: cada bloco novo disparava uma animação que a próxima
 	// cancelava, e o resultado era uma conversa que nunca parava de deslizar sob o dedo.
@@ -157,12 +191,6 @@ function TerminalPanePage() {
 							Interromper
 						</Button>
 					)}
-					{blocked && (
-						<Button variant="outline" size="sm" onClick={() => focus.mutate({ paneId })}>
-							<Target className="size-3.5" />
-							Responder no terminal
-						</Button>
-					)}
 					<Button asChild variant="outline" size="sm" className="md:hidden">
 						<Link to="/terminals">
 							<ArrowLeft className="size-4" />
@@ -214,7 +242,7 @@ function TerminalPanePage() {
 				</div>
 
 				<div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-muted/10">
-					<PaneStatusStrip agent={agent} closed={closed} />
+					<PaneStatusStrip agent={agent} closed={closed} model={transcript.model} />
 
 					<div
 						ref={viewport}
@@ -271,6 +299,7 @@ function TerminalPanePage() {
 									events={transcript.events}
 									busy={!!busy}
 									{...(agent ? { agent: agent.agent } : {})}
+									{...(blocked ? { onAnswer: answerQuestion } : {})}
 								/>
 							)}
 						</div>
@@ -289,12 +318,19 @@ function TerminalPanePage() {
 							</Button>
 						)}
 
+						{blocked && (
+							<TerminalPromptControls
+								pending={sendKeys.isPending}
+								onSend={(keys) => sendKeys.mutate({ paneId, keys })}
+							/>
+						)}
+
 						<ThreadComposer
 							draftKey={`kowork-radar-draft-${paneId}`}
 							{...(agent?.projectName ? { projectName: agent.projectName } : {})}
 							{...(agent ? { cli: agent.agent } : {})}
-							helperText={`Ctrl+Enter envia · / abre skills e comandos do ${cli.label} · cole imagens.`}
-							disabled={closed || !!busy || !!blocked}
+							helperText={`Ctrl+Enter envia · / abre o menu do ${cli.label} · cole imagens.`}
+							disabled={closed || !!busy}
 							pending={send.isPending}
 							onCommand={async (command) => {
 								try {
@@ -309,9 +345,7 @@ function TerminalPanePage() {
 									? "Este pane foi fechado."
 									: busy
 										? "Interrompa ou aguarde o agent terminar."
-										: blocked
-											? "Responda ao pedido nativo no terminal."
-											: "Envie uma mensagem para iniciar a conversa."
+										: "Envie uma mensagem para iniciar a conversa."
 							}
 							onSubmit={async (text) => {
 								stickToEnd();

@@ -38,6 +38,55 @@ describe("createTranscriptMirror", () => {
 		expect(mirror.list()[0]?.payload).toMatchObject({ kind: "tool_use", status: "ok" });
 	});
 
+	test("a resposta fecha o bloco de pergunta com o que o usuário escolheu", () => {
+		const mirror = createTranscriptMirror("w5E:p3");
+
+		mirror.apply([
+			{
+				type: "append",
+				payload: {
+					kind: "question",
+					questionId: "toolu_q#0",
+					question: "Qual direção seguir?",
+					options: [{ label: "Neutro" }, { label: "Radical" }],
+					multiSelect: false,
+				},
+			},
+			{
+				type: "append",
+				payload: {
+					kind: "question",
+					questionId: "toolu_q#1",
+					question: "Aplicar agora?",
+					options: [{ label: "Sim" }, { label: "Não" }],
+					multiSelect: false,
+				},
+			},
+		]);
+
+		const changed = mirror.apply([
+			{
+				type: "answer",
+				toolUseId: "toolu_q",
+				text: '"Qual direção seguir?"="Neutro", "Aplicar agora?"="Sim, mas só o item 1".',
+			},
+		]);
+
+		expect(changed).toHaveLength(2);
+		expect(mirror.list()[0]?.payload).toMatchObject({ kind: "question", answers: ["Neutro"] });
+		expect(mirror.list()[1]?.payload).toMatchObject({
+			kind: "question",
+			answers: ["Sim, mas só o item 1"],
+		});
+	});
+
+	test("resposta sem pergunta correspondente não muda a conversa", () => {
+		const mirror = createTranscriptMirror("w5E:p3");
+
+		expect(mirror.apply([{ type: "answer", toolUseId: "toolu_x", text: '"Q"="A".' }])).toEqual([]);
+		expect(mirror.list()).toHaveLength(0);
+	});
+
 	test("resultado sem ferramenta correspondente não inventa bloco", () => {
 		const mirror = createTranscriptMirror("w5E:p3", 10);
 
