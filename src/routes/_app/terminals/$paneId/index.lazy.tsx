@@ -296,6 +296,14 @@ function TerminalPanePage() {
 							helperText={`Ctrl+Enter envia · / abre skills e comandos do ${cli.label} · cole imagens.`}
 							disabled={closed || !!busy || !!blocked}
 							pending={send.isPending}
+							onCommand={async (command) => {
+								try {
+									await send.mutateAsync({ paneId, text: command });
+									return true;
+								} catch {
+									return false;
+								}
+							}}
 							hint={
 								closed
 									? "Este pane foi fechado."

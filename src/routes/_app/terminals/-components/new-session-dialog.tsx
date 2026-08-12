@@ -12,11 +12,17 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
 	CODEX_APPROVAL_OPTIONS,
+	CODEX_EFFORT_OPTIONS,
+	CODEX_MODEL_OPTIONS,
+	INVOKE_EFFORT_OPTIONS,
 	INVOKE_CLI_OPTIONS,
+	INVOKE_INHERIT,
+	INVOKE_MODEL_OPTIONS,
 	INVOKE_PERMISSION_OPTIONS,
 	type CodexApprovalMode,
 	type InvokeCli,
 	type InvokePermissionMode,
+	withoutInvokeInherit,
 } from "@/constants/invoke";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { errorMessage } from "@/lib/orpc-errors";
@@ -40,6 +46,10 @@ const CODEX_APPROVAL_ITEMS = CODEX_APPROVAL_OPTIONS.filter(
 	(option) => option.value !== "bypass",
 ).map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
 
+function selectItems(options: { value: string; label: string; hint: string }[]) {
+	return options.map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
+}
+
 export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -49,8 +59,8 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 	const [cli, setCli] = useState<InvokeCli>("claude");
 	const [label, setLabel] = useState("");
 	const [prompt, setPrompt] = useState("");
-	const [model, setModel] = useState("");
-	const [effort, setEffort] = useState("");
+	const [model, setModel] = useState(INVOKE_INHERIT);
+	const [effort, setEffort] = useState(INVOKE_INHERIT);
 	const [agent, setAgent] = useState("");
 	const [permissionMode, setPermissionMode] =
 		useState<Exclude<InvokePermissionMode, "bypass">>("default");
@@ -83,14 +93,16 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 		if (!activeProjectId) {
 			return;
 		}
+		const selectedModel = withoutInvokeInherit(model);
+		const selectedEffort = withoutInvokeInherit(effort);
 
 		start.mutate({
 			projectId: activeProjectId,
 			cli,
 			tab: { kind: "session", ...(label.trim() ? { label: label.trim() } : {}) },
 			...(prompt.trim() ? { prompt: prompt.trim() } : {}),
-			...(model.trim() ? { model: model.trim() } : {}),
-			...(effort.trim() ? { effort: effort.trim() } : {}),
+			...(selectedModel ? { model: selectedModel } : {}),
+			...(selectedEffort ? { effort: selectedEffort } : {}),
 			...(cli === "claude" && agent.trim() ? { agent: agent.trim() } : {}),
 			...(cli === "claude" ? { permissionMode } : { approvalMode }),
 		});
@@ -103,6 +115,8 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 	}
 
 	const pending = start.isPending || resume.isPending;
+	const modelItems = selectItems(cli === "codex" ? CODEX_MODEL_OPTIONS : INVOKE_MODEL_OPTIONS);
+	const effortItems = selectItems(cli === "codex" ? CODEX_EFFORT_OPTIONS : INVOKE_EFFORT_OPTIONS);
 
 	return (
 		<Dialog
@@ -110,7 +124,7 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 			onClose={onClose}
 			title="Abrir conversa"
 			description="A conversa sempre nasce em um pane real do kw-terminal"
-			className="max-w-md"
+			className="max-w-md bg-card text-card-foreground"
 			footer={
 				<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
 					<Button
@@ -165,8 +179,31 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 					<CustomSelect
 						items={CLI_ITEMS}
 						value={cli}
-						onValueChange={(value) => setCli(value as InvokeCli)}
+						ariaLabel="Selecionar CLI"
+						onValueChange={(value) => {
+							setCli(value as InvokeCli);
+							setModel(INVOKE_INHERIT);
+							setEffort(INVOKE_INHERIT);
+						}}
 						renderItem={(item) => <span className="truncate">{item.label}</span>}
+					/>
+				</div>
+
+				<div className="flex flex-col gap-1">
+					<Text size="xs" tone="muted">
+						Modelo
+					</Text>
+					<CustomSelect
+						items={modelItems}
+						value={model}
+						ariaLabel="Selecionar modelo"
+						onValueChange={setModel}
+						renderItem={(item) => (
+							<div className="min-w-0">
+								<div className="truncate font-semibold">{item.label}</div>
+								<div className="truncate text-xs text-muted-foreground">{item.hint}</div>
+							</div>
+						)}
 					/>
 				</div>
 
@@ -195,23 +232,28 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 					/>
 				</div>
 
-				<details className="border border-border bg-muted/20">
-					<summary className="cursor-pointer px-3 py-2 text-xs font-semibold">
+				<details className="border border-border bg-background/40">
+					<summary className="min-h-11 cursor-pointer px-3 py-3 text-xs font-semibold text-foreground">
 						Opções avançadas
 					</summary>
 					<div className="grid gap-3 border-t border-border p-3">
-						<Input
-							value={model}
-							onChange={(event) => setModel(event.target.value)}
-							placeholder="Modelo padrão"
-							disabled={pending}
-						/>
-						<Input
-							value={effort}
-							onChange={(event) => setEffort(event.target.value)}
-							placeholder="Esforço padrão"
-							disabled={pending}
-						/>
+						<div className="flex flex-col gap-1">
+							<Text size="xs" tone="muted">
+								Esforço
+							</Text>
+							<CustomSelect
+								items={effortItems}
+								value={effort}
+								ariaLabel="Selecionar esforço"
+								onValueChange={setEffort}
+								renderItem={(item) => (
+									<div className="min-w-0">
+										<div className="truncate font-semibold">{item.label}</div>
+										<div className="truncate text-xs text-muted-foreground">{item.hint}</div>
+									</div>
+								)}
+							/>
+						</div>
 						{cli === "claude" && (
 							<>
 								<Input

@@ -1,4 +1,4 @@
-import { Eraser, Loader2 } from "lucide-react";
+import { Eraser, Loader2, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AgentCliIcon } from "@/components/agent-radar/agent-cli";
@@ -48,11 +48,14 @@ export function PromptField({
 	className,
 	inputClassName,
 	menuAbove,
+	menuAboveOnMobile,
 	clearShortcut,
 	inputRef,
 	onChange,
 	onImagesChange,
 	onSubmit,
+	quickMenu,
+	toolbar,
 }: {
 	value: string;
 	images: PromptImage[];
@@ -63,11 +66,14 @@ export function PromptField({
 	className?: string;
 	inputClassName?: string;
 	menuAbove?: boolean;
+	menuAboveOnMobile?: boolean;
 	clearShortcut?: boolean;
 	inputRef?: React.RefObject<HTMLTextAreaElement | null>;
 	onChange: (text: string) => void;
 	onImagesChange: (images: PromptImage[]) => void;
 	onSubmit?: (text?: string) => void;
+	quickMenu?: boolean;
+	toolbar?: React.ReactNode;
 }) {
 	const fallbackRef = useRef<HTMLTextAreaElement>(null);
 	const textareaRef = inputRef ?? fallbackRef;
@@ -261,6 +267,20 @@ export function PromptField({
 		moveCaret(trigger.triggerPos + insertion.length);
 	}
 
+	function openQuickMenu() {
+		const node = textareaRef.current;
+		const caret = node?.selectionStart ?? value.length;
+		const before = value[caret - 1];
+		const prefix = caret === 0 || before === " " || before === "\n" ? "/" : " /";
+		const triggerPos = caret + prefix.length - 1;
+		const next = value.slice(0, caret) + prefix + value.slice(caret);
+
+		commit(next);
+		setTrigger({ triggerPos, query: "" });
+		setActiveIndex(0);
+		moveCaret(triggerPos + 1);
+	}
+
 	function deleteAdjacentImageToken(event: React.KeyboardEvent<HTMLTextAreaElement>): boolean {
 		if (event.key !== "Backspace" && event.key !== "Delete") return false;
 		if (event.metaKey || event.ctrlKey || event.altKey) return false;
@@ -358,15 +378,17 @@ export function PromptField({
 				{menuOpen && (
 					<div
 						className={cn(
-							"absolute top-full left-0 z-20 mt-2 max-h-72 w-full overflow-y-auto border border-border bg-popover shadow-md animate-in fade-in-0 slide-in-from-bottom-1 duration-150",
+							"absolute top-full left-0 z-30 mt-2 max-h-[min(18rem,45dvh)] w-full overflow-y-auto overscroll-contain border border-border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 slide-in-from-bottom-1 duration-150",
 							menuAbove && "md:top-auto md:bottom-full md:mt-0 md:mb-2",
+							menuAboveOnMobile && "top-auto bottom-full mt-0 mb-2",
 						)}
+						style={{ backgroundColor: "var(--popover)", color: "var(--popover-foreground)" }}
 					>
 						{matches.map((item, index) => (
 							<button
 								key={item.key}
 								type="button"
-								onMouseDown={(event) => {
+								onPointerDown={(event) => {
 									event.preventDefault();
 									applyItem(item);
 								}}
@@ -471,6 +493,23 @@ export function PromptField({
 					onChange(value.replaceAll(imagePlaceholder(index), "").trim());
 				}}
 			/>
+
+			{(quickMenu || toolbar) && (
+				<div className="flex min-w-0 items-center gap-2 pt-2">
+					{quickMenu && (
+						<button
+							type="button"
+							onClick={openQuickMenu}
+							disabled={disabled || uploading}
+							className="inline-flex h-10 min-w-0 items-center gap-2 border border-border bg-background px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+						>
+							<Sparkles className="size-4 shrink-0 text-primary" />
+							<span className="truncate">Skills e comandos</span>
+						</button>
+					)}
+					<div className="ml-auto flex min-w-0 items-center gap-2">{toolbar}</div>
+				</div>
+			)}
 		</div>
 	);
 }

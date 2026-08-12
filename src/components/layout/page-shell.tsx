@@ -37,8 +37,8 @@ export function PageShell({
 			{header && <>{header}</>}
 			{!header && (
 				<div className={cn("mb-6 border-b border-border", headerClassName)}>
-					<div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
-						<div className="flex items-center gap-3 ">
+					<div className="mx-auto flex w-full max-w-6xl flex-col items-stretch gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+						<div className="flex min-w-0 items-center gap-3">
 							{onBack && (
 								<button
 									type="button"
@@ -50,8 +50,8 @@ export function PageShell({
 								</button>
 							)}
 							{icon && <Icon icon={icon} color="var(--project-accent, var(--primary))" size="md" />}
-							<div className="">
-								<Title size="lg" className="uppercase tracking-[0.12em]">
+							<div className="min-w-0">
+								<Title size="lg" className="truncate uppercase tracking-[0.12em]">
 									{title}
 								</Title>
 								{description && (
@@ -61,7 +61,11 @@ export function PageShell({
 								)}
 							</div>
 						</div>
-						{actions && <div className="flex items-center gap-2">{actions}</div>}
+						{actions && (
+							<div className="flex w-full items-center gap-2 overflow-x-auto pb-0.5 sm:w-auto sm:overflow-visible sm:pb-0">
+								{actions}
+							</div>
+						)}
 					</div>
 				</div>
 			)}

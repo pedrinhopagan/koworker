@@ -64,7 +64,7 @@ export function AppShell({ children }: AppShellProps) {
 	return (
 		<AppContextMenu>
 			<div
-				className="flex flex-1 flex-row overflow-hidden h-dvh bg-background text-foreground"
+				className="flex h-full min-h-0 flex-1 flex-row overflow-hidden bg-background text-foreground"
 				style={shellStyle}
 				onContextMenuCapture={handleContextMenuCapture}
 			>

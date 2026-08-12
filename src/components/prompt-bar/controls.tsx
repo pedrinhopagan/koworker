@@ -83,11 +83,13 @@ export function MiniSelect({
 	value,
 	onChange,
 	options,
+	ariaLabel,
 }: {
 	icon: LucideIcon;
 	value: string;
 	onChange: (value: string) => void;
 	options: InvokeOption[];
+	ariaLabel?: string;
 }) {
 	const items = reflectValue(options, value).map((option) => ({
 		id: option.value,
@@ -104,6 +106,7 @@ export function MiniSelect({
 				onValueChange={(next) => onChange(next)}
 				size="sm"
 				fitContent
+				ariaLabel={ariaLabel}
 				triggerClassName="gap-1.5 px-2"
 				renderTrigger={() => (
 					<>

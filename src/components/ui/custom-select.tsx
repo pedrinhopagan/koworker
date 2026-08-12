@@ -15,7 +15,8 @@ const customSelectTriggerVariants = tv({
 	base: "flex items-center justify-between gap-2 min-w-0 whitespace-nowrap transition-all outline-none disabled:cursor-not-allowed disabled:opacity-50",
 	variants: {
 		variant: {
-			default: "px-3 py-2 border border-input bg-card hover:bg-muted hover:border-muted-foreground",
+			default:
+				"px-3 py-2 border border-input bg-card text-card-foreground hover:bg-muted hover:border-muted-foreground",
 			ghost: "hover:bg-accent hover:text-accent-foreground",
 			minimal: "",
 		},
@@ -82,6 +83,7 @@ interface CustomSelectProps<T extends { id: string }> extends VariantProps<
 	className?: string;
 	triggerClassName?: string;
 	triggerStyle?: React.CSSProperties;
+	ariaLabel?: string;
 	contentClassName?: string;
 	align?: "start" | "center" | "end";
 	side?: "top" | "bottom" | "left" | "right";
@@ -114,6 +116,7 @@ function CustomSelect<T extends { id: string }>({
 	className,
 	triggerClassName,
 	triggerStyle,
+	ariaLabel,
 	contentClassName,
 	align = "start",
 	side = "bottom",
@@ -146,6 +149,7 @@ function CustomSelect<T extends { id: string }>({
 			<SelectPrimitive.Root value={value} onValueChange={handleValueChange} disabled={isDisabled}>
 				<SelectPrimitive.Trigger
 					type="button"
+					aria-label={ariaLabel}
 					data-slot="custom-select-trigger"
 					aria-busy={loading ? true : undefined}
 					aria-invalid={error ? true : undefined}

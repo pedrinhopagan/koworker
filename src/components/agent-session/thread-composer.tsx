@@ -1,9 +1,11 @@
-import { Loader2, Mic, Send } from "lucide-react";
+import { Cpu, Loader2, Mic, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PromptField } from "@/components/prompt-bar/prompt-field";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
+import { CustomSelect } from "@/components/ui/custom-select";
+import { CODEX_MODEL_OPTIONS, INVOKE_INHERIT, INVOKE_MODEL_OPTIONS } from "@/constants/invoke";
 import { resolveImagePlaceholders } from "@/lib/build-prompt";
 import { clearPromptDraft, readPromptDraft, writePromptDraft } from "@/lib/prompt-draft";
 import { AudioRecorder } from "./audio-recorder";
@@ -18,6 +20,7 @@ export function ThreadComposer({
 	placeholder = "Responda ao agente nesta mesma sessão…",
 	helperText = "Ctrl+Enter envia · / insere uma skill · cole imagens. O agente mantém o contexto desta conversa.",
 	onSubmit,
+	onCommand,
 }: {
 	draftKey: string;
 	projectName?: string;
@@ -31,10 +34,17 @@ export function ThreadComposer({
 		prompt: string,
 		inputKind: "text" | "audio_transcript",
 	) => boolean | void | Promise<boolean | void>;
+	onCommand?: (command: string) => boolean | void | Promise<boolean | void>;
 }) {
 	const [draft, setDraft] = useState(() => readPromptDraft(draftKey));
 	const [inputKind, setInputKind] = useState<"text" | "audio_transcript">("text");
 	const [dictating, setDictating] = useState(false);
+	const [selectedModel, setSelectedModel] = useState<string>();
+	const [switchingModel, setSwitchingModel] = useState(false);
+	const modelItems = (cli === "codex" ? CODEX_MODEL_OPTIONS : INVOKE_MODEL_OPTIONS)
+		.filter((option) => option.value !== INVOKE_INHERIT)
+		.map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
+	const selectedModelItem = modelItems.find((item) => item.id === selectedModel);
 
 	useEffect(() => {
 		const timer = setTimeout(() => writePromptDraft(draftKey, draft), 300);
@@ -58,8 +68,24 @@ export function ThreadComposer({
 		setInputKind("text");
 	}
 
+	async function switchModel(value: string) {
+		if (!onCommand || disabled || pending || switchingModel) {
+			return;
+		}
+
+		setSwitchingModel(true);
+		try {
+			const accepted = await onCommand(`/model ${value}`);
+			if (accepted !== false) {
+				setSelectedModel(value);
+			}
+		} finally {
+			setSwitchingModel(false);
+		}
+	}
+
 	return (
-		<div className="z-20 -mx-4 shrink-0 border-t border-border/70 bg-background/90 px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-xl">
+		<div className="z-20 -mx-4 shrink-0 border-t border-border/70 bg-background/90 px-4 pt-2 pb-2 backdrop-blur-xl">
 			<div className="mx-auto w-full max-w-3xl rounded-xl border border-border/70 bg-card p-2 shadow-sm">
 				{dictating ? (
 					<div className="pb-1">
@@ -84,7 +110,7 @@ export function ThreadComposer({
 						</Button>
 					</div>
 				) : (
-					<div className="flex items-end gap-2">
+					<div>
 						<PromptField
 							value={draft.text}
 							images={draft.images}
@@ -95,33 +121,72 @@ export function ThreadComposer({
 							className="min-w-0 flex-1"
 							inputClassName="max-h-[200px] min-h-12"
 							menuAbove
+							menuAboveOnMobile
+							quickMenu
 							onChange={(value) => {
 								setDraft((current) => ({ ...current, text: value }));
 								setInputKind("text");
 							}}
 							onImagesChange={(value) => setDraft((current) => ({ ...current, images: value }))}
 							onSubmit={(text) => void submit(text)}
+							toolbar={
+								<>
+									{onCommand && modelItems.length > 0 && (
+										<CustomSelect
+											items={modelItems}
+											value={selectedModel}
+											disabled={disabled || pending || switchingModel}
+											fitContent
+											ariaLabel="Selecionar modelo da sessão"
+											label="Modelo da sessão"
+											placeholder="Modelo"
+											triggerClassName="h-10 max-w-32 px-2 sm:max-w-44"
+											onValueChange={(value) => void switchModel(value)}
+											renderTrigger={() => (
+												<>
+													{switchingModel ? (
+														<Loader2 className="size-4 shrink-0 animate-spin" />
+													) : (
+														<Cpu className="size-4 shrink-0" />
+													)}
+													<span className="truncate">{selectedModelItem?.label ?? "Modelo"}</span>
+												</>
+											)}
+											renderItem={(item) => (
+												<div className="min-w-0">
+													<div className="truncate font-semibold">{item.label}</div>
+													<div className="truncate text-xs text-muted-foreground">{item.hint}</div>
+												</div>
+											)}
+										/>
+									)}
+									<Button
+										type="button"
+										variant="outline"
+										size="icon"
+										aria-label="Ditar continuação"
+										onClick={() => setDictating(true)}
+										disabled={disabled || pending}
+										className="size-10 shrink-0"
+									>
+										<Mic className="size-4" />
+									</Button>
+									<Button
+										type="button"
+										aria-label="Enviar continuação"
+										onClick={() => void submit()}
+										disabled={disabled || pending || !draft.text.trim()}
+										className="size-10 shrink-0 p-0"
+									>
+										{pending ? (
+											<Loader2 className="size-4 animate-spin" />
+										) : (
+											<Send className="size-4" />
+										)}
+									</Button>
+								</>
+							}
 						/>
-						<Button
-							type="button"
-							variant="outline"
-							size="icon"
-							aria-label="Ditar continuação"
-							onClick={() => setDictating(true)}
-							disabled={disabled || pending}
-							className="size-12 shrink-0"
-						>
-							<Mic className="size-5" />
-						</Button>
-						<Button
-							type="button"
-							aria-label="Enviar continuação"
-							onClick={() => void submit()}
-							disabled={disabled || pending || !draft.text.trim()}
-							className="size-12 shrink-0 p-0"
-						>
-							{pending ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
-						</Button>
 					</div>
 				)}
 				<Text size="xs" tone="muted" className="mt-1.5 hidden sm:block">

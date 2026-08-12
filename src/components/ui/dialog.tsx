@@ -34,7 +34,7 @@ export function DialogRoot({
 					role={role}
 					aria-describedby={describedBy}
 					className={cn(
-						"fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col border border-border bg-background shadow-2xl outline-none",
+						"fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[calc(100%-1rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col border border-border bg-card text-card-foreground shadow-2xl outline-none sm:w-[calc(100%-2rem)]",
 						"data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:duration-150",
 						"data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:fill-mode-forwards",
 						className,
@@ -75,7 +75,7 @@ export function Dialog({
 			className={className}
 			describedBy={description ? descriptionId : undefined}
 		>
-			<div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+			<div className="flex items-start justify-between gap-4 border-b border-border bg-card px-4 py-4 sm:px-5">
 				<div className="min-w-0">
 					<DialogPrimitive.Title asChild>
 						<Title as="h2" size="sm" className="uppercase tracking-[0.12em]">
@@ -83,17 +83,19 @@ export function Dialog({
 						</Title>
 					</DialogPrimitive.Title>
 					{description && (
-						<Text id={descriptionId} size="xs" tone="muted" className="mt-0.5 truncate">
+						<Text id={descriptionId} size="xs" tone="muted" className="mt-0.5 pr-8">
 							{description}
 						</Text>
 					)}
 				</div>
 			</div>
 
-			<div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+			<div className="min-h-0 flex-1 overflow-y-auto bg-card px-4 py-4 sm:px-5">{children}</div>
 
 			{footer && (
-				<div className="flex justify-end gap-2 border-t border-border px-5 py-3">{footer}</div>
+				<div className="flex justify-end gap-2 border-t border-border bg-card px-4 py-3 sm:px-5">
+					{footer}
+				</div>
 			)}
 
 			<DialogPrimitive.Close asChild>
