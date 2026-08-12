@@ -1,17 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 
+import type { AgentRadarTranscriptEnvelope } from "@/api/helpers/agent-radar/transcript";
 import type { AgentTranscript } from "@/api/helpers/agent-radar/transcript/locate";
 import { orpcWs } from "@/client";
 import { mergeAgentSessionEvents, type AgentSessionEvent } from "@/lib/agent-session";
 import { subscribeWithRetry } from "@/lib/realtime-subscription";
 
-type TranscriptEnvelope = {
-	events?: AgentSessionEvent[];
-	reset?: boolean;
-	missing?: boolean;
-	source?: AgentTranscript;
-	model?: string;
-};
+type TranscriptEnvelope = Pick<
+	AgentRadarTranscriptEnvelope,
+	"events" | "missing" | "model" | "reset" | "source"
+>;
 
 // Um agente em rajada escreve vários blocos por segundo. Aplicar lote a lote punha a conversa inteira
 // para redesenhar a cada bloco; juntar o que chegou no mesmo quadro deixa um render por rajada.
@@ -19,13 +17,19 @@ const BATCH_MS = 90;
 
 export function applyAgentRadarTranscriptEnvelope(
 	current: AgentSessionEvent[],
-	envelope: { events?: AgentSessionEvent[]; reset?: boolean },
+	envelope: TranscriptEnvelope,
 ) {
 	const incoming = envelope.events ?? [];
 
 	return envelope.reset ? incoming : mergeAgentSessionEvents(current, incoming);
 }
 
+export function applyAgentRadarTranscriptSource(
+	current: AgentTranscript | null,
+	envelope: TranscriptEnvelope,
+) {
+	return envelope.reset ? (envelope.source ?? null) : (envelope.source ?? current);
+}
 // A conversa que o CLI de um pane grava no disco. O lote marcado com `reset` é a conversa inteira
 // de novo (arquivo trocado, sessão nova): substituir é obrigatório, porque os `seq` recomeçaram.
 export function useAgentRadarTranscript(paneId: string) {
@@ -59,10 +63,12 @@ export function useAgentRadarTranscript(paneId: string) {
 			setLoading(false);
 			setMissing(!!last?.missing);
 
-			const nextSource = batch.findLast((envelope) => envelope.source)?.source;
-			if (nextSource) {
-				setSource(nextSource);
-			}
+			setSource((current) =>
+				batch.reduce(
+					(accumulated, envelope) => applyAgentRadarTranscriptSource(accumulated, envelope),
+					current,
+				),
+			);
 
 			// O `reset` recomeça a conversa em outro arquivo: o modelo da sessão anterior não vale mais
 			// até o transcript novo reportar o dele.

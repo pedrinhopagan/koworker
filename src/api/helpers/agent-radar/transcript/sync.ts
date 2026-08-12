@@ -1,4 +1,8 @@
-import { kwTerminalPaneProcessInfo } from "../../terminal/kw-terminal";
+import {
+	kwTerminalPaneGet,
+	kwTerminalPaneProcessInfo,
+	kwTerminalPaneSession,
+} from "../../terminal/kw-terminal";
 import { getRadarAgent, putRadarAgent, type RadarAgent } from "../state";
 import { resolveProcessTranscript } from "./process";
 
@@ -11,6 +15,10 @@ export async function syncPaneTranscriptSource(paneId: string) {
 		return null;
 	}
 
+	const pane = await kwTerminalPaneGet(paneId).catch(() => null);
+	const reported = pane
+		? kwTerminalPaneSession(pane)
+		: { sessionId: agent.sessionId, sessionPath: agent.sessionPath };
 	const processInfo = await kwTerminalPaneProcessInfo(paneId).catch(() => null);
 	const transcript = processInfo
 		? await resolveProcessTranscript({
@@ -19,7 +27,10 @@ export async function syncPaneTranscriptSource(paneId: string) {
 			})
 		: null;
 
-	if (!transcript || transcript.path === agent.sessionPath) {
+	const session = transcript
+		? { sessionId: transcript.sessionId, sessionPath: transcript.path }
+		: reported;
+	if (session.sessionId === agent.sessionId && session.sessionPath === agent.sessionPath) {
 		return transcript;
 	}
 
@@ -30,8 +41,7 @@ export async function syncPaneTranscriptSource(paneId: string) {
 
 	await putRadarAgent({
 		...current,
-		sessionId: transcript.sessionId,
-		sessionPath: transcript.path,
+		...session,
 	});
 
 	return transcript;

@@ -101,6 +101,26 @@ test("o que o CLI acrescenta chega sozinho, sem reenviar a conversa", async () =
 	});
 });
 
+test("rajadas do watcher e do polling não duplicam blocos", async () => {
+	await withTail(async ({ path, batches, waitFor }) => {
+		const secondAssistant = `${JSON.stringify({
+			type: "assistant",
+			message: { content: [{ type: "text", text: "pronto" }] },
+		})}\n`;
+		await Bun.write(path, `${USER_LINE}${ASSISTANT_LINE}`);
+		await Bun.sleep(10);
+		await Bun.write(path, `${USER_LINE}${ASSISTANT_LINE}${secondAssistant}`);
+		await waitFor(2);
+		await Bun.sleep(300);
+
+		expect(batches.flatMap((batch) => batch.events).map((event) => event.payload)).toEqual([
+			{ kind: "user", text: "suba o servidor" },
+			{ kind: "assistant", text: "subindo" },
+			{ kind: "assistant", text: "pronto" },
+		]);
+	});
+});
+
 test("arquivo trocado por uma sessão nova recomeça a conversa", async () => {
 	await withTail(async ({ path, batches, waitFor }) => {
 		await Bun.write(

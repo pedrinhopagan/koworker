@@ -15,6 +15,8 @@ type PaneTranscript = {
 	tail: TranscriptTail | null;
 	readers: number;
 	timer: ReturnType<typeof setInterval>;
+	resolving: boolean;
+	missing: boolean;
 };
 
 const panes = new Map<string, PaneTranscript>();
@@ -52,37 +54,54 @@ async function openTail(paneId: string, source: AgentTranscript) {
 // arquivo (sessão nova no mesmo pane). Uma resolução só serve para abrir; manter aberto é reresolver.
 async function resolve(paneId: string) {
 	const entry = panes.get(paneId);
-	if (!entry) {
+	if (!entry || entry.resolving) {
 		return;
 	}
+	entry.resolving = true;
 
-	await syncPaneTranscriptSource(paneId).catch((error) =>
-		console.error(`[Radar] Falha ao reler a sessão do pane ${paneId}:`, error),
-	);
+	try {
+		await syncPaneTranscriptSource(paneId);
+		const agent = getRadarAgent(paneId);
+		const source = agent ? await locateAgentTranscript(agent) : null;
 
-	const agent = getRadarAgent(paneId);
-	const source = agent ? locateAgentTranscript(agent) : null;
-
-	if (!panes.has(paneId)) {
-		return;
-	}
-
-	if (!source) {
-		if (entry.tail) {
-			entry.tail.close();
-			entry.tail = null;
+		if (panes.get(paneId) !== entry) {
+			return;
 		}
-		await publish({ paneId, missing: true });
 
-		return;
+		if (!source) {
+			if (entry.tail) {
+				entry.tail.close();
+				entry.tail = null;
+			}
+			if (!entry.missing) {
+				entry.missing = true;
+				await publish({ paneId, missing: true, reset: true, events: [] });
+			}
+
+			return;
+		}
+
+		if (entry.tail?.source.cli === source.cli && entry.tail.source.path === source.path) {
+			return;
+		}
+
+		entry.tail?.close();
+		entry.tail = null;
+		const tail = await openTail(paneId, source);
+		if (panes.get(paneId) !== entry) {
+			tail.close();
+
+			return;
+		}
+		entry.tail = tail;
+		entry.missing = false;
+	} catch (error) {
+		console.error(`[Radar] Falha ao resolver a conversa do pane ${paneId}:`, error);
+	} finally {
+		if (panes.get(paneId) === entry) {
+			entry.resolving = false;
+		}
 	}
-
-	if (entry.tail?.source.path === source.path) {
-		return;
-	}
-
-	entry.tail?.close();
-	entry.tail = await openTail(paneId, source);
 }
 
 export async function refreshAgentRadarTranscript(paneId: string) {
@@ -135,6 +154,8 @@ export async function* subscribeAgentRadarTranscript(paneId: string, signal?: Ab
 		panes.set(paneId, {
 			tail: null,
 			readers: 1,
+			resolving: false,
+			missing: false,
 			timer: setInterval(() => void resolve(paneId), RESOLVE_INTERVAL_MS).unref(),
 		});
 		await resolve(paneId);

@@ -80,6 +80,23 @@ export function putRadarAgent(agent: RadarAgent) {
 	return publish(true);
 }
 
+export function setRadarAgentSession(
+	paneId: string,
+	session: Pick<RadarAgent, "sessionId" | "sessionPath">,
+) {
+	const agent = agents.get(paneId);
+	if (
+		!agent ||
+		(agent.sessionId === session.sessionId && agent.sessionPath === session.sessionPath)
+	) {
+		return;
+	}
+
+	agents.set(paneId, { ...agent, ...session });
+
+	return publish(true);
+}
+
 export function resetRadarAgents(
 	next: RadarAgent[],
 	options: { focus?: RadarFocus; captureSnapshot: boolean },

@@ -78,7 +78,7 @@ async function previewOf(paneId: string, source: AgentTranscript): Promise<Previ
 export async function agentRadarTranscriptPreviews() {
 	return await Promise.all(
 		listRadarAgents().map(async (agent) => {
-			const source = locateAgentTranscript(agent);
+			const source = await locateAgentTranscript(agent);
 			const preview = source ? await previewOf(agent.paneId, source) : { text: null, model: null };
 
 			return { paneId: agent.paneId, text: preview.text, model: preview.model };

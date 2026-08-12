@@ -8,6 +8,7 @@ import {
 	findTabByLabel,
 	findWorkspaceByLabel,
 	isKwTerminalClientProcess,
+	kwTerminalPaneSession,
 	type KwTerminalPane,
 	type KwTerminalTab,
 	type KwTerminalWorkspace,
@@ -25,6 +26,7 @@ const WORKSPACE_LIST = `{"id":"cli:workspace:list","result":{"type":"workspace_l
 const TAB_LIST = `{"id":"cli:tab:list","result":{"tabs":[{"agent_status":"unknown","focused":true,"label":"1","number":1,"pane_count":1,"tab_id":"w8:t1","workspace_id":"w8"}],"type":"tab_list"}}`;
 const PANE_LIST = `{"id":"cli:pane:list","result":{"panes":[{"agent_status":"unknown","cwd":"/home/pedro","focused":true,"foreground_cwd":"/home/pedro","pane_id":"w8:p1","revision":0,"tab_id":"w8:t1","terminal_id":"term_655e08f8e645a8","workspace_id":"w8"}],"type":"pane_list"}}`;
 const AGENT_PANE_LIST = `{"id":"cli:pane:list","result":{"panes":[{"agent":"prime-agent","agent_status":"working","cwd":"/home/pedro/projeto","focused":true,"foreground_cwd":"/home/pedro/projeto","pane_id":"w8:p2","revision":1,"tab_id":"w8:t1","terminal_id":"term_prime","workspace_id":"w8"},{"agent":"pi","agent_status":"blocked","cwd":"/home/pedro/projeto","focused":false,"foreground_cwd":"/home/pedro/projeto","pane_id":"w8:p3","revision":1,"tab_id":"w8:t1","terminal_id":"term_pi","workspace_id":"w8"}],"type":"pane_list"}}`;
+const PANE_WITH_SESSION = `{"id":"cli:pane:list","result":{"panes":[{"agent":"codex","agent_session":{"agent":"codex","kind":"id","source":"herdr:codex","value":"019ff5b8-f64b-70c2-a7db-01b580333fdf"},"agent_status":"working","cwd":"/mnt/data/Projects/koworker","focused":true,"foreground_cwd":"/mnt/data/Projects/koworker","pane_id":"w8:p1","revision":0,"tab_id":"w8:t1","terminal_id":"term_655e08f8e645a8","workspace_id":"w8"}],"type":"pane_list"}}`;
 const WORKSPACE_CREATE = `{"id":"cli:workspace:create","result":{"root_pane":{"agent_status":"unknown","cwd":"/tmp","focused":false,"foreground_cwd":"/tmp","pane_id":"w9:p1","revision":0,"tab_id":"w9:t1","terminal_id":"term_655e15d6577429","workspace_id":"w9"},"tab":{"agent_status":"unknown","focused":false,"label":"1","number":1,"pane_count":1,"tab_id":"w9:t1","workspace_id":"w9"},"type":"workspace_created","workspace":{"active_tab_id":"w9:t1","agent_status":"unknown","focused":false,"label":"kw_test_slice_a","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w9"}}}`;
 const TAB_CREATE = `{"id":"cli:tab:create","result":{"root_pane":{"agent_status":"unknown","cwd":"/tmp","focused":false,"foreground_cwd":"/tmp","pane_id":"w9:p2","revision":0,"tab_id":"w9:t2","terminal_id":"term_655e15dc70265a","workspace_id":"w9"},"tab":{"agent_status":"unknown","focused":false,"label":"kw_test_tab","number":2,"pane_count":1,"tab_id":"w9:t2","workspace_id":"w9"},"type":"tab_created"}}`;
 const TAB_RENAME = `{"id":"cli:tab:rename","result":{"tab":{"agent_status":"unknown","focused":false,"label":"kw_renamed_tab","number":1,"pane_count":1,"tab_id":"w1G:t1","workspace_id":"w1G"},"type":"tab_info"}}`;
@@ -58,6 +60,25 @@ test("preserva Prime Agent e Pi detectados pelo kw-terminal", () => {
 		{ agent: "prime-agent", agent_status: "working" },
 		{ agent: "pi", agent_status: "blocked" },
 	]);
+});
+
+test("normaliza a referência de sessão exposta pelo kw-terminal 0.7", () => {
+	const result = parseKwTerminalResult<{ panes: KwTerminalPane[] }>(PANE_WITH_SESSION);
+
+	expect(kwTerminalPaneSession(result.panes[0]!)).toEqual({
+		sessionId: "019ff5b8-f64b-70c2-a7db-01b580333fdf",
+		sessionPath: null,
+	});
+});
+
+test("recusa referência de sessão pertencente a outro agent", () => {
+	expect(
+		kwTerminalPaneSession({
+			...parseKwTerminalResult<{ panes: KwTerminalPane[] }>(PANE_WITH_SESSION).panes[0]!,
+			agent: "claude",
+			agent_session_id: "sessao-legada",
+		}),
+	).toEqual({ sessionId: null, sessionPath: null });
 });
 
 test("workspace create expõe workspace + root_pane", () => {

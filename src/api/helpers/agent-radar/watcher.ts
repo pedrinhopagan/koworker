@@ -11,6 +11,7 @@ import {
 	kwTerminalAgentList,
 	kwTerminalPaneList,
 	kwTerminalPaneProcessInfo,
+	kwTerminalPaneSession,
 	kwTerminalSocketPath,
 	kwTerminalTabList,
 	kwTerminalWorkspaceList,
@@ -254,7 +255,8 @@ async function syncRadar(current: number) {
 	const recoveredTranscripts = new Map(
 		await Promise.all(
 			conversationalPanes.map(async (pane) => {
-				if (!pane.agent || pane.agent_session_path) {
+				const session = kwTerminalPaneSession(pane);
+				if (!pane.agent || session.sessionPath) {
 					return [pane.pane_id, null] as const;
 				}
 
@@ -281,6 +283,7 @@ async function syncRadar(current: number) {
 		const status = toRadarStatus(pane.agent_status);
 		const task = tasks.get(pane.pane_id);
 		const recoveredTranscript = recoveredTranscripts.get(pane.pane_id);
+		const reportedSession = kwTerminalPaneSession(pane);
 
 		return [
 			{
@@ -296,8 +299,8 @@ async function syncRadar(current: number) {
 				cwd: pane.cwd,
 				projectId: project?.id ?? null,
 				projectName: project?.name ?? null,
-				sessionId: pane.agent_session_id ?? recoveredTranscript?.sessionId ?? null,
-				sessionPath: pane.agent_session_path ?? recoveredTranscript?.path ?? null,
+				sessionId: reportedSession.sessionId ?? recoveredTranscript?.sessionId ?? null,
+				sessionPath: reportedSession.sessionPath ?? recoveredTranscript?.path ?? null,
 				taskId: task?.task_id ?? null,
 				taskTitle: task?.title ?? null,
 				changedAt: known?.status === status ? known.changedAt : Date.now(),

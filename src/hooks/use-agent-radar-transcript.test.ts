@@ -1,7 +1,10 @@
 import { expect, test } from "bun:test";
 
 import type { AgentSessionEvent } from "@/lib/agent-session";
-import { applyAgentRadarTranscriptEnvelope } from "./use-agent-radar-transcript";
+import {
+	applyAgentRadarTranscriptEnvelope,
+	applyAgentRadarTranscriptSource,
+} from "./use-agent-radar-transcript";
 
 function event(seq: number, text: string): AgentSessionEvent {
 	return {
@@ -32,4 +35,14 @@ test("lote incremental atualiza por seq depois do snapshot", () => {
 		{ kind: "assistant", text: "depois" },
 		{ kind: "assistant", text: "novo" },
 	]);
+});
+
+test("reset sem source remove toda identidade da sessão anterior", () => {
+	const envelope = { missing: true, reset: true, events: [] };
+	const oldEvent = event(0, "conversa antiga");
+
+	expect(applyAgentRadarTranscriptEnvelope([oldEvent], envelope)).toEqual([]);
+	expect(
+		applyAgentRadarTranscriptSource({ cli: "codex", path: "/tmp/rollout-antigo.jsonl" }, envelope),
+	).toBeNull();
 });

@@ -77,6 +77,8 @@ export async function openTranscriptTail(input: {
 	let offset = 0;
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let closed = false;
+	let pulling = false;
+	let pending = false;
 
 	async function pull() {
 		const events: AgentSessionEvent[] = [];
@@ -96,19 +98,35 @@ export async function openTranscriptTail(input: {
 	}
 
 	function schedule() {
-		if (timer || closed) {
+		if (closed) {
+			return;
+		}
+		if (pulling) {
+			pending = true;
+
+			return;
+		}
+		if (timer) {
 			return;
 		}
 
 		timer = setTimeout(() => {
 			timer = null;
+			pulling = true;
 			void pull()
 				.then(({ events, reset }) => {
 					if (!closed && (events.length > 0 || reset)) {
 						input.onEvents(events, reset, model);
 					}
 				})
-				.catch(input.onError);
+				.catch(input.onError)
+				.finally(() => {
+					pulling = false;
+					if (pending && !closed) {
+						pending = false;
+						schedule();
+					}
+				});
 		}, DEBOUNCE_MS);
 		timer.unref();
 	}
@@ -131,6 +149,7 @@ export async function openTranscriptTail(input: {
 		model: () => model,
 		close() {
 			closed = true;
+			pending = false;
 			if (timer) {
 				clearTimeout(timer);
 			}
