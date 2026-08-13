@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { koworkerDataDir } from "../../src/lib/app-paths";
 import { KOWORK_PROD_PORT } from "../../src/lib/runtime-config";
+import { resolveHotDeployProfile } from "./hot-deploy-profile";
 import { installSharpVendor } from "./install-sharp-vendor";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -208,7 +209,14 @@ async function restoreInstalledTargets() {
 }
 
 const backendManagedBySystemd = systemdBackendUnitExists();
+const deployProfile = resolveHotDeployProfile(process.env.KOWORK_REMOTE_REDEPLOY);
 const warnings: string[] = [];
+
+if (deployProfile.requireSystemd && !backendManagedBySystemd) {
+	throw new Error(
+		`Redeploy remoto exige a unidade ${systemdBackendUnit} para reiniciar e verificar o backend de produção.`,
+	);
+}
 
 console.log("→ Build do frontend (route tree + dist)...");
 run(["bun", "run", "build:web"]);
@@ -219,17 +227,22 @@ run(["bun", "run", "build:backend"]);
 console.log("→ Build da CLI (binario standalone)...");
 run(["bun", "build", "src/cli/index.ts", "--compile", "--outfile", cliSource]);
 
-console.log("→ Build da GUI Electron (AppImage)...");
-run(["bun", "run", "electron:build"], { NODE_ENV: "production" });
-const electronError = runAllowingFailure(["bun", "x", "electron-builder", "--linux", "AppImage"]);
-const guiSource = electronError ? null : await findAppImage();
+if (deployProfile.buildGui) {
+	console.log("→ Build da GUI Electron (AppImage)...");
+	run(["bun", "run", "electron:build"], { NODE_ENV: "production" });
+}
+
+const electronError = deployProfile.buildGui
+	? runAllowingFailure(["bun", "x", "electron-builder", "--linux", "AppImage"])
+	: null;
+const guiSource = deployProfile.buildGui && !electronError ? await findAppImage() : null;
 const guiAvailable = !!guiSource;
 
-if (electronError) {
+if (deployProfile.buildGui && electronError) {
 	warnings.push(
 		`Build da GUI falhou (${electronError}); dist, backend e CLI seguiram mesmo assim.`,
 	);
-} else if (!guiSource) {
+} else if (deployProfile.buildGui && !guiSource) {
 	warnings.push("electron-builder não gerou a AppImage; dist, backend e CLI seguiram mesmo assim.");
 }
 

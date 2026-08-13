@@ -74,7 +74,11 @@ async function runCommand(label: string, command: string[], cwd = REPO_DIR) {
 
 	const proc = Bun.spawn(command, {
 		cwd,
-		env: { ...process.env, KOWORK_REPO_DIR: REPO_DIR },
+		env: {
+			...process.env,
+			KOWORK_REMOTE_REDEPLOY: "1",
+			KOWORK_REPO_DIR: REPO_DIR,
+		},
 		stdout: "pipe",
 		stderr: "pipe",
 		stdin: "ignore",

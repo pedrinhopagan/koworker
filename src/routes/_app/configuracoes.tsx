@@ -96,7 +96,7 @@ function RedeployAppCard() {
 	const title = running
 		? "Atualizando aplicativo"
 		: failed
-			? "Atualização falhou"
+			? "Tentar atualização novamente"
 			: "Atualizar aplicativo";
 	const description = running
 		? (deployment?.message ?? "Preparando a publicação da main")
