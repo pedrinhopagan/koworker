@@ -23,6 +23,7 @@ let backendStopped = false;
 app.setName(appName);
 if (process.platform === "linux") {
 	app.commandLine.appendSwitch("class", appName);
+	app.commandLine.appendSwitch("ozone-platform", "x11");
 }
 
 function commandFromArgv(argv: string[], fallback: WindowCommand | null): WindowCommand | null {
