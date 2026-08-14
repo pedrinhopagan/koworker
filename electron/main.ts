@@ -6,6 +6,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell, Tray } from 
 
 import { BackendProcess } from "./backend";
 import { DESKTOP_CHANNELS } from "./channels";
+import { resolveLinuxOzonePlatform } from "./linux-platform";
 
 type WindowCommand = "hide" | "quit" | "show" | "toggle";
 
@@ -23,7 +24,10 @@ let backendStopped = false;
 app.setName(appName);
 if (process.platform === "linux") {
 	app.commandLine.appendSwitch("class", appName);
-	app.commandLine.appendSwitch("ozone-platform", "x11");
+	const ozonePlatform = resolveLinuxOzonePlatform(process.env.DISPLAY);
+	if (ozonePlatform) {
+		app.commandLine.appendSwitch("ozone-platform", ozonePlatform);
+	}
 }
 
 function commandFromArgv(argv: string[], fallback: WindowCommand | null): WindowCommand | null {
