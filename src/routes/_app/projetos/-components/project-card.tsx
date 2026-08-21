@@ -13,12 +13,7 @@ type ProjectCardProps = {
 export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 	const metrics = project.tasksSummary;
 
-	const taskLabel =
-		metrics.total === 0
-			? "Sem tarefas"
-			: metrics.pending === 0
-				? `${metrics.done} concluídas`
-				: `${metrics.pending} pendente${metrics.pending > 1 ? "s" : ""}`;
+	const taskCount = metrics.total === 0 || metrics.pending > 0 ? metrics.pending : metrics.done;
 
 	const displayPath = project.displayPath;
 
@@ -50,8 +45,8 @@ export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 							{displayPath}
 						</Text>
 					</div>
-					<Text size="xs" tone="muted" className="shrink-0 whitespace-nowrap tabular-nums">
-						{taskLabel}
+					<Text size="xs" tone="muted" className="shrink-0 tabular-nums">
+						{taskCount}
 					</Text>
 				</div>
 			</div>

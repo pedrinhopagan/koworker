@@ -8,11 +8,11 @@ import {
 } from "./projects";
 
 describe("atalhos de projeto", () => {
-	test("inclui prime-agent nos atalhos de todo projeto novo", () => {
+	test("inclui pi nos atalhos de todo projeto novo", () => {
 		expect(DEFAULT_PROJECT_ROUTES).toContainEqual({
-			name: "prime-agent",
-			command: "prime-agent",
-			icon: "Sparkles",
+			name: "pi",
+			command: "pi",
+			icon: "SquareTerminal",
 		});
 	});
 
@@ -52,6 +52,11 @@ describe("atalhos de projeto", () => {
 			}),
 		).toBe("CircleStop");
 		expect(resolveProjectRouteIcon({ name: "Build", command: "bun run build" })).toBe("Hammer");
+		expect(resolveProjectRouteIcon({ name: "Deploy", command: "bun run deploy" })).toBe("Rocket");
+		expect(resolveProjectRouteIcon({ name: "Testes", command: "bun test" })).toBe("FlaskConical");
+		expect(resolveProjectRouteIcon({ name: "Banco", command: "bun run db:migrate" })).toBe(
+			"Database",
+		);
 	});
 
 	test("diferencia os documentos principais pelos ícones", () => {

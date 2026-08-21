@@ -2,6 +2,7 @@ import Database from "bun:sqlite";
 
 import { envVariables } from "@/api/config/env";
 import { allocateStorageKey, normalizeStorageSlug } from "@/api/helpers/task-storage-path";
+import { resolveProjectRouteIcon } from "@/constants/projects";
 import { normalizeEntityName } from "./entity-name";
 
 type ColumnInfo = {
@@ -211,7 +212,24 @@ UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
 		// Alinha atalhos antigos do codex ao novo comando default (idempotente).
 		sqlite.exec("UPDATE project_routes SET command = 'codex --yolo' WHERE command = 'codex'");
 
-		const projectsWithoutPrimeAgent = sqlite
+		const projectRoutes = sqlite
+			.query<{ id: string; name: string; command: string | null; icon: string | null }, []>(
+				"SELECT id, name, command, icon FROM project_routes",
+			)
+			.all();
+		const updateProjectRouteIcon = sqlite.query(
+			"UPDATE project_routes SET icon = ? WHERE id = ? AND icon IS NOT ?",
+		);
+		for (const route of projectRoutes) {
+			const icon = resolveProjectRouteIcon(route);
+			updateProjectRouteIcon.run(icon, route.id, icon);
+		}
+
+		sqlite.exec(
+			"DELETE FROM project_routes WHERE lower(trim(command)) = 'prime-agent' OR lower(trim(name)) = 'prime-agent'",
+		);
+
+		const projectsWithoutPi = sqlite
 			.query<{ id: string; main_route: string }, []>(
 				`
 SELECT p.id, p.main_route
@@ -219,28 +237,22 @@ FROM projects p
 WHERE p.deleted_at IS NULL
 	AND NOT EXISTS (
 		SELECT 1 FROM project_routes pr
-		WHERE pr.project_id = p.id AND lower(trim(pr.command)) = 'prime-agent'
+		WHERE pr.project_id = p.id AND lower(trim(pr.command)) = 'pi'
 	)
 `,
 			)
 			.all();
-		const insertPrimeAgent = sqlite.query(`
+		const insertPi = sqlite.query(`
 INSERT INTO project_routes (
 	id, project_id, name, route, icon, command, display_order, created_at
-) VALUES (?, ?, 'prime-agent', ?, 'Sparkles', 'prime-agent', ?, ?)
+) VALUES (?, ?, 'pi', ?, 'SquareTerminal', 'pi', ?, ?)
 `);
 		const maxRouteOrder = sqlite.query<{ display_order: number | null }, [string]>(
 			"SELECT max(display_order) AS display_order FROM project_routes WHERE project_id = ?",
 		);
-		for (const project of projectsWithoutPrimeAgent) {
+		for (const project of projectsWithoutPi) {
 			const displayOrder = (maxRouteOrder.get(project.id)?.display_order ?? -1) + 1;
-			insertPrimeAgent.run(
-				crypto.randomUUID(),
-				project.id,
-				project.main_route,
-				displayOrder,
-				Date.now(),
-			);
+			insertPi.run(crypto.randomUUID(), project.id, project.main_route, displayOrder, Date.now());
 		}
 	}
 

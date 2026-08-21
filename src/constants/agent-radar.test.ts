@@ -2,8 +2,7 @@ import { expect, test } from "bun:test";
 
 import { agentRadarAgentLabel } from "./agent-radar";
 
-test("exibe nomes próprios para Prime Agent e Pi", () => {
-	expect(agentRadarAgentLabel("prime-agent")).toBe("Prime Agent");
+test("exibe o nome próprio do Pi", () => {
 	expect(agentRadarAgentLabel("pi")).toBe("Pi");
 });
 

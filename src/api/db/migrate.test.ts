@@ -9,7 +9,7 @@ let result: {
 	first: { folder_path: string; storage_key: string | null; storage_slug: string | null }[];
 	mtimePreserved: boolean;
 	pathIndex: { name: string } | null;
-	primeAgentRoutes: {
+	projectRoutes: {
 		name: string;
 		command: string;
 		icon: string;
@@ -71,12 +71,30 @@ describe("ensureDbSchema", () => {
 		expect(result.pathIndex).toBeNull();
 	});
 
-	test("adiciona o prime-agent uma única vez aos projetos existentes", () => {
-		expect(result.primeAgentRoutes).toEqual([
+	test("atualiza os ícones, remove o atalho legado e adiciona o pi uma única vez", () => {
+		expect(result.projectRoutes).toEqual([
 			{
-				name: "prime-agent",
-				command: "prime-agent",
-				icon: "Sparkles",
+				name: "claude",
+				command: "claude --dangerously-skip-permissions",
+				icon: "Bot",
+				route: join(root, "project"),
+			},
+			{
+				name: "Iniciar jogo",
+				command: "bun run jogo:iniciar",
+				icon: "Gamepad2",
+				route: join(root, "project"),
+			},
+			{
+				name: "Deploy",
+				command: "bun run deploy",
+				icon: "Rocket",
+				route: join(root, "project"),
+			},
+			{
+				name: "pi",
+				command: "pi",
+				icon: "SquareTerminal",
 				route: join(root, "project"),
 			},
 		]);

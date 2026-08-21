@@ -39,6 +39,51 @@ await db
 	})
 	.execute();
 await db
+	.insertInto("project_routes")
+	.values([
+		{
+			id: "aaaaaaaa-0000-4000-8000-000000000002",
+			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
+			name: "prime-agent",
+			route: projectRoute,
+			icon: "Sparkles",
+			command: "prime-agent",
+			display_order: 0,
+			created_at: 1,
+		},
+		{
+			id: "aaaaaaaa-0000-4000-8000-000000000003",
+			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
+			name: "claude",
+			route: projectRoute,
+			icon: "Cpu",
+			command: "claude --dangerously-skip-permissions",
+			display_order: 1,
+			created_at: 2,
+		},
+		{
+			id: "aaaaaaaa-0000-4000-8000-000000000004",
+			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
+			name: "Iniciar jogo",
+			route: projectRoute,
+			icon: "FolderOpen",
+			command: "bun run jogo:iniciar",
+			display_order: 2,
+			created_at: 3,
+		},
+		{
+			id: "aaaaaaaa-0000-4000-8000-000000000005",
+			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
+			name: "Deploy",
+			route: projectRoute,
+			icon: "FolderOpen",
+			command: "bun run deploy",
+			display_order: 3,
+			created_at: 4,
+		},
+	])
+	.execute();
+await db
 	.insertInto("agent_sessions")
 	.values([
 		{
@@ -118,11 +163,10 @@ const secondSessions = await db
 	.select(["id", "status", "end_reason", "ended_at", "updated_at"])
 	.orderBy("id")
 	.execute();
-const primeAgentRoutes = await db
+const projectRoutes = await db
 	.selectFrom("project_routes")
 	.select(["name", "command", "icon", "route"])
 	.where("project_id", "=", "aaaaaaaa-0000-4000-8000-000000000001")
-	.where("command", "=", "prime-agent")
 	.execute();
 await db.destroy();
 
@@ -140,7 +184,7 @@ console.log(
 		first,
 		mtimePreserved: (await stat(filePath)).mtimeMs === before.mtimeMs,
 		pathIndex,
-		primeAgentRoutes,
+		projectRoutes,
 		firstSessions,
 		second,
 		secondSessions,

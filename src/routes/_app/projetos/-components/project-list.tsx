@@ -103,12 +103,7 @@ export function ProjectList({ projects, selectedId, loading }: ProjectListProps)
 	return (
 		<section className="flex flex-col gap-4 md:min-h-0 md:flex-1">
 			<div className="flex items-center justify-between">
-				<div>
-					<Title size="sm">Meus projetos</Title>
-					<Text size="sm" tone="muted">
-						{projects.length} projetos cadastrados
-					</Text>
-				</div>
+				<Title size="sm">Meus projetos</Title>
 				<Button variant="secondary" asChild>
 					<Link to="/projetos/novo">Novo projeto</Link>
 				</Button>

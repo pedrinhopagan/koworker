@@ -1,10 +1,12 @@
 import { useState } from "react";
 
+import { CliLogo } from "@/components/icons/cli-logos";
 import { FolderPathInput } from "@/components/settings/folder-path-input";
 import { DeleteConfirmButton } from "@/components/ui/delete-confirm-button";
 import { IconSelector } from "@/components/ui/icon-selector";
 import { Input } from "@/components/ui/input";
 import { DragHandle, type SortableItemRenderProps } from "@/components/ui/sortable-list";
+import { resolveProjectRouteCli } from "@/constants/projects";
 import { cn } from "@/lib/utils";
 import type { ProjectRouteItem } from "../-utils/types";
 
@@ -26,6 +28,7 @@ export function RouteItem({ item, props, onUpdate, onDelete, isDeleting }: Route
 	const [localName, setLocalName] = useState(item.name);
 	const [localRoute, setLocalRoute] = useState(item.route);
 	const [localCommand, setLocalCommand] = useState(item.command ?? "");
+	const cli = resolveProjectRouteCli({ name: localName });
 
 	function handleSubmit() {
 		const nextName = localName.trim();
@@ -62,7 +65,17 @@ export function RouteItem({ item, props, onUpdate, onDelete, isDeleting }: Route
 					listeners={props.dragHandleProps.listeners}
 				/>
 
-				<IconSelector value={item.icon} onChange={handleIconChange} className="h-9 w-12 shrink-0" />
+				{cli ? (
+					<div className="flex h-9 w-12 shrink-0 items-center justify-center border border-border bg-background">
+						<CliLogo cli={cli} className="size-4" />
+					</div>
+				) : (
+					<IconSelector
+						value={item.icon}
+						onChange={handleIconChange}
+						className="h-9 w-12 shrink-0"
+					/>
+				)}
 
 				<Input
 					value={localName}

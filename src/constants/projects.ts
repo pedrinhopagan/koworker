@@ -2,7 +2,7 @@ const PROJECT_CLI_ICONS = {
 	claude: "Bot",
 	codex: "SquareTerminal",
 	opencode: "CodeXml",
-	"prime-agent": "Sparkles",
+	pi: "SquareTerminal",
 } as const;
 
 export const PROJECT_DOC_NAMES = [
@@ -55,11 +55,7 @@ export const DEFAULT_PROJECT_ROUTES = [
 	},
 	{ name: "opencode", command: "opencode", icon: PROJECT_CLI_ICONS.opencode },
 	{ name: "codex", command: "codex --yolo", icon: PROJECT_CLI_ICONS.codex },
-	{
-		name: "prime-agent",
-		command: "prime-agent",
-		icon: PROJECT_CLI_ICONS["prime-agent"],
-	},
+	{ name: "pi", command: "pi", icon: PROJECT_CLI_ICONS.pi },
 ] as const;
 
 type ProjectRouteIntent = {
@@ -68,7 +64,7 @@ type ProjectRouteIntent = {
 	icon?: string | null;
 };
 
-function projectCliName(route: Pick<ProjectRouteIntent, "name">) {
+export function resolveProjectRouteCli(route: Pick<ProjectRouteIntent, "name">) {
 	const name = route.name.toLocaleLowerCase().replaceAll("_", "-");
 	return Object.keys(PROJECT_CLI_ICONS).find((cli) => name === cli || name.startsWith(`${cli}-`)) as
 		| keyof typeof PROJECT_CLI_ICONS
@@ -76,11 +72,11 @@ function projectCliName(route: Pick<ProjectRouteIntent, "name">) {
 }
 
 export function isProjectCliRoute(route: ProjectRouteIntent) {
-	return projectCliName(route) !== undefined;
+	return resolveProjectRouteCli(route) !== undefined;
 }
 
 export function resolveProjectRouteIcon(route: ProjectRouteIntent) {
-	const cli = projectCliName(route);
+	const cli = resolveProjectRouteCli(route);
 	if (cli) {
 		return PROJECT_CLI_ICONS[cli];
 	}
@@ -108,13 +104,43 @@ export function resolveProjectRouteIcon(route: ProjectRouteIntent) {
 	if (/\b(jogo|game)\b/.test(intent)) {
 		return "Gamepad2";
 	}
-	if (/\b(build|deploy|compilar)\b/.test(intent)) {
+	if (/\b(deploy|publicar|release)\b/.test(intent)) {
+		return "Rocket";
+	}
+	if (/\b(build|compilar)\b/.test(intent)) {
 		return "Hammer";
+	}
+	if (/\b(test|teste|vitest|jest)\b/.test(intent)) {
+		return "FlaskConical";
+	}
+	if (/\b(lint|oxlint|eslint|check|verificar)\b/.test(intent)) {
+		return "ScanSearch";
+	}
+	if (/\b(format|formatar|prettier)\b/.test(intent)) {
+		return "WandSparkles";
+	}
+	if (/\b(install|instalar|setup)\b/.test(intent)) {
+		return "PackagePlus";
+	}
+	if (/\b(update|atualizar|upgrade)\b/.test(intent)) {
+		return "RefreshCw";
+	}
+	if (/\b(backup|restaurar|restore)\b/.test(intent)) {
+		return "ArchiveRestore";
+	}
+	if (/\b(migra|database|banco|db)\b/.test(intent)) {
+		return "Database";
+	}
+	if (/\b(log|logs)\b/.test(intent)) {
+		return "ScrollText";
+	}
+	if (/\b(clean|limpar|reset)\b/.test(intent)) {
+		return "Trash2";
 	}
 	if (/\b(diff|comparar)\b/.test(intent)) {
 		return "Diff";
 	}
-	if (/\b(dev|serve|server|front|app)\b/.test(intent)) {
+	if (/\b(dev|serve|server|front|api|app)\b/.test(intent)) {
 		return "MonitorPlay";
 	}
 

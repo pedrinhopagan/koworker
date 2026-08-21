@@ -1,10 +1,11 @@
 import { ArrowUpRight, Terminal } from "lucide-react";
 import { useState } from "react";
 
+import { CliLogo } from "@/components/icons/cli-logos";
 import { TerminalShortcutMenu } from "@/components/layout/terminal-shortcut-menu";
 import { Text } from "@/components/typography";
 import { type SortableItemRenderProps, DragHandle } from "@/components/ui/sortable-list";
-import { resolveProjectRouteIcon } from "@/constants/projects";
+import { resolveProjectRouteCli, resolveProjectRouteIcon } from "@/constants/projects";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { openProjectRoute, openProjectTerminal } from "@/lib/terminal";
@@ -72,6 +73,7 @@ export function ProjectRouteShortcutItem({
 	}
 
 	const label = isTerminal ? "Terminal do projeto" : (route?.name ?? "Atalho");
+	const routeCli = route && resolveProjectRouteCli(route);
 	const ariaLabel = isTerminal
 		? isTerminalOpen
 			? "Focar terminal do projeto"
@@ -87,32 +89,21 @@ export function ProjectRouteShortcutItem({
 			disabled={isOpening}
 			aria-label={ariaLabel}
 			className={cn(
-				"group flex min-h-16 w-full min-w-0 cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-wait",
+				"group flex min-h-14 w-full min-w-0 cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-wait",
 				isTerminal && isTerminalOpen && "text-green-500 hover:text-green-400",
 			)}
 		>
 			<div className="flex size-9 shrink-0 items-center justify-center border border-border bg-muted/40 transition-colors group-hover:bg-background">
-				{isTerminal ? (
-					<Terminal className={cn("size-4", isOpening && "animate-pulse")} />
-				) : (
-					<LucideIcon
-						name={route ? resolveProjectRouteIcon(route) : "FolderOpen"}
-						className={cn("size-4 text-foreground", isOpening && "animate-pulse")}
-					/>
-				)}
+				<RouteShortcutIcon
+					isTerminal={isTerminal}
+					route={route}
+					routeCli={routeCli}
+					isOpening={isOpening}
+				/>
 			</div>
-			<div className="min-w-0 flex-1">
-				<Text as="div" size="sm" className="truncate font-semibold">
-					{label}
-				</Text>
-				<Text
-					size="xs"
-					tone="muted"
-					className="mt-0.5 block overflow-hidden text-ellipsis whitespace-nowrap font-mono"
-				>
-					{isTerminal ? project.mainRoute : (route?.command ?? route?.route)}
-				</Text>
-			</div>
+			<Text as="div" size="sm" className="min-w-0 flex-1 truncate font-semibold">
+				{label}
+			</Text>
 			<ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground" />
 		</button>
 	);
@@ -161,5 +152,32 @@ export function ProjectRouteShortcutItem({
 				{content}
 			</TerminalShortcutMenu>
 		</div>
+	);
+}
+
+function RouteShortcutIcon({
+	isTerminal,
+	route,
+	routeCli,
+	isOpening,
+}: {
+	isTerminal?: boolean;
+	route?: ProjectRoute;
+	routeCli?: string;
+	isOpening: boolean;
+}) {
+	if (isTerminal) {
+		return <Terminal className={cn("size-4", isOpening && "animate-pulse")} />;
+	}
+
+	if (routeCli) {
+		return <CliLogo cli={routeCli} className={cn("size-4", isOpening && "animate-pulse")} />;
+	}
+
+	return (
+		<LucideIcon
+			name={route ? resolveProjectRouteIcon(route) : "FolderOpen"}
+			className={cn("size-4 text-foreground", isOpening && "animate-pulse")}
+		/>
 	);
 }

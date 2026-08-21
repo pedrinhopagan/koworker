@@ -2,11 +2,13 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useFormContext } from "react-hook-form";
 
+import { CliLogo } from "@/components/icons/cli-logos";
 import { FolderPathInput } from "@/components/settings/folder-path-input";
 import { Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { IconSelector } from "@/components/ui/icon-selector";
 import { Input } from "@/components/ui/input";
+import { resolveProjectRouteCli } from "@/constants/projects";
 import type { ProjectFormValues } from "../../project-form";
 
 type NewRouteFormProps = {
@@ -30,6 +32,7 @@ export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormPr
 	const [route, setRoute] = useState(mainRoute || "");
 	const [icon, setIcon] = useState<string>("FolderOpen");
 	const [command, setCommand] = useState("");
+	const cli = resolveProjectRouteCli({ name });
 
 	function handleSubmit() {
 		const trimmedName = name.trim();
@@ -59,7 +62,13 @@ export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormPr
 			</Title>
 			<div className="flex flex-col gap-2 rounded-md border border-border bg-card/50 px-3 py-3">
 				<div className="flex items-center gap-2">
-					<IconSelector value={icon} onChange={setIcon} className="h-9 w-12 shrink-0" />
+					{cli ? (
+						<div className="flex h-9 w-12 shrink-0 items-center justify-center border border-border bg-background">
+							<CliLogo cli={cli} className="size-4" />
+						</div>
+					) : (
+						<IconSelector value={icon} onChange={setIcon} className="h-9 w-12 shrink-0" />
+					)}
 					<Input
 						value={name}
 						onChange={(e) => setName(e.target.value)}

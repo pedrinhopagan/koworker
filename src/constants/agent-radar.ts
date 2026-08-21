@@ -10,7 +10,6 @@ const AGENT_RADAR_AGENT_LABELS: Record<string, string> = {
 	codex: "Codex",
 	opencode: "OpenCode",
 	gemini: "Gemini CLI",
-	"prime-agent": "Prime Agent",
 	pi: "Pi",
 };
 
