@@ -11,9 +11,9 @@ timestamp: 2026-08-13T10:12:52-03:00
 
 # Atualização remota do PWA
 
-“Atualizar aplicativo” publica somente o conteúdo já enviado para `origin/main`. O botão não alcança mudanças locais do computador do usuário; a entrega que contém essas mudanças precisa chegar à `main` antes do clique.
+“Atualizar aplicativo” publica o commit atual (`HEAD`) do clone canônico, seja qual for a branch em que ele esteja. Nada precisa ir para `origin` antes do clique; só o que está commitado entra, arquivo modificado e não commitado fica de fora.
 
-A confirmação na interface inicia um processo destacado sob lock atômico. O processo faz `fetch`, abre `origin/main` num worktree descartável e executa o deploy a partir desse snapshot. O clone canônico pode estar em outra branch ou conter arquivos locais sem contaminar o build.
+A confirmação na interface inicia um processo destacado sob lock atômico. O processo abre `HEAD` num worktree descartável e executa o deploy a partir desse snapshot, então mudanças feitas no clone durante o build não contaminam o resultado.
 
 O deploy instala os artefatos por troca atômica e preserva no serviço o caminho do clone canônico, não o worktree temporário. Assim o próximo clique continua encontrando o repositório depois que o worktree é removido.
 

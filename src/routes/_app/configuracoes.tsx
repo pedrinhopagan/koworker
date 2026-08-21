@@ -99,12 +99,12 @@ function RedeployAppCard() {
 			? "Tentar atualização novamente"
 			: "Atualizar aplicativo";
 	const description = running
-		? (deployment?.message ?? "Preparando a publicação da main")
+		? (deployment?.message ?? "Preparando a publicação")
 		: failed
 			? (deployment.message ?? "Abra novamente para tentar outra vez")
 			: deployment?.state === "succeeded" && deployment.commit
 				? `Versão ${deployment.commit} publicada e verificada. Toque para buscar novas mudanças.`
-				: "Busca a main mais recente, publica frontend e backend e atualiza este PWA.";
+				: "Publica o último commit do repositório local, troca frontend e backend e atualiza este PWA.";
 
 	return (
 		<>
@@ -124,7 +124,7 @@ function RedeployAppCard() {
 				onClose={() => setConfirming(false)}
 				onConfirm={() => mutate({})}
 				title="Publicar a versão mais recente?"
-				description="A VPS buscará origin/main, fará o build isolado, trocará frontend e backend de forma atômica e só então atualizará o PWA. O aplicativo pode ficar indisponível por alguns segundos."
+				description="O build sai do commit atual do repositório (mudanças não commitadas ficam de fora), roda isolado num worktree e troca frontend e backend de forma atômica antes de atualizar o PWA. O aplicativo pode ficar indisponível por alguns segundos."
 				confirmLabel="Atualizar agora"
 				loading={isPending}
 			/>

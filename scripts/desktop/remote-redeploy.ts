@@ -110,27 +110,17 @@ function capture(command: string[], cwd = REPO_DIR) {
 await log("=== Redeploy remoto iniciado ===");
 
 try {
-	await updateState("running", "Buscando a versão mais recente da main");
-	await runCommand("git fetch", ["git", "fetch", "origin", "--prune"]);
+	const branch = capture(["git", "rev-parse", "--abbrev-ref", "HEAD"]);
 
-	capture(["git", "show-ref", "--verify", "refs/remotes/origin/main"]);
-
-	await updateState("running", "Preparando build isolado");
-	await runCommand("git worktree", [
-		"git",
-		"worktree",
-		"add",
-		"--detach",
-		worktreeDir,
-		"origin/main",
-	]);
+	await updateState("running", `Preparando build isolado de ${branch}`);
+	await runCommand("git worktree", ["git", "worktree", "add", "--detach", worktreeDir, "HEAD"]);
 	worktreeMounted = true;
 
 	const commit = capture(["git", "rev-parse", "--short=12", "HEAD"], worktreeDir);
-	await updateState("running", `Instalando dependências de ${commit}`, commit);
+	await updateState("running", `Instalando dependências de ${branch} ${commit}`, commit);
 	await runCommand("bun install", ["bun", "install", "--frozen-lockfile"], worktreeDir);
 
-	await updateState("running", `Publicando ${commit}`, commit);
+	await updateState("running", `Publicando ${branch} ${commit}`, commit);
 	await runCommand("deploy:fast", ["bun", "run", "deploy:fast"], worktreeDir);
 
 	await updateState("succeeded", "Aplicativo atualizado e verificado", commit);
