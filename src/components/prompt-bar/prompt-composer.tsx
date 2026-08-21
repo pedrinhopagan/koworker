@@ -3,7 +3,6 @@ import {
 	ChevronsDownUp,
 	ChevronsUpDown,
 	Copy,
-	Bot,
 	Crosshair,
 	Loader2,
 	type LucideIcon as LucideIconType,
@@ -14,12 +13,12 @@ import { toast } from "sonner";
 
 import { AttachmentsPanel } from "@/components/prompt-bar/attachments-panel";
 import { ExecutePanel } from "@/components/prompt-bar/execute-panel";
-import { Collapse, GroupLabel, MiniSelect, ToggleBox } from "@/components/prompt-bar/controls";
+import { Collapse, GroupLabel, ToggleBox } from "@/components/prompt-bar/controls";
 import { InvokePanel } from "@/components/prompt-bar/invoke-panel";
 import { PromptField } from "@/components/prompt-bar/prompt-field";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
-import { INVOKE_CLI_OPTIONS, type InvokeCli } from "@/constants/invoke";
+import { INVOKE_CLI_OPTIONS } from "@/constants/invoke";
 import { useRouteDocTarget } from "@/hooks/use-route-doc-target";
 import {
 	buildKoworkerPrompt,
@@ -236,7 +235,6 @@ function PromptInputArea({ projectName }: { projectName?: string }) {
 	const cli = usePromptBarStore((s) => s.cli);
 	const setText = usePromptBarStore((s) => s.setText);
 	const setImages = usePromptBarStore((s) => s.setImages);
-	const setCli = usePromptBarStore((s) => s.setCli);
 
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -270,15 +268,6 @@ function PromptInputArea({ projectName }: { projectName?: string }) {
 			clearShortcut={expanded}
 			onChange={setText}
 			onImagesChange={setImages}
-			toolbar={
-				<MiniSelect
-					icon={Bot}
-					value={cli}
-					onChange={(value) => setCli(value as InvokeCli)}
-					options={INVOKE_CLI_OPTIONS}
-					ariaLabel="Selecionar CLI"
-				/>
-			}
 		/>
 	);
 }
