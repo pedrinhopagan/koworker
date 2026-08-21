@@ -173,6 +173,16 @@ aberto pelos PIDs daquele pane e exclui subagentes pelo `session_meta`. No Claud
 `~/.claude/sessions/<pid>.json` do processo e procura o JSONL com aquele UUID exato. Não há escolha
 por `cwd`, data de modificação ou sessão recente do diretório.
 
+O OpenCode não grava arquivo por sessão: todas ficam no banco SQLite
+`~/.local/share/opencode/opencode.db`. A integração do kw-terminal reporta o id (`ses_...`) e o
+radar lê a conversa direto do banco, uma consulta por segundo enquanto alguém está com o pane na
+tela; bloco só vira fala quando o passo terminou, para texto pela metade nunca congelar na tela.
+Instância aberta antes da integração existir (o plugin carrega na partida) não reporta nada: o
+sincronizador instala a integração na primeira vez que vê isso e adota do banco a sessão mais
+recente daquele diretório, ignorando subagentes (`parent_id`) e arquivadas. Duas instâncias vivas no
+mesmo diretório sem reporte caem na mesma adotada — é o limite do sinal disponível. Esse recorte não
+aparece em `/terminals/history`, que continua listando só o que claude e codex gravam em disco.
+
 `sessionStart` e `sessionResumeLast` instalam a integração oficial do Claude ou Codex antes de subir
 o processo. Isso mantém o reporte nativo nas sessões seguintes; a resolução por processo cobre panes
 que já estavam abertos ou integrações que reportam apenas o ID.

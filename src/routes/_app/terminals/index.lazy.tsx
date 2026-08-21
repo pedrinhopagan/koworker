@@ -114,7 +114,7 @@ function TerminalsPage() {
 					</div>
 				</AgentSidebar>
 
-				<div className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-muted/10 p-6">
+				<div className="hidden min-h-0 min-w-0 flex-1 items-center justify-center bg-muted/10 p-6 md:flex">
 					<EmptyFeedback
 						icon={SquareTerminal}
 						title="Selecione um terminal"

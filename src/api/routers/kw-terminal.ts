@@ -54,7 +54,7 @@ export const kwTerminalRouter = {
 		await ensureKwTerminalServer();
 
 		if (!(await kwTerminalTabFocus(input.tabId))) {
-			throw new Error("Falha ao focar tab kw-terminal");
+			throw new ORPCError("NOT_FOUND", { message: "Falha ao focar a tab no kw-terminal" });
 		}
 
 		return { ok: true };
@@ -64,7 +64,7 @@ export const kwTerminalRouter = {
 		await ensureKwTerminalServer();
 
 		if (!(await kwTerminalTabClose(input.tabId))) {
-			throw new Error("Falha ao fechar tab kw-terminal");
+			throw new ORPCError("NOT_FOUND", { message: "Falha ao fechar a tab no kw-terminal" });
 		}
 
 		return { ok: true };
@@ -76,7 +76,7 @@ export const kwTerminalRouter = {
 			await ensureKwTerminalServer();
 
 			if (!(await kwTerminalWorkspaceFocus(input.workspaceId))) {
-				throw new Error("Falha ao focar workspace kw-terminal");
+				throw new ORPCError("NOT_FOUND", { message: "Falha ao focar o workspace no kw-terminal" });
 			}
 
 			return { ok: true };
@@ -95,7 +95,7 @@ export const kwTerminalRouter = {
 			await ensureKwTerminalServer();
 
 			if (!(await kwTerminalWorkspaceClose(input.workspaceId))) {
-				throw new Error("Falha ao fechar workspace kw-terminal");
+				throw new ORPCError("NOT_FOUND", { message: "Falha ao fechar o workspace no kw-terminal" });
 			}
 
 			return { ok: true };

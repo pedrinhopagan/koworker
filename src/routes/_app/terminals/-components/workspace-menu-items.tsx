@@ -1,7 +1,9 @@
 import { Pencil, Plus, Target, Terminal, Trash2 } from "lucide-react";
 import type { ComponentPropsWithoutRef, ElementType } from "react";
 
+import { CliLogo } from "@/components/icons/cli-logos";
 import { ContextMenuItem, ContextMenuSeparator } from "@/components/ui/context-menu";
+import { resolveProjectRouteCli, resolveProjectRouteIcon } from "@/constants/projects";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { openProjectRoute, openProjectTerminal } from "@/lib/terminal";
 import type { WorkspaceProjectRef } from "../-utils/resolve-workspace-project";
@@ -82,6 +84,8 @@ export function WorkspaceMenuItems({
 					</Item>
 
 					{routes.map(function (route) {
+						const cli = resolveProjectRouteCli(route);
+
 						return (
 							<Item
 								key={route.id}
@@ -92,7 +96,11 @@ export function WorkspaceMenuItems({
 									});
 								}}
 							>
-								<LucideIcon name={route.icon ?? "FolderOpen"} className="size-4" />
+								{cli ? (
+									<CliLogo cli={cli} className="size-4" />
+								) : (
+									<LucideIcon name={resolveProjectRouteIcon(route)} className="size-4" />
+								)}
 								<span className="min-w-0 flex-1 truncate">{route.name}</span>
 							</Item>
 						);

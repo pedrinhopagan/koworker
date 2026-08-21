@@ -47,7 +47,9 @@ export function sanitizeRouteName(routeName: string): string {
 // Tab da sessão livre aberta pela rota /terminals. Prefixo próprio para não ser lida como invocação
 // (`agent_`/`skill_`) nem como tarefa; sem nome informado o rótulo cai na hora da abertura.
 export function sessionTabName(label?: string): string {
-	const sanitized = label ? sanitizeRouteName(label).slice(0, 20) : "";
+	// 40 em vez de 20: rótulos de retomada carregam o id curto da conversa, e cortar no meio dele
+	// devolvia a colisão que o id existia para evitar.
+	const sanitized = label ? sanitizeRouteName(label).slice(0, 40) : "";
 
 	if (sanitized) {
 		return `sess_${sanitized}`;

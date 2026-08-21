@@ -6,6 +6,7 @@ import {
 	GitCompare,
 	Loader2,
 	MoreVertical,
+	Pencil,
 	RefreshCw,
 	Square,
 	SquareTerminal,
@@ -16,11 +17,13 @@ import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { agentCliVisual } from "@/components/agent-radar/agent-cli";
+import { AgentSwitcherStrip } from "@/components/agent-radar/agent-list";
 import { AgentSidebar } from "@/components/agent-radar/agent-sidebar";
 import { SessionTimeline } from "@/components/agent-session/session-timeline";
 import { ThreadComposer } from "@/components/agent-session/thread-composer";
 import { PageShell } from "@/components/layout/page-shell";
 import { TaskLink } from "@/components/task-link";
+import { Text } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,11 +32,14 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog } from "@/components/ui/dialog";
 import { EmptyFeedback } from "@/components/ui/empty-feedback";
+import { Input } from "@/components/ui/input";
 import { AGENT_RADAR_STATUS_LABELS } from "@/constants/agent-radar";
 import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { useAgentRadarTranscript } from "@/hooks/use-agent-radar-transcript";
 import { errorMessage } from "@/lib/orpc-errors";
+import { cn } from "@/lib/utils";
 import { PaneStatusStrip } from "../-components/pane-status-strip";
 import { TerminalPromptControls } from "../-components/terminal-prompt-controls";
 
@@ -49,6 +55,9 @@ function TerminalPanePage() {
 	// evento de scroll redesenhava a conversa inteira enquanto o dedo ainda estava na tela.
 	const anchored = useRef(true);
 	const [pinned, setPinned] = useState(true);
+	const [renaming, setRenaming] = useState(false);
+	const [renameLabel, setRenameLabel] = useState("");
+	const [confirmingClose, setConfirmingClose] = useState(false);
 	const { agents, focus: radarFocus, loading: radarLoading } = useAgentRadar();
 	const agent = agents.find((candidate) => candidate.paneId === paneId) ?? null;
 	const transcript = useAgentRadarTranscript(paneId);
@@ -92,6 +101,14 @@ function TerminalPanePage() {
 			}
 		},
 		onError: (error) => toast.error(errorMessage(error, "Não foi possível sincronizar a conversa")),
+	});
+	const rename = useMutation({
+		...orpc.kwTerminal.tabRename.mutationOptions(),
+		onSuccess: () => {
+			setRenaming(false);
+			toast.success("Conversa renomeada");
+		},
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível renomear a conversa")),
 	});
 
 	// Responder a pergunta pelo PWA é dirigir o seletor do CLI às cegas: o cursor nasce na primeira
@@ -165,12 +182,66 @@ function TerminalPanePage() {
 		stickToEnd();
 	}, [paneId, stickToEnd]);
 
+	const interruptButton = busy && (
+		<Button
+			variant="outline"
+			size="sm"
+			onClick={() => interrupt.mutate({ paneId })}
+			disabled={interrupt.isPending}
+			className="shrink-0"
+		>
+			<Square className="size-3.5" />
+			Interromper
+		</Button>
+	);
+
+	const paneMenu = agent && (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button variant="ghost" size="icon" aria-label="Mais ações" className="shrink-0">
+					<MoreVertical className="size-4" />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end">
+				<DropdownMenuItem onSelect={() => focus.mutate({ paneId })}>
+					<Target className="size-4" />
+					Focar no terminal
+				</DropdownMenuItem>
+				<DropdownMenuItem onSelect={() => openDiff.mutate({ paneId })}>
+					<GitCompare className="size-4" />
+					Ver mudanças
+				</DropdownMenuItem>
+				<DropdownMenuItem
+					onSelect={() => {
+						setRenameLabel(agent.title ?? agent.tabLabel ?? "");
+						setRenaming(true);
+					}}
+				>
+					<Pencil className="size-4" />
+					Renomear
+				</DropdownMenuItem>
+				<DropdownMenuItem
+					onSelect={() => syncTranscript.mutate({ paneId })}
+					disabled={syncTranscript.isPending}
+				>
+					<RefreshCw className="size-4" />
+					Recarregar conversa
+				</DropdownMenuItem>
+				<DropdownMenuItem onSelect={() => setConfirmingClose(true)} className="text-destructive">
+					Fechar
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+
 	return (
 		<PageShell
 			title={cli.label}
 			description={agent?.title ?? agent?.tabLabel ?? "A central mostra apenas agents abertos"}
 			icon={cli.icon}
-			headerClassName="mb-0"
+			// No celular o cabeçalho da página repetia o que a faixa de conversas e a barra de status já
+			// dizem, e comia um sexto da tela: lá quem manda é a barra compacta abaixo.
+			headerClassName="mb-0 max-md:hidden"
 			contentClassName="flex min-h-0 max-w-none flex-col px-0"
 			actions={
 				<div className="flex flex-wrap items-center gap-2">
@@ -180,58 +251,32 @@ function TerminalPanePage() {
 						</Badge>
 					)}
 					{agent?.taskId && <TaskLink taskId={agent.taskId} label={agent.taskTitle ?? "Tarefa"} />}
-					{busy && (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => interrupt.mutate({ paneId })}
-							disabled={interrupt.isPending}
-						>
-							<Square className="size-3.5" />
-							Interromper
-						</Button>
-					)}
-					<Button asChild variant="outline" size="sm" className="md:hidden">
-						<Link to="/terminals">
-							<ArrowLeft className="size-4" />
-							Agents
-						</Link>
-					</Button>
-					{agent && (
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button variant="ghost" size="icon" aria-label="Mais ações">
-									<MoreVertical className="size-4" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuItem onSelect={() => focus.mutate({ paneId })}>
-									<Target className="size-4" />
-									Focar no terminal
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={() => openDiff.mutate({ paneId })}>
-									<GitCompare className="size-4" />
-									Ver mudanças
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									onSelect={() => syncTranscript.mutate({ paneId })}
-									disabled={syncTranscript.isPending}
-								>
-									<RefreshCw className="size-4" />
-									Recarregar conversa
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									onSelect={() => close.mutate({ paneId })}
-									className="text-destructive"
-								>
-									Fechar
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					)}
+					{interruptButton}
+					{paneMenu}
 				</div>
 			}
 		>
+			<div className="flex shrink-0 items-center gap-2 border-b border-border px-2 py-1.5 md:hidden">
+				<Button asChild variant="ghost" size="icon" aria-label="Voltar para a lista de agents">
+					<Link to="/terminals">
+						<ArrowLeft className="size-4" />
+					</Link>
+				</Button>
+
+				<div className="flex min-w-0 flex-1 items-center gap-2">
+					<cli.icon className={cn("size-4 shrink-0", cli.tone)} />
+					<Text as="span" size="sm" className="min-w-0 truncate font-semibold">
+						{agent?.taskTitle ?? agent?.title ?? agent?.tabLabel ?? cli.label}
+					</Text>
+				</div>
+
+				{agent?.taskId && (
+					<TaskLink taskId={agent.taskId} label={agent.taskTitle ?? "Tarefa"} compact />
+				)}
+				{interruptButton}
+				{paneMenu}
+			</div>
+
 			<div data-component="terminal-conversation-layout" className="flex min-h-0 flex-1">
 				<div className="hidden md:flex">
 					<AgentSidebar
@@ -242,6 +287,10 @@ function TerminalPanePage() {
 				</div>
 
 				<div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-muted/10">
+					<div className="md:hidden">
+						<AgentSwitcherStrip agents={agents} selectedPaneId={paneId} />
+					</div>
+
 					<PaneStatusStrip agent={agent} closed={closed} model={transcript.model} />
 
 					<div
@@ -296,6 +345,7 @@ function TerminalPanePage() {
 
 							{!closed && (
 								<SessionTimeline
+									key={paneId}
 									events={transcript.events}
 									busy={!!busy}
 									{...(agent ? { agent: agent.agent } : {})}
@@ -305,7 +355,7 @@ function TerminalPanePage() {
 						</div>
 					</div>
 
-					<div className="relative shrink-0 px-4">
+					<div className="relative shrink-0 px-4 pb-[env(safe-area-inset-bottom)]">
 						{!pinned && (
 							<Button
 								variant="outline"
@@ -329,24 +379,27 @@ function TerminalPanePage() {
 							draftKey={`kowork-radar-draft-${paneId}`}
 							{...(agent?.projectName ? { projectName: agent.projectName } : {})}
 							{...(agent ? { cli: agent.agent } : {})}
-							helperText={`Ctrl+Enter envia · / abre o menu do ${cli.label} · cole imagens.`}
-							disabled={closed || !!busy}
-							pending={send.isPending}
-							onCommand={async (command) => {
-								try {
-									await send.mutateAsync({ paneId, text: command });
-									return true;
-								} catch {
-									return false;
-								}
-							}}
-							hint={
-								closed
-									? "Este pane foi fechado."
-									: busy
-										? "Interrompa ou aguarde o agent terminar."
-										: "Envie uma mensagem para iniciar a conversa."
+							helperText={
+								busy
+									? "Envie orientações enquanto o agent trabalha, sem interromper a execução."
+									: `Ctrl+Enter envia · / abre o menu do ${cli.label} · cole imagens.`
 							}
+							disabled={closed}
+							pending={send.isPending}
+							disabledHintInline
+							{...(busy
+								? {}
+								: {
+										onCommand: async (command: string) => {
+											try {
+												await send.mutateAsync({ paneId, text: command });
+												return true;
+											} catch {
+												return false;
+											}
+										},
+									})}
+							hint="Este pane foi fechado."
 							onSubmit={async (text) => {
 								stickToEnd();
 								try {
@@ -360,6 +413,71 @@ function TerminalPanePage() {
 					</div>
 				</div>
 			</div>
+
+			<Dialog
+				open={renaming}
+				onClose={() => setRenaming(false)}
+				title="Renomear conversa"
+				description="O nome aparece na lista e na faixa de conversas"
+				className="max-w-sm bg-card text-card-foreground"
+				footer={
+					<div className="flex w-full justify-end gap-2">
+						<Button variant="outline" size="sm" onClick={() => setRenaming(false)}>
+							Cancelar
+						</Button>
+						<Button
+							size="sm"
+							disabled={!renameLabel.trim() || rename.isPending}
+							onClick={() =>
+								agent && rename.mutate({ tabId: agent.tabId, label: renameLabel.trim() })
+							}
+						>
+							{rename.isPending ? "Renomeando..." : "Salvar"}
+						</Button>
+					</div>
+				}
+			>
+				<Input
+					value={renameLabel}
+					onChange={(event) => setRenameLabel(event.target.value)}
+					placeholder="Nome da conversa"
+					maxLength={60}
+					onKeyDown={(event) => {
+						if (event.key === "Enter" && renameLabel.trim() && agent) {
+							rename.mutate({ tabId: agent.tabId, label: renameLabel.trim() });
+						}
+					}}
+				/>
+			</Dialog>
+
+			<Dialog
+				open={confirmingClose}
+				onClose={() => setConfirmingClose(false)}
+				title="Fechar esta conversa?"
+				description="O agent é encerrado junto com o pane. O histórico continua em /terminals/history."
+				className="max-w-sm bg-card text-card-foreground"
+				footer={
+					<div className="flex w-full justify-end gap-2">
+						<Button variant="outline" size="sm" onClick={() => setConfirmingClose(false)}>
+							Cancelar
+						</Button>
+						<Button
+							variant="destructive"
+							size="sm"
+							disabled={close.isPending}
+							onClick={() => {
+								close.mutate({ paneId }, { onSuccess: () => setConfirmingClose(false) });
+							}}
+						>
+							{close.isPending ? "Fechando..." : "Fechar conversa"}
+						</Button>
+					</div>
+				}
+			>
+				<Text size="sm" tone="muted">
+					{agent?.title ?? agent?.tabLabel ?? "Esta conversa"}
+				</Text>
+			</Dialog>
 		</PageShell>
 	);
 }

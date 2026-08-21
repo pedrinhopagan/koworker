@@ -10,7 +10,12 @@ import {
 	type TerminalCommand,
 	terminalCommandText,
 } from "./command";
-import { cliResumeArgv, cliResumeByIdArgv, cliStartArgv } from "./cli-argv";
+import {
+	cliResumeArgv,
+	cliResumeByIdArgv,
+	cliStartArgv,
+	cliStartWithFullAccessArgv,
+} from "./cli-argv";
 import { type EmulatorProcess, spawnEmulator } from "./emulator";
 import { focusTerminalWindow } from "./focus";
 import {
@@ -173,10 +178,39 @@ async function createProjectSessionTab(params: {
 	// ela rodou, que pode ser um worktree ou uma subpasta.
 	cwd?: string;
 	command: TerminalCommand;
+	// Retomada reutiliza a tab de mesmo rótulo: clicar de novo não pode empilhar tabs iguais nem
+	// rodar `--resume` duas vezes no mesmo histórico, que é corrida entre dois processos.
+	reuseExisting?: boolean;
 }) {
 	await ensureKwTerminalServer();
 	await kwTerminalIntegrationInstall(params.cli);
 	const { workspace } = await projectWorkspace(params);
+
+	if (params.reuseExisting) {
+		const label = terminalTabLabel(params.tab);
+		const existing = await findTabByLabel(workspace.workspace_id, label);
+		const rootPane = existing
+			? (
+					await kwTerminalPaneList({
+						workspaceId: workspace.workspace_id,
+						tabId: existing.tab_id,
+					})
+				)[0]
+			: undefined;
+
+		if (existing && rootPane) {
+			if (!rootPane.agent) {
+				await kwTerminalPaneRun(rootPane.pane_id, terminalCommandText(params.command));
+			}
+
+			return {
+				paneId: rootPane.pane_id,
+				tabId: existing.tab_id,
+				workspaceId: workspace.workspace_id,
+			};
+		}
+	}
+
 	const { tab, rootPane } = await kwTerminalTabCreate({
 		workspaceId: workspace.workspace_id,
 		cwd: params.cwd ?? params.mainRoute,
@@ -855,6 +889,7 @@ export const Terminal = {
 			cli: params.cli,
 			tab: { kind: "session", label: `Retomar ${params.cli}` },
 			command: { kind: "argv", argv: cliResumeArgv(params.cli) },
+			reuseExisting: true,
 		});
 	},
 
@@ -873,8 +908,14 @@ export const Terminal = {
 			mainRoute: params.mainRoute,
 			cwd: params.cwd,
 			cli: params.cli,
-			tab: { kind: "session", label: `Retomar ${params.cli}` },
+			// O id no rótulo é o que permite reutilizar a tab sem trocar uma conversa pela outra:
+			// retomadas diferentes da mesma CLI precisam de tabs diferentes.
+			tab: {
+				kind: "session",
+				label: `Retomar ${params.cli} · ${params.sessionId.slice(0, 8)}`,
+			},
 			command: { kind: "argv", argv: cliResumeByIdArgv(params.cli, params.sessionId) },
+			reuseExisting: true,
 		});
 	},
 
@@ -933,7 +974,9 @@ export const Terminal = {
 			workingDir: mainRoute,
 			taskId: terminalTabLabel(tab),
 			tab,
-			command: alreadyOpen ? undefined : { kind: "argv", argv: cliStartArgv({ cli: params.cli }) },
+			command: alreadyOpen
+				? undefined
+				: { kind: "argv", argv: cliStartWithFullAccessArgv(params.cli) },
 			forceNew: false,
 			background: false,
 			killExistingOnForceNew: false,

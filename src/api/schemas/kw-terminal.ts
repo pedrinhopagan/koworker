@@ -14,7 +14,7 @@ export const KwTerminalTabCloseSchema = z.object({
 
 export const KwTerminalTabRenameSchema = z.object({
 	tabId: z.string(),
-	label: z.string().trim().min(1),
+	label: z.string().trim().min(1).max(60),
 });
 
 export const KwTerminalWorkspaceFocusSchema = z.object({
@@ -44,14 +44,35 @@ export const KwTerminalTabTargetSchema = z.discriminatedUnion("kind", [
 	}),
 ]);
 
+// Mesma grafia de `schemas/terminal.ts`: modelo e esforço viajam dentro de argv montado na shell
+// do pane, então o charset tem que ser fechado aqui e não confiado ao chamador.
+const KwTerminalModelSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.max(100)
+	.regex(/^[A-Za-z0-9._:@/-]+$/, "Modelo inválido");
+const KwTerminalEffortSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.max(20)
+	.regex(/^[a-z]+$/, "Esforço inválido");
+const KwTerminalAgentSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.max(100)
+	.regex(/^[A-Za-z0-9._-]+$/, "Agent inválido");
+
 export const KwTerminalSessionStartSchema = z.object({
 	projectId: z.string().min(1),
 	cli: z.enum(["claude", "codex"]),
 	tab: KwTerminalTabTargetSchema.optional(),
 	prompt: z.string().trim().max(20_000).optional(),
-	model: z.string().trim().min(1).max(100).optional(),
-	effort: z.string().trim().min(1).max(40).optional(),
-	agent: z.string().trim().min(1).max(100).optional(),
+	model: KwTerminalModelSchema.optional(),
+	effort: KwTerminalEffortSchema.optional(),
+	agent: KwTerminalAgentSchema.optional(),
 	permissionMode: z.enum(["bypass", "plan", "acceptEdits", "default"]).optional(),
 	approvalMode: z.enum(["bypass", "fullAuto", "readOnly", "default"]).optional(),
 });

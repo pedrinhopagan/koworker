@@ -18,3 +18,13 @@ test("conversas do terminal não dependem dos writers legados", async () => {
 		expect(source).not.toContain("execution_runs");
 	}
 });
+
+test("envia continuação durante o trabalho do agent sem interromper", async () => {
+	const router = await Bun.file("src/api/routers/agent-radar.ts").text();
+	const page = await Bun.file("src/routes/_app/terminals/$paneId/index.lazy.tsx").text();
+
+	expect(router).toContain("await kwTerminalPaneRun(input.paneId, input.text)");
+	expect(router).not.toContain('agent.status === "working"');
+	expect(page).toContain("disabled={closed}");
+	expect(page).not.toContain("disabled={closed || !!busy}");
+});

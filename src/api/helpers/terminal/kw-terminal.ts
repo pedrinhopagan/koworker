@@ -174,7 +174,20 @@ export async function kwTerminalSocketPath(): Promise<string> {
 // não está de pé, spawnamos `kw-terminal server` headless (daemon que sobrevive ao backend e loga em
 // ~/.config/kw-terminal/kw-terminal-server.log) e aguardamos o socket responder. O cliente TUI que o
 // usuário abrir depois atacha nesse mesmo servidor.
-export async function ensureKwTerminalServer(): Promise<void> {
+//
+// Chamadas concorrentes dividem a mesma promessa: cada uma esperando a sua checagem spawnavam dois
+// daemons disputando o mesmo socket.
+let ensureInFlight: Promise<void> | null = null;
+
+export function ensureKwTerminalServer(): Promise<void> {
+	ensureInFlight ??= ensureKwTerminalServerOnce().finally(() => {
+		ensureInFlight = null;
+	});
+
+	return ensureInFlight;
+}
+
+async function ensureKwTerminalServerOnce(): Promise<void> {
 	if (await kwTerminalServerRunning()) {
 		return;
 	}
@@ -423,12 +436,31 @@ export async function kwTerminalPaneClose(paneId: string): Promise<boolean> {
 	return (await runKwTerminal(["pane", "close", paneId])).ok;
 }
 
-export async function kwTerminalIntegrationInstall(cli: "claude" | "codex"): Promise<void> {
+export async function kwTerminalIntegrationInstall(
+	cli: "claude" | "codex" | "opencode",
+): Promise<void> {
 	const { ok, stderr } = await runKwTerminal(["integration", "install", cli]);
 	if (!ok) {
 		throw new Error(
 			`Falha ao instalar a integração ${cli} do kw-terminal: ${stderr.trim() || "erro"}`,
 		);
+	}
+}
+
+// O plugin do opencode só entra em ação na próxima instância que subir. Tentar uma vez por processo
+// basta: reinstalar é reescrever o mesmo arquivo, e o gatilho repete a cada pane adotado.
+let opencodeIntegrationAttempted = false;
+
+export async function ensureOpencodeIntegration(): Promise<void> {
+	if (opencodeIntegrationAttempted) {
+		return;
+	}
+	opencodeIntegrationAttempted = true;
+
+	try {
+		await kwTerminalIntegrationInstall("opencode");
+	} catch (error) {
+		console.warn("[Radar] Falha ao instalar a integração do opencode:", error);
 	}
 }
 
@@ -442,25 +474,6 @@ export async function kwTerminalAgentList(): Promise<KwTerminalAgent[]> {
 // é o identificador estável do agent detectado.
 export async function kwTerminalAgentFocus(target: string): Promise<boolean> {
 	return (await runKwTerminal(["agent", "focus", target])).ok;
-}
-
-// Escreve o texto no prompt do agent sem submeter: quem envia decide quando o Enter vai.
-export async function kwTerminalAgentSend(target: string, text: string): Promise<void> {
-	const { ok, stderr } = await runKwTerminal(["agent", "send", target, text]);
-	if (!ok) {
-		throw new Error(`Falha ao escrever no agent do kw-terminal: ${stderr.trim() || "erro"}`);
-	}
-}
-
-export async function kwTerminalAgentSubmit(
-	target: string,
-	text: string,
-	revalidate: () => void,
-): Promise<void> {
-	revalidate();
-	await kwTerminalAgentSend(target, text);
-	revalidate();
-	await kwTerminalPaneSendKeys(target, "Enter");
 }
 
 export async function kwTerminalAgentInterrupt(paneId: string): Promise<void> {

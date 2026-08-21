@@ -13,6 +13,14 @@ export type CliStartParams = {
 	approvalMode?: "bypass" | "fullAuto" | "readOnly" | "default";
 };
 
+export function cliStartWithFullAccessArgv(cli: TerminalCli): string[] {
+	if (cli === "codex") {
+		return ["codex", "--yolo"];
+	}
+
+	return ["claude", "--dangerously-skip-permissions"];
+}
+
 export function cliStartArgv(params: CliStartParams): string[] {
 	const argv =
 		params.cli === "codex"
