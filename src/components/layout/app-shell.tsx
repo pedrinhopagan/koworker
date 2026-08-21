@@ -19,6 +19,10 @@ type AppShellProps = {
 };
 
 function shouldUseNativeContextMenu(target: EventTarget | null) {
+	if (window.matchMedia("(pointer: coarse)").matches || window.getSelection()?.toString()) {
+		return true;
+	}
+
 	return (
 		target instanceof HTMLElement &&
 		!!target.closest(
