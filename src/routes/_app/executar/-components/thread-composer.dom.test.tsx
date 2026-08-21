@@ -273,12 +273,54 @@ describe("ThreadComposer", () => {
 		);
 		const user = userEvent.setup();
 
-		expect(screen.queryByText("Skills e comandos")).toBeNull();
+		expect(screen.getByLabelText("Abrir skills e comandos")).toBeTruthy();
 		await user.click(screen.getByLabelText("Selecionar modelo da sessão"));
 		await user.click(get("custom-select-item", { value: "opus" }));
 
 		expect(commands).toEqual(["/model opus"]);
 		expect(screen.queryByLabelText("Selecionar effort da sessão")).toBeNull();
+	});
+
+	test("abre skills e comandos por toque sem exigir que a pessoa digite barra", async () => {
+		renderWithQuery(
+			<div data-theme-root>
+				<ThreadComposer
+					draftKey="draft-menu-mobile"
+					cli="claude"
+					disabled={false}
+					pending={false}
+					hint=""
+					onSubmit={() => {}}
+				/>
+			</div>,
+		);
+		const user = userEvent.setup();
+
+		await user.click(screen.getByLabelText("Abrir skills e comandos"));
+
+		expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("/");
+	});
+
+	test("mantém o modelo observado visível quando a troca está temporariamente bloqueada", () => {
+		renderWithQuery(
+			<div data-theme-root>
+				<ThreadComposer
+					draftKey="draft-modelo-ocupado"
+					cli="claude"
+					currentModel="sonnet"
+					modelSwitchDisabled
+					disabled={false}
+					pending={false}
+					hint=""
+					onSubmit={() => {}}
+					onCommand={() => {}}
+				/>
+			</div>,
+		);
+
+		const trigger = screen.getByLabelText("Selecionar modelo da sessão");
+		expect(trigger.hasAttribute("disabled")).toBe(true);
+		expect(screen.getByText("Sonnet")).toBeTruthy();
 	});
 
 	test("codex não oferece atalhos que a CLI não interpreta por texto", () => {

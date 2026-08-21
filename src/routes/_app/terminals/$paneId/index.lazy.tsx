@@ -355,7 +355,7 @@ function TerminalPanePage() {
 						</div>
 					</div>
 
-					<div className="relative shrink-0 px-4 pb-[env(safe-area-inset-bottom)]">
+					<div className="relative shrink-0 px-2 sm:px-4">
 						{!pinned && (
 							<Button
 								variant="outline"
@@ -379,6 +379,8 @@ function TerminalPanePage() {
 							draftKey={`kowork-radar-draft-${paneId}`}
 							{...(agent?.projectName ? { projectName: agent.projectName } : {})}
 							{...(agent ? { cli: agent.agent } : {})}
+							currentModel={transcript.model}
+							modelSwitchDisabled={!!busy}
 							helperText={
 								busy
 									? "Envie orientações enquanto o agent trabalha, sem interromper a execução."
@@ -387,18 +389,14 @@ function TerminalPanePage() {
 							disabled={closed}
 							pending={send.isPending}
 							disabledHintInline
-							{...(busy
-								? {}
-								: {
-										onCommand: async (command: string) => {
-											try {
-												await send.mutateAsync({ paneId, text: command });
-												return true;
-											} catch {
-												return false;
-											}
-										},
-									})}
+							onCommand={async (command: string) => {
+								try {
+									await send.mutateAsync({ paneId, text: command });
+									return true;
+								} catch {
+									return false;
+								}
+							}}
 							hint="Este pane foi fechado."
 							onSubmit={async (text) => {
 								stickToEnd();

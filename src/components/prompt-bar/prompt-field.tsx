@@ -17,6 +17,9 @@ import { cn } from "@/lib/utils";
 import type { PromptImage } from "@/stores/prompt-bar";
 
 type SlashTrigger = { triggerPos: number; query: string };
+type PromptFieldToolbar =
+	| React.ReactNode
+	| ((controls: { openSlashMenu: () => void }) => React.ReactNode);
 
 const CLEAR_CONFIRM_MS = 2500;
 const FIELD_METRICS = "px-3 py-2 text-base leading-6";
@@ -71,7 +74,7 @@ export function PromptField({
 	onChange: (text: string) => void;
 	onImagesChange: (images: PromptImage[]) => void;
 	onSubmit?: (text?: string) => void;
-	toolbar?: React.ReactNode;
+	toolbar?: PromptFieldToolbar;
 }) {
 	const fallbackRef = useRef<HTMLTextAreaElement>(null);
 	const textareaRef = inputRef ?? fallbackRef;
@@ -231,6 +234,29 @@ export function PromptField({
 
 	function syncTrigger(text: string, caret: number) {
 		setTrigger(detectSlashTrigger(text, caret));
+	}
+
+	function openSlashMenu() {
+		const node = textareaRef.current;
+		if (!node || disabled || uploading) return;
+
+		const start = node.selectionStart;
+		const end = node.selectionEnd;
+		const activeTrigger = detectSlashTrigger(value, start);
+		if (activeTrigger) {
+			setTrigger(activeTrigger);
+			node.focus();
+			return;
+		}
+
+		const separator = start > 0 && value[start - 1] !== " " && value[start - 1] !== "\n" ? " " : "";
+		const insertion = `${separator}/`;
+		const next = value.slice(0, start) + insertion + value.slice(end);
+		const triggerPos = start + separator.length;
+		commit(next);
+		setTrigger({ triggerPos, query: "" });
+		setActiveIndex(0);
+		moveCaret(triggerPos + 1);
 	}
 
 	function handleChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -480,7 +506,9 @@ export function PromptField({
 
 			{toolbar && (
 				<div className="flex min-w-0 items-center gap-2 pt-2">
-					<div className="ml-auto flex min-w-0 items-center gap-2">{toolbar}</div>
+					<div className="ml-auto flex min-w-0 items-center gap-2">
+						{typeof toolbar === "function" ? toolbar({ openSlashMenu }) : toolbar}
+					</div>
 				</div>
 			)}
 		</div>

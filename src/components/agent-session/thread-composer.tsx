@@ -1,11 +1,11 @@
-import { Cpu, Loader2, Mic, Send } from "lucide-react";
+import { Command, Cpu, Loader2, Mic, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PromptField } from "@/components/prompt-bar/prompt-field";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { INVOKE_INHERIT, INVOKE_MODEL_OPTIONS } from "@/constants/invoke";
+import { INVOKE_INHERIT, INVOKE_MODEL_OPTIONS, reflectValue } from "@/constants/invoke";
 import { resolveImagePlaceholders } from "@/lib/build-prompt";
 import { clearPromptDraft, readPromptDraft, writePromptDraft } from "@/lib/prompt-draft";
 import { AudioRecorder } from "./audio-recorder";
@@ -14,6 +14,8 @@ export function ThreadComposer({
 	draftKey,
 	projectName,
 	cli,
+	currentModel,
+	modelSwitchDisabled = false,
 	disabled,
 	pending,
 	hint,
@@ -26,6 +28,8 @@ export function ThreadComposer({
 	draftKey: string;
 	projectName?: string;
 	cli?: string;
+	currentModel?: string | null;
+	modelSwitchDisabled?: boolean;
 	disabled: boolean;
 	pending: boolean;
 	hint: string;
@@ -41,19 +45,23 @@ export function ThreadComposer({
 	const [draft, setDraft] = useState(() => readPromptDraft(draftKey));
 	const [inputKind, setInputKind] = useState<"text" | "audio_transcript">("text");
 	const [dictating, setDictating] = useState(false);
-	const [selectedModel, setSelectedModel] = useState("");
+	const [selectedModel, setSelectedModel] = useState(currentModel ?? "");
 	const [switchingModel, setSwitchingModel] = useState(false);
 	// Só o claude troca de modelo por texto (`/model <nome>`): o codex troca pelo seletor interativo
 	// do próprio TUI, e `/effort` não existe em nenhuma das duas CLIs — select que manda comando
 	// desconhecido só devolve erro dentro do terminal.
-	const modelItems =
+	const modelOptions =
 		cli === "claude"
-			? INVOKE_MODEL_OPTIONS.filter((option) => option.value !== INVOKE_INHERIT).map((option) => ({
-					id: option.value,
-					label: option.label,
-					hint: option.hint,
-				}))
+			? reflectValue(
+					INVOKE_MODEL_OPTIONS.filter((option) => option.value !== INVOKE_INHERIT),
+					currentModel ?? "",
+				).filter((option) => option.value)
 			: [];
+	const modelItems = modelOptions.map((option) => ({
+		id: option.value,
+		label: option.label,
+		hint: option.hint,
+	}));
 	const selectedModelItem = modelItems.find((item) => item.id === selectedModel);
 
 	useEffect(() => {
@@ -61,6 +69,10 @@ export function ThreadComposer({
 
 		return () => clearTimeout(timer);
 	}, [draftKey, draft]);
+
+	useEffect(() => {
+		setSelectedModel(currentModel ?? "");
+	}, [currentModel]);
 
 	// O texto pode chegar por fora do rascunho: o menu de barra aplica o comando e despacha no mesmo
 	// gesto, antes de o estado do campo ter voltado do React.
@@ -79,7 +91,7 @@ export function ThreadComposer({
 	}
 
 	async function switchModel(value: string) {
-		if (!onCommand || disabled || pending || switchingModel) {
+		if (!onCommand || disabled || pending || modelSwitchDisabled || switchingModel) {
 			return;
 		}
 
@@ -138,18 +150,29 @@ export function ThreadComposer({
 							}}
 							onImagesChange={(value) => setDraft((current) => ({ ...current, images: value }))}
 							onSubmit={(text) => void submit(text)}
-							toolbar={
+							toolbar={({ openSlashMenu }) => (
 								<div className="flex w-full min-w-0 items-center gap-2">
 									{disabled && disabledHintInline && (
 										<Text size="xs" tone="muted" className="mr-auto truncate">
 											{hint}
 										</Text>
 									)}
+									<Button
+										type="button"
+										variant="outline"
+										size="icon"
+										aria-label="Abrir skills e comandos"
+										onClick={openSlashMenu}
+										disabled={disabled || pending}
+										className="size-10 shrink-0"
+									>
+										<Command className="size-4" />
+									</Button>
 									{onCommand && modelItems.length > 0 && (
 										<CustomSelect
 											items={modelItems}
 											value={selectedModel}
-											disabled={disabled || pending || switchingModel}
+											disabled={disabled || pending || modelSwitchDisabled || switchingModel}
 											fitContent
 											ariaLabel="Selecionar modelo da sessão"
 											label="Modelo da sessão"
@@ -199,7 +222,7 @@ export function ThreadComposer({
 										)}
 									</Button>
 								</div>
-							}
+							)}
 						/>
 					</div>
 				)}

@@ -40,6 +40,12 @@ export function AppShell({ children }: AppShellProps) {
 	const inSession = useRouterState({
 		select: (state) => state.location.pathname.startsWith("/terminals"),
 	});
+	const inTerminalConversation = useRouterState({
+		select: (state) => {
+			const pathname = state.location.pathname;
+			return pathname.startsWith("/terminals/") && !pathname.startsWith("/terminals/history");
+		},
+	});
 
 	const baseAccentStyle = {
 		"--project-accent-soft": "color-mix(in oklab, var(--primary) 12%, transparent)",
@@ -96,7 +102,7 @@ export function AppShell({ children }: AppShellProps) {
 						</div>
 					)}
 
-					<StatusBar />
+					{(!isMobile || !inTerminalConversation) && <StatusBar />}
 				</div>
 
 				<DocSessionSwitcher />
