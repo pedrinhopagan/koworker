@@ -141,6 +141,25 @@ describe("ThreadComposer", () => {
 		expect(sent).toEqual([]);
 	});
 
+	test("pode exibir o motivo do bloqueio junto aos botões", () => {
+		renderWithQuery(
+			<div data-theme-root>
+				<ThreadComposer
+					draftKey="draft-bloqueado-inline"
+					disabled
+					disabledHintInline
+					pending={false}
+					hint="Interrompa ou aguarde o agent terminar."
+					onSubmit={() => {}}
+				/>
+			</div>,
+		);
+
+		const hint = screen.getByText("Interrompa ou aguarde o agent terminar.");
+
+		expect(hint.parentElement?.querySelector('[aria-label="Enviar continuação"]')).toBeTruthy();
+	});
+
 	test("o menu sugere o comando da CLI e o enter despacha na hora", async () => {
 		const sent: string[] = [];
 		renderWithQuery(
@@ -235,7 +254,7 @@ describe("ThreadComposer", () => {
 		expect(screen.getByText("A nova sessão lê a tarefa antes de começar.")).toBeTruthy();
 	});
 
-	test("mostra somente modelo e effort como atalhos da sessão", async () => {
+	test("claude troca o modelo por atalho e não oferece effort inexistente na CLI", async () => {
 		const commands: string[] = [];
 		renderWithQuery(
 			<div data-theme-root>
@@ -257,10 +276,28 @@ describe("ThreadComposer", () => {
 		expect(screen.queryByText("Skills e comandos")).toBeNull();
 		await user.click(screen.getByLabelText("Selecionar modelo da sessão"));
 		await user.click(get("custom-select-item", { value: "opus" }));
-		await user.click(screen.getByLabelText("Selecionar effort da sessão"));
-		await user.click(get("custom-select-item", { value: "high" }));
 
-		expect(commands).toEqual(["/model opus", "/effort high"]);
+		expect(commands).toEqual(["/model opus"]);
+		expect(screen.queryByLabelText("Selecionar effort da sessão")).toBeNull();
+	});
+
+	test("codex não oferece atalhos que a CLI não interpreta por texto", () => {
+		renderWithQuery(
+			<div data-theme-root>
+				<ThreadComposer
+					draftKey="draft-codex-sem-atalho"
+					cli="codex"
+					disabled={false}
+					pending={false}
+					hint=""
+					onSubmit={() => {}}
+					onCommand={() => {}}
+				/>
+			</div>,
+		);
+
+		expect(screen.queryByLabelText("Selecionar modelo da sessão")).toBeNull();
+		expect(screen.queryByLabelText("Selecionar effort da sessão")).toBeNull();
 	});
 });
 

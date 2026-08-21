@@ -110,6 +110,16 @@ export const AgentAnswer = memo(function AgentAnswer({
 					<Expand className="size-4" />
 					Abrir no leitor
 				</Button>
+				<Button
+					variant="ghost"
+					size="sm"
+					onClick={copyOutput}
+					aria-label="Copiar resposta"
+					className="text-muted-foreground"
+				>
+					{copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+					{copied ? "Copiado" : "Copiar"}
+				</Button>
 			</div>
 
 			{reading && (

@@ -1,17 +1,11 @@
-import { Brain, Cpu, Loader2, Mic, Send } from "lucide-react";
+import { Cpu, Loader2, Mic, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PromptField } from "@/components/prompt-bar/prompt-field";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
-import {
-	CODEX_EFFORT_OPTIONS,
-	CODEX_MODEL_OPTIONS,
-	INVOKE_EFFORT_OPTIONS,
-	INVOKE_INHERIT,
-	INVOKE_MODEL_OPTIONS,
-} from "@/constants/invoke";
+import { INVOKE_INHERIT, INVOKE_MODEL_OPTIONS } from "@/constants/invoke";
 import { resolveImagePlaceholders } from "@/lib/build-prompt";
 import { clearPromptDraft, readPromptDraft, writePromptDraft } from "@/lib/prompt-draft";
 import { AudioRecorder } from "./audio-recorder";
@@ -23,6 +17,7 @@ export function ThreadComposer({
 	disabled,
 	pending,
 	hint,
+	disabledHintInline = false,
 	placeholder = "Responda ao agente nesta mesma sessão…",
 	helperText = "Ctrl+Enter envia · / insere uma skill · cole imagens. O agente mantém o contexto desta conversa.",
 	onSubmit,
@@ -34,6 +29,7 @@ export function ThreadComposer({
 	disabled: boolean;
 	pending: boolean;
 	hint: string;
+	disabledHintInline?: boolean;
 	placeholder?: string;
 	helperText?: string;
 	onSubmit: (
@@ -46,16 +42,19 @@ export function ThreadComposer({
 	const [inputKind, setInputKind] = useState<"text" | "audio_transcript">("text");
 	const [dictating, setDictating] = useState(false);
 	const [selectedModel, setSelectedModel] = useState("");
-	const [selectedEffort, setSelectedEffort] = useState("");
-	const [switching, setSwitching] = useState<"model" | "effort">();
-	const modelItems = (cli === "codex" ? CODEX_MODEL_OPTIONS : INVOKE_MODEL_OPTIONS)
-		.filter((option) => option.value !== INVOKE_INHERIT)
-		.map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
-	const effortItems = (cli === "codex" ? CODEX_EFFORT_OPTIONS : INVOKE_EFFORT_OPTIONS)
-		.filter((option) => option.value !== INVOKE_INHERIT)
-		.map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
+	const [switchingModel, setSwitchingModel] = useState(false);
+	// Só o claude troca de modelo por texto (`/model <nome>`): o codex troca pelo seletor interativo
+	// do próprio TUI, e `/effort` não existe em nenhuma das duas CLIs — select que manda comando
+	// desconhecido só devolve erro dentro do terminal.
+	const modelItems =
+		cli === "claude"
+			? INVOKE_MODEL_OPTIONS.filter((option) => option.value !== INVOKE_INHERIT).map((option) => ({
+					id: option.value,
+					label: option.label,
+					hint: option.hint,
+				}))
+			: [];
 	const selectedModelItem = modelItems.find((item) => item.id === selectedModel);
-	const selectedEffortItem = effortItems.find((item) => item.id === selectedEffort);
 
 	useEffect(() => {
 		const timer = setTimeout(() => writePromptDraft(draftKey, draft), 300);
@@ -79,23 +78,19 @@ export function ThreadComposer({
 		setInputKind("text");
 	}
 
-	async function switchSessionSetting(kind: "model" | "effort", value: string) {
-		if (!onCommand || disabled || pending || switching) {
+	async function switchModel(value: string) {
+		if (!onCommand || disabled || pending || switchingModel) {
 			return;
 		}
 
-		setSwitching(kind);
+		setSwitchingModel(true);
 		try {
-			const accepted = await onCommand(`/${kind} ${value}`);
+			const accepted = await onCommand(`/model ${value}`);
 			if (accepted !== false) {
-				if (kind === "model") {
-					setSelectedModel(value);
-				} else {
-					setSelectedEffort(value);
-				}
+				setSelectedModel(value);
 			}
 		} finally {
-			setSwitching(undefined);
+			setSwitchingModel(false);
 		}
 	}
 
@@ -144,55 +139,31 @@ export function ThreadComposer({
 							onImagesChange={(value) => setDraft((current) => ({ ...current, images: value }))}
 							onSubmit={(text) => void submit(text)}
 							toolbar={
-								<>
+								<div className="flex w-full min-w-0 items-center gap-2">
+									{disabled && disabledHintInline && (
+										<Text size="xs" tone="muted" className="mr-auto truncate">
+											{hint}
+										</Text>
+									)}
 									{onCommand && modelItems.length > 0 && (
 										<CustomSelect
 											items={modelItems}
 											value={selectedModel}
-											disabled={disabled || pending || !!switching}
+											disabled={disabled || pending || switchingModel}
 											fitContent
 											ariaLabel="Selecionar modelo da sessão"
 											label="Modelo da sessão"
 											placeholder="Modelo"
 											triggerClassName="h-10 max-w-32 px-2 sm:max-w-44"
-											onValueChange={(value) => void switchSessionSetting("model", value)}
+											onValueChange={(value) => void switchModel(value)}
 											renderTrigger={() => (
 												<>
-													{switching === "model" ? (
+													{switchingModel ? (
 														<Loader2 className="size-4 shrink-0 animate-spin" />
 													) : (
 														<Cpu className="size-4 shrink-0" />
 													)}
 													<span className="truncate">{selectedModelItem?.label ?? "Modelo"}</span>
-												</>
-											)}
-											renderItem={(item) => (
-												<div className="min-w-0">
-													<div className="truncate font-semibold">{item.label}</div>
-													<div className="truncate text-xs text-muted-foreground">{item.hint}</div>
-												</div>
-											)}
-										/>
-									)}
-									{onCommand && effortItems.length > 0 && (
-										<CustomSelect
-											items={effortItems}
-											value={selectedEffort}
-											disabled={disabled || pending || !!switching}
-											fitContent
-											ariaLabel="Selecionar effort da sessão"
-											label="Effort da sessão"
-											placeholder="Effort"
-											triggerClassName="h-10 max-w-32 px-2 sm:max-w-44"
-											onValueChange={(value) => void switchSessionSetting("effort", value)}
-											renderTrigger={() => (
-												<>
-													{switching === "effort" ? (
-														<Loader2 className="size-4 shrink-0 animate-spin" />
-													) : (
-														<Brain className="size-4 shrink-0" />
-													)}
-													<span className="truncate">{selectedEffortItem?.label ?? "Effort"}</span>
 												</>
 											)}
 											renderItem={(item) => (
@@ -227,14 +198,16 @@ export function ThreadComposer({
 											<Send className="size-4" />
 										)}
 									</Button>
-								</>
+								</div>
 							}
 						/>
 					</div>
 				)}
-				<Text size="xs" tone="muted" className="mt-1.5 hidden sm:block">
-					{disabled ? hint : helperText}
-				</Text>
+				{(!disabled || !disabledHintInline) && (
+					<Text size="xs" tone="muted" className="mt-1.5 hidden sm:block">
+						{disabled ? hint : helperText}
+					</Text>
+				)}
 			</div>
 		</div>
 	);

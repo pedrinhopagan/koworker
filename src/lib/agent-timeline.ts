@@ -1,10 +1,6 @@
 import type { AgentSessionEvent } from "@/lib/agent-session";
 import { commandLabel } from "@/lib/shell-command";
 
-// Pensamento, ferramenta, aviso e narração entram no rastro; o resto da conversa é bloco próprio.
-// A narração é o que mais repete: o agente anuncia cada passo antes de dar, e cada anúncio virava um
-// cartão do tamanho de uma resposta. Aqui ela vale uma linha do rastro, e só a última fala do turno
-// — a que ficou de pé quando o agente parou de trabalhar — é lida como resposta.
 const TRAIL_KINDS = new Set(["thinking", "tool_use", "assistant"]);
 
 const REPEAT_MIN = 3;
@@ -21,6 +17,7 @@ export type TrailStep =
 
 export type TimelineGroup =
 	| { kind: "trail"; key: string; steps: TrailStep[]; total: number }
+	| { kind: "narration"; key: string; events: AgentSessionEvent[] }
 	| { kind: "block"; key: string; event: AgentSessionEvent };
 
 export function trailStepLabel(event: AgentSessionEvent) {
@@ -121,14 +118,25 @@ export function toTimelineGroups(events: AgentSessionEvent[]): TimelineGroup[] {
 		}
 
 		const answer = entry.at(-1)?.payload.kind === "assistant" ? entry.at(-1) : null;
-		const trail = answer ? entry.slice(0, -1) : entry;
-
+		const trail = entry.filter((event) => event.payload.kind !== "assistant");
 		if (trail.length > 0) {
 			groups.push({
 				kind: "trail",
 				key: `trail-${trail[0]?.seq}`,
 				steps: toSteps(trail),
 				total: trail.length,
+			});
+		}
+
+		const narration = entry.filter(
+			(event) => event.payload.kind === "assistant" && event !== answer,
+		);
+
+		if (narration.length > 0) {
+			groups.push({
+				kind: "narration",
+				key: String(narration[0]?.seq),
+				events: narration,
 			});
 		}
 

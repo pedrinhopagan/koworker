@@ -1,7 +1,8 @@
-import { Bot, CircleCheck, CircleDot, Loader2, TriangleAlert } from "lucide-react";
-import { memo, useMemo } from "react";
+import { Bot, ChevronUp, CircleCheck, CircleDot, Loader2, TriangleAlert } from "lucide-react";
+import { memo, useMemo, useState } from "react";
 
 import { agentCliVisual } from "@/components/agent-radar/agent-cli";
+import { MarkdownView } from "@/components/markdown-view";
 import { Text } from "@/components/typography";
 import type { AgentSessionEvent } from "@/lib/agent-session";
 import { toTimelineGroups, type TimelineGroup, type TrailStep } from "@/lib/agent-timeline";
@@ -91,9 +92,37 @@ function sameGroup(left: GroupProps, right: GroupProps) {
 		return left.group.total === right.group.total && sameSteps(left.group.steps, right.group.steps);
 	}
 
+	if (left.group.kind === "narration" && right.group.kind === "narration") {
+		const rightEvents = right.group.events;
+		return (
+			left.group.events.length === rightEvents.length &&
+			left.group.events.every((event, index) => event === rightEvents[index])
+		);
+	}
+
 	return left.group.kind === "block" && right.group.kind === "block"
 		? left.group.event === right.group.event
 		: false;
+}
+
+function AgentNarration({ events }: { events: AgentSessionEvent[] }) {
+	return (
+		<section className="min-w-0 rounded-lg border border-border/50 bg-card/40 px-3 py-2.5">
+			<header className="mb-1.5 flex items-center gap-1.5 text-muted-foreground">
+				<Bot className="size-3" />
+				<Text as="span" className="text-[10px] font-bold uppercase tracking-[0.1em]">
+					Narração
+				</Text>
+			</header>
+			{events.map((event, index) =>
+				event.payload.kind === "assistant" ? (
+					<div key={event.seq} className={cn(index > 0 && "mt-3 border-t border-border pt-3")}>
+						<MarkdownView text={event.payload.text} className="text-sm text-muted-foreground" />
+					</div>
+				) : null,
+			)}
+		</section>
+	);
 }
 
 const TimelineGroupView = memo(function TimelineGroupView({
@@ -105,6 +134,10 @@ const TimelineGroupView = memo(function TimelineGroupView({
 }: GroupProps) {
 	if (group.kind === "trail") {
 		return <SessionTrace steps={group.steps} total={group.total} />;
+	}
+
+	if (group.kind === "narration") {
+		return <AgentNarration events={group.events} />;
 	}
 
 	const { payload } = group.event;
@@ -189,6 +222,11 @@ const TimelineGroupView = memo(function TimelineGroupView({
 	return <ResultRow event={group.event} />;
 }, sameGroup);
 
+// Conversa comprida não nasce inteira: cada bloco de resposta é markdown vivo, e abrir no celular
+// uma conversa com centenas deles travava a rolagem antes do primeiro quadro. O começo fica dobrado
+// e sobe com um toque; quem precisa reler clica uma vez e espera o custo na hora certa.
+const FOLD_KEEP_VISIBLE = 30;
+
 export function SessionTimeline({
 	events,
 	busy,
@@ -208,10 +246,27 @@ export function SessionTimeline({
 	onAnswer?: (questionId: string, input: { answers: string[]; freeText?: string }) => void;
 }) {
 	const groups = useMemo(() => toTimelineGroups(events), [events]);
+	const [expanded, setExpanded] = useState(false);
+	const folded = !expanded && groups.length > FOLD_KEEP_VISIBLE;
+	const visible = folded ? groups.slice(-FOLD_KEEP_VISIBLE) : groups;
+	const hiddenCount = groups.length - visible.length;
 
 	return (
 		<div className="min-w-0 space-y-4">
-			{groups.map((group) => (
+			{hiddenCount > 0 && (
+				<button
+					type="button"
+					onClick={() => setExpanded(true)}
+					className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2.5 text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+				>
+					<ChevronUp className="size-3.5 shrink-0" />
+					<Text as="span" size="xs">
+						Mostrar {hiddenCount.toLocaleString("pt-BR")} blocos anteriores
+					</Text>
+				</button>
+			)}
+
+			{visible.map((group) => (
 				<TimelineGroupView
 					key={group.key}
 					group={group}
