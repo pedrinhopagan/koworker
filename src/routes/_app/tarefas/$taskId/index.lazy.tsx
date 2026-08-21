@@ -54,7 +54,8 @@ export const Route = createLazyFileRoute("/_app/tarefas/$taskId/")({
 
 function TaskOverviewRoute() {
 	const { taskId: segment } = Route.useParams();
-	const { projectId } = Route.useSearch();
+	const { projectId, ...search } = Route.useSearch();
+	const navigate = Route.useNavigate();
 	const taskQuery = useQuery(orpc.tasks.getFull.queryOptions({ input: { id: segment } }));
 
 	if (taskQuery.isLoading) {
@@ -86,7 +87,19 @@ function TaskOverviewRoute() {
 			</div>
 		);
 	}
-	return <FeatureTaskPage featureId={segment} projectId={projectId} />;
+	return (
+		<FeatureTaskPage
+			featureId={segment}
+			projectId={projectId}
+			search={search}
+			onSearchChange={(next) =>
+				void navigate({
+					search: { projectId, ...next },
+					replace: true,
+				})
+			}
+		/>
+	);
 }
 
 function artifactIcon(mime: string): LucideIcon {

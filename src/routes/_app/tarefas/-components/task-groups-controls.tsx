@@ -1,6 +1,7 @@
 import { type QueryKey, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
+	CheckCircle2,
 	ChevronDown,
 	ChevronRight,
 	ChevronsDownUp,
@@ -43,7 +44,6 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { Drawer } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Switch } from "@/components/ui/switch";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { TaskSortMode } from "@/constants/tasks";
 import { useDebouncedSearch } from "@/hooks/use-debounced-search";
@@ -166,12 +166,9 @@ function TaskFiltersPanel({
 		})),
 	];
 
-	const activeFilters = [
-		value.taskTypeId,
-		value.priorityId,
-		value.complexity,
-		value.includeCompleted ? "done" : undefined,
-	].filter(Boolean).length;
+	const activeFilters = [value.taskTypeId, value.priorityId, value.complexity].filter(
+		Boolean,
+	).length;
 
 	return (
 		<div className="space-y-3">
@@ -191,7 +188,6 @@ function TaskFiltersPanel({
 								taskTypeId: undefined,
 								priorityId: undefined,
 								complexity: undefined,
-								includeCompleted: undefined,
 							})
 						}
 					>
@@ -241,19 +237,6 @@ function TaskFiltersPanel({
 					}
 				/>
 			</div>
-
-			<label className="flex cursor-pointer items-center justify-between gap-2">
-				<Text size="xs" className="font-medium">
-					Ver concluídas
-				</Text>
-				<Switch
-					checked={Boolean(value.includeCompleted)}
-					onCheckedChange={(checked) =>
-						onChange({ ...value, includeCompleted: checked || undefined })
-					}
-					size="default"
-				/>
-			</label>
 		</div>
 	);
 }
@@ -269,12 +252,9 @@ function FiltersPopover({
 	priorities: Priority[];
 	onChange: (next: TaskSearchValue) => void;
 }) {
-	const activeFilters = [
-		value.taskTypeId,
-		value.priorityId,
-		value.complexity,
-		value.includeCompleted ? "done" : undefined,
-	].filter(Boolean).length;
+	const activeFilters = [value.taskTypeId, value.priorityId, value.complexity].filter(
+		Boolean,
+	).length;
 
 	return (
 		<Popover>
@@ -320,6 +300,7 @@ type TaskListControlsProps = {
 	onSortModeChange: (mode: TaskSortMode) => void;
 	onCollapseAll: () => void;
 	onExpandAll: () => void;
+	allowFeatureCreation?: boolean;
 };
 
 export function TaskListControls({
@@ -331,6 +312,7 @@ export function TaskListControls({
 	onSortModeChange,
 	onCollapseAll,
 	onExpandAll,
+	allowFeatureCreation = true,
 }: TaskListControlsProps) {
 	const queryClient = useQueryClient();
 	const [creating, setCreating] = useState(false);
@@ -363,7 +345,6 @@ export function TaskListControls({
 		search.value.taskTypeId,
 		search.value.priorityId,
 		search.value.complexity,
-		search.value.includeCompleted ? "done" : undefined,
 	].filter(Boolean).length;
 
 	const mobileControlsActive = activeFilters > 0 || sortMode !== "recente";
@@ -383,7 +364,7 @@ export function TaskListControls({
 	}
 
 	function newFeatureControls(fullWidth?: boolean) {
-		if (!projectId) return null;
+		if (!projectId || !allowFeatureCreation) return null;
 
 		if (creating) {
 			return (
@@ -426,21 +407,45 @@ export function TaskListControls({
 		<>
 			<div className="flex flex-col gap-2 md:hidden">
 				{searchInput("w-full")}
-				<Button
-					type="button"
-					variant={mobileControlsActive ? "secondary" : "outline"}
-					size="sm"
-					className="h-12 w-full"
-					onClick={() => setMobileSheetOpen(true)}
-				>
-					<SlidersHorizontal className="size-4" />
-					Filtros e ordenação
-					{mobileControlsActive && (
-						<span className="ml-auto flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-							{activeFilters + (sortMode === "recente" ? 0 : 1)}
-						</span>
-					)}
-				</Button>
+				<div className="flex gap-2">
+					<Button
+						type="button"
+						variant={mobileControlsActive ? "secondary" : "outline"}
+						size="sm"
+						className="h-12 flex-1"
+						onClick={() => setMobileSheetOpen(true)}
+					>
+						<SlidersHorizontal className="size-4" />
+						Filtros e ordem
+						{mobileControlsActive && (
+							<span className="ml-auto flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+								{activeFilters + (sortMode === "recente" ? 0 : 1)}
+							</span>
+						)}
+					</Button>
+					<Tooltip
+						label={search.value.includeCompleted ? "Ocultar concluídas" : "Mostrar concluídas"}
+					>
+						<Button
+							type="button"
+							variant={search.value.includeCompleted ? "secondary" : "outline"}
+							size="icon"
+							className="size-12"
+							aria-label={
+								search.value.includeCompleted ? "Ocultar concluídas" : "Mostrar concluídas"
+							}
+							aria-pressed={!!search.value.includeCompleted}
+							onClick={() =>
+								search.onChange({
+									...search.value,
+									includeCompleted: search.value.includeCompleted ? undefined : true,
+								})
+							}
+						>
+							<CheckCircle2 className="size-4" />
+						</Button>
+					</Tooltip>
+				</div>
 			</div>
 
 			<div className="hidden items-center gap-1 md:flex">
@@ -452,6 +457,26 @@ export function TaskListControls({
 					priorities={priorities}
 					onChange={search.onChange}
 				/>
+
+				<Tooltip
+					label={search.value.includeCompleted ? "Ocultar concluídas" : "Mostrar concluídas"}
+				>
+					<Button
+						type="button"
+						variant={search.value.includeCompleted ? "secondary" : "ghost"}
+						size="icon-sm"
+						aria-label={search.value.includeCompleted ? "Ocultar concluídas" : "Mostrar concluídas"}
+						aria-pressed={!!search.value.includeCompleted}
+						onClick={() =>
+							search.onChange({
+								...search.value,
+								includeCompleted: search.value.includeCompleted ? undefined : true,
+							})
+						}
+					>
+						<CheckCircle2 className="size-4" />
+					</Button>
+				</Tooltip>
 
 				<Divider />
 
@@ -482,7 +507,7 @@ export function TaskListControls({
 					</Button>
 				</Tooltip>
 
-				{projectId && <Divider />}
+				{projectId && allowFeatureCreation && <Divider />}
 
 				{newFeatureControls()}
 			</div>
