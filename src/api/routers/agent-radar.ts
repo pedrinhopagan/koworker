@@ -11,8 +11,8 @@ import {
 	ensureKwTerminalServer,
 	kwTerminalAgentFocus,
 	kwTerminalAgentInterrupt,
-	kwTerminalAgentSubmit,
 	kwTerminalPaneClose,
+	kwTerminalPaneRun,
 	kwTerminalPaneSendKeys,
 } from "../helpers/terminal/kw-terminal";
 import { revealKwTerminalClient } from "../helpers/terminal/service";
@@ -38,20 +38,11 @@ export const agentRadarRouter = {
 
 	reopenSavedTerminals: protectedProcedure.handler(() => reopenSavedTerminals()),
 
-	// Responder do celular é escrever no prompt do agent e apertar Enter, em dois passos porque o
-	// `agent send` escreve literal de propósito. A mensagem só aparece na conversa quando volta pelo
-	// transcript: o arquivo do CLI é a fonte da verdade, não o que o app achou que enviou.
+	// `pane run` escreve e envia em uma ação, inclusive durante o trabalho do agent. A mensagem só
+	// aparece na conversa quando volta pelo transcript: ele é a fonte da verdade.
 	send: protectedProcedure.input(AgentRadarSendSchema).handler(async ({ input }) => {
-		const revalidate = () => {
-			const agent = agentOrThrow(input.paneId);
-			if (agent.status === "working") {
-				throw new ORPCError("CONFLICT", {
-					message: "Aguarde o agent terminar ou interrompa antes",
-				});
-			}
-		};
-
-		await kwTerminalAgentSubmit(input.paneId, input.text, revalidate);
+		agentOrThrow(input.paneId);
+		await kwTerminalPaneRun(input.paneId, input.text);
 
 		return { sent: true };
 	}),
@@ -77,15 +68,10 @@ export const agentRadarRouter = {
 
 	syncTranscript: protectedProcedure.input(AgentRadarPaneSchema).handler(async ({ input }) => {
 		agentOrThrow(input.paneId);
-		const transcript = await syncPaneTranscriptSource(input.paneId);
+		await syncPaneTranscriptSource(input.paneId);
+		const source = await refreshAgentRadarTranscript(input.paneId);
 
-		if (!transcript) {
-			return { found: false };
-		}
-
-		await refreshAgentRadarTranscript(input.paneId);
-
-		return { found: true };
+		return { found: !!source };
 	}),
 
 	// Levar o agent pra tela do terminal: `agent focus` aceita pane id e já move workspace, tab e pane
@@ -95,7 +81,7 @@ export const agentRadarRouter = {
 		await ensureKwTerminalServer();
 
 		if (!(await kwTerminalAgentFocus(input.paneId))) {
-			throw new Error("Falha ao focar o agent no kw-terminal");
+			throw new ORPCError("NOT_FOUND", { message: "Falha ao focar o agent no kw-terminal" });
 		}
 
 		const settings = await getSystemSettings();
@@ -126,7 +112,7 @@ export const agentRadarRouter = {
 		await ensureKwTerminalServer();
 
 		if (!(await kwTerminalPaneClose(input.paneId))) {
-			throw new Error("Falha ao fechar o pane no kw-terminal");
+			throw new ORPCError("NOT_FOUND", { message: "Falha ao fechar o pane no kw-terminal" });
 		}
 
 		return { ok: true };

@@ -1,8 +1,10 @@
+import { ensureOpencodeIntegration } from "../../terminal/kw-terminal";
 import {
 	kwTerminalPaneGet,
 	kwTerminalPaneProcessInfo,
 	kwTerminalPaneSession,
 } from "../../terminal/kw-terminal";
+import { locateOpencodeSessionByDirectory } from "../../opencode-db";
 import { getRadarAgent, putRadarAgent, type RadarAgent } from "../state";
 import { resolveProcessTranscript } from "./process";
 
@@ -27,9 +29,22 @@ export async function syncPaneTranscriptSource(paneId: string) {
 			})
 		: null;
 
-	const session = transcript
+	let session = transcript
 		? { sessionId: transcript.sessionId, sessionPath: transcript.path }
 		: reported;
+
+	// OpenCode sem reporte é instância aberta antes da integração existir. O plugin só vale para a
+	// próxima instância (carrega na partida), então instala para o futuro e adota do banco a sessão
+	// mais recente daquele diretório para a conversa de agora.
+	if (!session.sessionId && !session.sessionPath && agent.agent === "opencode") {
+		void ensureOpencodeIntegration();
+
+		const adopted = locateOpencodeSessionByDirectory(agent.cwd);
+		if (adopted) {
+			session = { sessionId: adopted, sessionPath: null };
+		}
+	}
+
 	if (session.sessionId === agent.sessionId && session.sessionPath === agent.sessionPath) {
 		return transcript;
 	}

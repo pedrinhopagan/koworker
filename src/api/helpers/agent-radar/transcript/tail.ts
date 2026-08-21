@@ -7,8 +7,9 @@ import {
 	type TranscriptPatch,
 } from "@/lib/agent-transcript";
 import { claudeTranscriptModel, translateClaudeTranscriptLine } from "@/lib/claude-transcript";
-import { codexTranscriptModel, translateCodexTranscriptLine } from "@/lib/codex-transcript";
-import type { AgentTranscript, TranscriptCli } from "./locate";
+import { codexTranscriptModel, createCodexTranscriptTranslator } from "@/lib/codex-transcript";
+import type { AgentTranscript } from "./locate";
+import { openOpencodeTail } from "./opencode-tail";
 
 const READ_CHUNK_BYTES = 1_000_000;
 // O CLI escreve linha a linha e o watcher dispara por escrita: sem espera, um turno viraria dezenas
@@ -18,21 +19,49 @@ const DEBOUNCE_MS = 120;
 // congela. O relógio confere o tamanho do arquivo e custa um stat por segundo, só enquanto há leitor.
 const POLL_MS = 1_000;
 
-const TRANSLATORS: Record<TranscriptCli, (raw: unknown) => TranscriptPatch[]> = {
-	claude: translateClaudeTranscriptLine,
-	codex: translateCodexTranscriptLine,
-};
-
-const MODEL_EXTRACTORS: Record<TranscriptCli, (raw: unknown) => string | null> = {
-	claude: claudeTranscriptModel,
-	codex: codexTranscriptModel,
-};
-
 export type TranscriptTail = {
 	source: AgentTranscript;
 	events: () => AgentSessionEvent[];
 	model: () => string | null;
 	close: () => void;
+};
+
+type TailInput = {
+	sessionId: string;
+	source: AgentTranscript;
+	onEvents: (events: AgentSessionEvent[], reset: boolean, model: string | null) => void;
+	onError: (error: unknown) => void;
+};
+
+type FileSource = Extract<AgentTranscript, { cli: "claude" | "codex" }>;
+
+// Ponto único de abertura para o resto do radar: quem quer a conversa de um pane não precisa saber
+// se ela vive num arquivo que cresce (claude, codex) ou num banco que muda no lugar (opencode).
+export async function openTranscriptTail(input: TailInput): Promise<TranscriptTail> {
+	if (input.source.cli === "opencode") {
+		return openOpencodeTail(input);
+	}
+
+	return await openFileTranscriptTail({ ...input, source: input.source });
+}
+
+// Cada arquivo aberto ganha tradutor próprio: o do codex guarda estado entre linhas para não
+// duplicar mensagem que o rollout anuncia em dois formatos, e o reset acompanha o reset da leitura.
+type TranscriptTranslator = {
+	translate: (raw: unknown) => TranscriptPatch[];
+	reset?: () => void;
+};
+
+function createTranslators(): Record<"claude" | "codex", TranscriptTranslator> {
+	return {
+		claude: { translate: translateClaudeTranscriptLine },
+		codex: createCodexTranscriptTranslator(),
+	};
+}
+
+const MODEL_EXTRACTORS: Record<"claude" | "codex", (raw: unknown) => string | null> = {
+	claude: claudeTranscriptModel,
+	codex: codexTranscriptModel,
 };
 
 async function readTranscript(input: {
@@ -59,14 +88,12 @@ async function readTranscript(input: {
 	return { size, reset };
 }
 
-export async function openTranscriptTail(input: {
-	sessionId: string;
-	source: AgentTranscript;
-	onEvents: (events: AgentSessionEvent[], reset: boolean, model: string | null) => void;
-	onError: (error: unknown) => void;
-}): Promise<TranscriptTail> {
+async function openFileTranscriptTail(
+	input: TailInput & { source: FileSource },
+): Promise<TranscriptTail> {
 	const mirror = createTranscriptMirror(input.sessionId);
-	const translate = TRANSLATORS[input.source.cli];
+	const translators = createTranslators();
+	const { translate } = translators[input.source.cli];
 	const extractModel = MODEL_EXTRACTORS[input.source.cli];
 	let model: string | null = null;
 	const parser = createTranscriptParser((raw) => {
@@ -88,6 +115,7 @@ export async function openTranscriptTail(input: {
 			onReset: () => {
 				mirror.reset();
 				parser.reset();
+				translators[input.source.cli].reset?.();
 				model = null;
 			},
 			push: (chunk) => events.push(...mirror.apply(parser.push(chunk))),

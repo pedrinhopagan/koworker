@@ -154,91 +154,114 @@ export function codexTranscriptModel(raw: unknown): string | null {
 	return parsed.data.payload?.model?.trim() || null;
 }
 
-export function translateCodexTranscriptLine(raw: unknown): TranscriptPatch[] {
-	const parsed = RolloutLineSchema.safeParse(raw);
-	if (!parsed.success) {
-		return [];
-	}
+// O rollout anuncia a fala de dois jeitos conforme a versão do codex: os novos usam `item_completed`
+// com `UserMessage`/`AgentMessage`; os velhos, `user_message`/`agent_message`. Um arquivo que emitisse
+// os dois para a mesma mensagem virava bloco duplicado, então, visto o formato novo, o legado é
+// ignorado até o fim da leitura. O estado vive por arquivo e morre no reset da leitura.
+export function createCodexTranscriptTranslator() {
+	let itemMessagesSeen = false;
 
-	const { type, payload } = parsed.data;
-	if (type === "compacted") {
-		return [
-			{
-				type: "append",
-				payload: {
-					kind: "notice",
-					label: "Contexto compactado",
-					detail: "O agente resumiu o contexto e continuou nesta mesma sessão.",
-					tone: "info",
-				},
-			},
-		];
-	}
+	function translate(raw: unknown): TranscriptPatch[] {
+		const parsed = RolloutLineSchema.safeParse(raw);
+		if (!parsed.success) {
+			return [];
+		}
 
-	if (type === "event_msg") {
-		if (payload.type === "item_completed" && payload.item) {
-			const text = payload.item.content
-				?.filter((block) => block.text?.trim())
-				.map((block) => block.text)
-				.join("\n\n");
-			const images = payload.item.content?.filter((block) => block.type === "image").length ?? 0;
-
-			if (payload.item.type === "UserMessage" && (text || images > 0)) {
-				return [
-					{
-						type: "append",
-						payload: {
-							kind: "user",
-							text: text || (images === 1 ? "Imagem enviada" : `${images} imagens enviadas`),
-							...(images > 0 ? { images } : {}),
-						},
+		const { type, payload } = parsed.data;
+		if (type === "compacted") {
+			return [
+				{
+					type: "append",
+					payload: {
+						kind: "notice",
+						label: "Contexto compactado",
+						detail: "O agente resumiu o contexto e continuou nesta mesma sessão.",
+						tone: "info",
 					},
-				];
+				},
+			];
+		}
+
+		if (type === "event_msg") {
+			if (payload.type === "item_completed" && payload.item) {
+				const text = payload.item.content
+					?.filter((block) => block.text?.trim())
+					.map((block) => block.text)
+					.join("\n\n");
+				const images = payload.item.content?.filter((block) => block.type === "image").length ?? 0;
+
+				if (payload.item.type === "UserMessage" && (text || images > 0)) {
+					itemMessagesSeen = true;
+
+					return [
+						{
+							type: "append",
+							payload: {
+								kind: "user",
+								text: text || (images === 1 ? "Imagem enviada" : `${images} imagens enviadas`),
+								...(images > 0 ? { images } : {}),
+							},
+						},
+					];
+				}
+
+				if (payload.item.type === "AgentMessage" && text) {
+					itemMessagesSeen = true;
+
+					return [{ type: "append", payload: { kind: "assistant", text } }];
+				}
 			}
 
-			if (payload.item.type === "AgentMessage" && text) {
-				return [{ type: "append", payload: { kind: "assistant", text } }];
+			if (!itemMessagesSeen && payload.type === "user_message" && payload.message?.trim()) {
+				return [{ type: "append", payload: { kind: "user", text: payload.message } }];
 			}
+
+			if (!itemMessagesSeen && payload.type === "agent_message" && payload.message?.trim()) {
+				return [{ type: "append", payload: { kind: "assistant", text: payload.message } }];
+			}
+
+			// O raciocínio só aparece quando o modelo o entrega em texto: o `response_item` guarda a versão
+			// cifrada, que não é legível para ninguém.
+			if (payload.type === "agent_reasoning" && payload.text?.trim()) {
+				return [{ type: "append", payload: { kind: "thinking", text: payload.text } }];
+			}
+
+			if (payload.type === "task_complete") {
+				return [{ type: "result", status: "done" }];
+			}
+
+			if (payload.type === "error") {
+				const error = trim(payload.message, DETAIL_MAX_CHARS);
+
+				return [{ type: "result", status: "failed", ...(error ? { error } : {}) }];
+			}
+
+			return [];
 		}
 
-		if (payload.type === "user_message" && payload.message?.trim()) {
-			return [{ type: "append", payload: { kind: "user", text: payload.message } }];
+		if (type !== "response_item") {
+			return [];
 		}
 
-		if (payload.type === "agent_message" && payload.message?.trim()) {
-			return [{ type: "append", payload: { kind: "assistant", text: payload.message } }];
+		if (payload.type === "function_call" || payload.type === "custom_tool_call") {
+			return toolPatch(payload);
 		}
 
-		// O raciocínio só aparece quando o modelo o entrega em texto: o `response_item` guarda a versão
-		// cifrada, que não é legível para ninguém.
-		if (payload.type === "agent_reasoning" && payload.text?.trim()) {
-			return [{ type: "append", payload: { kind: "thinking", text: payload.text } }];
-		}
-
-		if (payload.type === "task_complete") {
-			return [{ type: "result", status: "done" }];
-		}
-
-		if (payload.type === "error") {
-			const error = trim(payload.message, DETAIL_MAX_CHARS);
-
-			return [{ type: "result", status: "failed", ...(error ? { error } : {}) }];
+		if (payload.type === "function_call_output" || payload.type === "custom_tool_call_output") {
+			return outputPatch(payload);
 		}
 
 		return [];
 	}
 
-	if (type !== "response_item") {
-		return [];
-	}
+	return {
+		translate,
+		reset() {
+			itemMessagesSeen = false;
+		},
+	};
+}
 
-	if (payload.type === "function_call" || payload.type === "custom_tool_call") {
-		return toolPatch(payload);
-	}
-
-	if (payload.type === "function_call_output" || payload.type === "custom_tool_call_output") {
-		return outputPatch(payload);
-	}
-
-	return [];
+export function translateCodexTranscriptLine(raw: unknown): TranscriptPatch[] {
+	return createCodexTranscriptTranslator().translate(raw);
 }

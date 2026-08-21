@@ -41,13 +41,13 @@ test("dois agents no mesmo diretório recebem somente o próprio rollout", async
 		expect(
 			await locateAgentTranscript(
 				{ agent: "codex", cwd: "/repo", sessionId: firstId, sessionPath: null },
-				{ claudeProjectsDir, codexSessionsDir },
+				{ claudeProjectsDir, codexSessionsDir, opencodeDbPath: join(root, "opencode.db") },
 			),
 		).toEqual({ cli: "codex", path: firstPath });
 		expect(
 			await locateAgentTranscript(
 				{ agent: "codex", cwd: "/repo", sessionId: secondId, sessionPath: null },
-				{ claudeProjectsDir, codexSessionsDir },
+				{ claudeProjectsDir, codexSessionsDir, opencodeDbPath: join(root, "opencode.db") },
 			),
 		).toEqual({ cli: "codex", path: secondPath });
 	} finally {
@@ -68,7 +68,11 @@ test("a sessão do claude é resolvida pelo id dentro do projeto correto", async
 		expect(
 			await locateAgentTranscript(
 				{ agent: "claude", cwd, sessionId, sessionPath: null },
-				{ claudeProjectsDir, codexSessionsDir: join(root, "codex") },
+				{
+					claudeProjectsDir,
+					codexSessionsDir: join(root, "codex"),
+					opencodeDbPath: join(root, "opencode.db"),
+				},
 			),
 		).toEqual({ cli: "claude", path });
 	} finally {
@@ -88,7 +92,11 @@ test("sessão identificada ainda sem arquivo não cai em transcript antigo do cw
 					sessionId: "019ff5b8-f64b-70c2-a7db-01b580333fdf",
 					sessionPath: null,
 				},
-				{ claudeProjectsDir: join(root, "claude"), codexSessionsDir: join(root, "codex") },
+				{
+					claudeProjectsDir: join(root, "claude"),
+					codexSessionsDir: join(root, "codex"),
+					opencodeDbPath: join(root, "opencode.db"),
+				},
 			),
 		).toBeNull();
 	} finally {

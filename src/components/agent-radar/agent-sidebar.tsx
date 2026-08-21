@@ -44,13 +44,13 @@ export function AgentSidebar({
 			data-component="agent-sidebar"
 			data-compact={compact || undefined}
 			className={cn(
-				"flex min-h-0 w-full shrink-0 flex-col border-r border-border bg-chrome/60 transition-[width] duration-200 md:w-80",
+				"flex min-h-0 w-full flex-1 flex-col bg-chrome/60 transition-[width] duration-200 md:w-80 md:flex-none md:shrink-0 md:border-r md:border-border",
 				compact && "md:w-16",
 			)}
 		>
 			<div
 				className={cn(
-					"flex h-11 shrink-0 items-center gap-2 border-b border-border px-3",
+					"hidden h-11 shrink-0 items-center gap-2 border-b border-border px-3 md:flex",
 					compact && "justify-center px-2",
 				)}
 			>

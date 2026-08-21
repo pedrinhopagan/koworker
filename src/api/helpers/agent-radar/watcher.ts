@@ -8,6 +8,7 @@ import { EXECUTION_WORKSPACE_LABEL } from "../execution-terminal";
 import { getSystemSettings } from "../system-settings";
 import {
 	ensureKwTerminalServer,
+	ensureOpencodeIntegration,
 	kwTerminalAgentList,
 	kwTerminalPaneList,
 	kwTerminalPaneProcessInfo,
@@ -16,6 +17,7 @@ import {
 	kwTerminalTabList,
 	kwTerminalWorkspaceList,
 } from "../terminal/kw-terminal";
+import { locateOpencodeSessionByDirectory } from "../opencode-db";
 import { alertRadarTransition, shouldAlertTransition } from "./alerts";
 import {
 	KW_TERMINAL_LIFECYCLE_SUBSCRIPTIONS,
@@ -157,8 +159,37 @@ function closePaneStream(paneId: string) {
 	paneStreams.delete(paneId);
 }
 
+// O stream de status de um pane que cai sozinho não tem religamento próprio: sem isso o status
+// daquele agent congelava até o próximo evento de lifecycle. Um resync relê os panes e o
+// `watchPanes` do fim reabre o stream que falta; o debounce evita fechar e abrir em rajada.
+let paneResync: ReturnType<typeof setTimeout> | null = null;
+
+function schedulePaneResync(current: number) {
+	if (!running || current !== generation) {
+		return;
+	}
+
+	if (paneResync) {
+		clearTimeout(paneResync);
+	}
+
+	paneResync = setTimeout(() => {
+		paneResync = null;
+		if (running && current === generation) {
+			void syncRadar(current).catch((error) => {
+				console.error("[Radar] Falha ao ressincronizar panes:", error);
+			});
+		}
+	}, 500);
+	paneResync.unref();
+}
+
 function teardown() {
 	clearFocusFlush();
+	if (paneResync) {
+		clearTimeout(paneResync);
+		paneResync = null;
+	}
 	lifecycle?.close();
 	lifecycle = null;
 
@@ -205,7 +236,10 @@ async function watchPanes(current: number) {
 			socketPath,
 			subscriptions: paneStatusSubscription(paneId),
 			onEvent: (event) => void handleStatusEvent(event, current),
-			onClose: () => paneStreams.delete(paneId),
+			onClose: () => {
+				paneStreams.delete(paneId);
+				schedulePaneResync(current);
+			},
 		});
 
 		if (current !== generation) {
@@ -252,12 +286,22 @@ async function syncRadar(current: number) {
 	const tabLabels = new Map(conversationalTabs.map((tab) => [tab.tab_id, tab.label]));
 	// A tarefa que o agent anunciou só vem no `agent list`; o resto do cartão vem do `pane list`.
 	const tasks = new Map(agents.map((agent) => [agent.pane_id, agent.session_task]));
-	const recoveredTranscripts = new Map(
+	const recoveredTranscripts = new Map<string, { sessionId: string; path: string | null } | null>(
 		await Promise.all(
 			conversationalPanes.map(async (pane) => {
 				const session = kwTerminalPaneSession(pane);
 				if (!pane.agent || session.sessionPath) {
 					return [pane.pane_id, null] as const;
+				}
+
+				// OpenCode sem reporte: a integração não carregou nesta instância. Instala para as
+				// próximas e adota do banco a sessão mais recente daquele diretório, que é o único
+				// sinal disponível — todas as conversas moram no mesmo arquivo de banco.
+				if (pane.agent === "opencode" && !session.sessionId) {
+					void ensureOpencodeIntegration();
+					const adopted = locateOpencodeSessionByDirectory(pane.cwd);
+
+					return [pane.pane_id, adopted ? { sessionId: adopted, path: null } : null] as const;
 				}
 
 				const processInfo = await kwTerminalPaneProcessInfo(pane.pane_id).catch(() => null);
@@ -282,7 +326,7 @@ async function syncRadar(current: number) {
 		const known = getRadarAgent(pane.pane_id);
 		const status = toRadarStatus(pane.agent_status);
 		const task = tasks.get(pane.pane_id);
-		const recoveredTranscript = recoveredTranscripts.get(pane.pane_id);
+		const recoveredTranscript = recoveredTranscripts.get(pane.pane_id) ?? null;
 		const reportedSession = kwTerminalPaneSession(pane);
 
 		return [
@@ -336,8 +380,10 @@ async function handleStatusEvent(event: KwTerminalEvent, current: number) {
 		...known,
 		status,
 		agent: event.data.agent ?? known.agent,
-		activity: event.data.activity ?? null,
-		title: event.data.title ?? null,
+		// Campo ausente é "o daemon não disse", não "virou vazio": zerar aqui apagava a atividade
+		// que o cartão já mostrava a cada transição que vinha sem os campos opcionais.
+		activity: event.data.activity ?? known.activity,
+		title: event.data.title ?? known.title,
 		changedAt: status === known.status ? known.changedAt : Date.now(),
 	};
 

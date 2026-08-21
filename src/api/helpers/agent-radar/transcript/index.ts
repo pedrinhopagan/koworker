@@ -81,7 +81,15 @@ async function resolve(paneId: string) {
 			return;
 		}
 
-		if (entry.tail?.source.cli === source.cli && entry.tail.source.path === source.path) {
+		// No opencode todas as sessões moram no mesmo banco, então a identidade da fonte é cli + caminho
+		// + id: sem o id na comparação, uma troca de sessão no mesmo pane nem reabriria a leitura.
+		const open = entry.tail;
+		if (
+			open &&
+			open.source.cli === source.cli &&
+			open.source.path === source.path &&
+			open.source.sessionId === source.sessionId
+		) {
 			return;
 		}
 
@@ -106,6 +114,8 @@ async function resolve(paneId: string) {
 
 export async function refreshAgentRadarTranscript(paneId: string) {
 	await resolve(paneId);
+
+	return panes.get(paneId)?.tail?.source ?? null;
 }
 
 // A conversa que já está aberta em memória por causa de um leitor, ou nada. É o que deixa o preview

@@ -1,7 +1,10 @@
+import { Database } from "bun:sqlite";
+
 import { recentTranscriptText } from "@/lib/agent-timeline";
 import { createTranscriptMirror, createTranscriptParser } from "@/lib/agent-transcript";
 import { claudeTranscriptModel, translateClaudeTranscriptLine } from "@/lib/claude-transcript";
 import { codexTranscriptModel, translateCodexTranscriptLine } from "@/lib/codex-transcript";
+import { createOpencodeTranscriptTranslator } from "@/lib/opencode-transcript";
 import { listRadarAgents } from "../state";
 import { openPaneTranscriptEvents, openPaneTranscriptModel } from "./index";
 import { locateAgentTranscript, type AgentTranscript } from "./locate";
@@ -52,11 +55,108 @@ async function readPreview(source: AgentTranscript, size: number): Promise<Previ
 	return { text: recentTranscriptText(mirror.list()), model };
 }
 
+// No opencode a conversa não é um arquivo que cresce: é uma sessão no banco. O "tamanho" que valida o
+// cache é a última mutação da sessão, e a cauda são as últimas partes gravadas.
+const OPENCODE_PREVIEW_PARTS = 60;
+
+type OpencodePreviewRow = {
+	id: string;
+	message_id: string;
+	part_data: string;
+	model_id: string | null;
+	role: string;
+};
+
+function readOpencodePreview(source: AgentTranscript): Preview {
+	const sessionId = source.sessionId;
+	if (!sessionId) {
+		return { text: null, model: null };
+	}
+
+	const db = new Database(source.path, { readonly: true });
+	try {
+		const rows = (
+			db
+				.query(
+					`SELECT p.id, p.message_id, p.data AS part_data,
+					        json_extract(m.data, '$.modelID') AS model_id,
+					        json_extract(m.data, '$.role') AS role
+					 FROM part p
+					 JOIN message m ON m.id = p.message_id
+					 WHERE p.session_id = ?
+					 ORDER BY p.rowid DESC
+					 LIMIT ${OPENCODE_PREVIEW_PARTS}`,
+				)
+				.all(sessionId) as OpencodePreviewRow[]
+		).toReversed();
+
+		const mirror = createTranscriptMirror("preview");
+		const translator = createOpencodeTranscriptTranslator();
+		for (const row of rows) {
+			translator.observeModel(row.model_id);
+		}
+		mirror.apply(
+			translator.translate(
+				rows.map((row) => ({
+					id: row.id,
+					messageId: row.message_id,
+					role: row.role ?? "",
+					data: JSON.parse(row.part_data),
+				})),
+			),
+		);
+
+		return { text: recentTranscriptText(mirror.list()), model: translator.model() };
+	} finally {
+		db.close();
+	}
+}
+
+function opencodeStamp(source: AgentTranscript): number | null {
+	if (!source.sessionId) {
+		return null;
+	}
+
+	const db = new Database(source.path, { readonly: true });
+	try {
+		return (
+			db
+				.query("SELECT MAX(time_updated) AS stamp FROM part WHERE session_id = ?")
+				.get(source.sessionId) as { stamp: number | null }
+		).stamp;
+	} catch {
+		return null;
+	} finally {
+		db.close();
+	}
+}
+
 async function previewOf(paneId: string, source: AgentTranscript): Promise<Preview> {
 	// Pane com alguém lendo a conversa já tem o histórico em memória: o preview sai dali sem disco.
 	const live = openPaneTranscriptEvents(paneId);
 	if (live) {
 		return { text: recentTranscriptText(live), model: openPaneTranscriptModel(paneId) };
+	}
+
+	if (source.cli === "opencode") {
+		const stamp = opencodeStamp(source);
+		const cacheKey = `${source.path}:${source.sessionId}`;
+		const cached = cache.get(cacheKey);
+		if (stamp !== null && cached?.size === stamp) {
+			return cached.preview;
+		}
+
+		let preview: Preview;
+		try {
+			preview = readOpencodePreview(source);
+		} catch {
+			preview = { text: null, model: null };
+		}
+		if (stamp !== null) {
+			remember(cacheKey, stamp, preview);
+		}
+
+		return preview;
 	}
 
 	const size = Bun.file(source.path).size;

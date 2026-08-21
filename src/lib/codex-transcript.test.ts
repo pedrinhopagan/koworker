@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { codexTranscriptModel, translateCodexTranscriptLine } from "./codex-transcript";
+import {
+	codexTranscriptModel,
+	createCodexTranscriptTranslator,
+	translateCodexTranscriptLine,
+} from "./codex-transcript";
 
 describe("translateCodexTranscriptLine", () => {
 	test("a conversa sai dos eventos de interface", () => {
@@ -239,5 +243,76 @@ describe("translateCodexTranscriptLine", () => {
 		expect(
 			codexTranscriptModel({ type: "event_msg", payload: { type: "agent_message" } }),
 		).toBeNull();
+	});
+});
+
+describe("createCodexTranscriptTranslator", () => {
+	test("mensagem anunciada nos dois formatos vira um bloco só", () => {
+		const { translate } = createCodexTranscriptTranslator();
+
+		expect(
+			translate({
+				type: "event_msg",
+				payload: {
+					type: "item_completed",
+					item: { type: "UserMessage", content: [{ type: "text", text: "Ajuste o parallax" }] },
+				},
+			}),
+		).toEqual([{ type: "append", payload: { kind: "user", text: "Ajuste o parallax" } }]);
+
+		expect(
+			translate({
+				type: "event_msg",
+				payload: { type: "user_message", message: "Ajuste o parallax" },
+			}),
+		).toEqual([]);
+
+		expect(
+			translate({
+				type: "event_msg",
+				payload: {
+					type: "item_completed",
+					item: { type: "AgentMessage", content: [{ type: "Text", text: "Feito." }] },
+				},
+			}),
+		).toEqual([{ type: "append", payload: { kind: "assistant", text: "Feito." } }]);
+
+		expect(
+			translate({
+				type: "event_msg",
+				payload: { type: "agent_message", message: "Feito." },
+			}),
+		).toEqual([]);
+	});
+
+	test("sem item_completed, os eventos legados continuam valendo", () => {
+		const { translate } = createCodexTranscriptTranslator();
+
+		expect(
+			translate({
+				type: "event_msg",
+				payload: { type: "user_message", message: "Primeira fala" },
+			}),
+		).toEqual([{ type: "append", payload: { kind: "user", text: "Primeira fala" } }]);
+	});
+
+	test("o reset devolve o tradutor ao estado de arquivo novo", () => {
+		const translator = createCodexTranscriptTranslator();
+
+		translator.translate({
+			type: "event_msg",
+			payload: {
+				type: "item_completed",
+				item: { type: "UserMessage", content: [{ type: "text", text: "Olá" }] },
+			},
+		});
+		translator.reset();
+
+		expect(
+			translator.translate({
+				type: "event_msg",
+				payload: { type: "user_message", message: "Depois do reset" },
+			}),
+		).toEqual([{ type: "append", payload: { kind: "user", text: "Depois do reset" } }]);
 	});
 });

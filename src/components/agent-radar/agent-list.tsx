@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Target } from "lucide-react";
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 
 import type { RadarAgent } from "@/api/helpers/agent-radar/state";
@@ -98,23 +98,39 @@ const AgentListItem = memo(function AgentListItem({
 			data-selected={selected || undefined}
 			className={cn(
 				"group relative rounded-lg border border-transparent transition-colors",
-				selected ? "border-primary/20 bg-primary/10" : "hover:bg-muted/50",
+				selected ? "border-primary/20 bg-primary/10" : "hover:bg-muted/50 active:bg-muted/70",
 			)}
 		>
 			<Link
 				to="/terminals/$paneId"
 				params={{ paneId: agent.paneId }}
 				data-slot="open-conversation"
-				className="block min-w-0 rounded-lg px-3 py-2.5 pr-[7rem] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+				className="block min-w-0 rounded-lg px-3 py-2.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 			>
-				<div className="flex min-w-0 items-center gap-1.5">
-					<AgentCliIcon agent={agent.agent} className="size-4" />
-					<Text as="span" size="xs" className="min-w-0 flex-1 truncate font-semibold">
-						{agentRadarAgentLabel(agent.agent)}
-					</Text>
+				<div className="flex min-w-0 items-center justify-between gap-2">
+					<div className="flex min-w-0 items-center gap-1.5">
+						<AgentCliIcon
+							agent={agent.agent}
+							className="size-4 transition-opacity group-hover:opacity-0"
+						/>
+						<Text as="span" size="xs" className="min-w-0 truncate font-semibold">
+							{agentRadarAgentLabel(agent.agent)}
+						</Text>
+					</div>
+
+					<span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+						<Text
+							as="span"
+							size="xs"
+							className={cn("text-[10px] leading-none font-semibold", visual.tone)}
+						>
+							{AGENT_RADAR_STATUS_LABELS[agent.status]}
+						</Text>
+						<RadarStatusMark status={agent.status} className={visual.tone} />
+					</span>
 				</div>
 
-				<Text size="xs" tone="muted" className="mt-1 min-w-0 truncate">
+				<Text size="sm" tone="muted" className="mt-2 min-w-0 truncate leading-snug">
 					{preview?.text ?? agent.activity ?? "Conversa sem falas"}
 				</Text>
 
@@ -130,35 +146,84 @@ const AgentListItem = memo(function AgentListItem({
 				</Text>
 			</Link>
 
-			<div className="pointer-events-none absolute inset-y-1.5 right-1.5 flex flex-col items-end justify-between gap-1">
-				<span className={cn("flex items-center gap-1.5 whitespace-nowrap", visual.tone)}>
-					<Text as="span" size="xs" className="text-[10px] leading-none font-semibold">
-						{AGENT_RADAR_STATUS_LABELS[agent.status]}
-					</Text>
-					<RadarStatusMark status={agent.status} />
-				</span>
-
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon"
-					aria-label={`Focar ${agentRadarAgentLabel(agent.agent)} no terminal`}
-					aria-pressed={focused}
-					data-slot="focus-terminal"
-					data-selected={focused || undefined}
-					onClick={() => focus.mutate({ paneId: agent.paneId })}
-					className={cn(
-						"pointer-events-auto size-6 border border-transparent opacity-0 transition-[color,background-color,border-color,opacity] group-hover:opacity-100 focus-visible:opacity-100",
-						focused &&
-							"border-primary/40 bg-primary/10 text-primary opacity-100 hover:bg-primary/15",
-					)}
-				>
-					<Target className="size-3" />
-				</Button>
-			</div>
+			<Button
+				type="button"
+				variant="ghost"
+				size="icon"
+				aria-label={`Focar ${agentRadarAgentLabel(agent.agent)} no terminal`}
+				aria-pressed={focused}
+				data-slot="focus-terminal"
+				data-selected={focused || undefined}
+				onClick={() => focus.mutate({ paneId: agent.paneId })}
+				className={cn(
+					"absolute top-1.5 left-1.5 z-10 hidden size-6 border border-transparent bg-transparent opacity-0 transition-[color,background-color,opacity] group-hover:opacity-100 hover:bg-muted focus-visible:opacity-100 md:flex",
+					focused && "text-primary hover:bg-primary/15",
+				)}
+			>
+				<Target className="size-3" />
+			</Button>
 		</li>
 	);
 });
+
+// A troca de conversa no celular: a sidebar não cabe ao lado da conversa, então as outras conversas
+// viram uma faixa rolável no topo, com a atual sempre trazida para o centro.
+export function AgentSwitcherStrip({
+	agents,
+	selectedPaneId,
+}: {
+	agents: RadarAgent[];
+	selectedPaneId: string;
+}) {
+	const selectedRef = useRef<HTMLAnchorElement>(null);
+
+	// A lista chega depois do primeiro quadro, então o chip da conversa atual só existe quando o radar
+	// responde: sem o tamanho na dependência, a faixa nasceria rolada no começo.
+	useEffect(() => {
+		selectedRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
+	}, [selectedPaneId, agents.length]);
+
+	if (agents.length < 2) {
+		return null;
+	}
+
+	return (
+		<div
+			data-component="agent-switcher-strip"
+			className="no-scrollbar flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border bg-chrome/60 px-2 py-1.5"
+		>
+			{agents.map((agent) => {
+				const selected = agent.paneId === selectedPaneId;
+				const label = agent.taskTitle ?? agent.title ?? agent.projectName ?? agent.tabLabel;
+
+				return (
+					<Link
+						key={agent.paneId}
+						to="/terminals/$paneId"
+						params={{ paneId: agent.paneId }}
+						{...(selected ? { ref: selectedRef } : {})}
+						aria-current={selected ? "page" : undefined}
+						className={cn(
+							"flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 transition-colors",
+							selected
+								? "border-primary/30 bg-primary/10 text-primary"
+								: "border-border bg-background text-muted-foreground active:bg-muted",
+						)}
+					>
+						<AgentCliIcon agent={agent.agent} className="size-3.5 shrink-0" />
+						<Text as="span" size="xs" className="max-w-32 truncate font-semibold">
+							{label}
+						</Text>
+						<RadarStatusMark
+							status={agent.status}
+							className={cn("shrink-0", AGENT_RADAR_VISUALS[agent.status].tone)}
+						/>
+					</Link>
+				);
+			})}
+		</div>
+	);
+}
 
 export function AgentList({
 	agents,
