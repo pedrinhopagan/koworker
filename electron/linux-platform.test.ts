@@ -8,4 +8,9 @@ describe("resolveLinuxOzonePlatform", () => {
 		expect(resolveLinuxOzonePlatform()).toBeNull();
 		expect(resolveLinuxOzonePlatform(" ")).toBeNull();
 	});
+
+	test("prefere Wayland mesmo com Xwayland exportando DISPLAY", () => {
+		expect(resolveLinuxOzonePlatform(":0", "wayland-0")).toBe("wayland");
+		expect(resolveLinuxOzonePlatform(undefined, "wayland-0")).toBe("wayland");
+	});
 });

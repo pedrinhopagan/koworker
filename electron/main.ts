@@ -24,7 +24,7 @@ let backendStopped = false;
 app.setName(appName);
 if (process.platform === "linux") {
 	app.commandLine.appendSwitch("class", appName);
-	const ozonePlatform = resolveLinuxOzonePlatform(process.env.DISPLAY);
+	const ozonePlatform = resolveLinuxOzonePlatform(process.env.DISPLAY, process.env.WAYLAND_DISPLAY);
 	if (ozonePlatform) {
 		app.commandLine.appendSwitch("ozone-platform", ozonePlatform);
 	}
@@ -250,6 +250,55 @@ async function createWindow() {
 			event.preventDefault();
 		}
 	});
+	mainWindow.webContents.on("context-menu", (_event, params) => {
+		if (!params.isEditable && !params.selectionText) {
+			return;
+		}
+
+		const contextWindow = mainWindow;
+		if (!contextWindow) {
+			return;
+		}
+		const webContents = contextWindow.webContents;
+
+		Menu.buildFromTemplate([
+			...params.dictionarySuggestions.map((suggestion) => ({
+				label: suggestion,
+				click: () => webContents.replaceMisspelling(suggestion),
+			})),
+			...(params.misspelledWord
+				? [
+						{
+							label: "Adicionar ao dicionário",
+							click: () =>
+								webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord),
+						},
+						{ type: "separator" as const },
+					]
+				: []),
+			...(params.isEditable
+				? [
+						{ label: "Desfazer", role: "undo" as const, enabled: params.editFlags.canUndo },
+						{ label: "Refazer", role: "redo" as const, enabled: params.editFlags.canRedo },
+						{ type: "separator" as const },
+						{ label: "Recortar", role: "cut" as const, enabled: params.editFlags.canCut },
+					]
+				: []),
+			{ label: "Copiar", role: "copy", enabled: params.editFlags.canCopy },
+			...(params.isEditable
+				? [
+						{ label: "Colar", role: "paste" as const, enabled: params.editFlags.canPaste },
+						{ label: "Excluir", role: "delete" as const, enabled: params.editFlags.canDelete },
+					]
+				: []),
+			{ type: "separator" },
+			{
+				label: "Selecionar tudo",
+				role: "selectAll",
+				enabled: params.editFlags.canSelectAll,
+			},
+		]).popup({ window: contextWindow });
+	});
 
 	await backend.start();
 	await mainWindow.loadURL(apiOrigin);
@@ -296,6 +345,7 @@ async function runPrimaryInstance() {
 	try {
 		await app.whenReady();
 		const apiOrigin = `http://localhost:${backend.port}`;
+		session.defaultSession.setSpellCheckerLanguages(["pt-BR"]);
 		session.defaultSession.setPermissionCheckHandler(
 			(_webContents, permission, requestingOrigin) =>
 				permission === "media" && requestingOrigin.startsWith(apiOrigin),
