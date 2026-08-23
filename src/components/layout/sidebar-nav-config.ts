@@ -3,6 +3,7 @@ import {
 	Archive,
 	Bot,
 	Brush,
+	Columns2,
 	FilePlus2,
 	FolderKanban,
 	Home,
@@ -37,7 +38,8 @@ export type SidebarNavActionId =
 	| "refreshPage"
 	| "sweepInvocations"
 	| "sweepAll"
-	| "hideWindow";
+	| "hideWindow"
+	| "toggleSplit";
 
 export type SidebarNavActionItem = {
 	kind: "action";
@@ -78,7 +80,13 @@ export const sidebarNavGroups: SidebarNavGroup[] = [
 			{ kind: "route", path: "/projetos", label: "Projetos", icon: FolderKanban, altKey: "2" },
 			{ kind: "route", path: "/tarefas", label: "Tarefas", icon: ListChecks, altKey: "3" },
 			{ kind: "route", path: "/mostruario", label: "Mostruário", icon: Presentation, altKey: "4" },
-			{ kind: "route", path: "/terminals", label: "Agents", icon: SquareTerminal, altKey: "5" },
+			{
+				kind: "route",
+				path: "/shells",
+				label: "Shells",
+				icon: SquareTerminal,
+				altKey: "5",
+			},
 			{ kind: "route", path: "/media", label: "Mídia", icon: Image, altKey: "6" },
 		],
 	},
@@ -109,6 +117,13 @@ export const sidebarNavGroups: SidebarNavGroup[] = [
 				id: "refreshPage",
 				label: "Atualizar dados da página",
 				icon: RefreshCw,
+			},
+			{
+				kind: "action",
+				id: "toggleSplit",
+				label: "Dividir tela",
+				icon: Columns2,
+				desktopOnly: true,
 			},
 			{
 				kind: "action",

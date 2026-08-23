@@ -1,16 +1,12 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 import { registerServiceWorker } from "./lib/register-sw.ts";
 import { routeTree } from "./routeTree.gen.ts";
 
-// staleTime alto porque o app é um toggle quake-style: cada exibição da janela dispara um "window
-// focus" e, com staleTime 0, TODAS as queries montadas refazem fetch de uma vez — a rajada que
-// travava a abertura. A atualização em tempo real não depende disso: o canal WS de tasks/vault
-// invalida na hora, e as mutations invalidam o que tocam.
-export const queryClient = new QueryClient({
-	defaultOptions: { queries: { staleTime: 60_000 } },
-});
+export { queryClient } from "./lib/query-client.ts";
+
+import { queryClient } from "./lib/query-client.ts";
 
 const router = createRouter({
 	routeTree,

@@ -38,6 +38,7 @@ type PubSubChannels = {
 	agentRadar: { agents: RadarAgent[]; focus: RadarFocus };
 	// A conversa que o CLI de um pane está gravando no disco, publicada por `paneId`.
 	agentRadarTranscript: AgentRadarTranscriptEnvelope;
+	shells: ShellStreamEvent;
 	flow: FlowEvent;
 	promptRun: PromptRunEvent;
 	notification: {
@@ -57,6 +58,14 @@ type PubSubChannels = {
 		route: string;
 	};
 };
+
+// Stream cru de um shell embutido: bytes do PTY em base64, título publicado pelo CLI e
+// desfecho do processo. Publicado por shellId; o replay inicial não passa por aqui.
+export type ShellStreamEvent =
+	| { type: "data"; b64: string }
+	| { type: "title"; title: string }
+	| { type: "exit"; exitCode: number | null }
+	| { type: "closed" };
 
 export type TerminalEventType =
 	| "session_opened"

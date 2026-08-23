@@ -6,6 +6,7 @@ import { Auth } from "./auth/login";
 import { getRadarFocus, listRadarAgents } from "./helpers/agent-radar/state";
 import { subscribeAgentRadarTranscript } from "./helpers/agent-radar/transcript";
 import { getPromptRun } from "./helpers/prompt-run";
+import { shellSupervisor } from "./helpers/shells/supervisor";
 import { PubSub } from "./pubsub";
 import { agentHistoryRouter } from "./routers/agent-history";
 import { agentRadarRouter } from "./routers/agent-radar";
@@ -25,6 +26,7 @@ import { promptHistoryRouter } from "./routers/prompt-history";
 import { projectRoutesRouter } from "./routers/project-routes";
 import { projectsRouter } from "./routers/projects";
 import { settingsRouter } from "./routers/settings";
+import { shellsRouter } from "./routers/shells";
 import { skillCategoriesRouter } from "./routers/skill-categories";
 import { skillsRouter } from "./routers/skills";
 import { systemRouter } from "./routers/system";
@@ -38,6 +40,7 @@ import {
 	EndpointSchemas,
 	FlowTaskSchema,
 	PromptRunIdSchema,
+	ShellIdSchema,
 } from "./schemas";
 
 export const router = {
@@ -92,6 +95,7 @@ export const router = {
 	promptHistory: promptHistoryRouter,
 	terminal: terminalRouter,
 	kwTerminal: kwTerminalRouter,
+	shells: shellsRouter,
 	vault: vaultRouter,
 	media: mediaRouter,
 	mostruario: mostruarioRouter,
@@ -177,6 +181,25 @@ export const wsRouter = {
 	agentRadarTranscript: protectedProcedure
 		.input(AgentRadarPaneSchema)
 		.handler(({ input, signal }) => subscribeAgentRadarTranscript(input.paneId, signal)),
+
+	// Stream cru de um shell embutido. Assina antes de ler o replay, no mesmo bloco síncrono:
+	// bytes que chegam depois disso só viajam pelo canal vivo, bytes de antes só no replay —
+	// nem falha nem duplicação entre o attach e a assinatura. Input e resize compartilham os
+	// procedimentos do router HTTP: teclado e redimensionamento passam pelo mesmo socket do stream.
+	shells: {
+		stream: protectedProcedure.input(ShellIdSchema).handler(async function* ({ input, signal }) {
+			const events = PubSub.subscribe("shells", input.id, signal);
+			const replay = shellSupervisor.replayBase64(input.id);
+			if (replay === null) {
+				throw new ORPCError("NOT_FOUND", { message: "Shell não encontrado" });
+			}
+
+			yield { type: "replay" as const, b64: replay };
+			yield* events;
+		}),
+		input: shellsRouter.input,
+		resize: shellsRouter.resize,
+	},
 
 	terminal: terminalWsRouter,
 };

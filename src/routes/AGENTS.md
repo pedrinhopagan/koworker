@@ -23,6 +23,10 @@ routes/
 │   │   ├── history/$cli/$sessionId/index.tsx
 │   │   ├── -components/
 │   │   └── -utils/
+│   ├── shells/
+│   │   ├── index.tsx
+│   │   ├── $shellId/index.tsx
+│   │   └── -components/
 │   ├── radar/               (redirects legados para /terminals)
 │   ├── executar/
 │   │   ├── index.tsx
@@ -100,6 +104,8 @@ routes/
 - `/terminals/$paneId`
 - `/terminals/history` — conversas antigas de Claude e Codex lidas do disco, filtradas por projeto, CLI e busca
 - `/terminals/history/$cli/$sessionId` — a conversa antiga em leitura, com retomada em pane novo
+- `/shells` — workspace único de terminais: shells PTY embutidos e conversas de agent do radar, agrupados por projeto na sidebar, com faixa de abas (`?tab=shell-3` ou `?tab=agent:<paneId>`)
+- `/shells/$shellId` — redirect (replace) para `/shells?tab=<id>`
 - Links legados `/radar` e `/radar/$paneId` redirecionam por `replace`.
 
 ## LAYOUTS E GUARDA
@@ -120,7 +126,7 @@ Já divididas: `fontes`, `executar/`, `executar/$executionId/`, `projetos/$proje
 `vault/`, `vault/$fileName/`, `tarefas/$taskId/`, `tarefas/$taskId/$file`,
 `tarefas/$taskId/$file_/$canonicalFile`, `skills/$slug/`, `agents/$slug/`, `media/`,
 `media/$fileName/`, `mostruario/`, `terminals/`, `terminals/$paneId/`, `terminals/history/`,
-`terminals/history/$cli/$sessionId/`.
+`terminals/history/$cli/$sessionId/`, `shells/`.
 
 ## REGRAS
 

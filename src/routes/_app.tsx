@@ -36,6 +36,16 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
+	const nested = Route.useRouteContext({ select: (context) => context.nested === true });
+
+	if (nested) {
+		return <Outlet />;
+	}
+
+	return <AppChrome />;
+}
+
+function AppChrome() {
 	useTerminalEvents();
 	useTasksRealtime();
 	useNavigateEvents();

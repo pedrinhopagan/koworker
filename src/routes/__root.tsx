@@ -10,6 +10,7 @@ import { useThemeStore } from "@/stores/theme";
 
 interface RouterContext {
 	queryClient: QueryClient;
+	nested?: boolean;
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
@@ -17,6 +18,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function RootComponent() {
+	const nested = Route.useRouteContext({ select: (context) => context.nested === true });
 	const { theme } = useThemeStore();
 	const { uiFont, readingFont } = useFontStore();
 
@@ -27,6 +29,10 @@ function RootComponent() {
 		root.style.setProperty("--app-font", FONTS[uiFont].family);
 		root.style.setProperty("--reading-font", FONTS[readingFont].family);
 	}, [uiFont, readingFont]);
+
+	if (nested) {
+		return <Outlet />;
+	}
 
 	return (
 		<div className={theme} data-theme-root>

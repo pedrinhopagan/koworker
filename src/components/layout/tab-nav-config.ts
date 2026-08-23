@@ -7,6 +7,7 @@ export type TabPath =
 	| "/skills"
 	| "/vault"
 	| "/terminals"
+	| "/shells"
 	| "/agents"
 	| "/prompts";
 export type Tab = { path: TabPath; label: string; altKey?: string };
@@ -16,7 +17,7 @@ export const tabs: Tab[] = [
 	{ path: "/projetos", label: "Projetos", altKey: "2" },
 	{ path: "/tarefas", label: "Tarefas", altKey: "3" },
 	{ path: "/mostruario", label: "Mostruário", altKey: "4" },
-	{ path: "/terminals", label: "Agents", altKey: "5" },
+	{ path: "/shells", label: "Shells", altKey: "5" },
 	{ path: "/media", label: "Mídia", altKey: "6" },
 	{ path: "/skills", label: "Skills", altKey: "7" },
 	{ path: "/vault", label: "Vault", altKey: "8" },

@@ -23,6 +23,7 @@ import { Route as AppVaultIndexRouteImport } from './routes/_app/vault/index'
 import { Route as AppTerminalsIndexRouteImport } from './routes/_app/terminals/index'
 import { Route as AppTarefasIndexRouteImport } from './routes/_app/tarefas/index'
 import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
+import { Route as AppShellsIndexRouteImport } from './routes/_app/shells/index'
 import { Route as AppRadarIndexRouteImport } from './routes/_app/radar/index'
 import { Route as AppPromptsIndexRouteImport } from './routes/_app/prompts/index'
 import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/index'
@@ -35,6 +36,7 @@ import { Route as AppTerminalsHistoryIndexRouteImport } from './routes/_app/term
 import { Route as AppTerminalsPaneIdIndexRouteImport } from './routes/_app/terminals/$paneId/index'
 import { Route as AppTarefasTaskIdIndexRouteImport } from './routes/_app/tarefas/$taskId/index'
 import { Route as AppSkillsSlugIndexRouteImport } from './routes/_app/skills/$slug/index'
+import { Route as AppShellsShellIdIndexRouteImport } from './routes/_app/shells/$shellId/index'
 import { Route as AppRadarPaneIdIndexRouteImport } from './routes/_app/radar/$paneId/index'
 import { Route as AppProjetosNovoIndexRouteImport } from './routes/_app/projetos/novo/index'
 import { Route as AppProjetosProjetoIdIndexRouteImport } from './routes/_app/projetos/$projetoId/index'
@@ -121,6 +123,13 @@ const AppSkillsIndexRoute = AppSkillsIndexRouteImport.update({
   path: '/skills/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppShellsIndexRoute = AppShellsIndexRouteImport.update({
+  id: '/shells/',
+  path: '/shells/',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/shells/index.lazy').then((d) => d.Route),
+)
 const AppRadarIndexRoute = AppRadarIndexRouteImport.update({
   id: '/radar/',
   path: '/radar/',
@@ -196,6 +205,11 @@ const AppSkillsSlugIndexRoute = AppSkillsSlugIndexRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/skills/$slug/index.lazy').then((d) => d.Route),
 )
+const AppShellsShellIdIndexRoute = AppShellsShellIdIndexRouteImport.update({
+  id: '/shells/$shellId/',
+  path: '/shells/$shellId/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppRadarPaneIdIndexRoute = AppRadarPaneIdIndexRouteImport.update({
   id: '/radar/$paneId/',
   path: '/radar/$paneId/',
@@ -291,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/projetos/': typeof AppProjetosIndexRoute
   '/prompts/': typeof AppPromptsIndexRoute
   '/radar/': typeof AppRadarIndexRoute
+  '/shells/': typeof AppShellsIndexRoute
   '/skills/': typeof AppSkillsIndexRoute
   '/tarefas/': typeof AppTarefasIndexRoute
   '/terminals/': typeof AppTerminalsIndexRoute
@@ -302,6 +317,7 @@ export interface FileRoutesByFullPath {
   '/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo/': typeof AppProjetosNovoIndexRoute
   '/radar/$paneId/': typeof AppRadarPaneIdIndexRoute
+  '/shells/$shellId/': typeof AppShellsShellIdIndexRoute
   '/skills/$slug/': typeof AppSkillsSlugIndexRoute
   '/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/terminals/$paneId/': typeof AppTerminalsPaneIdIndexRoute
@@ -328,6 +344,7 @@ export interface FileRoutesByTo {
   '/projetos': typeof AppProjetosIndexRoute
   '/prompts': typeof AppPromptsIndexRoute
   '/radar': typeof AppRadarIndexRoute
+  '/shells': typeof AppShellsIndexRoute
   '/skills': typeof AppSkillsIndexRoute
   '/tarefas': typeof AppTarefasIndexRoute
   '/terminals': typeof AppTerminalsIndexRoute
@@ -339,6 +356,7 @@ export interface FileRoutesByTo {
   '/projetos/$projetoId': typeof AppProjetosProjetoIdIndexRoute
   '/projetos/novo': typeof AppProjetosNovoIndexRoute
   '/radar/$paneId': typeof AppRadarPaneIdIndexRoute
+  '/shells/$shellId': typeof AppShellsShellIdIndexRoute
   '/skills/$slug': typeof AppSkillsSlugIndexRoute
   '/tarefas/$taskId': typeof AppTarefasTaskIdIndexRoute
   '/terminals/$paneId': typeof AppTerminalsPaneIdIndexRoute
@@ -367,6 +385,7 @@ export interface FileRoutesById {
   '/_app/projetos/': typeof AppProjetosIndexRoute
   '/_app/prompts/': typeof AppPromptsIndexRoute
   '/_app/radar/': typeof AppRadarIndexRoute
+  '/_app/shells/': typeof AppShellsIndexRoute
   '/_app/skills/': typeof AppSkillsIndexRoute
   '/_app/tarefas/': typeof AppTarefasIndexRoute
   '/_app/terminals/': typeof AppTerminalsIndexRoute
@@ -378,6 +397,7 @@ export interface FileRoutesById {
   '/_app/projetos/$projetoId/': typeof AppProjetosProjetoIdIndexRoute
   '/_app/projetos/novo/': typeof AppProjetosNovoIndexRoute
   '/_app/radar/$paneId/': typeof AppRadarPaneIdIndexRoute
+  '/_app/shells/$shellId/': typeof AppShellsShellIdIndexRoute
   '/_app/skills/$slug/': typeof AppSkillsSlugIndexRoute
   '/_app/tarefas/$taskId/': typeof AppTarefasTaskIdIndexRoute
   '/_app/terminals/$paneId/': typeof AppTerminalsPaneIdIndexRoute
@@ -406,6 +426,7 @@ export interface FileRouteTypes {
     | '/projetos/'
     | '/prompts/'
     | '/radar/'
+    | '/shells/'
     | '/skills/'
     | '/tarefas/'
     | '/terminals/'
@@ -417,6 +438,7 @@ export interface FileRouteTypes {
     | '/projetos/$projetoId/'
     | '/projetos/novo/'
     | '/radar/$paneId/'
+    | '/shells/$shellId/'
     | '/skills/$slug/'
     | '/tarefas/$taskId/'
     | '/terminals/$paneId/'
@@ -443,6 +465,7 @@ export interface FileRouteTypes {
     | '/projetos'
     | '/prompts'
     | '/radar'
+    | '/shells'
     | '/skills'
     | '/tarefas'
     | '/terminals'
@@ -454,6 +477,7 @@ export interface FileRouteTypes {
     | '/projetos/$projetoId'
     | '/projetos/novo'
     | '/radar/$paneId'
+    | '/shells/$shellId'
     | '/skills/$slug'
     | '/tarefas/$taskId'
     | '/terminals/$paneId'
@@ -481,6 +505,7 @@ export interface FileRouteTypes {
     | '/_app/projetos/'
     | '/_app/prompts/'
     | '/_app/radar/'
+    | '/_app/shells/'
     | '/_app/skills/'
     | '/_app/tarefas/'
     | '/_app/terminals/'
@@ -492,6 +517,7 @@ export interface FileRouteTypes {
     | '/_app/projetos/$projetoId/'
     | '/_app/projetos/novo/'
     | '/_app/radar/$paneId/'
+    | '/_app/shells/$shellId/'
     | '/_app/skills/$slug/'
     | '/_app/tarefas/$taskId/'
     | '/_app/terminals/$paneId/'
@@ -609,6 +635,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSkillsIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/shells/': {
+      id: '/_app/shells/'
+      path: '/shells'
+      fullPath: '/shells/'
+      preLoaderRoute: typeof AppShellsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/radar/': {
       id: '/_app/radar/'
       path: '/radar'
@@ -691,6 +724,13 @@ declare module '@tanstack/react-router' {
       path: '/skills/$slug'
       fullPath: '/skills/$slug/'
       preLoaderRoute: typeof AppSkillsSlugIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/shells/$shellId/': {
+      id: '/_app/shells/$shellId/'
+      path: '/shells/$shellId'
+      fullPath: '/shells/$shellId/'
+      preLoaderRoute: typeof AppShellsShellIdIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/radar/$paneId/': {
@@ -780,6 +820,7 @@ interface AppRouteChildren {
   AppProjetosIndexRoute: typeof AppProjetosIndexRoute
   AppPromptsIndexRoute: typeof AppPromptsIndexRoute
   AppRadarIndexRoute: typeof AppRadarIndexRoute
+  AppShellsIndexRoute: typeof AppShellsIndexRoute
   AppSkillsIndexRoute: typeof AppSkillsIndexRoute
   AppTarefasIndexRoute: typeof AppTarefasIndexRoute
   AppTerminalsIndexRoute: typeof AppTerminalsIndexRoute
@@ -791,6 +832,7 @@ interface AppRouteChildren {
   AppProjetosProjetoIdIndexRoute: typeof AppProjetosProjetoIdIndexRoute
   AppProjetosNovoIndexRoute: typeof AppProjetosNovoIndexRoute
   AppRadarPaneIdIndexRoute: typeof AppRadarPaneIdIndexRoute
+  AppShellsShellIdIndexRoute: typeof AppShellsShellIdIndexRoute
   AppSkillsSlugIndexRoute: typeof AppSkillsSlugIndexRoute
   AppTarefasTaskIdIndexRoute: typeof AppTarefasTaskIdIndexRoute
   AppTerminalsPaneIdIndexRoute: typeof AppTerminalsPaneIdIndexRoute
@@ -815,6 +857,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppProjetosIndexRoute: AppProjetosIndexRoute,
   AppPromptsIndexRoute: AppPromptsIndexRoute,
   AppRadarIndexRoute: AppRadarIndexRoute,
+  AppShellsIndexRoute: AppShellsIndexRoute,
   AppSkillsIndexRoute: AppSkillsIndexRoute,
   AppTarefasIndexRoute: AppTarefasIndexRoute,
   AppTerminalsIndexRoute: AppTerminalsIndexRoute,
@@ -826,6 +869,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppProjetosProjetoIdIndexRoute: AppProjetosProjetoIdIndexRoute,
   AppProjetosNovoIndexRoute: AppProjetosNovoIndexRoute,
   AppRadarPaneIdIndexRoute: AppRadarPaneIdIndexRoute,
+  AppShellsShellIdIndexRoute: AppShellsShellIdIndexRoute,
   AppSkillsSlugIndexRoute: AppSkillsSlugIndexRoute,
   AppTarefasTaskIdIndexRoute: AppTarefasTaskIdIndexRoute,
   AppTerminalsPaneIdIndexRoute: AppTerminalsPaneIdIndexRoute,

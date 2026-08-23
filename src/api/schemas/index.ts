@@ -64,6 +64,13 @@ export {
 	SkillCategoryUpdateSchema,
 } from "./skill-categories";
 export {
+	ShellCreateSchema,
+	ShellIdSchema,
+	ShellInputSchema,
+	ShellRenameSchema,
+	ShellResizeSchema,
+} from "./shells";
+export {
 	SkillCreateSchema,
 	SkillDeleteSchema,
 	SkillListSchema,

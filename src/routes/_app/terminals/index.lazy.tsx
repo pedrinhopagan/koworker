@@ -6,13 +6,13 @@ import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { AgentSidebar } from "@/components/agent-radar/agent-sidebar";
+import { NewSessionDialog } from "@/components/agent-radar/new-session-dialog";
 import { PageShell } from "@/components/layout/page-shell";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { EmptyFeedback } from "@/components/ui/empty-feedback";
 import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { errorMessage } from "@/lib/orpc-errors";
-import { NewSessionDialog } from "./-components/new-session-dialog";
 
 export const Route = createLazyFileRoute("/_app/terminals/")({
 	component: TerminalsPage,

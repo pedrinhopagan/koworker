@@ -269,9 +269,11 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 ## REALTIME
 
 - Canais do PubSub (`src/api/pubsub/index.ts`): `tasks`, `flow`, `promptRun`, `agentSession`,
-  `agentRadar`, `agentRadarTranscript`, `notification`, `navigate` e `terminal`
+  `agentRadar`, `agentRadarTranscript`, `shells`, `notification`, `navigate` e `terminal`
 - `wsRouter` expõe `auth.me`, `notifications`, `tasks`, `navigate`, `flow`, `promptRun`,
   `agentSession`, `agentRadar`, `agentRadarTranscript` e `terminal`
+- `shells` entrega por `shellId` os bytes do PTY em base64, o título publicado pelo CLI e o desfecho;
+  o replay do scrollback não passa pelo canal — o stream abre com ele
 - `agentSession` entrega os blocos da conversa (por `seq`), o `busy` do agente e a mudança de
   `status` da sessão; a assinatura começa com o histórico inteiro para a reconexão não perder nada
 - `agentRadarTranscript` é por `paneId` e entrega a conversa que o CLI aberto no kw-terminal grava em

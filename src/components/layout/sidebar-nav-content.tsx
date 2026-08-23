@@ -22,6 +22,7 @@ import { getWindowToggleShortcutTooltip } from "@/lib/window-shortcut";
 import { cn } from "@/lib/utils";
 import { useDocSessionsStore } from "@/stores/doc-sessions";
 import { useDocSwitcherStore } from "@/stores/doc-switcher";
+import { useSplitViewStore } from "@/stores/split-view";
 
 type SidebarNavContentProps = {
 	variant: "sidebar" | "drawer";
@@ -131,6 +132,10 @@ export function SidebarNavContent({
 	const openActionDialog = useNavActionDialogsStore((s) => s.open);
 	const radar = useAgentRadarAttention();
 
+	const splitLeft = useSplitViewStore((s) => s.left);
+	const pinPane = useSplitViewStore((s) => s.pin);
+	const unpinPane = useSplitViewStore((s) => s.unpin);
+
 	const layout: SidebarLayout = variant === "drawer" ? "drawer" : compact ? "compact" : "expanded";
 	const iconSize = variant === "drawer" ? 18 : 15;
 
@@ -165,6 +170,16 @@ export function SidebarNavContent({
 				onNavigate?.();
 				void sweepAllActiveTerminals();
 				break;
+			case "toggleSplit": {
+				onNavigate?.();
+				const current = `${location.pathname}${location.searchStr}`;
+				if (splitLeft === current) {
+					unpinPane();
+				} else {
+					pinPane(current);
+				}
+				break;
+			}
 			case "hideWindow":
 				onNavigate?.();
 				hideWindow();
@@ -260,9 +275,9 @@ export function SidebarNavContent({
 		const active = isSidebarRouteActive(currentPath, item.path);
 		const className = sidebarItem({ active, layout });
 		const Icon = item.icon;
-		const isTerminals = item.path === "/terminals";
-		const waiting = isTerminals ? radar.waiting : 0;
-		const working = isTerminals ? radar.working : 0;
+		const isShells = item.path === "/shells";
+		const waiting = isShells ? radar.waiting : 0;
+		const working = isShells ? radar.working : 0;
 		const tooltip =
 			waiting > 0
 				? `${item.label} — ${waiting} esperando você`
