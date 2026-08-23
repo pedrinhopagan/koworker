@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { koworkerDataDir } from "../../src/lib/app-paths";
+import { writeDeployedRevision, type DeployedRevision } from "../../src/lib/deployed-revision";
 import { KOWORK_PROD_PORT } from "../../src/lib/runtime-config";
 import { resolveHotDeployProfile } from "./hot-deploy-profile";
 import { installSharpVendor } from "./install-sharp-vendor";
@@ -76,9 +77,34 @@ async function pathExists(path: string): Promise<boolean> {
 	}
 }
 
+// Política de isolamento: nada de pkill/killall — mata-se processo por PID, com padrão ANCORADO
+// ao binário exato. Padrões largos derrubariam kw-terminal, shells e agents que só contêm a
+// substring na linha de comando.
+function findProcessPids(anchoredPattern: string): number[] {
+	const result = Bun.spawnSync(["pgrep", "-f", anchoredPattern], {
+		stdio: ["ignore", "pipe", "ignore"],
+	});
+
+	if (result.exitCode !== 0) {
+		return [];
+	}
+
+	return result.stdout
+		.toString()
+		.split("\n")
+		.map((line) => Number.parseInt(line.trim(), 10))
+		.filter((pid) => Number.isInteger(pid) && pid > 0);
+}
+
 function kill(absolutePath: string, signal?: string) {
-	const args = signal ? ["-f", signal, `^${absolutePath}`] : ["-f", `^${absolutePath}`];
-	Bun.spawnSync(["pkill", ...args], { stdio: ["ignore", "ignore", "ignore"] });
+	const pids = findProcessPids(`^${absolutePath}`);
+	if (!pids.length) {
+		return;
+	}
+
+	Bun.spawnSync(["kill", ...(signal ? [signal] : []), ...pids.map(String)], {
+		stdio: ["ignore", "ignore", "ignore"],
+	});
 }
 
 async function portOccupied(): Promise<boolean> {
@@ -210,7 +236,31 @@ async function restoreInstalledTargets() {
 
 const backendManagedBySystemd = systemdBackendUnitExists();
 const deployProfile = resolveHotDeployProfile(process.env.KOWORK_REMOTE_REDEPLOY);
+const expectedRevision = process.env.KOWORK_EXPECTED_REVISION?.trim() || null;
 const warnings: string[] = [];
+let installedRevision: DeployedRevision | null = null;
+
+async function readInstalledRevision(): Promise<DeployedRevision | null> {
+	try {
+		const parsed = JSON.parse(await readFile(join(distTarget, "revision.json"), "utf8")) as {
+			revision?: unknown;
+			commit?: unknown;
+			builtAt?: unknown;
+		};
+
+		if (
+			typeof parsed.revision !== "string" ||
+			typeof parsed.commit !== "string" ||
+			typeof parsed.builtAt !== "number"
+		) {
+			return null;
+		}
+
+		return { revision: parsed.revision, commit: parsed.commit, builtAt: parsed.builtAt };
+	} catch {
+		return null;
+	}
+}
 
 if (deployProfile.requireSystemd && !backendManagedBySystemd) {
 	throw new Error(
@@ -271,6 +321,20 @@ try {
 	await installDir(distSource, distTarget);
 	await installSharpVendor(rootDir);
 
+	// Nunca publicar em silêncio uma revisão diferente da pedida: se o carimbo do dist não casa com
+	// a revisão esperada, aborta antes de tocar no processo — o rollback devolve tudo.
+	installedRevision = await readInstalledRevision();
+	if (!installedRevision) {
+		throw new Error(
+			"dist instalado sem revision.json: impossível rastrear o que foi publicado; abortando.",
+		);
+	}
+	if (expectedRevision && installedRevision.revision !== expectedRevision) {
+		throw new Error(
+			`Revisão publicada (${installedRevision.revision}) difere da esperada (${expectedRevision}); abortando.`,
+		);
+	}
+
 	console.log("→ Reiniciando o app de prod...");
 	if (guiAvailable && !backendManagedBySystemd) {
 		Bun.spawnSync([guiTarget, "--quit"], { stdio: ["ignore", "ignore", "ignore"] });
@@ -327,10 +391,14 @@ try {
 	throw error;
 }
 
+if (installedRevision) {
+	await writeDeployedRevision(installedRevision);
+}
+
 for (const warning of warnings) {
 	console.warn(`⚠️  ${warning}`);
 }
 
 console.log(
-	`\n✅ Deploy concluido. Prod (frontend + backend) no ar em http://localhost:${KOWORK_PROD_PORT}`,
+	`\n✅ Deploy concluido (${installedRevision?.revision ?? "revisão desconhecida"}). Prod (frontend + backend) no ar em http://localhost:${KOWORK_PROD_PORT}`,
 );

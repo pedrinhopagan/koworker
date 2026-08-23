@@ -12,7 +12,7 @@ import {
 	Type,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import { orpc } from "@/client";
 import { ConfigCard } from "@/components/settings/config-card";
@@ -22,7 +22,6 @@ import { PriorityManagerDrawer } from "@/components/tasks/PriorityManagerDrawer"
 import { Text, Title } from "@/components/typography";
 import { Icon } from "@/components/ui/icon";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useDevices } from "@/hooks/use-devices";
 import { useManageDrawerStore } from "@/stores/manage-drawers";
 import { activateLatestPwa } from "@/lib/register-sw";
@@ -42,7 +41,6 @@ function isRedeployConflict(error: unknown): boolean {
 }
 
 function RedeployAppCard() {
-	const [confirming, setConfirming] = useState(false);
 	const queryClient = useQueryClient();
 	const status = useQuery({
 		...orpc.system.redeployStatus.queryOptions(),
@@ -52,9 +50,8 @@ function RedeployAppCard() {
 		...orpc.system.redeploy.mutationOptions(),
 		onSuccess: async () => {
 			localStorage.setItem("kowork-redeploy-requested-at", String(Date.now()));
-			setConfirming(false);
 			await queryClient.invalidateQueries({ queryKey: orpc.system.redeployStatus.key() });
-			toast.success("Atualização iniciada. Você pode acompanhar o progresso neste card.");
+			toast.success("Atualização iniciada. Acompanhe o progresso neste card.");
 		},
 		onError: (error) => {
 			if (isRedeployConflict(error)) {
@@ -93,42 +90,46 @@ function RedeployAppCard() {
 	const deployment = status.data;
 	const running = deployment?.inProgress || deployment?.state === "running";
 	const failed = deployment?.state === "failed";
-	const title = running
-		? "Atualizando aplicativo"
-		: failed
-			? "Tentar atualização novamente"
-			: "Atualizar aplicativo";
-	const description = running
-		? (deployment?.message ?? "Preparando a publicação")
-		: failed
-			? (deployment.message ?? "Abra novamente para tentar outra vez")
-			: deployment?.state === "succeeded" && deployment.commit
-				? `Versão ${deployment.commit} publicada e verificada. Toque para buscar novas mudanças.`
-				: "Publica o último commit do repositório local, troca frontend e backend e atualiza este PWA.";
+	const publishedMismatch = deployment?.state === "succeeded" && deployment.revisionMatch === false;
+
+	const title = isPending
+		? "Iniciando atualização"
+		: running
+			? "Atualizando aplicativo"
+			: failed
+				? "Tentar atualização novamente"
+				: "Atualizar aplicativo";
+
+	const defaultDescription =
+		"Publica o estado atual do repositório (mudanças não salvas em commit incluídas), troca frontend e backend sem tocar nos terminais e recarrega este PWA na versão nova.";
+	const description = isPending
+		? "Pedindo ao servidor para iniciar a publicação"
+		: running
+			? (deployment?.message ?? "Preparando a publicação")
+			: failed
+				? (deployment.message ?? "Algo falhou no meio do caminho. Toque para tentar outra vez.")
+				: publishedMismatch
+					? `A publicação terminou, mas o que ficou no ar (${deployment.deployedRevision?.revision ?? "?"}) não é a revisão pedida (${deployment.commit ? `${deployment.commit.slice(0, 12)}…` : "?"}). Toque para tentar de novo.`
+					: deployment?.state === "succeeded" && deployment.message
+						? `${deployment.message} Toque para buscar novas mudanças.`
+						: defaultDescription;
 
 	return (
-		<>
-			<ConfigCard
-				icon={RefreshCw}
-				title={isPending ? "Iniciando atualização" : title}
-				description={description}
-				onClick={() => setConfirming(true)}
-				disabled={!!running || isPending}
-				className={
-					running || isPending ? "border-primary/40" : failed ? "border-destructive/60" : undefined
-				}
-			/>
-
-			<ConfirmDialog
-				open={confirming}
-				onClose={() => setConfirming(false)}
-				onConfirm={() => mutate({})}
-				title="Publicar a versão mais recente?"
-				description="O build sai do commit atual do repositório (mudanças não commitadas ficam de fora), roda isolado num worktree e troca frontend e backend de forma atômica antes de atualizar o PWA. O aplicativo pode ficar indisponível por alguns segundos."
-				confirmLabel="Atualizar agora"
-				loading={isPending}
-			/>
-		</>
+		<ConfigCard
+			icon={RefreshCw}
+			iconClassName={running || isPending ? "animate-spin" : undefined}
+			title={title}
+			description={description}
+			onClick={() => mutate({})}
+			disabled={!!running || isPending}
+			className={
+				running || isPending
+					? "border-primary/40"
+					: failed || publishedMismatch
+						? "border-destructive/60"
+						: undefined
+			}
+		/>
 	);
 }
 

@@ -4,8 +4,10 @@ import { join } from "node:path";
 
 import { ORPCError } from "@orpc/server";
 
+import { spawnDetachedFromService } from "@/api/helpers/detached-process";
 import { envVariables } from "@/api/config/env";
 import { koworkerDataDir } from "@/lib/app-paths";
+import { readDeployedRevision } from "@/lib/deployed-revision";
 import { readRedeployState, writeRedeployState } from "@/lib/redeploy-state";
 
 const LOCK_MAX_AGE_MS = 15 * 60 * 1000;
@@ -107,30 +109,21 @@ export async function failRedeployStart(message: string): Promise<void> {
 export function spawnRedeployDetached(): void {
 	const repoDir = getRepoDir();
 
-	const result = Bun.spawnSync(
-		[
-			"systemd-run",
-			"--user",
-			"--collect",
-			`--unit=${REDEPLOY_UNIT}`,
-			`--working-directory=${repoDir}`,
-			`--setenv=KOWORK_REPO_DIR=${repoDir}`,
-			"bun",
-			"run",
-			REDEPLOY_SCRIPT,
-		],
-		{
-			cwd: repoDir,
-			stdin: "ignore",
-			stdout: "pipe",
-			stderr: "pipe",
-		},
-	);
+	// Shell de login obrigatório dentro da unidade: bun gira CPU sem imprimir nada sob o ambiente
+	// mínimo do user manager; com o ambiente de login o mesmo pipeline roda em segundos.
+	const result = spawnDetachedFromService({
+		unit: REDEPLOY_UNIT,
+		description: "Redeploy do Kowork disparado pelo app",
+		argv: ["bun", "run", REDEPLOY_SCRIPT],
+		env: { KOWORK_REPO_DIR: repoDir },
+		cwd: repoDir,
+		loginShell: true,
+		log: (message) => console.warn(`[redeploy] ${message}`),
+	});
 
-	if (result.exitCode !== 0) {
-		const stderr = result.stderr.toString().trim();
-		throw new Error(
-			stderr ? `systemd-run falhou: ${stderr}` : `systemd-run falhou (exit ${result.exitCode})`,
+	if (result.via === "direct") {
+		console.warn(
+			"[redeploy] rodando como filho direto do backend; o drop-in KillMode=process é quem garante a sobrevivência ao restart.",
 		);
 	}
 }
@@ -163,7 +156,13 @@ export async function getRedeployStatus() {
 			? "A atualização foi interrompida antes de concluir"
 			: persisted.message;
 
-	return { ...persisted, state, message, inProgress, logTail };
+	// Sucesso só é sucesso quando a revisão carimbada no dist casou com a pedida. Divergência vira
+	// aviso na UI em vez de falso "concluído".
+	const deployedRevision = await readDeployedRevision();
+	const revisionMatch =
+		persisted.commit && deployedRevision ? deployedRevision.commit === persisted.commit : null;
+
+	return { ...persisted, state, message, inProgress, logTail, deployedRevision, revisionMatch };
 }
 
 export function assertAdminUser(userType: string | null | undefined): void {

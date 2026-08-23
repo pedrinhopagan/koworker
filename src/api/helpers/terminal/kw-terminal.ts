@@ -1,3 +1,4 @@
+import { spawnDetachedFromService } from "@/api/helpers/detached-process";
 import { spawnEnv } from "@/api/helpers/spawn";
 import { z } from "zod";
 
@@ -171,13 +172,19 @@ export async function kwTerminalSocketPath(): Promise<string> {
 }
 
 // Paridade com o tmux, cuja CLI sobe o daemon sozinha no primeiro comando: se o servidor kw-terminal
-// não está de pé, spawnamos `kw-terminal server` headless (daemon que sobrevive ao backend e loga em
-// ~/.config/kw-terminal/kw-terminal-server.log) e aguardamos o socket responder. O cliente TUI que o
-// usuário abrir depois atacha nesse mesmo servidor.
+// não está de pé, lançamos `kw-terminal server` headless e aguardamos o socket responder. O cliente
+// TUI que o usuário abrir depois atacha nesse mesmo servidor.
+//
+// O daemon PRECISA nascer fora do cgroup do backend: um filho direto morre no restart do serviço
+// (KillMode control-group derruba o cgroup inteiro), e era assim que deploys encerravam todas as
+// panes e agents de uma vez. `spawnDetachedFromService` cria uma unidade transitória do systemd,
+// irmã de kowork-backend.service, dona do próprio ciclo de vida.
 //
 // Chamadas concorrentes dividem a mesma promessa: cada uma esperando a sua checagem spawnavam dois
 // daemons disputando o mesmo socket.
 let ensureInFlight: Promise<void> | null = null;
+
+export const KW_TERMINAL_SERVER_UNIT = "kw-terminal-server";
 
 export function ensureKwTerminalServer(): Promise<void> {
 	ensureInFlight ??= ensureKwTerminalServerOnce().finally(() => {
@@ -187,17 +194,25 @@ export function ensureKwTerminalServer(): Promise<void> {
 	return ensureInFlight;
 }
 
+function launchKwTerminalServer(): void {
+	const result = spawnDetachedFromService({
+		unit: KW_TERMINAL_SERVER_UNIT,
+		description: "Daemon do kw-terminal (fora do cgroup do backend)",
+		argv: ["kw-terminal", "server"],
+		log: (message) => console.warn(`[kw-terminal] ${message}`),
+	});
+
+	if (result.via === "direct" && !result.error) {
+		console.warn("[kw-terminal] daemon lançado como filho direto (sem systemd); sobrevive menos.");
+	}
+}
+
 async function ensureKwTerminalServerOnce(): Promise<void> {
 	if (await kwTerminalServerRunning()) {
 		return;
 	}
 
-	Bun.spawn(["kw-terminal", "server"], {
-		stdout: "ignore",
-		stderr: "ignore",
-		stdin: "ignore",
-		env: spawnEnv(),
-	}).unref();
+	launchKwTerminalServer();
 
 	for (let attempt = 0; attempt < 25; attempt++) {
 		await Bun.sleep(200);

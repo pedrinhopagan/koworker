@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { koworkerDataDir } from "../../src/lib/app-paths";
 import { readRedeployState, writeRedeployState } from "../../src/lib/redeploy-state";
+import { resolveWorkingTreeSnapshot } from "./wip-snapshot";
 
 const REPO_DIR = process.env.KOWORK_REPO_DIR ?? process.cwd();
 const dataDir = koworkerDataDir();
@@ -11,6 +12,7 @@ const logPath = join(dataDir, "redeploy.log");
 const lockPath = join(dataDir, "redeploy.lock");
 const worktreeDir = await mkdtemp(join(tmpdir(), "kowork-remote-deploy-"));
 let worktreeMounted = false;
+let snapshot: { commit: string; label: string; dirty: boolean } | null = null;
 const initialState = await readRedeployState();
 const startedAt = initialState.startedAt ?? Date.now();
 
@@ -78,6 +80,13 @@ async function runCommand(label: string, command: string[], cwd = REPO_DIR) {
 			...process.env,
 			KOWORK_REMOTE_REDEPLOY: "1",
 			KOWORK_REPO_DIR: REPO_DIR,
+			...(snapshot
+				? {
+						KOWORK_EXPECTED_REVISION: snapshot.label,
+						KOWORK_BUILD_REVISION: snapshot.label,
+						KOWORK_BUILD_COMMIT: snapshot.commit,
+					}
+				: {}),
 		},
 		stdout: "pipe",
 		stderr: "pipe",
@@ -92,39 +101,46 @@ async function runCommand(label: string, command: string[], cwd = REPO_DIR) {
 	}
 }
 
-function capture(command: string[], cwd = REPO_DIR) {
-	const result = Bun.spawnSync(command, {
-		cwd,
-		stdin: "ignore",
-		stdout: "pipe",
-		stderr: "pipe",
-	});
-
-	if (result.exitCode !== 0) {
-		throw new Error(result.stderr.toString().trim() || `Comando falhou: ${command.join(" ")}`);
-	}
-
-	return result.stdout.toString().trim();
-}
-
 await log("=== Redeploy remoto iniciado ===");
 
 try {
-	const branch = capture(["git", "rev-parse", "--abbrev-ref", "HEAD"]);
+	await updateState("running", "Fotografando o estado atual do repositório");
+	snapshot = await resolveWorkingTreeSnapshot(REPO_DIR);
 
-	await updateState("running", `Preparando build isolado de ${branch}`);
-	await runCommand("git worktree", ["git", "worktree", "add", "--detach", worktreeDir, "HEAD"]);
+	await updateState(
+		"running",
+		snapshot.dirty
+			? `Preparando build de ${snapshot.label} (mudanças não commitadas incluídas)`
+			: `Preparando build isolado de ${snapshot.label}`,
+		snapshot.commit,
+	);
+
+	await runCommand("git worktree", [
+		"git",
+		"worktree",
+		"add",
+		"--detach",
+		worktreeDir,
+		snapshot.commit,
+	]);
 	worktreeMounted = true;
 
-	const commit = capture(["git", "rev-parse", "--short=12", "HEAD"], worktreeDir);
-	await updateState("running", `Instalando dependências de ${branch} ${commit}`, commit);
+	await updateState("running", `Instalando dependências de ${snapshot.label}`, snapshot.commit);
 	await runCommand("bun install", ["bun", "install", "--frozen-lockfile"], worktreeDir);
 
-	await updateState("running", `Publicando ${branch} ${commit}`, commit);
+	await updateState(
+		"running",
+		`Compilando frontend e backend (${snapshot.label})`,
+		snapshot.commit,
+	);
 	await runCommand("deploy:fast", ["bun", "run", "deploy:fast"], worktreeDir);
 
-	await updateState("succeeded", "Aplicativo atualizado e verificado", commit);
-	await log(`=== Redeploy concluído com sucesso em ${commit} ===`);
+	await updateState(
+		"succeeded",
+		`Versão ${snapshot.label} publicada e verificada`,
+		snapshot.commit,
+	);
+	await log(`=== Redeploy concluído com sucesso em ${snapshot.label} ===`);
 } catch (error) {
 	const message = error instanceof Error ? error.message : String(error);
 	await updateState("failed", message);

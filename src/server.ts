@@ -8,12 +8,15 @@ import { isAllowedOrigin, rpcHandler, wsRpcHandler } from "./api/app";
 import { resolveSessionDevice } from "./api/auth/context";
 import { registerWsSession, unregisterWsSession, type WsSessionData } from "./api/auth/ws-sessions";
 import { envVariables } from "./api/config/env";
+import { dbProjects } from "./api/db/projects";
 import { DbUsers } from "./api/db/users";
 import { isNotifyAuthorized } from "./api/helpers/notify-auth";
+import { resolveProjectLogo } from "./api/helpers/project-logo";
 import { PubSub } from "./api/pubsub";
 import { TaskNotifySchema } from "./api/schemas";
 import { KwTerminalNavigateSchema } from "./api/schemas/kw-terminal";
 import homepage from "./index.html";
+import { staticCacheHeader } from "./lib/static-cache";
 import { DEFAULT_KOWORK_PORT } from "./lib/runtime-config";
 
 const isProduction = envVariables.NODE_ENV === "production";
@@ -34,10 +37,18 @@ async function serveStatic(pathname: string) {
 		return null;
 	}
 
+	// Sem Cache-Control o navegador usa cache heurístico e abre com assets velhos depois do deploy —
+	// a causa principal de o celular carregar versão antiga fora do fluxo do botão.
+	const headers: Record<string, string> = {};
+	const cacheControl = staticCacheHeader(pathname);
+	if (cacheControl) {
+		headers["Cache-Control"] = cacheControl;
+	}
+
 	try {
 		const stats = await stat(resolvedPath);
 		if (stats.isFile()) {
-			return new Response(Bun.file(resolvedPath));
+			return new Response(Bun.file(resolvedPath), { headers });
 		}
 	} catch {
 		// path não existe — cai no fallback SPA abaixo
@@ -48,7 +59,7 @@ async function serveStatic(pathname: string) {
 		const indexStats = await stat(indexPath);
 		if (indexStats.isFile()) {
 			return new Response(Bun.file(indexPath), {
-				headers: { "Content-Type": "text/html" },
+				headers: { "Content-Type": "text/html", ...headers },
 			});
 		}
 	} catch {
@@ -106,6 +117,39 @@ async function readLoopbackBody<T>(
 	}
 
 	return { data: parsed.data };
+}
+
+async function serveProjectLogo(request: Request, server: Server<WsSessionData>) {
+	const session = await resolveSessionDevice({
+		cookieHeader: request.headers.get("cookie"),
+		userAgent: request.headers.get("user-agent") ?? undefined,
+		remoteAddress: server.requestIP(request)?.address,
+	});
+	if (!session || session.device.status !== "approved") {
+		return new Response("Unauthorized", { status: 401 });
+	}
+
+	const projectId = new URL(request.url).pathname.replace("/api/project-logos/", "");
+	if (!projectId || projectId.includes("/")) {
+		return new Response("Bad Request", { status: 400 });
+	}
+
+	const project = await dbProjects.getById(projectId);
+	if (!project) {
+		return new Response("Not Found", { status: 404 });
+	}
+
+	const logoPath = await resolveProjectLogo(project.main_route);
+	if (!logoPath) {
+		return new Response("Not Found", { status: 404 });
+	}
+
+	return new Response(Bun.file(logoPath), {
+		headers: {
+			"Cache-Control": "private, max-age=300",
+			"X-Content-Type-Options": "nosniff",
+		},
+	});
 }
 
 const port = Number(envVariables.KOWORK_PORT) || DEFAULT_KOWORK_PORT;
@@ -187,6 +231,7 @@ Bun.serve<WsSessionData>({
 
 			return response ?? new Response("Not Found", { status: 404 });
 		},
+		"/api/project-logos/*": serveProjectLogo,
 		"/api/tasks/notify": async (request: Request, server: Server<WsSessionData>) => {
 			const body = await readLoopbackBody(request, server, TaskNotifySchema);
 			if ("response" in body) {

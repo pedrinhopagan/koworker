@@ -57,11 +57,52 @@ function commandExists(commandName: string): boolean {
 // Encerra qualquer kowork-backend em execução. O app só sobe um backend novo quando a porta
 // está livre (backend::start desiste se algo já escuta nela); sem isso, um backend antigo de
 // um deploy anterior continua respondendo e o app passa a falar com código defasado.
+//
+// Política de isolamento: nada de pkill/killall com padrão largo — mata-se por PID, com padrão
+// ANCORADO ao binário exato, para nunca alcançar kw-terminal, shells ou agents. Quando a unidade
+// systemd gerencia o backend, o restart dela já sobe o binário novo.
 function stopRunningBackend(): boolean {
-	const result = Bun.spawnSync(["pkill", "-f", "kowork-backend"], {
-		stdio: ["ignore", "ignore", "ignore"],
+	if (systemdBackendUnitExists()) {
+		const result = Bun.spawnSync(["systemctl", "--user", "restart", "kowork-backend.service"], {
+			stdio: ["ignore", "ignore", "ignore"],
+		});
+		return result.exitCode === 0;
+	}
+
+	const home = process.env.HOME;
+	if (!home) {
+		return false;
+	}
+
+	const backendPath = join(home, ".local", "lib", "kowork", "bin", "kowork-backend");
+	const pgrep = Bun.spawnSync(["pgrep", "-f", `^${backendPath}`], {
+		stdio: ["ignore", "pipe", "ignore"],
 	});
-	return result.exitCode === 0;
+
+	if (pgrep.exitCode !== 0) {
+		return false;
+	}
+
+	const pids = pgrep.stdout
+		.toString()
+		.split("\n")
+		.map((line) => line.trim())
+		.filter(Boolean);
+
+	if (!pids.length) {
+		return false;
+	}
+
+	Bun.spawnSync(["kill", ...pids], { stdio: ["ignore", "ignore", "ignore"] });
+	return true;
+}
+
+function systemdBackendUnitExists(): boolean {
+	return (
+		Bun.spawnSync(["systemctl", "--user", "cat", "kowork-backend.service"], {
+			stdio: ["ignore", "ignore", "ignore"],
+		}).exitCode === 0
+	);
 }
 
 function resolveTargetRef() {

@@ -2,6 +2,7 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { resolveBuildRevision } from "./wip-snapshot";
 import { buildProductionIndexHtml } from "./inject-prod-index";
 import { buildProductionServiceWorker } from "./inject-prod-sw";
 
@@ -64,4 +65,7 @@ const cacheVersion = Bun.hash(
 const builtSw = buildProductionServiceWorker(sourceSw, `${appVersion}-${cacheVersion}`);
 await writeFile(join(distDir, "sw.js"), builtSw);
 
-console.log(`Build web concluido em ${distDir}`);
+const buildRevision = await resolveBuildRevision(rootDir);
+await writeFile(join(distDir, "revision.json"), `${JSON.stringify(buildRevision)}\n`);
+
+console.log(`Build web concluido em ${distDir} (revisão ${buildRevision.revision})`);

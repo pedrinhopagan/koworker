@@ -329,6 +329,8 @@ Maps por `projectId` / `taskId`; `handleEvent` reage aos quatro tipos de evento.
 ## REGRAS
 
 - Erros em pt-BR
+- O daemon `kw-terminal server` é dono do próprio ciclo de vida: o backend o lança FORA do seu cgroup (`spawnDetachedFromService`, unidade transitória do systemd), porque filho direto morre no restart de `kowork-backend.service` e arrasta todas as panes e agents junto. Nunca spawne processos de longa vida como filhos diretos do serviço
+- Build/deploy não pode usar kill por padrão largo (`pkill`/`killall`): morte de processo é por PID, com padrão ancorado ao binário exato; só `kowork-backend.service` e unidades de redeploy/kw-terminal podem ser reiniciadas. Guarda automatizada em `scripts/desktop/deploy-guard.test.ts`
 - Foco de janela WM suporta Wayland (kdotool) e X11 (xdotool); no kw-terminal é best-effort após focus CLI, casando o título fixo "kw-terminal - Kowork"
 - Sessões tmux/kw-terminal são monitoradas a cada 3s para detectar fechamento externo
 - Modo kw-terminal auto-inicia o server headless (`kw-terminal server`) quando não está rodando e abre o cliente TUI (`kw-terminal session attach default`) num emulador quando nenhum está aberto, detectado por `pgrep`

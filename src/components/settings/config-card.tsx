@@ -10,6 +10,7 @@ type ConfigCardProps = {
 	description: string;
 	onClick: () => void;
 	className?: string;
+	iconClassName?: string;
 	disabled?: boolean;
 };
 
@@ -19,6 +20,7 @@ export function ConfigCard({
 	description,
 	onClick,
 	className,
+	iconClassName,
 	disabled,
 }: ConfigCardProps) {
 	return (
@@ -34,7 +36,7 @@ export function ConfigCard({
 				className,
 			)}
 		>
-			<Icon icon={icon} size="sm" className="mt-0.5" />
+			<Icon icon={icon} size="sm" className={cn("mt-0.5", iconClassName)} />
 			<div className="space-y-1">
 				<Title as="h3" size="sm" className="text-sm font-semibold">
 					{title}
