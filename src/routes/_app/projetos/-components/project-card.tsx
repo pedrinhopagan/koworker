@@ -4,6 +4,7 @@ import { Text, Title } from "@/components/typography";
 import { cn } from "@/lib/utils";
 import type { Project } from "../-utils/use-projects-data";
 import { ProjectContextMenu } from "./project-context-menu";
+import { ProjectLogo } from "./project-logo";
 
 type ProjectCardProps = {
 	project: Project;
@@ -36,7 +37,7 @@ export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 				/>
 
 				<div className="pointer-events-none relative z-10 flex items-center gap-3">
-					<div className="size-8 shrink-0" style={{ backgroundColor: project.color }} />
+					<ProjectLogo project={project} />
 					<div className="min-w-0 flex-1">
 						<Title size="sm" as="div" className="truncate">
 							{project.name}
