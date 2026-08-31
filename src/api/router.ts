@@ -3,10 +3,13 @@ import { ORPCError } from "@orpc/server";
 import { protectedProcedure, publicProcedure } from "./auth/context";
 import { isLocalRequest } from "./auth/device";
 import { Auth } from "./auth/login";
-import { getRadarFocus, listRadarAgents } from "./helpers/agent-radar/state";
+import { getRadarAgent, getRadarFocus, listRadarAgents } from "./helpers/agent-radar/state";
 import { subscribeAgentRadarTranscript } from "./helpers/agent-radar/transcript";
+import { subscribeAgentTerminalScreen } from "./helpers/agent-radar/terminal-screen";
 import { getPromptRun } from "./helpers/prompt-run";
-import { shellSupervisor } from "./helpers/shells/supervisor";
+import { shellRuntime } from "./helpers/shells/supervisor";
+import { terminalWorkspaceSnapshot } from "./helpers/terminal-workspace";
+import { shouldEmitTerminalWorkspaceSnapshot } from "./helpers/terminal-workspace-revision";
 import { PubSub } from "./pubsub";
 import { agentHistoryRouter } from "./routers/agent-history";
 import { agentRadarRouter } from "./routers/agent-radar";
@@ -176,11 +179,48 @@ export const wsRouter = {
 		yield* events;
 	}),
 
+	terminalWorkspace: protectedProcedure.handler(async function* ({ signal }) {
+		const events = PubSub.subscribe("terminalWorkspace", "global", signal);
+		const initial = terminalWorkspaceSnapshot();
+		let deliveredRevision = initial.revision;
+
+		yield initial;
+
+		for await (const event of events) {
+			if (!shouldEmitTerminalWorkspaceSnapshot(deliveredRevision, event.revision)) {
+				continue;
+			}
+
+			const snapshot = terminalWorkspaceSnapshot();
+			if (!shouldEmitTerminalWorkspaceSnapshot(deliveredRevision, snapshot.revision)) {
+				continue;
+			}
+
+			deliveredRevision = snapshot.revision;
+			yield snapshot;
+		}
+	}),
+
 	// A conversa que o CLI aberto num pane está gravando no disco. Vive fora de `agentSession` porque
 	// não há sessão do app por trás: o dono do processo é o terminal, e o app só lê o arquivo.
 	agentRadarTranscript: protectedProcedure
 		.input(AgentRadarPaneSchema)
 		.handler(({ input, signal }) => subscribeAgentRadarTranscript(input.paneId, signal)),
+
+	agentTerminal: {
+		stream: protectedProcedure.input(AgentRadarPaneSchema).handler(({ input, signal }) => {
+			if (!getRadarAgent(input.paneId)) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Este agent não está mais aberto no terminal",
+				});
+			}
+
+			return subscribeAgentTerminalScreen(input.paneId, signal);
+		}),
+		input: agentRadarRouter.terminalInput,
+		resize: agentRadarRouter.terminalResize,
+		scroll: agentRadarRouter.terminalScroll,
+	},
 
 	// Stream cru de um shell embutido. Assina antes de ler o replay, no mesmo bloco síncrono:
 	// bytes que chegam depois disso só viajam pelo canal vivo, bytes de antes só no replay —
@@ -189,12 +229,12 @@ export const wsRouter = {
 	shells: {
 		stream: protectedProcedure.input(ShellIdSchema).handler(async function* ({ input, signal }) {
 			const events = PubSub.subscribe("shells", input.id, signal);
-			const replay = shellSupervisor.replayBase64(input.id);
-			if (replay === null) {
+			const attachment = shellRuntime.attach(input.id);
+			if (!attachment) {
 				throw new ORPCError("NOT_FOUND", { message: "Shell não encontrado" });
 			}
 
-			yield { type: "replay" as const, b64: replay };
+			yield { type: "replay" as const, b64: attachment.replayBase64 };
 			yield* events;
 		}),
 		input: shellsRouter.input,

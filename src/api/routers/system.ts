@@ -4,10 +4,12 @@ import { protectedProcedure } from "../auth/context";
 import { KOWORK_STORAGE_RELEASE } from "@/constants/release";
 import {
 	browseDirectory,
+	openFileInDefaultApp,
 	openInFileManager,
 	shareZip,
 	systemCapabilities,
 } from "../helpers/os-actions";
+import { resolveLinkTarget } from "../helpers/link-target";
 import {
 	acquireRedeployLock,
 	assertAdminUser,
@@ -16,7 +18,7 @@ import {
 	releaseRedeployLock,
 	spawnRedeployDetached,
 } from "../helpers/redeploy";
-import { BrowseDirectorySchema, OsPathSchema } from "../schemas/system";
+import { BrowseDirectorySchema, LinkTargetSchema, OsPathSchema } from "../schemas/system";
 
 const CLI_RELEASE_TTL_MS = 60_000;
 const CLI_RELEASE_TIMEOUT_MS = 5_000;
@@ -85,6 +87,17 @@ export const systemRouter = {
 		openInFileManager(input.path);
 		return { ok: true };
 	}),
+
+	// O browser (e o Electron, que nega `window.open` fora de http/https) bloqueia navegar para
+	// `file://`. Quem abre o arquivo é o backend, que roda na máquina do usuário.
+	openPath: protectedProcedure.input(OsPathSchema).handler(async ({ input }) => {
+		await openFileInDefaultApp(input.path);
+		return { ok: true };
+	}),
+
+	resolveLink: protectedProcedure
+		.input(LinkTargetSchema)
+		.handler(({ input }) => resolveLinkTarget(input)),
 
 	shareZip: protectedProcedure.input(OsPathSchema).handler(({ input }) => shareZip(input.path)),
 

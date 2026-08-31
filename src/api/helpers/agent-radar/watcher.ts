@@ -38,8 +38,8 @@ import {
 	renameRadarWorkspace,
 	resetRadarAgents,
 	setRadarFocus,
-	type RadarFocus,
 } from "./state";
+import type { RadarFocus } from "@/api/schemas/terminal-workspace";
 
 const RECONNECT_MIN_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;

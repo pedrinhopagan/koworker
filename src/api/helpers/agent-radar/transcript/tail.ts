@@ -1,5 +1,6 @@
 import { watch, type FSWatcher } from "node:fs";
 
+import type { AgentTranscript } from "@/api/schemas/agent-radar-transcript";
 import type { AgentSessionEvent } from "@/lib/agent-session";
 import {
 	createTranscriptMirror,
@@ -8,7 +9,6 @@ import {
 } from "@/lib/agent-transcript";
 import { claudeTranscriptModel, translateClaudeTranscriptLine } from "@/lib/claude-transcript";
 import { codexTranscriptModel, createCodexTranscriptTranslator } from "@/lib/codex-transcript";
-import type { AgentTranscript } from "./locate";
 import { openOpencodeTail } from "./opencode-tail";
 
 const READ_CHUNK_BYTES = 1_000_000;

@@ -6,10 +6,12 @@ import {
 	memo,
 	type ReactNode,
 	useMemo,
+	type MouseEvent,
 	useSyncExternalStore,
 } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { useLinkCwd } from "@/components/link-cwd";
 import {
 	codeLanguageVersion,
 	loadedCodeLanguage,
@@ -19,6 +21,7 @@ import {
 	subscribeCodeLanguages,
 } from "@/lib/markdown-engine";
 import { cn } from "@/lib/utils";
+import { fileHref, openLinkTarget } from "@/lib/link-navigation";
 
 // As classes que o `highlightTree` devolve precisam existir no documento; dentro do editor quem as
 // monta é o `syntaxHighlighting`, aqui é esta chamada — idempotente e feita uma vez por bundle.
@@ -73,7 +76,10 @@ function textOf(doc: string, node: SyntaxNode) {
 // de terceiro, e `javascript:` num link clicável seria execução arbitrária dentro do app.
 function safeHref(raw: string) {
 	const url = raw.trim().replaceAll(/^<|>$/g, "");
-	return /^(https?:|mailto:|#|\/|\.)/i.test(url) ? url : null;
+	if (url.startsWith("/")) {
+		return fileHref(url);
+	}
+	return /^(https?:|mailto:|file:|#|\.)/i.test(url) ? url : null;
 }
 
 function childUrl(doc: string, node: SyntaxNode) {
@@ -405,6 +411,7 @@ export const MarkdownView = memo(function MarkdownView({
 	text: string;
 	className?: string;
 }) {
+	const cwd = useLinkCwd();
 	const languages = useCodeLanguages();
 	const content = useMemo(
 		() => renderDocument(text, markdownParser.parse(text)),
@@ -413,8 +420,25 @@ export const MarkdownView = memo(function MarkdownView({
 		[text, languages],
 	);
 
+	function handleClick(event: MouseEvent<HTMLDivElement>) {
+		const link = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[href]");
+		if (!link) {
+			return;
+		}
+		const raw = link.getAttribute("href") ?? "";
+		const filesystemLink = link.href.startsWith("file://") || (cwd && raw.startsWith("."));
+		if (!filesystemLink) return;
+
+		event.preventDefault();
+		void openLinkTarget(raw, cwd);
+	}
+
 	return (
-		<div data-component="markdown-view" className={cn("md-view min-w-0", className)}>
+		<div
+			data-component="markdown-view"
+			className={cn("md-view min-w-0", className)}
+			onClick={handleClick}
+		>
 			{content}
 		</div>
 	);

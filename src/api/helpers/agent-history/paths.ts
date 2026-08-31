@@ -2,7 +2,9 @@ import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 
-export type HistoryCli = "claude" | "codex";
+import type { HistoryCli } from "@/api/schemas/agent-history";
+
+export type { HistoryCli } from "@/api/schemas/agent-history";
 
 export const HISTORY_CLIS: readonly HistoryCli[] = ["claude", "codex"];
 

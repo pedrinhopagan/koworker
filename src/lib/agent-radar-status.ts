@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { Check, CircleAlert, CircleDashed, Minus } from "lucide-react";
 
-import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 import type { AgentRadarStatus } from "@/constants/agent-radar";
 
 // O visual de cada status do radar em um só lugar: a rota, a faixa do pane e o placar leem daqui, pra
@@ -72,7 +72,9 @@ const STATUS_WEIGHT: Record<AgentRadarStatus, number> = {
 	unknown: 4,
 };
 
-export function sortRadarAgents(agents: RadarAgent[]): RadarAgent[] {
+export function sortRadarAgents<T extends Pick<RadarAgent, "status" | "changedAt">>(
+	agents: T[],
+): T[] {
 	return [...agents].sort(function (left, right) {
 		const weight = STATUS_WEIGHT[left.status] - STATUS_WEIGHT[right.status];
 

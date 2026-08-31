@@ -135,7 +135,7 @@ export function FlowRunButton({
 				onClick={handleClick}
 				disabled={disabled}
 				className={cn(
-					"flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground",
+					"flex items-center gap-1.5 rounded-none border border-transparent px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-secondary/50 hover:text-foreground",
 					disabled &&
 						"cursor-not-allowed opacity-60 hover:bg-transparent hover:text-muted-foreground",
 				)}

@@ -1,6 +1,6 @@
 import { Search } from "lucide-react";
 
-import type { HistoryCli } from "@/api/helpers/agent-history/paths";
+import type { HistoryCli } from "@/api/schemas/agent-history";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { agentRadarAgentLabel } from "@/constants/agent-radar";

@@ -177,6 +177,11 @@ export const CODEX_APPROVAL_OPTIONS: {
 	{ value: "default", label: "Perguntar", hint: "aprovações padrão do codex" },
 ];
 
+export const CODEX_DELEGATE_DEFAULTS = {
+	model: "gpt-5.6-sol",
+	effort: "medium",
+} as const;
+
 export const CODEX_MODEL_OPTIONS: InvokeOption[] = [
 	{
 		value: INVOKE_INHERIT,

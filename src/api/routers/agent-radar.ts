@@ -1,8 +1,14 @@
 import { ORPCError } from "@orpc/server";
 
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 import { protectedProcedure } from "../auth/context";
 import { getSavedTerminals, reopenSavedTerminals } from "../helpers/agent-radar/terminal-restore";
-import { type RadarAgent, getRadarAgent } from "../helpers/agent-radar/state";
+import { paneTerminalControls } from "../helpers/agent-radar/pane-control";
+import {
+	hasScreenReaders,
+	scrollAgentTerminalScreen,
+} from "../helpers/agent-radar/terminal-screen";
+import { getRadarAgent } from "../helpers/agent-radar/state";
 import { refreshAgentRadarTranscript } from "../helpers/agent-radar/transcript";
 import { agentRadarTranscriptPreviews } from "../helpers/agent-radar/transcript/preview";
 import { syncPaneTranscriptSource } from "../helpers/agent-radar/transcript/sync";
@@ -14,6 +20,7 @@ import {
 	kwTerminalPaneClose,
 	kwTerminalPaneRun,
 	kwTerminalPaneSendKeys,
+	kwTerminalPaneSendInput,
 } from "../helpers/terminal/kw-terminal";
 import { revealKwTerminalClient } from "../helpers/terminal/service";
 import { getSystemSettings } from "../helpers/system-settings";
@@ -22,6 +29,9 @@ import {
 	AgentRadarPaneSchema,
 	AgentRadarSendSchema,
 	AgentRadarSendKeysSchema,
+	AgentRadarTerminalInputSchema,
+	AgentRadarTerminalResizeSchema,
+	AgentRadarTerminalScrollSchema,
 } from "../schemas/agent-radar";
 
 function agentOrThrow(paneId: string): RadarAgent {
@@ -60,6 +70,47 @@ export const agentRadarRouter = {
 
 		return { ok: true };
 	}),
+
+	terminalInput: protectedProcedure
+		.input(AgentRadarTerminalInputSchema)
+		.handler(async ({ input }) => {
+			agentOrThrow(input.paneId);
+			await kwTerminalPaneSendInput(input.paneId, input.data);
+
+			return { ok: true };
+		}),
+
+	// O resize é o próprio koworker assumindo o PTY: só vale com a visão Terminal aberta (leitor
+	// ativo), senão um resize órfão deixaria um controller segurando o lock do pane sem ninguém
+	// olhando. Falha do controller (daemon velho, pane morto) não derruba o espelho: ele segue em
+	// leitura, no grid que o pane tiver.
+	terminalResize: protectedProcedure.input(AgentRadarTerminalResizeSchema).handler(({ input }) => {
+		agentOrThrow(input.paneId);
+		if (!hasScreenReaders(input.paneId)) {
+			return { ok: false };
+		}
+
+		return { ok: paneTerminalControls.resize(input.paneId, input.cols, input.rows) };
+	}),
+
+	// Scroll do espelho: rola o histórico real do pane na ponte, não o conteúdo do agent. Sem
+	// histórico de terminal (TUI em alt screen) a ponte devolve "forward" e o cliente encaminha
+	// setas ao agent. Mesmo portão do resize — sem leitor vivo não há quem veja a janela rolada.
+	terminalScroll: protectedProcedure
+		.input(AgentRadarTerminalScrollSchema)
+		.handler(async ({ input }) => {
+			agentOrThrow(input.paneId);
+			if (!hasScreenReaders(input.paneId)) {
+				return { ok: false };
+			}
+
+			const mode = await scrollAgentTerminalScreen(input.paneId, input.delta);
+			if (mode === "inactive") {
+				return { ok: false };
+			}
+
+			return { ok: true, mode };
+		}),
 
 	// A última fala de cada agent aberto, para a lista lateral. É uma chamada só para todos os panes:
 	// cada cartão assinando a conversa inteira baixava o histórico completo de cada agent para

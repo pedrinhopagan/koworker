@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-const HistoryCliSchema = z.enum(["claude", "codex"]);
+export const HistoryCliSchema = z.enum(["claude", "codex"]);
+export type HistoryCli = z.infer<typeof HistoryCliSchema>;
 
 export const AgentHistoryListSchema = z.object({
 	projectId: z.string().min(1).nullable().default(null),

@@ -1,11 +1,13 @@
 import { History, Loader2 } from "lucide-react";
 
-import type { CliSessionSummary } from "@/api/helpers/agent-history";
+import type { RouterOutputs } from "@/client";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { EmptyFeedback } from "@/components/ui/empty-feedback";
 import { formatDayLabel } from "@/lib/relative-time";
 import { HistorySessionCard, type HistorySearch } from "./history-session-card";
+
+type CliSessionSummary = RouterOutputs["agentHistory"]["list"]["sessions"][number];
 
 function groupByDay(sessions: CliSessionSummary[]) {
 	const groups: { key: string; label: string; sessions: CliSessionSummary[] }[] = [];

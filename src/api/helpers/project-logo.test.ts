@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { resolveProjectLogo } from "./project-logo";
+import { resolveProjectLogo, resolveProjectLogoByName } from "./project-logo";
 
 const roots: string[] = [];
 
@@ -38,6 +38,12 @@ describe("resolveProjectLogo", () => {
 		expect(await resolveProjectLogo(root)).toBe(
 			join(root, "apps", "front", "public", "icons", "icon-512.png"),
 		);
+	});
+
+	test("usa a logo da Dogama também no Dogama Vault", () => {
+		expect(
+			resolveProjectLogoByName("Dogama Vault")?.endsWith("static/project-logos/dogama.png"),
+		).toBe(true);
 	});
 
 	test("ignora dependências e retorna null quando o projeto não tem identidade visual", async () => {

@@ -36,6 +36,23 @@ export function convertSkillCallsForCli(text: string, cli: InvokeCli): string {
 	return text.replaceAll(/(^|\s)\/([a-z0-9][a-z0-9_-]*)(?=\s|$)/gm, "$1$$$2");
 }
 
+// O comando externo continua sendo uma slash command do Claude Code, mas a tarefa é executada pelo
+// Codex; por isso, as skills dentro do argumento de `/codex:rescue` usam a grafia `$slug` do Codex.
+// `--` encerra as opções do companion para flags citadas na tarefa não virarem controles do plugin.
+// Sem conteúdo não copiamos um rescue vazio, mesmo que o cabeçalho do plugin por si só não seja vazio.
+export function buildClaudeCodexDelegatePrompt(params: {
+	prompt: string;
+	model: string;
+	effort: string;
+}): string {
+	const task = convertSkillCallsForCli(params.prompt, "codex").trim();
+	if (!task) {
+		return "";
+	}
+
+	return `/codex:rescue --fresh --model ${params.model} --effort ${params.effort} -- ${task}`;
+}
+
 // O prompt vai como argumento único de `claude "<texto>"` enviado por `tmux send-keys`, onde uma quebra
 // de linha vira Enter e dispara o comando cedo. Achatamos toda quebra (e a indentação ao redor) num
 // espaço pra manter o prompt inteiro numa string só.

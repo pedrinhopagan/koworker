@@ -18,7 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { type QueryKey, useMutation, useQueryClient } from "@tanstack/react-query";
-import { GripVertical } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { orpc } from "@/client";
@@ -460,7 +460,7 @@ export function GroupedTaskList({
 
 			<DragOverlay dropAnimation={null}>
 				{isGroupDrag ? (
-					<div className="rounded-md border border-border/60 bg-background px-3 py-1.5 shadow-lg">
+					<div className="border border-border bg-popover px-3 py-2 shadow-lg">
 						<div className="flex items-center gap-2">
 							{activeGroup && (
 								<span
@@ -504,6 +504,7 @@ export function GroupedTaskListByProject({
 	reorderingDisabled,
 	projects,
 }: GroupedTaskListByProjectProps) {
+	const [collapsedProjects, setCollapsedProjects] = useState<string[]>([]);
 	const tasksByProject = useMemo(() => Map.groupBy(tasks, (task) => task.projectId), [tasks]);
 	const groupsByProject = useMemo(() => Map.groupBy(groups, (group) => group.projectId), [groups]);
 
@@ -529,30 +530,51 @@ export function GroupedTaskListByProject({
 
 	return (
 		<div className="flex flex-col gap-8">
-			{visibleProjects.map((project) => (
-				<section key={project.id} className="flex flex-col gap-3">
-					<div className="flex items-center gap-2">
-						<span
-							className="size-2.5 shrink-0 rounded-full"
-							style={{ backgroundColor: project.color }}
-						/>
-						<Text size="sm" className="font-semibold">
-							{project.name}
-						</Text>
-					</div>
-					<GroupedTaskList
-						tasks={tasksByProject.get(project.id) ?? []}
-						groups={groupsByProject.get(project.id) ?? []}
-						availableFeatures={groupsByProject.get(project.id) ?? []}
-						categories={categories}
-						priorities={priorities}
-						loading={false}
-						sortMode={sortMode}
-						reorderingDisabled={reorderingDisabled}
-						collapseKeyPrefix={project.id}
-					/>
-				</section>
-			))}
+			{visibleProjects.map((project) => {
+				const collapsed = collapsedProjects.includes(project.id);
+				const ProjectChevron = collapsed ? ChevronRight : ChevronDown;
+				return (
+					<section key={project.id} className="flex flex-col gap-3">
+						<button
+							type="button"
+							className="flex items-center gap-2 border-b border-border py-2 text-left"
+							onClick={() =>
+								setCollapsedProjects((current) =>
+									current.includes(project.id)
+										? current.filter((id) => id !== project.id)
+										: [...current, project.id],
+								)
+							}
+							aria-expanded={!collapsed}
+						>
+							<ProjectChevron className="size-4 text-muted-foreground" />
+							<span
+								className="size-2.5 shrink-0 rounded-full"
+								style={{ backgroundColor: project.color }}
+							/>
+							<Text size="sm" className="font-semibold">
+								{project.name}
+							</Text>
+							<span className="ml-auto text-xs tabular-nums text-muted-foreground">
+								{tasksByProject.get(project.id)?.length ?? 0}
+							</span>
+						</button>
+						{!collapsed && (
+							<GroupedTaskList
+								tasks={tasksByProject.get(project.id) ?? []}
+								groups={groupsByProject.get(project.id) ?? []}
+								availableFeatures={groupsByProject.get(project.id) ?? []}
+								categories={categories}
+								priorities={priorities}
+								loading={false}
+								sortMode={sortMode}
+								reorderingDisabled={reorderingDisabled}
+								collapseKeyPrefix={project.id}
+							/>
+						)}
+					</section>
+				);
+			})}
 		</div>
 	);
 }
@@ -591,7 +613,7 @@ function SortableGroupSection({ groupId, reorderingDisabled, ...rest }: GroupSec
 			type="button"
 			aria-label="Arrastar feature"
 			disabled={reorderingDisabled}
-			className="cursor-grab touch-none p-0.5 text-muted-foreground/40 opacity-0 transition-opacity hover:text-foreground group-hover/header:opacity-100 disabled:cursor-not-allowed disabled:opacity-20"
+			className="cursor-grab touch-none p-0.5 text-muted-foreground/40 opacity-0 transition-opacity hover:text-foreground group-hover/header:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-20"
 			{...attributes}
 			{...(listeners as React.HTMLAttributes<HTMLButtonElement>)}
 		>
@@ -643,7 +665,7 @@ function GroupSectionBody({
 
 			{!collapsed && (
 				<SortableContext items={allIds} strategy={verticalListSortingStrategy}>
-					<div className="flex flex-col gap-1.5">
+					<div className="flex flex-col gap-0">
 						{bucketKeys.map((key) =>
 							buckets[key].map((taskId) => {
 								const task = taskMap.get(taskId);

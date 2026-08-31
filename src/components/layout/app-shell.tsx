@@ -1,9 +1,15 @@
 import { useRouterState } from "@tanstack/react-router";
-import type { CSSProperties, MouseEvent, ReactNode } from "react";
-import { useState } from "react";
+import type {
+	CSSProperties,
+	MouseEvent as ReactMouseEvent,
+	PointerEvent as ReactPointerEvent,
+	ReactNode,
+} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { AppContextMenu } from "@/components/layout/app-context-menu";
 import { AppSidebar } from "@/components/layout/app-sidebar";
+import { Divider } from "@/components/layout/divider";
 import { DocSessionSwitcher } from "@/components/doc-session-switcher";
 import { NavActionDialogs } from "@/components/layout/nav-action-dialogs";
 import { PinnedPane } from "@/components/layout/pinned-pane";
@@ -13,10 +19,14 @@ import { TabBar } from "@/components/layout/tab-bar";
 import { GlobalPromptBar } from "@/components/prompt-bar/global-prompt-bar";
 import { MobilePromptBar } from "@/components/prompt-bar/mobile-prompt-bar";
 import { MobileExecutionShortcut } from "@/components/layout/mobile-execution-shortcut";
+import { useDivider } from "@/hooks/use-divider";
 import { useIsMobileViewport, usePrimaryColor, useProjectFocus, useUser } from "@/hooks";
 import {
-	isSessionPath,
-	maxSplitPaneWidth,
+	clampSplitPaneWidth,
+	isShellsPath,
+	SHELL_PANE_WIDTH_PROPERTY,
+	shellPaneWidthValue,
+	SPLIT_MAIN_MIN,
 	SPLIT_PANE_MIN,
 	useSplitViewStore,
 } from "@/stores/split-view";
@@ -40,82 +50,130 @@ function shouldUseNativeContextMenu(target: EventTarget | null) {
 	);
 }
 
-const WIDTH_STEP = 16;
-const WIDTH_STEP_LARGE = 48;
+const PULSE_FLASH_MS = 700;
 
 export function SplitPanes({ children }: AppShellProps) {
 	const storedWidth = useSplitViewStore((state) => state.width);
 	const setWidth = useSplitViewStore((state) => state.setWidth);
-	const unpin = useSplitViewStore((state) => state.unpin);
-	const [dragWidth, setDragWidth] = useState<number | null>(null);
+	const setResizing = useSplitViewStore((state) => state.setResizing);
+	const close = useSplitViewStore((state) => state.close);
+	const pulse = useSplitViewStore((state) => state.pulse);
 
-	function clamp(width: number) {
-		return Math.min(Math.max(width, SPLIT_PANE_MIN), maxSplitPaneWidth());
-	}
+	const rowRef = useRef<HTMLDivElement | null>(null);
+	const [rowWidth, setRowWidth] = useState<number>();
+	const [flash, setFlash] = useState(false);
 
-	const paneWidth = dragWidth ?? clamp(storedWidth);
+	const maxPaneWidth =
+		rowWidth === undefined
+			? Number.POSITIVE_INFINITY
+			: Math.max(SPLIT_PANE_MIN, rowWidth - SPLIT_MAIN_MIN);
+	const paneWidth =
+		rowWidth === undefined
+			? Math.max(storedWidth, SPLIT_PANE_MIN)
+			: clampSplitPaneWidth(storedWidth, rowWidth);
 
-	function startDrag(event: React.PointerEvent<HTMLDivElement>) {
-		event.preventDefault();
-
-		function onMove(move: PointerEvent) {
-			setDragWidth(clamp(move.clientX));
+	const attachRow = useCallback((element: HTMLDivElement | null) => {
+		rowRef.current = element;
+		if (!element) {
+			return;
 		}
 
-		function onUp() {
-			setDragWidth((current) => {
-				if (current !== null) {
-					setWidth(current);
-				}
-				return current;
-			});
-			window.removeEventListener("pointermove", onMove);
-			window.removeEventListener("pointerup", onUp);
+		element.style.setProperty(
+			SHELL_PANE_WIDTH_PROPERTY,
+			`${clampSplitPaneWidth(useSplitViewStore.getState().width, element.clientWidth)}px`,
+		);
+		setRowWidth(element.clientWidth);
+		const observer = new ResizeObserver(() => setRowWidth(element.clientWidth));
+		observer.observe(element);
+
+		return () => observer.disconnect();
+	}, []);
+
+	useEffect(() => {
+		if (rowWidth === undefined) {
+			return;
 		}
 
-		window.addEventListener("pointermove", onMove);
-		window.addEventListener("pointerup", onUp);
-	}
+		const stored = useSplitViewStore.getState().width;
+		const max = Math.max(SPLIT_PANE_MIN, rowWidth - SPLIT_MAIN_MIN);
+		if (stored > max) {
+			setWidth(max);
+			rowRef.current?.style.setProperty(SHELL_PANE_WIDTH_PROPERTY, `${max}px`);
+		}
+	}, [rowWidth, setWidth]);
+
+	useEffect(() => {
+		if (!pulse) {
+			return;
+		}
+
+		setFlash(true);
+		const timer = setTimeout(() => setFlash(false), PULSE_FLASH_MS);
+		return () => clearTimeout(timer);
+	}, [pulse]);
+
+	const divider = useDivider({
+		value: paneWidth,
+		min: SPLIT_PANE_MIN,
+		max: maxPaneWidth,
+		sign: 1,
+		target: rowRef,
+		resolve: (proposed) => {
+			const width = clampSplitPaneWidth(proposed, rowWidth ?? Number.POSITIVE_INFINITY);
+			return {
+				vars: [{ property: SHELL_PANE_WIDTH_PROPERTY, value: width }],
+				commit: () => {
+					setWidth(width);
+					setResizing(false);
+				},
+			};
+		},
+	});
+
+	const shellDivider = {
+		...divider,
+		pointerProps: {
+			...divider.pointerProps,
+			onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
+				divider.pointerProps.onPointerDown(event);
+				setResizing(true);
+			},
+		},
+	};
 
 	return (
-		<>
+		<div
+			ref={attachRow}
+			className={cn(
+				"relative flex min-h-0 min-w-0 flex-1",
+				shellDivider.resizing && "cursor-col-resize select-none",
+			)}
+		>
 			<div
-				className="relative flex min-h-0 shrink-0 flex-col overflow-hidden border-r border-border bg-background"
-				style={{ width: paneWidth }}
+				data-component="split-pane-shell"
+				className={cn(
+					"relative flex h-full min-h-0 shrink-0 flex-col overflow-hidden bg-background ring-primary/50 transition-shadow duration-300",
+					flash && "ring-[3px] ring-inset",
+				)}
+				style={{ width: shellPaneWidthValue() }}
 			>
 				<PinnedPane />
 			</div>
 
-			<div
-				role="separator"
-				aria-orientation="vertical"
-				aria-label="Redimensionar aba fixada"
-				tabIndex={0}
-				onPointerDown={startDrag}
-				onKeyDown={(event) => {
-					if (event.key === "ArrowLeft") {
-						setWidth(paneWidth - (event.shiftKey ? WIDTH_STEP_LARGE : WIDTH_STEP));
-						event.preventDefault();
-					} else if (event.key === "ArrowRight") {
-						setWidth(paneWidth + (event.shiftKey ? WIDTH_STEP_LARGE : WIDTH_STEP));
-						event.preventDefault();
-					}
-				}}
-				className="group relative z-30 w-1 shrink-0 cursor-col-resize outline-none after:absolute after:inset-y-0 after:left-0 after:w-1.5 after:transition-colors hover:after:bg-primary/40 focus-visible:after:bg-primary/60"
-				title="Arraste para redimensionar a aba fixada"
-			>
+			<div className="group relative w-px shrink-0">
+				<Divider control={shellDivider} side="left" label="Redimensionar painel fixado" />
 				<button
 					type="button"
-					onClick={unpin}
-					aria-label="Fechar aba fixada"
-					className="absolute top-2 left-1/2 z-40 flex size-6 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-chrome text-muted-foreground opacity-0 shadow-xs transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
+					onClick={close}
+					aria-label="Desafixar"
+					className="absolute top-2 left-1/2 z-20 flex size-6 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-chrome text-muted-foreground opacity-0 shadow-xs transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
 				>
 					<X className="size-3.5" />
 				</button>
 			</div>
 
 			<div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
-		</>
+		</div>
 	);
 }
 
@@ -126,32 +184,23 @@ export function AppShell({ children }: AppShellProps) {
 	const isMobile = useIsMobileViewport();
 	const reading = useReadingModeStore((s) => s.reading);
 
-	const pinnedPath = useSplitViewStore((s) => s.left);
+	const pinnedPath = useSplitViewStore((s) => s.path);
 	const splitActive = !isMobile && !!pinnedPath;
-
 	const inSession = useRouterState({
 		select: (state) => {
 			const pathname = state.location.pathname;
-			return (
-				pathname === "/shells" ||
-				pathname.startsWith("/shells/") ||
-				pathname.startsWith("/terminals")
-			);
+			return pathname === "/shells" || pathname.startsWith("/shells/");
 		},
 	});
 	const inTerminalConversation = useRouterState({
 		select: (state) => {
 			const pathname = state.location.pathname;
-			return (
-				pathname.startsWith("/terminals/") ||
-				pathname === "/shells" ||
-				pathname.startsWith("/shells/")
-			);
+			return pathname === "/shells" || pathname.startsWith("/shells/");
 		},
 	});
 
-	const pinnedSession = pinnedPath !== null && isSessionPath(pinnedPath.split("?")[0] ?? "");
-	const hidePromptBar = inSession || pinnedSession;
+	const shellPinned = !!pinnedPath && isShellsPath(pinnedPath);
+	const hidePromptBar = inSession || shellPinned;
 
 	const baseAccentStyle = {
 		"--project-accent-soft": "color-mix(in oklab, var(--primary) 12%, transparent)",
@@ -171,7 +220,7 @@ export function AppShell({ children }: AppShellProps) {
 			} as CSSProperties)
 		: baseAccentStyle;
 
-	function handleContextMenuCapture(event: MouseEvent<HTMLElement>) {
+	function handleContextMenuCapture(event: ReactMouseEvent<HTMLElement>) {
 		if (shouldUseNativeContextMenu(event.target)) {
 			event.stopPropagation();
 		}
@@ -191,7 +240,7 @@ export function AppShell({ children }: AppShellProps) {
 
 					<main
 						className={cn(
-							"flex min-h-0 flex-1 overflow-hidden bg-background",
+							"flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background",
 							splitActive ? "flex-row" : "flex-col",
 						)}
 					>

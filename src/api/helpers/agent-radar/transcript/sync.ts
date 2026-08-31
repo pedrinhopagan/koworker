@@ -5,7 +5,8 @@ import {
 	kwTerminalPaneSession,
 } from "../../terminal/kw-terminal";
 import { locateOpencodeSessionByDirectory } from "../../opencode-db";
-import { getRadarAgent, putRadarAgent, type RadarAgent } from "../state";
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
+import { getRadarAgent, putRadarAgent } from "../state";
 import { resolveProcessTranscript } from "./process";
 
 // O arquivo de sessão não é estável enquanto o pane vive: um `/clear` no claude (ou um `codex`

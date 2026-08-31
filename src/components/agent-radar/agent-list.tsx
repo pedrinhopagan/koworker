@@ -4,7 +4,7 @@ import { Target } from "lucide-react";
 import { memo, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 
-import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 import { orpc } from "@/client";
 import { AgentCliIcon } from "@/components/agent-radar/agent-cli";
 import { groupAgentsByProject } from "@/components/agent-radar/agent-groups";
@@ -53,8 +53,8 @@ const CompactAgentListItem = memo(function CompactAgentListItem({
 				triggerClassName="flex"
 			>
 				<Link
-					to="/terminals/$paneId"
-					params={{ paneId: agent.paneId }}
+					to="/shells"
+					search={{ tab: `agent:${agent.paneId}` }}
 					aria-label={`Abrir conversa de ${label}`}
 					className={cn(
 						"relative flex size-11 items-center justify-center rounded-lg border border-transparent transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
@@ -102,8 +102,8 @@ const AgentListItem = memo(function AgentListItem({
 			)}
 		>
 			<Link
-				to="/terminals/$paneId"
-				params={{ paneId: agent.paneId }}
+				to="/shells"
+				search={{ tab: `agent:${agent.paneId}` }}
 				data-slot="open-conversation"
 				className="block min-w-0 rounded-lg px-3 py-2.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 			>
@@ -199,8 +199,8 @@ export function AgentSwitcherStrip({
 				return (
 					<Link
 						key={agent.paneId}
-						to="/terminals/$paneId"
-						params={{ paneId: agent.paneId }}
+						to="/shells"
+						search={{ tab: `agent:${agent.paneId}` }}
 						{...(selected ? { ref: selectedRef } : {})}
 						aria-current={selected ? "page" : undefined}
 						className={cn(

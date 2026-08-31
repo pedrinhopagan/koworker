@@ -19,7 +19,7 @@ import { toast } from "sonner";
 
 import { orpc, type RouterOutputs } from "@/client";
 import { TaskGroupLabel } from "@/components/tasks/task-group-label";
-import { TASK_SORT_OPTIONS, TaskSortControls } from "@/components/tasks/task-sort-controls";
+import { TASK_SORT_OPTIONS } from "@/components/tasks/task-sort-controls";
 import { Text } from "@/components/typography";
 import {
 	COMPLEXITY_COLORS,
@@ -241,56 +241,6 @@ function TaskFiltersPanel({
 	);
 }
 
-function FiltersPopover({
-	value,
-	categories,
-	priorities,
-	onChange,
-}: {
-	value: TaskSearchValue;
-	categories: Category[];
-	priorities: Priority[];
-	onChange: (next: TaskSearchValue) => void;
-}) {
-	const activeFilters = [value.taskTypeId, value.priorityId, value.complexity].filter(
-		Boolean,
-	).length;
-
-	return (
-		<Popover>
-			<PopoverTrigger asChild>
-				<Button
-					type="button"
-					variant={activeFilters > 0 ? "secondary" : "ghost"}
-					size="sm"
-					aria-label="Filtros"
-					className="relative"
-				>
-					<SlidersHorizontal className="size-4" />
-					Filtros
-					{activeFilters > 0 && (
-						<span className="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-							{activeFilters}
-						</span>
-					)}
-				</Button>
-			</PopoverTrigger>
-			<PopoverContent align="end" className="w-64 space-y-3 p-3">
-				<TaskFiltersPanel
-					value={value}
-					categories={categories}
-					priorities={priorities}
-					onChange={onChange}
-				/>
-			</PopoverContent>
-		</Popover>
-	);
-}
-
-function Divider() {
-	return <div className="mx-1 h-5 w-px shrink-0 bg-border" />;
-}
-
 type TaskListControlsProps = {
 	projectId: string | null;
 	search: { value: TaskSearchValue; onChange: (next: TaskSearchValue) => void };
@@ -403,180 +353,180 @@ export function TaskListControls({
 		);
 	}
 
+	const chips = (
+		<>
+			{search.value.taskTypeId && (
+				<Button
+					size="sm"
+					variant="secondary"
+					className="h-6 shrink-0 px-2 text-xs"
+					onClick={() => search.onChange({ ...search.value, taskTypeId: undefined })}
+				>
+					{categories.find((item) => item.id === search.value.taskTypeId)?.name}
+					<X className="size-3" />
+				</Button>
+			)}
+			{search.value.priorityId && (
+				<Button
+					size="sm"
+					variant="secondary"
+					className="h-6 shrink-0 px-2 text-xs"
+					onClick={() => search.onChange({ ...search.value, priorityId: undefined })}
+				>
+					{priorities.find((item) => item.id === search.value.priorityId)?.name}
+					<X className="size-3" />
+				</Button>
+			)}
+			{search.value.complexity && (
+				<Button
+					size="sm"
+					variant="secondary"
+					className="h-6 shrink-0 px-2 text-xs"
+					onClick={() => search.onChange({ ...search.value, complexity: undefined })}
+				>
+					{COMPLEXITY_LABELS[search.value.complexity]}
+					<X className="size-3" />
+				</Button>
+			)}
+		</>
+	);
+
+	const sectionLabel = "font-semibold uppercase tracking-[0.12em]";
+
+	const controls = (
+		<div className="space-y-4">
+			<TaskFiltersPanel
+				value={search.value}
+				categories={categories}
+				priorities={priorities}
+				onChange={search.onChange}
+			/>
+			<div className="space-y-2">
+				<Text size="xs" tone="muted" className={sectionLabel}>
+					Ordenação
+				</Text>
+				<div className="grid grid-cols-2 gap-1.5">
+					{TASK_SORT_OPTIONS.map(({ mode, label, icon: Icon }) => (
+						<Button
+							key={mode}
+							type="button"
+							size="sm"
+							variant={sortMode === mode ? "secondary" : "outline"}
+							className="justify-start"
+							onClick={() => onSortModeChange(mode)}
+						>
+							<Icon className="size-4" />
+							{label}
+						</Button>
+					))}
+				</div>
+			</div>
+			<div className="space-y-2">
+				<Text size="xs" tone="muted" className={sectionLabel}>
+					Grupos
+				</Text>
+				<div className="grid grid-cols-2 gap-1.5">
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						className="justify-start"
+						onClick={onCollapseAll}
+					>
+						<ChevronsDownUp className="size-4" />
+						Recolher
+					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						className="justify-start"
+						onClick={onExpandAll}
+					>
+						<ChevronsUpDown className="size-4" />
+						Expandir
+					</Button>
+				</div>
+			</div>
+			{newFeatureControls(true)}
+		</div>
+	);
+
+	const completedButton = (
+		<Tooltip label={search.value.includeCompleted ? "Ocultar concluídas" : "Mostrar concluídas"}>
+			<Button
+				type="button"
+				variant={search.value.includeCompleted ? "secondary" : "outline"}
+				size="icon-sm"
+				className="size-9 shrink-0"
+				aria-label={search.value.includeCompleted ? "Ocultar concluídas" : "Mostrar concluídas"}
+				aria-pressed={!!search.value.includeCompleted}
+				onClick={() =>
+					search.onChange({
+						...search.value,
+						includeCompleted: search.value.includeCompleted ? undefined : true,
+					})
+				}
+			>
+				<CheckCircle2 className="size-4" />
+			</Button>
+		</Tooltip>
+	);
+
+	const moreLabel = (
+		<>
+			<SlidersHorizontal className="size-4" />
+			Mais {mobileControlsActive && `(${activeFilters + (sortMode === "recente" ? 0 : 1)})`}
+		</>
+	);
+
 	return (
 		<>
 			<div className="flex flex-col gap-2 md:hidden">
-				{searchInput("w-full")}
 				<div className="flex gap-2">
+					{searchInput("min-w-0 flex-1")}
+					{completedButton}
 					<Button
 						type="button"
 						variant={mobileControlsActive ? "secondary" : "outline"}
 						size="sm"
-						className="h-12 flex-1"
+						className="h-9 shrink-0"
 						onClick={() => setMobileSheetOpen(true)}
 					>
-						<SlidersHorizontal className="size-4" />
-						Filtros e ordem
-						{mobileControlsActive && (
-							<span className="ml-auto flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-								{activeFilters + (sortMode === "recente" ? 0 : 1)}
-							</span>
-						)}
+						{moreLabel}
 					</Button>
-					<Tooltip
-						label={search.value.includeCompleted ? "Ocultar concluídas" : "Mostrar concluídas"}
-					>
-						<Button
-							type="button"
-							variant={search.value.includeCompleted ? "secondary" : "outline"}
-							size="icon"
-							className="size-12"
-							aria-label={
-								search.value.includeCompleted ? "Ocultar concluídas" : "Mostrar concluídas"
-							}
-							aria-pressed={!!search.value.includeCompleted}
-							onClick={() =>
-								search.onChange({
-									...search.value,
-									includeCompleted: search.value.includeCompleted ? undefined : true,
-								})
-							}
-						>
-							<CheckCircle2 className="size-4" />
-						</Button>
-					</Tooltip>
 				</div>
+				{activeFilters > 0 && <div className="flex gap-1.5 overflow-x-auto">{chips}</div>}
 			</div>
 
-			<div className="hidden items-center gap-1 md:flex">
-				{searchInput("flex-1")}
-
-				<FiltersPopover
-					value={search.value}
-					categories={categories}
-					priorities={priorities}
-					onChange={search.onChange}
-				/>
-
-				<Tooltip
-					label={search.value.includeCompleted ? "Ocultar concluídas" : "Mostrar concluídas"}
-				>
-					<Button
-						type="button"
-						variant={search.value.includeCompleted ? "secondary" : "ghost"}
-						size="icon-sm"
-						aria-label={search.value.includeCompleted ? "Ocultar concluídas" : "Mostrar concluídas"}
-						aria-pressed={!!search.value.includeCompleted}
-						onClick={() =>
-							search.onChange({
-								...search.value,
-								includeCompleted: search.value.includeCompleted ? undefined : true,
-							})
-						}
-					>
-						<CheckCircle2 className="size-4" />
-					</Button>
-				</Tooltip>
-
-				<Divider />
-
-				<TaskSortControls value={sortMode} onChange={onSortModeChange} />
-
-				<Tooltip label="Colapsar tudo">
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon-sm"
-						aria-label="Colapsar tudo"
-						className="text-muted-foreground"
-						onClick={onCollapseAll}
-					>
-						<ChevronsDownUp className="size-4" />
-					</Button>
-				</Tooltip>
-				<Tooltip label="Expandir tudo">
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon-sm"
-						aria-label="Expandir tudo"
-						className="text-muted-foreground"
-						onClick={onExpandAll}
-					>
-						<ChevronsUpDown className="size-4" />
-					</Button>
-				</Tooltip>
-
-				{projectId && allowFeatureCreation && <Divider />}
-
-				{newFeatureControls()}
+			<div className="-mx-4 hidden items-center gap-2 border-b border-border bg-card/35 px-4 py-2 md:flex">
+				<div className="min-w-0 max-w-md flex-1">{searchInput()}</div>
+				<div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">{chips}</div>
+				{completedButton}
+				<Popover>
+					<PopoverTrigger asChild>
+						<Button
+							type="button"
+							variant={mobileControlsActive ? "secondary" : "outline"}
+							size="sm"
+							className="shrink-0"
+						>
+							{moreLabel}
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent align="end" className="w-72 p-4">
+						{controls}
+					</PopoverContent>
+				</Popover>
 			</div>
 
 			<Drawer
 				open={mobileSheetOpen}
 				onClose={() => setMobileSheetOpen(false)}
-				side="right"
+				side="bottom"
 				title="Filtros e ordenação"
 			>
-				<div className="space-y-6">
-					<TaskFiltersPanel
-						value={search.value}
-						categories={categories}
-						priorities={priorities}
-						onChange={search.onChange}
-					/>
-
-					<div className="space-y-2">
-						<Text size="sm" className="font-medium">
-							Ordenação
-						</Text>
-						<div className="grid grid-cols-2 gap-3">
-							{TASK_SORT_OPTIONS.map(({ mode, label, icon: Icon }) => (
-								<Button
-									key={mode}
-									type="button"
-									variant={sortMode === mode ? "secondary" : "outline"}
-									size="sm"
-									className="h-12 justify-start gap-2"
-									onClick={() => onSortModeChange(mode)}
-								>
-									<Icon className="size-4 shrink-0" />
-									{label}
-								</Button>
-							))}
-						</div>
-					</div>
-
-					<div className="space-y-2">
-						<Text size="sm" className="font-medium">
-							Grupos
-						</Text>
-						<div className="grid grid-cols-2 gap-3">
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className="h-12 justify-start gap-2"
-								onClick={onCollapseAll}
-							>
-								<ChevronsDownUp className="size-4" />
-								Colapsar tudo
-							</Button>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className="h-12 justify-start gap-2"
-								onClick={onExpandAll}
-							>
-								<ChevronsUpDown className="size-4" />
-								Expandir tudo
-							</Button>
-						</div>
-					</div>
-
-					{newFeatureControls(true)}
-				</div>
+				{controls}
 			</Drawer>
 		</>
 	);

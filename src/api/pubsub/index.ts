@@ -1,7 +1,7 @@
 import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
 
-import type { AgentRadarTranscriptEnvelope } from "@/api/helpers/agent-radar/transcript";
-import type { RadarAgent, RadarFocus } from "@/api/helpers/agent-radar/state";
+import type { AgentRadarTranscriptEnvelope } from "@/api/schemas/agent-radar-transcript";
+import type { RadarAgent, RadarFocus } from "@/api/schemas/terminal-workspace";
 import type { AgentStep } from "@/lib/agent-stream";
 import type { TaskStage } from "@/constants/complexity";
 
@@ -36,8 +36,18 @@ type PubSubChannels = {
 	// dispensa o cliente reconstruir estado a partir de deltas depois de uma reconexão. `focus` é o
 	// workspace/tab/pane na tela do kw-terminal, espelhado ao vivo pelos eventos *.focused.
 	agentRadar: { agents: RadarAgent[]; focus: RadarFocus };
+	terminalWorkspace: { revision: number; source: "shell" | "agent" };
 	// A conversa que o CLI de um pane está gravando no disco, publicada por `paneId`.
 	agentRadarTranscript: AgentRadarTranscriptEnvelope;
+	agentTerminalScreen: {
+		paneId: string;
+		ansi: string;
+		revision: number;
+		cols: number;
+		rows: number;
+		// Linhas de histórico acima da janela publicada: 0 é o vivo, >0 é o espelho scrollado.
+		offset: number;
+	};
 	shells: ShellStreamEvent;
 	flow: FlowEvent;
 	promptRun: PromptRunEvent;

@@ -1,41 +1,14 @@
 import { realpathSync } from "node:fs";
 
-import type { AgentRadarStatus } from "@/constants/agent-radar";
+import type { RadarAgent, RadarFocus } from "@/api/schemas/terminal-workspace";
 import { PubSub } from "../../pubsub";
+import { publishTerminalWorkspaceChange } from "../terminal-workspace-events";
 import { scheduleAgentSnapshotCapture } from "./snapshot";
 
 // Um agent aberto no kw-terminal, do jeito que a central mostra. É reflexo do daemon, que sobrevive
 // ao restart do backend: nada disso é persistido, e a subida reconstrói o mapa relistando os panes.
-export type RadarAgent = {
-	paneId: string;
-	workspaceId: string;
-	workspaceLabel: string;
-	tabId: string;
-	tabLabel: string;
-	agent: string;
-	status: AgentRadarStatus;
-	activity: string | null;
-	title: string | null;
-	cwd: string;
-	projectId: string | null;
-	projectName: string | null;
-	// A sessão do CLI, quando o próprio agent a reporta ao daemon. É o que aponta o transcript sem
-	// heurística; nulo aqui é o caso comum de quem subiu sem a integração instalada.
-	sessionId: string | null;
-	sessionPath: string | null;
-	taskId: string | null;
-	taskTitle: string | null;
-	changedAt: number;
-};
-
 // O que está na tela do cliente TUI agora. O trio chega junto do daemon (workspace → tab → pane);
 // o koworker espelha isso no indicador "Na tela" sem precisar releitura do overview.
-export type RadarFocus = {
-	workspaceId: string | null;
-	tabId: string | null;
-	paneId: string | null;
-};
-
 const EMPTY_FOCUS: RadarFocus = { workspaceId: null, tabId: null, paneId: null };
 
 const agents = new Map<string, RadarAgent>();
@@ -71,7 +44,10 @@ function publish(captureSnapshot: boolean) {
 		scheduleAgentSnapshotCapture(agents);
 	}
 
-	return PubSub.publish("agentRadar", "global", { agents, focus });
+	return Promise.all([
+		PubSub.publish("agentRadar", "global", { agents, focus }),
+		publishTerminalWorkspaceChange("agent"),
+	]);
 }
 
 export function putRadarAgent(agent: RadarAgent) {

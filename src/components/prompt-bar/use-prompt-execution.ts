@@ -90,7 +90,7 @@ export function usePromptExecution(params: {
 			toast.error(error instanceof Error ? error.message : "Não foi possível abrir a conversa"),
 		onSuccess: async (result) => {
 			usePromptBarStore.getState().clear();
-			await navigate({ to: "/terminals/$paneId", params: { paneId: result.paneId } });
+			await navigate({ to: "/shells", search: { tab: `agent:${result.paneId}` } });
 		},
 	});
 

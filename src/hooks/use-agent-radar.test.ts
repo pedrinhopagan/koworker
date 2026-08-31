@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 import { reconcileRadarAgents } from "./use-agent-radar";
 
 function agent(paneId: string, status: RadarAgent["status"]): RadarAgent {

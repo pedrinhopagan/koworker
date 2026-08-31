@@ -1,49 +1,84 @@
 import { describe, expect, test } from "bun:test";
 
-import type { ShellRecord } from "@/api/helpers/shells/supervisor";
-import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import type { TerminalWorkspaceEntry } from "@/api/schemas/terminal-workspace";
 import {
 	agentTabKey,
-	groupShellsAndAgents,
+	groupTerminalWorkspaceEntries,
 	parseAgentPaneId,
 	parseShellTabKey,
+	terminalWorkspaceEntryDescription,
 } from "./shell-groups";
 
-function shell(overrides: Partial<ShellRecord>): ShellRecord {
+type ShellEntry = Extract<TerminalWorkspaceEntry, { kind: "shell" }>;
+type AgentEntry = Extract<TerminalWorkspaceEntry, { kind: "agent" }>;
+
+const SHELL_CAPABILITIES = {
+	rename: true,
+	close: true,
+	converse: false,
+	interrupt: false,
+	focusExternal: false,
+	diff: false,
+	replay: true,
+	scroll: true,
+	resize: true,
+};
+
+const AGENT_CAPABILITIES = {
+	...SHELL_CAPABILITIES,
+	rename: false,
+	converse: true,
+	interrupt: true,
+	focusExternal: true,
+	diff: true,
+};
+
+function shell(overrides: Partial<ShellEntry> = {}): ShellEntry {
 	return {
+		key: "shell-1",
+		kind: "shell",
 		id: "shell-1",
 		label: "Shell 1",
+		groupLabel: "/tmp/projeto",
 		cwd: "/tmp/projeto",
 		projectId: null,
-		cols: 80,
-		rows: 24,
-		createdAt: 1_000,
-		title: null,
+		projectName: null,
+		agent: null,
+		taskId: null,
+		taskTitle: null,
 		status: "live",
+		statusFidelity: "activity",
+		title: null,
+		activity: null,
+		createdAt: 1_000,
+		changedAt: 1_000,
 		exitCode: null,
+		capabilities: SHELL_CAPABILITIES,
 		...overrides,
 	};
 }
 
-function agent(overrides: Partial<RadarAgent>): RadarAgent {
+function agent(overrides: Partial<AgentEntry> = {}): AgentEntry {
 	return {
-		paneId: "pane-1",
-		workspaceId: "ws",
-		workspaceLabel: "dev",
-		tabId: "tab-1",
-		tabLabel: "tab",
-		agent: "claude",
-		status: "idle",
-		activity: null,
-		title: null,
+		key: "agent:pane-1",
+		kind: "agent",
+		id: "pane-1",
+		label: "tab",
+		groupLabel: "dev",
 		cwd: "/tmp/projeto",
 		projectId: null,
 		projectName: null,
-		sessionId: null,
-		sessionPath: null,
+		agent: "claude",
 		taskId: null,
 		taskTitle: null,
+		status: "idle",
+		statusFidelity: "semantic",
+		title: null,
+		activity: null,
+		createdAt: null,
 		changedAt: 1_000,
+		exitCode: null,
+		capabilities: AGENT_CAPABILITIES,
 		...overrides,
 	};
 }
@@ -66,41 +101,59 @@ describe("parse de tab", () => {
 	});
 });
 
-describe("groupShellsAndAgents", () => {
+describe("terminalWorkspaceEntryDescription", () => {
+	test("título do terminal vira descrição", () => {
+		expect(terminalWorkspaceEntryDescription(shell({ title: "claude --continue" }))).toBe(
+			"claude --continue",
+		);
+	});
+
+	test("título que é a rota não se repete", () => {
+		expect(terminalWorkspaceEntryDescription(shell({ title: "/tmp/projeto" }))).toBeNull();
+		expect(terminalWorkspaceEntryDescription(shell({ title: "/tmp/projeto " }))).toBeNull();
+		expect(terminalWorkspaceEntryDescription(shell({ title: "/tmp/projeto --flag" }))).toBeNull();
+		expect(terminalWorkspaceEntryDescription(shell({ title: "projeto" }))).toBeNull();
+	});
+});
+
+describe("groupTerminalWorkspaceEntries", () => {
 	test("agrupa pelo projeto quando existe e pela pasta quando não há", () => {
-		const groups = groupShellsAndAgents(
+		const groups = groupTerminalWorkspaceEntries(
 			[
-				shell({ id: "a", projectId: "p1", cwd: "/mnt/kw" }),
-				shell({ id: "b", projectId: null, cwd: "/tmp/outro/" }),
+				shell({ key: "a", id: "a", projectId: "p1", cwd: "/mnt/kw" }),
+				shell({ key: "b", id: "b", cwd: "/tmp/outro/", groupLabel: "/tmp/outro/" }),
+				agent({ key: "agent:x", id: "x", projectId: "p1", projectName: "Ignorado" }),
 			],
-			[agent({ paneId: "x", projectId: "p1", projectName: "Ignorado" })],
 			PROJECTS,
 		);
 
 		expect(groups.map((group) => group.label)).toEqual(["Koworker", "outro"]);
-		const kw = groups[0];
-		expect(kw?.color).toBe("#ff0000");
-		expect(kw?.entries.map((entry) => entry.kind)).toEqual(["agent", "shell"]);
+		expect(groups[0]?.color).toBe("#ff0000");
+		expect(groups[0]?.entries.map((entry) => entry.kind)).toEqual(["agent", "shell"]);
 	});
 
 	test("agents primeiro na régua do radar, shells do mais novo pro mais velho", () => {
-		const groups = groupShellsAndAgents(
-			[shell({ id: "novo", createdAt: 200 }), shell({ id: "velho", createdAt: 100 })],
+		const groups = groupTerminalWorkspaceEntries(
 			[
-				agent({ paneId: "trabalhando", status: "working" }),
-				agent({ paneId: "bloqueado", status: "blocked" }),
-				agent({ paneId: "parado", status: "idle" }),
+				shell({ key: "novo", id: "novo", createdAt: 200 }),
+				shell({ key: "velho", id: "velho", createdAt: 100 }),
+				agent({ key: "agent:trabalhando", id: "trabalhando", status: "working" }),
+				agent({ key: "agent:bloqueado", id: "bloqueado", status: "blocked" }),
+				agent({ key: "agent:parado", id: "parado", status: "idle" }),
 			],
 			[],
 		);
 
-		expect(groups).toHaveLength(1);
-		expect(
-			groups[0]?.entries.map((entry) => (entry.kind === "agent" ? entry.agent.paneId : entry.key)),
-		).toEqual(["bloqueado", "trabalhando", "parado", "novo", "velho"]);
+		expect(groups[0]?.entries.map((entry) => entry.id)).toEqual([
+			"bloqueado",
+			"trabalhando",
+			"parado",
+			"novo",
+			"velho",
+		]);
 	});
 
 	test("sem nada aberto a lista é vazia", () => {
-		expect(groupShellsAndAgents([], [], [])).toEqual([]);
+		expect(groupTerminalWorkspaceEntries([], [])).toEqual([]);
 	});
 });

@@ -468,7 +468,7 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 											}
 										}}
 										placeholder="index.md"
-										className="h-9 min-w-0 flex-1 rounded-md border border-border bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground focus:border-ring"
+										className="h-10 min-w-0 flex-1 rounded-none border border-input bg-card px-3 text-sm outline-none placeholder:text-muted-foreground/65 focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring"
 									/>
 									<Button size="sm" onClick={createFile} disabled={writeFileMutation.isPending}>
 										{writeFileMutation.isPending ? (

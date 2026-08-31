@@ -1,5 +1,6 @@
 import { spawnDetachedFromService } from "@/api/helpers/detached-process";
 import { spawnEnv } from "@/api/helpers/spawn";
+import { translatePaneInput } from "@/api/helpers/terminal/pane-input";
 import { z } from "zod";
 
 const KwTerminalAgentSessionSchema = z
@@ -14,6 +15,31 @@ const KwTerminalAgentSessionSchema = z
 const KwTerminalErrorSchema = z.object({
 	error: z.object({ code: z.string(), message: z.string() }),
 });
+
+const KwTerminalPaneReadSchema = z.object({
+	type: z.literal("pane_read"),
+	read: z.object({
+		pane_id: z.string(),
+		text: z.string(),
+		revision: z.number().int().nonnegative(),
+	}),
+});
+
+const KwTerminalPaneLayoutSchema = z.object({
+	type: z.literal("pane_layout"),
+	layout: z.object({
+		panes: z.array(
+			z.object({
+				pane_id: z.string(),
+				rect: z.object({ width: z.number().int().positive(), height: z.number().int().positive() }),
+			}),
+		),
+	}),
+});
+
+const KwTerminalOkSchema = z.object({ type: z.literal("ok") });
+let screenRequestCounter = 0;
+const socketPaths = new Map<string, string>();
 
 // Wrappers finos sobre o binário `kw-terminal`. O estado de verdade do "que está aberto" vive no
 // servidor kw-terminal (um daemon independente que sobrevive ao restart do backend), então lemos dele
@@ -161,6 +187,16 @@ async function kwTerminalServerRunning(): Promise<boolean> {
 // remontado a partir de XDG_CONFIG_HOME: o kw-terminal escolhe o diretório por sessão nomeada e
 // aceita override por env, e adivinhar isso aqui daria um caminho errado sem aviso.
 export async function kwTerminalSocketPath(): Promise<string> {
+	const cacheKey = [
+		process.env.HERDR_SOCKET_PATH ?? "",
+		process.env.HERDR_SESSION ?? "",
+		process.env.KW_TERMINAL_CONFIG_PATH ?? "",
+	].join("\0");
+	const known = socketPaths.get(cacheKey);
+	if (known) {
+		return known;
+	}
+
 	const { ok, stdout } = await runKwTerminal(["status", "server"]);
 	const socket = ok ? /^socket:\s*(.+)$/m.exec(stdout)?.[1]?.trim() : null;
 
@@ -168,7 +204,153 @@ export async function kwTerminalSocketPath(): Promise<string> {
 		throw new Error("kw-terminal não informou o caminho do socket");
 	}
 
+	socketPaths.set(cacheKey, socket);
+
 	return socket;
+}
+
+async function requestKwTerminal<TResult>(params: {
+	method: string;
+	input: object;
+	schema: z.ZodType<TResult>;
+	socketPath?: string;
+}): Promise<TResult> {
+	const requestId = `kowork-screen-${++screenRequestCounter}`;
+	const decoder = new TextDecoder();
+	let pending = "";
+	let settled = false;
+	let resolveResponse!: (value: TResult) => void;
+	let rejectResponse!: (error: Error) => void;
+	const response = new Promise<TResult>((resolve, reject) => {
+		resolveResponse = resolve;
+		rejectResponse = reject;
+	});
+	const timeout = setTimeout(() => {
+		if (!settled) {
+			settled = true;
+			rejectResponse(new Error("O kw-terminal não respondeu a tempo"));
+		}
+	}, 5_000);
+	const socket = await Bun.connect({
+		unix: params.socketPath ?? (await kwTerminalSocketPath()),
+		socket: {
+			data(socket, chunk) {
+				pending += decoder.decode(chunk, { stream: true });
+				const lines = pending.split("\n");
+				pending = lines.pop() ?? "";
+
+				for (const line of lines) {
+					let payload: unknown;
+					try {
+						payload = JSON.parse(line);
+					} catch {
+						continue;
+					}
+
+					const envelope = z
+						.object({
+							id: z.string(),
+							result: z.unknown().optional(),
+							error: z.unknown().optional(),
+						})
+						.safeParse(payload);
+					if (!envelope.success || envelope.data.id !== requestId) {
+						continue;
+					}
+
+					settled = true;
+					clearTimeout(timeout);
+					socket.end();
+					if (envelope.data.error) {
+						rejectResponse(new Error("O kw-terminal recusou a operação no pane"));
+						return;
+					}
+
+					const parsed = params.schema.safeParse(envelope.data.result);
+					if (!parsed.success) {
+						rejectResponse(new Error("Resposta inválida do kw-terminal"));
+						return;
+					}
+					resolveResponse(parsed.data);
+				}
+			},
+			close() {
+				if (!settled) {
+					clearTimeout(timeout);
+					rejectResponse(new Error("Conexão com o kw-terminal encerrada"));
+				}
+			},
+			error(_socket, error) {
+				if (!settled) {
+					clearTimeout(timeout);
+					rejectResponse(error);
+				}
+			},
+		},
+	});
+
+	socket.write(
+		`${JSON.stringify({ id: requestId, method: params.method, params: params.input })}\n`,
+	);
+
+	return await response;
+}
+
+export async function kwTerminalPaneRead(paneId: string) {
+	const read = await requestKwTerminal({
+		method: "pane.read",
+		input: { pane_id: paneId, source: "visible", format: "ansi", strip_ansi: false },
+		schema: KwTerminalPaneReadSchema,
+	});
+
+	return { ansi: read.read.text, revision: read.read.revision };
+}
+
+// Cauda do buffer do pane (linhas quebradas na largura da tela), para o espelho mostrar história
+// e não só a viewport: `lines` conta a partir do fim.
+export async function kwTerminalPaneRecent(paneId: string, lines: number) {
+	const read = await requestKwTerminal({
+		method: "pane.read",
+		input: { pane_id: paneId, source: "recent", lines, format: "ansi", strip_ansi: false },
+		schema: KwTerminalPaneReadSchema,
+	});
+
+	return { ansi: read.read.text, revision: read.read.revision };
+}
+
+export async function kwTerminalPaneSize(paneId: string) {
+	const layout = await requestKwTerminal({
+		method: "pane.layout",
+		input: { pane_id: paneId },
+		schema: KwTerminalPaneLayoutSchema,
+	});
+	const pane = layout.layout.panes.find((candidate) => candidate.pane_id === paneId);
+	if (!pane) {
+		throw new Error("O layout do kw-terminal não contém o pane");
+	}
+
+	return { cols: Math.max(2, pane.rect.width), rows: Math.max(2, pane.rect.height) };
+}
+
+export async function kwTerminalPaneScreen(paneId: string) {
+	const [read, size] = await Promise.all([kwTerminalPaneRead(paneId), kwTerminalPaneSize(paneId)]);
+
+	return { paneId, ...read, ...size };
+}
+
+export async function kwTerminalPaneSendInput(paneId: string, data: string) {
+	const socketPath = await kwTerminalSocketPath();
+
+	// Sequencial de propósito: o daemon reordena texto e tecla enviados no mesmo pacote, então cada
+	// operação espera a anterior para o agent receber exatamente o que foi digitado.
+	for (const op of translatePaneInput(data)) {
+		await requestKwTerminal({
+			method: "keys" in op ? "pane.send_keys" : "pane.send_input",
+			input: { pane_id: paneId, ...op },
+			schema: KwTerminalOkSchema,
+			socketPath,
+		});
+	}
 }
 
 // Paridade com o tmux, cuja CLI sobe o daemon sozinha no primeiro comando: se o servidor kw-terminal

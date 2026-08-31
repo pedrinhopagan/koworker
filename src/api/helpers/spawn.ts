@@ -1,18 +1,51 @@
-// O serviço roda sob systemd --user, cujo PATH depende do ambiente importado no login e pode não
-// conter os diretórios onde os CLIs dos agentes moram (`claude` em ~/.local/bin, `codex` em
-// ~/.bun/bin). Garante os dois no PATH do filho pra execução não depender de como o serviço subiu.
+import { existsSync, readdirSync } from "node:fs";
+
+// O backend pode ter sido lançado sem env de display (systemd, gateway, SSH). Sem WAYLAND_DISPLAY e
+// DISPLAY, qualquer app gráfico que ele spawna (gio open → browser, gerenciador de arquivos) morre
+// em silêncio — o launcher sai 0 e o filho aborta com "no DISPLAY". Reconstruímos o apontamento a
+// partir do socket real da sessão.
+export function displayFallback(env: Record<string, string | undefined>): Record<string, string> {
+	if (process.platform !== "linux" || env.WAYLAND_DISPLAY || env.DISPLAY) {
+		return {};
+	}
+
+	const found: Record<string, string> = {};
+	const runtimeDir = env.XDG_RUNTIME_DIR ?? `/run/user/${process.getuid?.() ?? ""}`;
+	const entries = (() => {
+		try {
+			return readdirSync(runtimeDir);
+		} catch {
+			return [];
+		}
+	})();
+	const wayland = entries.find((name) => /^wayland-\d+$/.test(name));
+	if (wayland) {
+		found.WAYLAND_DISPLAY = wayland;
+	}
+	if (existsSync("/tmp/.X11-unix/X0")) {
+		found.DISPLAY = ":0";
+	}
+
+	return found;
+}
+
 export function spawnEnv(extra?: Record<string, string>): Record<string, string | undefined> {
+	const display = displayFallback(process.env);
 	const parts = (process.env.PATH ?? "").split(":").filter(Boolean);
 	const home = process.env.HOME;
 	if (home) {
-		for (const dir of [`${home}/.local/bin`, `${home}/.bun/bin`]) {
-			if (!parts.includes(dir)) {
-				parts.push(dir);
-			}
-		}
+		const userBins = [`${home}/.local/bin`, `${home}/.bun/bin`];
+		const withoutUserBins = parts.filter((dir) => !userBins.includes(dir));
+
+		return {
+			...process.env,
+			...display,
+			...extra,
+			PATH: [...userBins, ...withoutUserBins].join(":"),
+		};
 	}
 
-	return { ...process.env, ...extra, PATH: parts.join(":") };
+	return { ...process.env, ...display, ...extra, PATH: parts.join(":") };
 }
 
 function killProcessTree(proc: ReturnType<typeof Bun.spawn>) {

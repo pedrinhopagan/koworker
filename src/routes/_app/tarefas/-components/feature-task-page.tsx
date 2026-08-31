@@ -63,9 +63,10 @@ export function FeatureTaskPage({
 			title={noFeature ? "Sem feature" : feature?.name || "Feature"}
 			description={`${data.tasks.length} tarefa${data.tasks.length === 1 ? "" : "s"} em ${project?.name || "projeto"}`}
 			icon={Layers3}
+			headerClassName="mb-0"
 			onBack={() => void navigate({ to: "/tarefas", search: { projectId } })}
 		>
-			<div className="flex h-full min-h-0 min-w-0 flex-col gap-4">
+			<div className="flex h-full min-h-0 min-w-0 flex-col gap-3 pt-0">
 				<TaskListControls
 					projectId={projectId}
 					search={{ value: search, onChange: onSearchChange }}
@@ -78,7 +79,7 @@ export function FeatureTaskPage({
 					allowFeatureCreation={false}
 				/>
 
-				<div className="min-h-0 flex-1 overflow-y-auto pr-2 pb-6">
+				<div className="min-h-0 flex-1 overflow-y-auto pb-6 pr-2">
 					<GroupedTaskList
 						tasks={data.tasks}
 						groups={feature ? [feature] : []}

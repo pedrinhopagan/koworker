@@ -1,7 +1,7 @@
 import { PanelLeft } from "lucide-react";
 import type { ReactNode } from "react";
 
-import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 import { AgentList } from "@/components/agent-radar/agent-list";
 import { SidebarTooltip } from "@/components/layout/sidebar-tooltip";
 import { Text } from "@/components/typography";

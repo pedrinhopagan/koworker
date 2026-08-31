@@ -3,20 +3,24 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join } from "node:path";
 
 import { getSystemSettings } from "./system-settings";
+import { spawnEnv } from "./spawn";
 import { zipDirectory } from "./zip";
 
 const HOME = homedir();
 
 // O comando que abre uma pasta no gerenciador de arquivos do SO — o mesmo que o Rust fazia por
 // #[cfg], agora no backend para funcionar também no browser (o backend roda na máquina do usuário).
-function fileManagerOpener(): string {
+function systemOpenCommands(target: string, env: Record<string, string | undefined>): string[][] {
 	switch (process.platform) {
 		case "darwin":
-			return "open";
+			return [["open", target]];
 		case "win32":
-			return "explorer";
+			return [["explorer", target]];
 		default:
-			return "xdg-open";
+			return [
+				...(Bun.which("gio", { PATH: env.PATH }) ? [["gio", "open", target]] : []),
+				["xdg-open", target],
+			];
 	}
 }
 
@@ -40,9 +44,31 @@ function resolveInput(raw: string, base: string): string {
 	return isAbsolute(expanded) ? expanded : join(base, expanded);
 }
 
-export function openInFileManager(path: string): void {
+function openWithSystem(path: string): void {
 	const target = expandTilde(path);
-	Bun.spawn([fileManagerOpener(), target], { stdout: "ignore", stderr: "ignore" });
+	const env = spawnEnv();
+	let failure = "";
+
+	for (const command of systemOpenCommands(target, env)) {
+		const result = Bun.spawnSync(command, {
+			stdin: "ignore",
+			stdout: "ignore",
+			stderr: "pipe",
+			env,
+		});
+
+		if (result.exitCode === 0) {
+			return;
+		}
+
+		failure = result.stderr.toString().trim() || `${command[0]} saiu com código ${result.exitCode}`;
+	}
+
+	throw new Error(failure);
+}
+
+export function openInFileManager(path: string): void {
+	openWithSystem(path);
 }
 
 const MIME_BY_EXTENSION: Record<string, string> = {
@@ -92,13 +118,13 @@ async function focusDefaultApp(ext: string): Promise<void> {
 		Bun.spawn(["kdotool", "search", "--class", windowClass, "windowactivate"], {
 			stdout: "ignore",
 			stderr: "ignore",
-		});
+		}).unref();
 	} catch {}
 }
 
 export async function openFileInDefaultApp(path: string): Promise<void> {
 	const target = expandTilde(path);
-	Bun.spawn([fileManagerOpener(), target], { stdout: "ignore", stderr: "ignore" });
+	openWithSystem(target);
 
 	await focusDefaultApp(extname(target).toLowerCase());
 }
@@ -151,6 +177,7 @@ async function copyFileToClipboard(zipPath: string): Promise<boolean> {
 		return false;
 	}
 
+	const env = spawnEnv();
 	const uri = `file://${encodeUriPath(zipPath)}`;
 	const desktop = (process.env.XDG_CURRENT_DESKTOP ?? "").toLowerCase();
 	const gnomeFamily = ["gnome", "cinnamon", "mate", "unity"].some((name) => desktop.includes(name));
@@ -159,7 +186,7 @@ async function copyFileToClipboard(zipPath: string): Promise<boolean> {
 		? ["x-special/gnome-copied-files", `copy\n${uri}`]
 		: ["text/uri-list", `${uri}\r\n`];
 
-	const argv = process.env.WAYLAND_DISPLAY
+	const argv = env.WAYLAND_DISPLAY
 		? ["wl-copy", "--type", mime]
 		: ["xclip", "-selection", "clipboard", "-t", mime];
 
@@ -168,6 +195,7 @@ async function copyFileToClipboard(zipPath: string): Promise<boolean> {
 			stdin: new TextEncoder().encode(payload),
 			stdout: "ignore",
 			stderr: "ignore",
+			env,
 		});
 
 		return (await proc.exited) === 0;

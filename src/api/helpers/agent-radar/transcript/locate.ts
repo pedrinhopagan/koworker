@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { RadarAgent } from "../state";
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
+import type { AgentTranscript } from "@/api/schemas/agent-radar-transcript";
 
 const TRANSCRIPT_CLIS = ["claude", "codex", "opencode"] as const;
 
@@ -8,10 +9,6 @@ export type TranscriptCli = (typeof TRANSCRIPT_CLIS)[number];
 
 // O claude e o codex guardam a conversa num arquivo por sessão; o opencode guarda todas no mesmo
 // banco SQLite, então a fonte carrega também o id que acha a conversa lá dentro.
-export type AgentTranscript =
-	| { cli: "claude" | "codex"; path: string; sessionId?: string }
-	| { cli: "opencode"; path: string; sessionId: string };
-
 const CLAUDE_PROJECTS_DIR = join(homedir(), ".claude", "projects");
 const CODEX_SESSIONS_DIR = join(homedir(), ".codex", "sessions");
 const OPENCODE_DB_PATH = join(homedir(), ".local", "share", "opencode", "opencode.db");

@@ -83,6 +83,15 @@ export const dbTasks = {
 			.where("t.deleted_at", "is", null)
 			.execute(),
 
+	listLinkTargets: () =>
+		db
+			.selectFrom("tasks as t")
+			.innerJoin("projects as p", "p.id", "t.project_id")
+			.select(["t.id", "t.group_id", "t.folder_path", "t.worktree_path", "p.main_route"])
+			.where("t.deleted_at", "is", null)
+			.where("p.deleted_at", "is", null)
+			.execute(),
+
 	listStorageKeys: () =>
 		db
 			.selectFrom("tasks as t")

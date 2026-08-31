@@ -27,7 +27,7 @@ routes/
 │   │   ├── index.tsx
 │   │   ├── $shellId/index.tsx
 │   │   └── -components/
-│   ├── radar/               (redirects legados para /terminals)
+│   ├── radar/               (redirects legados para /shells)
 │   ├── executar/
 │   │   ├── index.tsx
 │   │   ├── $executionId/index.tsx
@@ -85,7 +85,7 @@ routes/
 - `/projetos/novo`
 - `/projetos/$projetoId`
 - `/projetos/$projetoId/docs/$`
-- `/executar` — chat vazio: a primeira mensagem abre a sessão e leva para `/executar/$executionId`
+- `/executar` — redirect legado para `/shells`
 - `/executar/$executionId`
 - `/skills`
 - `/skills/$slug`
@@ -100,13 +100,13 @@ routes/
 - `/sistema`
 - `/configuracoes`
 - `/fontes`
-- `/terminals` — agents e workspaces do kw-terminal; "Abrir nova sessão" cria a tab e leva para a conversa
-- `/terminals/$paneId`
+- `/terminals` — redirect legado para `/shells`
+- `/terminals/$paneId` — redirect legado para `/shells?tab=agent:<paneId>`
 - `/terminals/history` — conversas antigas de Claude e Codex lidas do disco, filtradas por projeto, CLI e busca
 - `/terminals/history/$cli/$sessionId` — a conversa antiga em leitura, com retomada em pane novo
 - `/shells` — workspace único de terminais: shells PTY embutidos e conversas de agent do radar, agrupados por projeto na sidebar, com faixa de abas (`?tab=shell-3` ou `?tab=agent:<paneId>`)
 - `/shells/$shellId` — redirect (replace) para `/shells?tab=<id>`
-- Links legados `/radar` e `/radar/$paneId` redirecionam por `replace`.
+- Links legados `/radar` e `/radar/$paneId` redirecionam para `/shells` por `replace`.
 
 ## LAYOUTS E GUARDA
 
@@ -125,7 +125,7 @@ página. Nunca mova `validateSearch`, `beforeLoad` ou `loader` para o arquivo `.
 Já divididas: `fontes`, `executar/`, `executar/$executionId/`, `projetos/$projetoId/docs/$`,
 `vault/`, `vault/$fileName/`, `tarefas/$taskId/`, `tarefas/$taskId/$file`,
 `tarefas/$taskId/$file_/$canonicalFile`, `skills/$slug/`, `agents/$slug/`, `media/`,
-`media/$fileName/`, `mostruario/`, `terminals/`, `terminals/$paneId/`, `terminals/history/`,
+`media/$fileName/`, `mostruario/`, `terminals/history/`,
 `terminals/history/$cli/$sessionId/`, `shells/`.
 
 ## REGRAS

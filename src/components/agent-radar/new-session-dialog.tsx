@@ -1,9 +1,6 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
 
-import { orpc } from "@/client";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -25,10 +22,11 @@ import {
 	withoutInvokeInherit,
 } from "@/constants/invoke";
 import { useProjectFocus } from "@/hooks/use-project-focus";
-import { errorMessage } from "@/lib/orpc-errors";
+import type { TerminalWorkspaceActions } from "@/routes/_app/shells/-utils/use-terminal-workspace";
 
 type NewSessionDialogProps = {
 	open: boolean;
+	actions: TerminalWorkspaceActions;
 	onClose: () => void;
 };
 
@@ -54,9 +52,8 @@ function selectItems(options: { value: string; label: string; hint: string }[]) 
 	return options.map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
 }
 
-export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
+export function NewSessionDialog({ open, actions, onClose }: NewSessionDialogProps) {
 	const navigate = useNavigate();
-	const queryClient = useQueryClient();
 	const { projects, selectedProjectId, loading } = useProjectFocus();
 
 	const [projectId, setProjectId] = useState<string | null>(null);
@@ -68,29 +65,9 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 	const [agent, setAgent] = useState("");
 	const [permissionMode, setPermissionMode] = useState<InvokePermissionMode>("bypass");
 	const [approvalMode, setApprovalMode] = useState<CodexApprovalMode>("bypass");
+	const [pending, setPending] = useState(false);
 
 	const activeProjectId = projectId ?? selectedProjectId ?? null;
-
-	const start = useMutation({
-		...orpc.kwTerminal.sessionStart.mutationOptions(),
-		onError: (error) => toast.error(errorMessage(error, "Não foi possível abrir a sessão")),
-		onSuccess: async (result) => {
-			await queryClient.invalidateQueries({ queryKey: orpc.kwTerminal.overview.key() });
-			setLabel("");
-			setPrompt("");
-			onClose();
-			navigate({ to: "/terminals/$paneId", params: { paneId: result.paneId } });
-		},
-	});
-	const resume = useMutation({
-		...orpc.kwTerminal.sessionResumeLast.mutationOptions(),
-		onError: (error) => toast.error(errorMessage(error, "Não foi possível retomar a conversa")),
-		onSuccess: async (result) => {
-			await queryClient.invalidateQueries({ queryKey: orpc.kwTerminal.overview.key() });
-			onClose();
-			await navigate({ to: "/terminals/$paneId", params: { paneId: result.paneId } });
-		},
-	});
 
 	function submit() {
 		if (!activeProjectId) {
@@ -99,25 +76,42 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 		const selectedModel = withoutInvokeInherit(model);
 		const selectedEffort = withoutInvokeInherit(effort);
 
-		start.mutate({
-			projectId: activeProjectId,
-			cli,
-			tab: { kind: "session", ...(label.trim() ? { label: label.trim() } : {}) },
-			...(prompt.trim() ? { prompt: prompt.trim() } : {}),
-			...(selectedModel ? { model: selectedModel } : {}),
-			...(selectedEffort ? { effort: selectedEffort } : {}),
-			...(cli === "claude" && agent.trim() ? { agent: agent.trim() } : {}),
-			...(cli === "claude" ? { permissionMode } : { approvalMode }),
-		});
+		setPending(true);
+		void actions
+			.startConversation({
+				projectId: activeProjectId,
+				cli,
+				tab: { kind: "session", ...(label.trim() ? { label: label.trim() } : {}) },
+				...(prompt.trim() ? { prompt: prompt.trim() } : {}),
+				...(selectedModel ? { model: selectedModel } : {}),
+				...(selectedEffort ? { effort: selectedEffort } : {}),
+				...(cli === "claude" && agent.trim() ? { agent: agent.trim() } : {}),
+				...(cli === "claude" ? { permissionMode } : { approvalMode }),
+			})
+			.then((result) => {
+				setLabel("");
+				setPrompt("");
+				onClose();
+				return navigate({ to: "/shells", search: { tab: `agent:${result.paneId}` } });
+			})
+			.catch(() => {})
+			.finally(() => setPending(false));
 	}
 
 	function resumeLast() {
 		if (activeProjectId) {
-			resume.mutate({ projectId: activeProjectId, cli });
+			setPending(true);
+			void actions
+				.resumeConversation({ projectId: activeProjectId, cli })
+				.then((result) => {
+					onClose();
+					return navigate({ to: "/shells", search: { tab: `agent:${result.paneId}` } });
+				})
+				.catch(() => {})
+				.finally(() => setPending(false));
 		}
 	}
 
-	const pending = start.isPending || resume.isPending;
 	const modelItems = selectItems(cli === "codex" ? CODEX_MODEL_OPTIONS : INVOKE_MODEL_OPTIONS);
 	const effortItems = selectItems(cli === "codex" ? CODEX_EFFORT_OPTIONS : INVOKE_EFFORT_OPTIONS);
 

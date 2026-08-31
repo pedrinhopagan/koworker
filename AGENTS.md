@@ -1,6 +1,6 @@
 # KOWORK KNOWLEDGE BASE
 
-**Atualizado:** 2026-07-27 (seção de entidades derivada de `src/api/db/connection.ts`)
+**Atualizado:** 2026-08-26 (seção de entidades derivada de `src/api/db/connection.ts`)
 
 ## VISÃO GERAL
 
@@ -20,7 +20,7 @@ src/
 ├── types/
 ├── cli/                 # CLI kw-cli (acesso direto ao DB)
 scripts/                 # setup, seed, test runner, build/deploy do desktop
-src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem plugin global-shortcut: o tray só anuncia o rótulo do atalho, que é registrado no WM
+electron/                # Wrapper desktop Electron: janela, tray, preload e backend sidecar
 ```
 
 ## ONDE PROCURAR
@@ -52,7 +52,7 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - **UI**: usar `<Title>` e `<Text>` ao invés de `<h1>`/`<p>`
 - **Condição**: usar `&&` em vez de ternário para render condicional
 - **Ícones**: somente `lucide-react`
-- **Sombras**: o app roda no WebKitGTK com `WEBKIT_DISABLE_COMPOSITING_MODE=1` (`src-tauri/src/lib.rs`), então tudo que está visível é rasterizado no CPU a cada quadro e sombra com blur é o item mais caro da conta. `shadow-xs` e `shadow-sm` foram redefinidos em `src/index.css` para blur 0 e são os únicos degraus permitidos em superfície que rola (card, input, botão, turno de conversa). Blur (`shadow-md` pra cima) só em overlay flutuante — popover, dropdown, sheet, dialog, toast. Medido em `/terminals/$paneId` com 5.4k nós: p95 de 65ms por quadro com o `shadow-sm` borrado do Tailwind contra 14ms com o rente.
+- **Sombras**: o desktop atual roda em Electron/Chromium. `shadow-xs` e `shadow-sm` foram redefinidos em `src/index.css` para blur 0 e são os únicos degraus permitidos em superfície que rola (card, input, botão, turno de conversa). Blur (`shadow-md` pra cima) só em overlay flutuante — popover, dropdown, sheet, dialog, toast. O orçamento permanece apoiado na medição do workspace de terminal com 5.4k nós: p95 de 65ms por quadro com o `shadow-sm` borrado contra 14ms com o rente.
 - **Selects**: SEMPRE `CustomSelect` (`@/components/ui/custom-select`). Nunca recriar o Select do shadcn nem usar `<select>` nativo. Motivo: as vars de tema (`--popover`, `--card`...) vivem em `.light`/`.dark` aplicados no `[data-theme-root]` (div interna em `__root.tsx`), não no `:root` — qualquer overlay Radix portado para o `document.body` fica fora do tema e renderiza transparente/preto. Todo primitivo com Portal (popover, dropdown, sheet, context-menu, custom-select) porta para `document.querySelector("[data-theme-root]")`; novos overlays devem fazer o mesmo.
 - **Markdown**: um motor só, em `src/lib/markdown-engine.ts` (parser CommonMark+GFM com a grifa `==` do app, cores de sintaxe e resolução de linguagem de fence). Duas superfícies o consomem: `MarkdownEditor` (`components/markdown-doc.tsx`), o leitor/editor de `.md` com live preview no CodeMirror, e `MarkdownView` (`components/markdown-view.tsx`), a leitura estática usada em toda fala de agent (conversa do terminal, turno de execução, rastro aberto). O visual é compartilhado pelas classes `cm-md-*` em `src/styles/markdown.css`; o `baseTheme` do live preview só guarda mecânica de editor. Nunca interpretar markdown na mão (splitter de crases, `whitespace-pre-wrap` fingindo formatação) — use `MarkdownView`.
 
@@ -269,9 +269,13 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 ## REALTIME
 
 - Canais do PubSub (`src/api/pubsub/index.ts`): `tasks`, `flow`, `promptRun`, `agentSession`,
-  `agentRadar`, `agentRadarTranscript`, `shells`, `notification`, `navigate` e `terminal`
+  `agentRadar`, `agentRadarTranscript`, `agentTerminalScreen`, `shells`, `terminalWorkspace`,
+  `notification`, `navigate` e `terminal`
 - `wsRouter` expõe `auth.me`, `notifications`, `tasks`, `navigate`, `flow`, `promptRun`,
-  `agentSession`, `agentRadar`, `agentRadarTranscript` e `terminal`
+  `agentSession`, `agentRadar`, `agentRadarTranscript`, `agentTerminal`, `terminalWorkspace` e
+  `terminal`
+- `terminalWorkspace` abre com snapshot versionado do catálogo unificado de shells e agents; revisões
+  monotônicas conciliam metadata concorrente e reconexão sem polling da listagem
 - `shells` entrega por `shellId` os bytes do PTY em base64, o título publicado pelo CLI e o desfecho;
   o replay do scrollback não passa pelo canal — o stream abre com ele
 - `agentSession` entrega os blocos da conversa (por `seq`), o `busy` do agente e a mudança de
@@ -282,6 +286,8 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - Uma assinatura de `agentRadarTranscript` por vez, só para a conversa que está na tela: a lista
   lateral usa `agentRadar.transcriptPreviews`, que lê a cauda de cada transcript e devolve só a
   última fala. Assinar a conversa por cartão baixava o histórico completo de cada agent aberto
+- `agentTerminalScreen` é por `paneId` e entrega snapshots ANSI da tela oficial somente enquanto a
+  visão Terminal está aberta; o teclado retorna ao mesmo PTY por `pane.send_input`
 - Origem do evento de task é marcada em `source`: `api`, `cli` ou `fs` (watcher de disco)
 - `promptRun` carrega o desfecho (`done`, `failed`…), a cauda de saída (`output`) e os passos do agente
   já interpretados (`step`, com ferramenta, alvo e resultado)
@@ -303,6 +309,6 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 | `src/routes/ROUTES_MAP.md` | Referência humana de navegação e layout |
 | `src/components/AGENTS.md` | Componentes base |
 | `src/cli/AGENTS.md` | CLI para AI Agents |
-| `src-tauri/AGENTS.md` | Wrapper desktop Tauri |
+| `electron/AGENTS.md` | Wrapper desktop Electron |
 | `docs/TERMINAL.md` | Sistema de terminais (tmux / kw-terminal / none + ORPC PubSub) |
 | `docs/SESSOES.md` | Sessões de agente: processo vivo, protocolo do CLI, permissão e pergunta |

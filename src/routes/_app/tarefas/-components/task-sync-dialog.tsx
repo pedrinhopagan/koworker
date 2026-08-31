@@ -21,11 +21,13 @@ export function TaskSyncAction({
 	categories,
 	priorities,
 	features,
+	triggerClassName,
 }: {
 	projectId: string | null;
 	categories: Category[];
 	priorities: Priority[];
 	features: Feature[];
+	triggerClassName?: string;
 }) {
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
@@ -151,7 +153,14 @@ export function TaskSyncAction({
 
 	return (
 		<>
-			<Button type="button" variant="outline" size="sm" disabled={!projectId} onClick={handleOpen}>
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				className={triggerClassName}
+				disabled={!projectId}
+				onClick={handleOpen}
+			>
 				<RefreshCw className="size-4" />
 				Reconciliar arquivos
 			</Button>

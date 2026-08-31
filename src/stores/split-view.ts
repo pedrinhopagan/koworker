@@ -1,45 +1,68 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export const SPLIT_PANE_DEFAULT = 520;
 export const SPLIT_PANE_MIN = 320;
-export const SPLIT_PANE_MAX_RATIO = 0.75;
+export const SPLIT_MAIN_MIN = 420;
+export const SHELL_PANE_WIDTH_PROPERTY = "--shell-pane-width";
 
-function clampWidth(width: number): number {
-	const max = Math.max(SPLIT_PANE_MIN, Math.round(window.innerWidth * SPLIT_PANE_MAX_RATIO));
-	return Math.min(Math.max(width, SPLIT_PANE_MIN), max);
+export function shellPaneWidthValue(): string {
+	return `var(${SHELL_PANE_WIDTH_PROPERTY}, ${SPLIT_PANE_DEFAULT}px)`;
+}
+
+export function rootOf(path: string): string {
+	return path.split("?")[0] ?? "/";
+}
+
+export function isShellsPath(path: string): boolean {
+	const clean = rootOf(path);
+	return clean === "/shells" || clean.startsWith("/shells/");
+}
+
+export function clampSplitPaneWidth(width: number, available: number): number {
+	const max = Math.max(SPLIT_PANE_MIN, Math.round(available) - SPLIT_MAIN_MIN);
+	return Math.min(Math.max(Math.round(width), SPLIT_PANE_MIN), max);
+}
+
+function normalizePinnedPath(path?: string): string {
+	return path && path.startsWith("/") ? path : "/shells";
 }
 
 interface SplitViewState {
-	left: string | null;
+	path: string | null;
 	width: number;
-	pin: (path: string) => void;
-	unpin: () => void;
-	toggle: (path: string) => void;
+	resizing: boolean;
+	pulse: number;
+	open: (path?: string) => void;
+	close: () => void;
+	toggle: (path?: string) => void;
+	poke: () => void;
 	setWidth: (width: number) => void;
-}
-
-export function maxSplitPaneWidth(): number {
-	return Math.max(SPLIT_PANE_MIN, Math.round(window.innerWidth * SPLIT_PANE_MAX_RATIO));
+	setResizing: (resizing: boolean) => void;
 }
 
 export const useSplitViewStore = create<SplitViewState>()(
 	persist(
 		(set) => ({
-			left: null,
-			width: 520,
-			pin: (path) => set({ left: path }),
-			unpin: () => set({ left: null }),
-			toggle: (path) => set((state) => ({ left: state.left === path ? null : path })),
-			setWidth: (width) =>
-				set(typeof window === "undefined" ? { width } : { width: clampWidth(width) }),
+			path: null,
+			width: SPLIT_PANE_DEFAULT,
+			resizing: false,
+			pulse: 0,
+			open: (path) => set({ path: normalizePinnedPath(path), resizing: false }),
+			close: () => set({ path: null, resizing: false }),
+			toggle: (path) =>
+				set((state) =>
+					state.path
+						? { path: null, resizing: false }
+						: { path: normalizePinnedPath(path), resizing: false },
+				),
+			poke: () => set((state) => ({ pulse: state.pulse + 1 })),
+			setWidth: (width) => set({ width }),
+			setResizing: (resizing) => set({ resizing }),
 		}),
 		{
 			name: "kowork-split-view",
-			partialize: (state) => ({ left: state.left, width: state.width }),
+			partialize: (state) => ({ path: state.path, width: state.width }),
 		},
 	),
 );
-
-export function isSessionPath(path: string): boolean {
-	return path === "/shells" || path.startsWith("/shells/") || path.startsWith("/terminals/");
-}

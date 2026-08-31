@@ -2,14 +2,16 @@ import { Link } from "@tanstack/react-router";
 import { FolderGit2, GitBranch, ListTree, Radio } from "lucide-react";
 import { memo } from "react";
 
-import type { CliSessionSummary } from "@/api/helpers/agent-history";
-import type { SessionTaskOrigin } from "@/api/helpers/agent-history/links";
+import type { RouterOutputs } from "@/client";
 import { AgentCliIcon } from "@/components/agent-radar/agent-cli";
 import { Text } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
 import { agentRadarAgentLabel } from "@/constants/agent-radar";
 import { formatDuration, relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
+
+type CliSessionSummary = RouterOutputs["agentHistory"]["list"]["sessions"][number];
+type SessionTaskOrigin = CliSessionSummary["tasks"][number]["origin"];
 
 const ORIGIN_HINTS: Record<SessionTaskOrigin, string> = {
 	registro: "O koworker abriu esta sessão para a tarefa",

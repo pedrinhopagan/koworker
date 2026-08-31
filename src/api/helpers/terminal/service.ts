@@ -136,6 +136,28 @@ type OpenParams = {
 
 type ResolvedOpenParams = OpenParams & { sessionName: string; windowName: string };
 
+type AdapterProjectParams = { projectId: string; sessionName: string };
+type AdapterWindowParams = AdapterProjectParams & { taskId: string; windowName: string };
+type AdapterFocusAgentParams = {
+	config: TerminalConfig;
+	cli: "claude" | "codex";
+	mainRoute: string;
+};
+
+export type TerminalMultiplexerAdapter = {
+	multiplexer: TerminalMultiplexer;
+	open: (params: ResolvedOpenParams) => Promise<OpenTerminalResult>;
+	windowExists: (params: AdapterProjectParams & { windowName: string }) => Promise<boolean>;
+	invocationWindowNames: (params: AdapterProjectParams) => Promise<string[]>;
+	closeProject: (params: AdapterProjectParams) => Promise<void>;
+	closeWindow: (params: AdapterWindowParams) => Promise<void>;
+	closeInvocationWindows: (
+		params: AdapterProjectParams & { windowNames: string[] },
+	) => Promise<number>;
+	focusAgent: (params: AdapterFocusAgentParams) => Promise<KwTerminalAgent | null>;
+	monitor: () => Promise<void>;
+};
+
 function openTerminal(params: OpenParams): Promise<OpenTerminalResult> {
 	const resolved = {
 		...params,
@@ -143,15 +165,7 @@ function openTerminal(params: OpenParams): Promise<OpenTerminalResult> {
 		windowName: terminalTabLabel(params.tab),
 	};
 
-	if (params.config.multiplexer === "none") {
-		return Promise.resolve(openNone(resolved));
-	}
-
-	if (params.config.multiplexer === "kw-terminal") {
-		return openKwTerminal(resolved);
-	}
-
-	return openTmux(resolved);
+	return terminalMultiplexerAdapter(params.config.multiplexer).open(resolved);
 }
 
 // O grupo do kw-terminal é o projeto, sempre pelo nome cadastrado — nunca pela pasta onde o comando
@@ -590,8 +604,10 @@ function startMonitor() {
 }
 
 async function tickMonitor() {
-	await tickTmuxSessions();
-	await tickKwTerminalSessions();
+	const multiplexers = new Set(sessions.map((session) => session.multiplexer));
+	await Promise.all(
+		[...multiplexers].map((multiplexer) => terminalMultiplexerAdapter(multiplexer).monitor()),
+	);
 
 	const stillMonitored = sessions.some(
 		(session) => session.multiplexer === "tmux" || session.multiplexer === "kw-terminal",
@@ -758,19 +774,238 @@ async function closeKwTerminalInvocationTabs(
 	return killed;
 }
 
+function closeNoneProject(params: AdapterProjectParams) {
+	for (const window of findSession(params.projectId)?.windows ?? []) {
+		window.process?.kill();
+	}
+
+	return Promise.resolve();
+}
+
+async function closeKwTerminalProject(params: AdapterProjectParams) {
+	const tracked = findSession(params.projectId);
+	const workspaceId =
+		tracked?.workspaceId ?? (await findWorkspaceByLabel(params.sessionName))?.workspace_id;
+
+	if (workspaceId && !(await kwTerminalWorkspaceClose(workspaceId))) {
+		throw new Error("Falha ao encerrar workspace kw-terminal");
+	}
+
+	for (const window of tracked?.windows ?? []) {
+		publish({
+			eventType: "window_closed",
+			projectId: params.projectId,
+			taskId: window.taskId,
+			sessionName: params.sessionName,
+			windowName: window.windowName,
+		});
+	}
+
+	sessions = sessions.filter((session) => session.projectId !== params.projectId);
+	publish({
+		eventType: "session_closed",
+		projectId: params.projectId,
+		sessionName: params.sessionName,
+	});
+}
+
+async function closeTmuxProject(params: AdapterProjectParams) {
+	if (!(await tmuxSessionExists(params.sessionName))) {
+		return;
+	}
+
+	if (!(await tmuxKillSession(params.sessionName))) {
+		throw new Error("Falha ao encerrar sessão tmux");
+	}
+
+	sessions = sessions.filter((session) => session.projectId !== params.projectId);
+	publish({
+		eventType: "session_closed",
+		projectId: params.projectId,
+		sessionName: params.sessionName,
+	});
+}
+
+function closeNoneWindow(params: AdapterWindowParams) {
+	const window = findSession(params.projectId)?.windows.find(
+		(candidate) => candidate.windowName === params.windowName,
+	);
+	window?.process?.kill();
+
+	return Promise.resolve();
+}
+
+async function closeKwTerminalWindow(params: AdapterWindowParams) {
+	const session = findSession(params.projectId);
+	const tracked = session?.windows.find((candidate) => candidate.taskId === params.taskId);
+	let tabId = tracked?.tabId;
+
+	if (!tabId) {
+		const workspaceId =
+			session?.workspaceId ?? (await findWorkspaceByLabel(params.sessionName))?.workspace_id;
+		if (workspaceId) {
+			tabId = (await findTabByLabel(workspaceId, params.windowName))?.tab_id;
+		}
+	}
+
+	if (tabId && !(await kwTerminalTabClose(tabId))) {
+		throw new Error("Falha ao fechar tab kw-terminal");
+	}
+
+	if (session) {
+		session.windows = session.windows.filter((window) => window.taskId !== params.taskId);
+	}
+	publish({
+		eventType: "window_closed",
+		projectId: params.projectId,
+		taskId: params.taskId,
+		sessionName: params.sessionName,
+		windowName: params.windowName,
+	});
+}
+
+async function closeTmuxWindow(params: AdapterWindowParams) {
+	if (
+		!(await tmuxSessionExists(params.sessionName)) ||
+		!(await tmuxWindowExists(params.sessionName, params.windowName))
+	) {
+		return;
+	}
+
+	if (!(await tmuxKillWindow(params.sessionName, params.windowName))) {
+		throw new Error("Falha ao fechar window tmux");
+	}
+
+	const session = findSession(params.projectId);
+	if (session) {
+		session.windows = session.windows.filter((window) => window.taskId !== params.taskId);
+	}
+	publish({
+		eventType: "window_closed",
+		projectId: params.projectId,
+		taskId: params.taskId,
+		sessionName: params.sessionName,
+		windowName: params.windowName,
+	});
+}
+
+function closeNoneInvocationWindows(params: AdapterProjectParams & { windowNames: string[] }) {
+	const session = findSession(params.projectId);
+	let killed = 0;
+
+	for (const windowName of params.windowNames) {
+		const window = session?.windows.find((candidate) => candidate.windowName === windowName);
+		if (window?.process) {
+			window.process.kill();
+			killed += 1;
+		}
+	}
+
+	return Promise.resolve(killed);
+}
+
+async function closeTmuxInvocationWindows(
+	params: AdapterProjectParams & { windowNames: string[] },
+) {
+	let killed = 0;
+
+	for (const windowName of params.windowNames) {
+		if (await tmuxKillWindow(params.sessionName, windowName)) {
+			killed += 1;
+			notifyInvocationWindowClosed(params.sessionName, windowName);
+		}
+	}
+
+	return killed;
+}
+
+async function focusKwTerminalAgent(params: AdapterFocusAgentParams) {
+	await ensureKwTerminalServer();
+
+	const agent = selectAgentForCli({
+		agents: await kwTerminalAgentList(),
+		cli: params.cli,
+		mainRoute: params.mainRoute,
+	});
+	if (!agent) {
+		return null;
+	}
+
+	if (!(await kwTerminalAgentFocus(agent.terminal_id))) {
+		throw new Error(`Falha ao focar a sessão ${params.cli} no kw-terminal`);
+	}
+
+	await revealKwTerminalClient({ config: params.config, workingDir: agent.cwd });
+
+	return agent;
+}
+
+function noFocusedAgent() {
+	return Promise.resolve(null);
+}
+
+function noMonitor() {
+	return Promise.resolve();
+}
+
+const TERMINAL_MULTIPLEXER_ADAPTERS: Record<TerminalMultiplexer, TerminalMultiplexerAdapter> = {
+	none: {
+		multiplexer: "none",
+		open: (params) => Promise.resolve(openNone(params)),
+		windowExists: (params) =>
+			Promise.resolve(
+				!!findSession(params.projectId)?.windows.some(
+					(window) => window.windowName === params.windowName,
+				),
+			),
+		invocationWindowNames: (params) =>
+			Promise.resolve(
+				findSession(params.projectId)?.windows.map((window) => window.windowName) ?? [],
+			),
+		closeProject: closeNoneProject,
+		closeWindow: closeNoneWindow,
+		closeInvocationWindows: closeNoneInvocationWindows,
+		focusAgent: noFocusedAgent,
+		monitor: noMonitor,
+	},
+	"kw-terminal": {
+		multiplexer: "kw-terminal",
+		open: openKwTerminal,
+		windowExists: async (params) =>
+			(await kwTerminalTabLabels(params.projectId, params.sessionName)).includes(params.windowName),
+		invocationWindowNames: (params) => kwTerminalTabLabels(params.projectId, params.sessionName),
+		closeProject: closeKwTerminalProject,
+		closeWindow: closeKwTerminalWindow,
+		closeInvocationWindows: (params) =>
+			closeKwTerminalInvocationTabs(params.projectId, params.sessionName, params.windowNames),
+		focusAgent: focusKwTerminalAgent,
+		monitor: tickKwTerminalSessions,
+	},
+	tmux: {
+		multiplexer: "tmux",
+		open: openTmux,
+		windowExists: (params) => tmuxWindowExists(params.sessionName, params.windowName),
+		invocationWindowNames: (params) => tmuxListWindows(params.sessionName),
+		closeProject: closeTmuxProject,
+		closeWindow: closeTmuxWindow,
+		closeInvocationWindows: closeTmuxInvocationWindows,
+		focusAgent: noFocusedAgent,
+		monitor: tickTmuxSessions,
+	},
+};
+
+export function terminalMultiplexerAdapter(multiplexer: TerminalMultiplexer) {
+	return TERMINAL_MULTIPLEXER_ADAPTERS[multiplexer];
+}
+
 async function invocationWindowNames(params: {
 	config: TerminalConfig;
 	projectId: string;
 	sessionName: string;
 }): Promise<string[]> {
-	let names: string[];
-	if (params.config.multiplexer === "none") {
-		names = findSession(params.projectId)?.windows.map((window) => window.windowName) ?? [];
-	} else if (params.config.multiplexer === "kw-terminal") {
-		names = await kwTerminalTabLabels(params.projectId, params.sessionName);
-	} else {
-		names = await tmuxListWindows(params.sessionName);
-	}
+	const names = await terminalMultiplexerAdapter(params.config.multiplexer).invocationWindowNames(
+		params,
+	);
 
 	return names.filter(isInvocationWindow);
 }
@@ -804,25 +1039,13 @@ function invocationArgv(params: {
 	});
 }
 
-async function windowExists(params: {
+function windowExists(params: {
 	config: TerminalConfig;
 	projectId: string;
 	sessionName: string;
 	windowName: string;
 }): Promise<boolean> {
-	if (params.config.multiplexer === "none") {
-		return !!findSession(params.projectId)?.windows.some(
-			(window) => window.windowName === params.windowName,
-		);
-	}
-
-	if (params.config.multiplexer === "kw-terminal") {
-		return (await kwTerminalTabLabels(params.projectId, params.sessionName)).includes(
-			params.windowName,
-		);
-	}
-
-	return await tmuxWindowExists(params.sessionName, params.windowName);
+	return terminalMultiplexerAdapter(params.config.multiplexer).windowExists(params);
 }
 
 // Sessão do CLI ativo a focar: só os agents daquele binário abertos dentro do projeto (cwd exato
@@ -863,7 +1086,7 @@ export const Terminal = {
 		projectName: string;
 		mainRoute: string;
 		cli: "claude" | "codex";
-		// Sessão livre da rota `/terminals` ou invocação de agent/skill: quem dispara diz o alvo, o
+		// Sessão livre da rota `/shells` ou invocação de agent/skill: quem dispara diz o alvo, o
 		// rótulo sai do motor de nomes.
 		tab?: TerminalTabTarget;
 		prompt?: string;
@@ -939,24 +1162,13 @@ export const Terminal = {
 			throw new Error(`Escolha o projeto antes de focar a sessão ${params.cli}`);
 		}
 
-		if (params.config.multiplexer === "kw-terminal") {
-			await ensureKwTerminalServer();
-
-			const agent = selectAgentForCli({
-				agents: await kwTerminalAgentList(),
-				cli: params.cli,
-				mainRoute,
-			});
-
-			if (agent) {
-				if (!(await kwTerminalAgentFocus(agent.terminal_id))) {
-					throw new Error(`Falha ao focar a sessão ${params.cli} no kw-terminal`);
-				}
-
-				await revealKwTerminalClient({ config: params.config, workingDir: agent.cwd });
-
-				return { agent: agent.agent, cwd: agent.cwd, status: agent.agent_status, opened: false };
-			}
+		const agent = await terminalMultiplexerAdapter(params.config.multiplexer).focusAgent({
+			config: params.config,
+			cli: params.cli,
+			mainRoute,
+		});
+		if (agent) {
+			return { agent: agent.agent, cwd: agent.cwd, status: agent.agent_status, opened: false };
 		}
 
 		const tab: TerminalTabTarget = { kind: "cli", cli: params.cli };
@@ -1049,51 +1261,10 @@ export const Terminal = {
 		projectId: string;
 		projectName: string;
 	}): Promise<void> {
-		const sessionName = sessionNameFor(params.projectName);
-
-		if (params.config.multiplexer === "none") {
-			// O `.exited` de cada processo dispara handleNoneWindowClosed de forma assíncrona (não durante
-			// este loop), então iterar o array vivo é seguro — nada o muta aqui.
-			for (const window of findSession(params.projectId)?.windows ?? []) {
-				window.process?.kill();
-			}
-			return;
-		}
-
-		if (params.config.multiplexer === "kw-terminal") {
-			// Fecha o workspace inteiro. O `workspaceId` em memória some no restart do backend, então
-			// caímos no lookup por label (`sessionName` é estável) pra ainda achar o workspace.
-			const tracked = findSession(params.projectId);
-			const workspaceId =
-				tracked?.workspaceId ?? (await findWorkspaceByLabel(sessionName))?.workspace_id;
-
-			if (workspaceId && !(await kwTerminalWorkspaceClose(workspaceId))) {
-				throw new Error("Falha ao encerrar workspace kw-terminal");
-			}
-
-			for (const window of tracked?.windows ?? []) {
-				publish({
-					eventType: "window_closed",
-					projectId: params.projectId,
-					taskId: window.taskId,
-					sessionName,
-					windowName: window.windowName,
-				});
-			}
-
-			sessions = sessions.filter((session) => session.projectId !== params.projectId);
-			publish({ eventType: "session_closed", projectId: params.projectId, sessionName });
-			return;
-		}
-
-		if (await tmuxSessionExists(sessionName)) {
-			if (!(await tmuxKillSession(sessionName))) {
-				throw new Error("Falha ao encerrar sessão tmux");
-			}
-
-			sessions = sessions.filter((session) => session.projectId !== params.projectId);
-			publish({ eventType: "session_closed", projectId: params.projectId, sessionName });
-		}
+		await terminalMultiplexerAdapter(params.config.multiplexer).closeProject({
+			projectId: params.projectId,
+			sessionName: sessionNameFor(params.projectName),
+		});
 	},
 
 	async closeTaskWindow(params: {
@@ -1110,66 +1281,12 @@ export const Terminal = {
 			title: params.taskTitle,
 		});
 
-		if (params.config.multiplexer === "none") {
-			const window = findSession(params.projectId)?.windows.find(
-				(candidate) => candidate.windowName === windowName,
-			);
-			window?.process?.kill();
-			return;
-		}
-
-		if (params.config.multiplexer === "kw-terminal") {
-			// 1 tab = 1 window lógica: fechamos a tab, não o pane. `tabId` em memória some no restart, então
-			// resolvemos por label (workspace por `sessionName`, tab por `windowName`) como fallback.
-			const session = findSession(params.projectId);
-			const tracked = session?.windows.find((candidate) => candidate.taskId === params.taskId);
-			let tabId = tracked?.tabId;
-
-			if (!tabId) {
-				const workspaceId =
-					session?.workspaceId ?? (await findWorkspaceByLabel(sessionName))?.workspace_id;
-				if (workspaceId) {
-					tabId = (await findTabByLabel(workspaceId, windowName))?.tab_id;
-				}
-			}
-
-			if (tabId && !(await kwTerminalTabClose(tabId))) {
-				throw new Error("Falha ao fechar tab kw-terminal");
-			}
-
-			if (session) {
-				session.windows = session.windows.filter((window) => window.taskId !== params.taskId);
-			}
-			publish({
-				eventType: "window_closed",
-				projectId: params.projectId,
-				taskId: params.taskId,
-				sessionName,
-				windowName,
-			});
-			return;
-		}
-
-		if (
-			(await tmuxSessionExists(sessionName)) &&
-			(await tmuxWindowExists(sessionName, windowName))
-		) {
-			if (!(await tmuxKillWindow(sessionName, windowName))) {
-				throw new Error("Falha ao fechar window tmux");
-			}
-
-			const session = findSession(params.projectId);
-			if (session) {
-				session.windows = session.windows.filter((window) => window.taskId !== params.taskId);
-			}
-			publish({
-				eventType: "window_closed",
-				projectId: params.projectId,
-				taskId: params.taskId,
-				sessionName,
-				windowName,
-			});
-		}
+		await terminalMultiplexerAdapter(params.config.multiplexer).closeWindow({
+			projectId: params.projectId,
+			taskId: params.taskId,
+			sessionName,
+			windowName,
+		});
 	},
 
 	// Lista os projetos informados que têm invocações de agent/skill abertas, com a contagem. Projetos
@@ -1209,29 +1326,11 @@ export const Terminal = {
 				sessionName,
 			});
 
-			if (params.config.multiplexer === "none") {
-				const session = findSession(project.id);
-				for (const windowName of windowNames) {
-					const window = session?.windows.find((candidate) => candidate.windowName === windowName);
-					if (window?.process) {
-						window.process.kill();
-						killed += 1;
-					}
-				}
-				continue;
-			}
-
-			if (params.config.multiplexer === "kw-terminal") {
-				killed += await closeKwTerminalInvocationTabs(project.id, sessionName, windowNames);
-				continue;
-			}
-
-			for (const windowName of windowNames) {
-				if (await tmuxKillWindow(sessionName, windowName)) {
-					killed += 1;
-					notifyInvocationWindowClosed(sessionName, windowName);
-				}
-			}
+			killed += await terminalMultiplexerAdapter(params.config.multiplexer).closeInvocationWindows({
+				projectId: project.id,
+				sessionName,
+				windowNames,
+			});
 		}
 
 		return killed;

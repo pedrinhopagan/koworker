@@ -27,7 +27,7 @@ function TerminalHistoryPage() {
 			contentClassName="flex min-h-0 max-w-none flex-col"
 			actions={
 				<Button asChild variant="outline" size="sm">
-					<Link to="/terminals">
+					<Link to="/shells">
 						<SquareTerminal className="size-4" />
 						Agents abertos
 					</Link>

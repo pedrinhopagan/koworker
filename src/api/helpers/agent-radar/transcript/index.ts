@@ -1,7 +1,10 @@
-import type { AgentSessionEvent } from "@/lib/agent-session";
+import type {
+	AgentRadarTranscriptEnvelope,
+	AgentTranscript,
+} from "@/api/schemas/agent-radar-transcript";
 import { PubSub } from "../../../pubsub";
 import { getRadarAgent } from "../state";
-import { locateAgentTranscript, type AgentTranscript } from "./locate";
+import { locateAgentTranscript } from "./locate";
 import { syncPaneTranscriptSource } from "./sync";
 import { openTranscriptTail, type TranscriptTail } from "./tail";
 
@@ -20,21 +23,6 @@ type PaneTranscript = {
 };
 
 const panes = new Map<string, PaneTranscript>();
-
-export type AgentRadarTranscriptEnvelope = {
-	paneId: string;
-	// `reset` marca a conversa inteira, não um acréscimo: o cliente joga fora o que tinha antes de
-	// aplicar, porque os `seq` recomeçaram do zero num arquivo novo.
-	events?: AgentSessionEvent[];
-	reset?: boolean;
-	source?: AgentTranscript;
-	// O agent existe no radar mas não há transcript para ele: CLI sem arquivo de sessão, ou sessão
-	// que ainda não escreveu a primeira linha.
-	missing?: boolean;
-	// O modelo que o CLI reportou por último no próprio transcript; ausente enquanto a sessão não
-	// escreveu nenhuma resposta.
-	model?: string;
-};
 
 function publish(envelope: AgentRadarTranscriptEnvelope) {
 	return PubSub.publish("agentRadarTranscript", envelope.paneId, envelope);

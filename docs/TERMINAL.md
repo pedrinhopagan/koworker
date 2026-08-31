@@ -29,7 +29,7 @@ Frontend (React)                    Backend (Bun + ORPC)
 └─────────────────┘                └──────────────────────┘
 ```
 
-O frontend fala só com ORPC (`src/lib/terminal.ts`). O backend resolve template + multiplexador a partir das settings do sistema e delega para tmux, kw-terminal ou spawn direto de emulador.
+O frontend fala só com ORPC (`src/lib/terminal.ts`). O backend resolve template + multiplexador a partir das settings do sistema e delega ao adapter `tmux`, `kw-terminal` ou `none`. Todos implementam o mesmo contrato de abrir, consultar, listar e encerrar sessões, windows e invocações.
 
 ## MULTIPLEXADORES
 
@@ -116,7 +116,7 @@ Procedures em `src/api/routers/terminal.ts`:
 
 WebSocket: `terminal.events` → `PubSub.terminal.subscribe`.
 
-Procedures em `src/api/routers/kw-terminal.ts`, que é o que a rota `/terminals` consome:
+Procedures em `src/api/routers/kw-terminal.ts`, consumidas pelo módulo de workspace de `/shells`:
 
 | Procedure | Descrição |
 |-----------|-----------|
@@ -146,7 +146,7 @@ Labels estáveis entre reinícios do backend (lookup por nome, não por ID volá
 - **Rota do projeto**: nome da rota sanitizado (`sanitizeRouteName`)
 - **Tab do CLI do projeto**: `cli_claude` / `cli_codex`
 - **Invocações**: `agent_{slug}` ou `skill_{slug}` (filtro `isInvocationWindow`)
-- **Sessão livre da rota `/terminals`**: `sess_{nome}` ou `sess_{hhmm}` (`sessionTabName`)
+- **Sessão livre da rota `/shells`**: `sess_{nome}` ou `sess_{hhmm}` (`sessionTabName`)
 
 Implementação: `src/api/helpers/terminal/names.ts`. **Ninguém monta esses nomes à mão.** Quem abre
 terminal descreve o alvo (`TerminalTabTarget`: `task`, `run`, `route`, `cli`, `invocation`,
@@ -158,14 +158,17 @@ O grupo sai do **nome do projeto no banco**, nunca da pasta onde o comando calho
 (`terminal/service.ts`) e `ensureWorkspaceByLabel` (`terminal/kw-terminal.ts`) são os únicos caminhos
 para obter um workspace; jobs (`kw_execucoes`) e a reabertura do retrato passam pelo mesmo `ensure`.
 
-## ROTA /terminals
+## ROTA /shells
 
-`/terminals` mostra apenas agents abertos no daemon. Cada linha abre `/terminals/$paneId`; foco no
-cliente TUI, diff e fechamento são ações secundárias.
+`/shells` é a única superfície de terminais vivos. O catálogo versionado `terminalWorkspace` reúne
+shells embutidos e agents do daemon, com identidade, projeto, status, fidelidade e capabilities
+explícitas. A rota consome um único hook de estado e ações; não monta queries, mutations ou polling
+por origem. O `paneId` continua sendo a identidade do agent enquanto o pane existe, representado no
+search como `?tab=agent:<paneId>`.
 
-No desktop, o detalhe mantém a lista à esquerda e a conversa à direita. No mobile, lista e detalhe
-são páginas separadas. O `paneId` é a identidade pública enquanto o pane existe; fechar o pane
-encerra envio, assinatura e validade da rota.
+`/terminals` redireciona para `/shells` e `/terminals/$paneId` redireciona para a aba equivalente,
+ambos com `replace`. O namespace `/terminals/history/**` não redireciona e continua reservado ao
+arquivo de conversas.
 
 A timeline prioriza `agent_session_path` informado pelo CLI ao daemon. Quando uma integração antiga
 não reporta o caminho, o backend usa `pane process-info`. No Codex, aceita somente o rollout raiz
@@ -182,6 +185,59 @@ sincronizador instala a integração na primeira vez que vê isso e adota do ban
 recente daquele diretório, ignorando subagentes (`parent_id`) e arquivadas. Duas instâncias vivas no
 mesmo diretório sem reporte caem na mesma adotada — é o limite do sinal disponível. Esse recorte não
 aparece em `/terminals/history`, que continua listando só o que claude e codex gravam em disco.
+
+Cada conversa viva pode alternar entre **Conversa** e **Terminal** sem criar outro processo. A visão
+de terminal lê o snapshot ANSI `visible` do mesmo `paneId`, com as dimensões do layout oficial, e
+devolve teclado por `pane.send_input`. O daemon não empurra saída de pane — `events.subscribe` só
+conhece `pane.output_matched`, `pane.agent_status_changed` e `pane.scroll_changed` —, então a ponte
+lê `pane.read` em laço a cada 40 ms enquanto houver leitor e publica pelo stream `agentTerminal` só
+quando a tela muda de fato. O tamanho do pane sai de `pane.layout` uma vez por segundo, não a cada
+quadro. Sem leitor, nenhuma tela é serializada. Na prática o teto é a própria TUI: Claude e Codex
+redesenham perto de 9 Hz, e o laço captura tudo.
+
+No cliente, a tela chega inteira mas só as linhas que mudaram são repintadas, endereçadas por
+posição absoluta com autowrap desligado — reescrever o grid a cada quadro era o que fazia o espelho
+piscar. O cursor fica escondido porque `pane.read` não reporta linha e coluna; quem desenha o caret
+é a TUI do agent. A fonte é fixa (a mesma do alacritty/kw-terminal da máquina: Noto Sans Mono a
+16px, `lib/terminal-look.ts`).
+
+O tamanho do grid não é mais da TUI: com a visão Terminal aberta, o backend vira o **controller do
+PTY** — um `kw-terminal terminal session control <paneId> --cols N --rows N --takeover` por pane
+(`agent-radar/pane-control.ts`). O attach redimensiona o PTY para o grid medido do frame do app e
+trava o resize do layout (`direct_attach_resize_locks` no daemon); resizes seguintes vão como
+`terminal.resize` no stdin do mesmo processo, coalescidos em um pedido por quadro no cliente. O
+grid publicado no stream é o do controller — o `pane.layout` continua com o retângulo da TUI, e
+publicá-lo recortava a largura do espelho na janela do kw-terminal. Ao fechar a visão (último
+leitor do stream sai), o controller recebe `terminal.release` e cai, e o daemon remove o lock e
+devolve o pane ao tamanho do layout. Resize que o daemon recusar (versão velha, pane morto) não
+derruba o espelho: ele segue em leitura, centrado no grid que o pane tiver.
+
+O wheel do espelho é dono dele mesmo. Com `scrollback: 0`, o xterm convertia cada rolagem em seta
+↑/↓ pro pane (`!buffer.hasScrollback` dispara a emulação de alternate scroll dele) — o transcript
+do TUI scrollava sozinho entre prompts antigos e o prompt do shell ciclava comando. O handler
+customizado (`attachCustomWheelEventHandler`) devolve `false` e manda o delta em linhas para
+`agentTerminal.scroll`, que tem dois destinos. Com histórico de terminal disponível, a ponte
+(`terminal-screen.ts`) guarda `offset` por pane e publica a janela do `pane.read --source recent`
+terminando `offset` linhas antes do fim — o wheel rola o histórico real do pane, com clamp no topo;
+qualquer tecla devolve o espelho ao vivo, e um chip "histórico do pane" marca a janela rolada. Sem
+histórico — pane de TUI em alt screen não tem scrollback no daemon (`max_offset_from_bottom` 0) —
+a ponte responde `mode: "forward"` e o cliente encaminha o gesto como setas ↑/↓ **deliberadas** ao
+agent via `agentTerminal.input`: num TUI sem mouse reporting, o transcript dele é o único conteúdo
+que existe "em cima", e rolar o mouse passa a percorrê-lo como num terminal de verdade. A decisão
+vive numa sonda com TTL (`decideWheel` + leitura curta de `recent` no primeiro wheel pra cima), e
+cada frame carrega no máximo 6 setas para um flick não voar pelo transcript inteiro. No shell
+embutido a guarda é outra: em alt screen o handler só bloqueia a conversão em setas — TUI com mouse
+reporting continua recebendo o wheel (o caminho de mouse do xterm roda antes do handler), e no
+buffer normal o scroll local é o scrollback de 10k linhas do próprio xterm.
+
+O teclado é o outro lado do espelho. `pane.send_input` **digita texto e só texto**: todo byte de
+controle é descartado no caminho, e era por isso que backspace, enter, seta e ctrl+c não chegavam ao
+agent — não dava nem para apagar o que estava escrito no input. Tecla viaja por um vocabulário
+nomeado do daemon (`backspace`, `enter`, `tab`, `esc`, `up`/`down`/`left`/`right`, `shift+tab`,
+`ctrl+<letra>`, `alt+<tecla>`) e texto e tecla no mesmo pacote saem fora de ordem. `translatePaneInput`
+(`terminal/pane-input.ts`) quebra o fluxo cru do xterm numa fila de operações e cada uma é despachada
+em sequência. Sequência de escape que o daemon não conhece (Delete, Home, End, PageUp) é descartada:
+mandá-la como texto imprimiria lixo no input do agent.
 
 `sessionStart` e `sessionResumeLast` instalam a integração oficial do Claude ou Codex antes de subir
 o processo. Isso mantém o reporte nativo nas sessões seguintes; a resolução por processo cobre panes
@@ -235,7 +291,7 @@ Enquanto há agents abertos, o radar grava um retrato de `workspaceLabel`, `tabL
 do daemon e o encerramento do backend preservam esse retrato; fechar panes normalmente atualiza ou
 limpa a lista, para não reaparecer no próximo boot.
 
-Quando o radar volta vazio e existe um retrato pendente de uma execução anterior, `/terminals` mostra
+Quando o radar volta vazio e existe um retrato pendente de uma execução anterior, `/shells` mostra
 "Reabrir terminais". A ação recria workspaces e tabs idempotentemente, confirma cada criação pela
 leitura do daemon e abre o cliente TUI. Os panes ficam no shell do diretório original: nenhum CLI é
 iniciado, nenhuma conversa é retomada e nenhum comando ou prompt é enviado.
@@ -274,7 +330,7 @@ varredura é do arquivo inteiro, e só das conversas que vão aparecer na págin
 
 Retomar (`agentHistory.resume`) cria uma tab no workspace do projeto que cobre a pasta da sessão —
 ou no grupo `kw_sem-projeto`, quando nenhum a cobre —, na pasta onde a sessão rodou,
-rodando `claude --resume <id>` ou `codex resume <id>`, e leva para `/terminals/$paneId`. Se aquela
+rodando `claude --resume <id>` ou `codex resume <id>`, e leva para `/shells?tab=agent:<paneId>`. Se aquela
 mesma sessão já está viva num pane (o radar conhece o `sessionId`), nada sobe: o botão vira "Ir para
 o terminal" e navega direto.
 
@@ -294,7 +350,7 @@ porque push já entregue aponta para lá.
 
 ## JOBS E ARQUIVO /executar
 
-`/executar` redireciona para `/terminals`. `/executar/$id` preserva sessões e runs antigos em modo
+`/executar` redireciona para `/shells`. `/executar/$id` preserva sessões e runs antigos em modo
 somente leitura. Runs novos existem apenas para jobs `merge_action` e `automation`, sempre unattended,
 sem `parent_run_id`, sessão continuável ou composer.
 

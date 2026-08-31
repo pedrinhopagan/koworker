@@ -10,8 +10,10 @@ import { registerWsSession, unregisterWsSession, type WsSessionData } from "./ap
 import { envVariables } from "./api/config/env";
 import { dbProjects } from "./api/db/projects";
 import { DbUsers } from "./api/db/users";
+import { createGeneratedProjectLogo } from "./api/helpers/generated-project-logo";
 import { isNotifyAuthorized } from "./api/helpers/notify-auth";
-import { resolveProjectLogo } from "./api/helpers/project-logo";
+import { resolveProjectLogo, resolveProjectLogoByName } from "./api/helpers/project-logo";
+import { assertSingleTenantRuntime } from "./api/helpers/terminal-access";
 import { PubSub } from "./api/pubsub";
 import { TaskNotifySchema } from "./api/schemas";
 import { KwTerminalNavigateSchema } from "./api/schemas/kw-terminal";
@@ -139,14 +141,14 @@ async function serveProjectLogo(request: Request, server: Server<WsSessionData>)
 		return new Response("Not Found", { status: 404 });
 	}
 
-	const logoPath = await resolveProjectLogo(project.main_route);
-	if (!logoPath) {
-		return new Response("Not Found", { status: 404 });
-	}
+	const logoPath =
+		resolveProjectLogoByName(project.name) ?? (await resolveProjectLogo(project.main_route));
+	const logo = logoPath ? Bun.file(logoPath) : createGeneratedProjectLogo(project.name);
 
-	return new Response(Bun.file(logoPath), {
+	return new Response(logo, {
 		headers: {
 			"Cache-Control": "private, max-age=300",
+			...(logoPath ? {} : { "Content-Type": "image/svg+xml; charset=utf-8" }),
 			"X-Content-Type-Options": "nosniff",
 		},
 	});
@@ -155,6 +157,7 @@ async function serveProjectLogo(request: Request, server: Server<WsSessionData>)
 const port = Number(envVariables.KOWORK_PORT) || DEFAULT_KOWORK_PORT;
 
 await DbUsers.ensureDefaultUser();
+assertSingleTenantRuntime(await DbUsers.listIds());
 
 // Keep local DB schema compatible with current code (idempotent).
 const { ensureDbSchema } = await import("./api/db/migrate");

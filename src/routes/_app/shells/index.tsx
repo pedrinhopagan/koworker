@@ -6,5 +6,5 @@ const searchSchema = z.object({
 });
 
 export const Route = createFileRoute("/_app/shells/")({
-	validateSearch: (search) => searchSchema.parse(search),
+	validateSearch: searchSchema,
 });

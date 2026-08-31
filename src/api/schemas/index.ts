@@ -1,7 +1,11 @@
 import { AuthLoginSchema } from "./auth";
 
 export { AuthLoginSchema } from "./auth";
-export { AgentRadarPaneSchema, AgentRadarSendSchema } from "./agent-radar";
+export {
+	AgentRadarPaneSchema,
+	AgentRadarSendSchema,
+	AgentRadarTerminalInputSchema,
+} from "./agent-radar";
 export {
 	MediaDeleteSchema,
 	MediaListSchema,
@@ -70,6 +74,13 @@ export {
 	ShellRenameSchema,
 	ShellResizeSchema,
 } from "./shells";
+export {
+	RadarAgentSchema,
+	RadarFocusSchema,
+	ShellRecordSchema,
+	TerminalWorkspaceEntrySchema,
+	TerminalWorkspaceSnapshotSchema,
+} from "./terminal-workspace";
 export {
 	SkillCreateSchema,
 	SkillDeleteSchema,

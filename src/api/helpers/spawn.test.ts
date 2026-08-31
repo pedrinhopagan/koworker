@@ -1,6 +1,12 @@
 import { expect, test } from "bun:test";
 
-import { collectStream, spawnCapture, STREAM_TAIL_MAX_BYTES } from "./spawn";
+import {
+	collectStream,
+	displayFallback,
+	spawnCapture,
+	spawnEnv,
+	STREAM_TAIL_MAX_BYTES,
+} from "./spawn";
 
 function streamOf(chunks: Uint8Array[]) {
 	return new ReadableStream<Uint8Array>({
@@ -57,6 +63,26 @@ test("captura a saída inteira quando ela cabe no teto", async () => {
 	expect(collected.text()).toBe("saída curta");
 });
 
+test("prioriza binários do usuário sobre versões antigas em /usr/bin", () => {
+	const path = process.env.PATH;
+	const home = process.env.HOME;
+	process.env.HOME = "/home/pedro";
+	process.env.PATH = "/usr/local/bin:/usr/bin:/home/pedro/.bun/bin";
+
+	try {
+		const env = spawnEnv();
+
+		expect(env.PATH?.split(":").slice(0, 2)).toEqual([
+			"/home/pedro/.local/bin",
+			"/home/pedro/.bun/bin",
+		]);
+		expect(env.PATH).toContain("/usr/bin");
+	} finally {
+		process.env.PATH = path;
+		process.env.HOME = home;
+	}
+});
+
 test("cancela o subprocesso headless por sinal", async () => {
 	const controller = new AbortController();
 	const resultPromise = spawnCapture({
@@ -104,4 +130,19 @@ test("captura o stderr do processo", async () => {
 
 	expect(result.stderr.trim()).toBe("falhou");
 	expect(result.exitCode).toBe(3);
+});
+
+test("reconstrói o display quando o backend nasceu sem env gráfico", async () => {
+	if (process.platform !== "linux") {
+		return;
+	}
+
+	const runtimeDir = `${process.env.TMPDIR ?? "/tmp"}/spawn-display-${Date.now()}`;
+	await Bun.write(`${runtimeDir}/wayland-7`, "");
+
+	const found = displayFallback({ XDG_RUNTIME_DIR: runtimeDir });
+	expect(found.WAYLAND_DISPLAY).toBe("wayland-7");
+
+	const untouched = displayFallback({ WAYLAND_DISPLAY: "wayland-0" });
+	expect(untouched).toEqual({});
 });

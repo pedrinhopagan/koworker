@@ -1,6 +1,6 @@
 import { Radio } from "lucide-react";
 
-import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 import { AgentCliName } from "@/components/agent-radar/agent-cli";
 import { Text } from "@/components/typography";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";

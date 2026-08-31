@@ -1,10 +1,16 @@
 import { FitAddon } from "@xterm/addon-fit";
-import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 
 import type { ShellStreamEvent } from "@/api/pubsub";
-import { orpcWs } from "@/client";
-import { subscribeWithRetry } from "@/lib/realtime-subscription";
+import { TERMINAL_FONT_FAMILY, TERMINAL_FONT_SIZE, TERMINAL_THEME } from "@/lib/terminal-look";
+import {
+	connectTerminalViewport,
+	createTerminalLayoutScheduler,
+	createTerminalResizeGate,
+	mountTerminalViewport,
+} from "@/lib/terminal-viewport";
+import { useSplitViewStore } from "@/stores/split-view";
+import { createShellViewportAdapter } from "../-utils/shell-viewport-adapter";
 
 export type ShellStreamEnvelope = ShellStreamEvent | { type: "replay"; b64: string };
 
@@ -18,24 +24,15 @@ function decodeBase64(b64: string): Uint8Array {
 	return bytes;
 }
 
-// As cores saem das vars do tema: o renderer DOM do xterm aplica os valores como style,
-// então claro/escuro acompanham o app sem paleta duplicada aqui.
-const TERMINAL_THEME = {
-	background: "var(--background)",
-	foreground: "var(--foreground)",
-	cursor: "var(--primary)",
-	cursorAccent: "var(--primary-foreground)",
-	selectionBackground: "var(--accent)",
-};
-
 type ShellTerminalProps = {
 	shellId: string;
+	cwd?: string;
 	className?: string;
 	onTitle?: (title: string) => void;
 	onStatus?: (status: "live" | "exited" | "closed", exitCode?: number | null) => void;
 };
 
-export function ShellTerminal({ shellId, className, onTitle, onStatus }: ShellTerminalProps) {
+export function ShellTerminal({ shellId, cwd, className, onTitle, onStatus }: ShellTerminalProps) {
 	const hostRef = useRef<HTMLDivElement>(null);
 
 	// Callbacks vivem em ref: o efeito é dono da instância do xterm e não pode reciclar
@@ -49,18 +46,27 @@ export function ShellTerminal({ shellId, className, onTitle, onStatus }: ShellTe
 			return;
 		}
 
-		const term = new Terminal({
-			fontSize: 13,
-			fontFamily:
-				'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-			cursorBlink: true,
-			scrollback: 10_000,
-			theme: TERMINAL_THEME,
-		});
 		const fit = new FitAddon();
-		term.loadAddon(fit);
-		term.open(host);
-		term.focus();
+		const adapter = createShellViewportAdapter(shellId);
+		const viewport = mountTerminalViewport({
+			host,
+			cwd,
+			options: {
+				fontSize: TERMINAL_FONT_SIZE,
+				fontFamily: TERMINAL_FONT_FAMILY,
+				cursorBlink: true,
+				scrollback: 10_000,
+				theme: TERMINAL_THEME,
+			},
+			prepare: (terminal) => terminal.loadAddon(fit),
+		});
+		const term = viewport.terminal;
+
+		// Em alt screen o buffer não tem scrollback e o xterm converte o wheel em seta ↑/↓ pro
+		// processo — rolar o mouse em TUI sem mouse reporting mexia no app em vez de não fazer
+		// nada, como no alacritty. TUI com mouse reporting não passa por aqui (o caminho de mouse
+		// roda antes) e segue recebendo o wheel.
+		term.attachCustomWheelEventHandler(() => term.buffer.active.type !== "alternate");
 
 		let disposed = false;
 
@@ -75,16 +81,21 @@ export function ShellTerminal({ shellId, className, onTitle, onStatus }: ShellTe
 			}
 
 			fit.fit();
-			void orpcWs.shells.resize
-				.call({ id: shellId, cols: dimensions.cols, rows: dimensions.rows })
-				.catch(() => {});
+			void adapter.resize(dimensions.cols, dimensions.rows).catch(() => {});
 		}
+		const layout = createTerminalLayoutScheduler(fitNow);
+		const resize = createTerminalResizeGate(() => layout.request());
+		resize.setPaused(useSplitViewStore.getState().resizing);
 
-		const observer = new ResizeObserver(() => fitNow());
+		const observer = new ResizeObserver(() => {
+			resize.request();
+		});
 		observer.observe(host);
 
+		const unsubscribe = useSplitViewStore.subscribe((state) => resize.setPaused(state.resizing));
+
 		term.onData((data) => {
-			void orpcWs.shells.input.call({ id: shellId, data }).catch(() => {});
+			void adapter.input(data).catch(() => {});
 		});
 
 		function handle(event: ShellStreamEnvelope) {
@@ -114,12 +125,9 @@ export function ShellTerminal({ shellId, className, onTitle, onStatus }: ShellTe
 			handlers.current.onStatus?.("closed");
 		}
 
-		const controller = new AbortController();
-
-		void subscribeWithRetry({
+		const disconnect = connectTerminalViewport({
 			label: "Shells",
-			signal: controller.signal,
-			subscribe: (signal) => orpcWs.shells.stream.call({ id: shellId }, { signal }),
+			subscribe: adapter.subscribe,
 			onEvent: handle,
 			onReconnect: () => {
 				handlers.current.onStatus?.("live");
@@ -128,11 +136,13 @@ export function ShellTerminal({ shellId, className, onTitle, onStatus }: ShellTe
 
 		return () => {
 			disposed = true;
-			controller.abort();
+			disconnect();
+			unsubscribe();
 			observer.disconnect();
-			term.dispose();
+			layout.dispose();
+			viewport.dispose();
 		};
-	}, [shellId]);
+	}, [shellId, cwd]);
 
 	return <div ref={hostRef} data-component="shell-terminal" className={className} />;
 }

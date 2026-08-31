@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 
 import { queryClient } from "@/lib/query-client";
 import { routeTree } from "@/routeTree.gen";
-import { useSplitViewStore } from "@/stores/split-view";
+import { rootOf, useSplitViewStore } from "@/stores/split-view";
 
 function createPinnedRouter(initialPath: string) {
 	const router = createRouter({
@@ -28,7 +28,7 @@ function getPinnedRouter(path: string) {
 }
 
 export function PinnedPane() {
-	const left = useSplitViewStore((state) => state.left);
+	const left = useSplitViewStore((state) => state.path);
 	const lastPushed = useRef<string | null>(null);
 
 	const router = useRef<ReturnType<typeof createPinnedRouter> | null>(null);
@@ -46,13 +46,20 @@ export function PinnedPane() {
 
 		lastPushed.current = left;
 
-		if (current.state.location.href !== left) {
-			void current.navigate({ href: left });
+		const currentHref = current.state.location.href;
+		if (currentHref === left) {
+			return;
 		}
+
+		if (!left.includes("?") && rootOf(currentHref) === rootOf(left)) {
+			return;
+		}
+
+		void current.navigate({ href: left });
 	}, [left]);
 
 	useEffect(() => {
-		lastPushed.current = useSplitViewStore.getState().left;
+		lastPushed.current = useSplitViewStore.getState().path;
 	}, []);
 
 	return <RouterProvider router={router.current} />;

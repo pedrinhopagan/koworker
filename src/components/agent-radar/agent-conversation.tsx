@@ -12,9 +12,10 @@ import { Button } from "@/components/ui/button";
 import { EmptyFeedback } from "@/components/ui/empty-feedback";
 import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { useAgentRadarTranscript } from "@/hooks/use-agent-radar-transcript";
+import { useIsMobileViewport } from "@/hooks/use-is-mobile-viewport";
 import { errorMessage } from "@/lib/orpc-errors";
 import { PaneStatusStrip } from "@/components/agent-radar/pane-status-strip";
-import { TerminalPromptControls } from "@/components/agent-radar/terminal-prompt-controls";
+import { LinkCwdProvider } from "@/components/link-cwd";
 
 export function AgentConversationView({ paneId }: { paneId: string }) {
 	const viewport = useRef<HTMLDivElement>(null);
@@ -23,6 +24,7 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 	// evento de scroll redesenhava a conversa inteira enquanto o dedo ainda estava na tela.
 	const anchored = useRef(true);
 	const [pinned, setPinned] = useState(true);
+	const isMobile = useIsMobileViewport();
 	const { agents, loading: radarLoading } = useAgentRadar();
 	const agent = agents.find((candidate) => candidate.paneId === paneId) ?? null;
 	const transcript = useAgentRadarTranscript(paneId);
@@ -54,7 +56,7 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 
 	// Responder a pergunta pelo PWA é dirigir o seletor do CLI às cegas: o cursor nasce na primeira
 	// opção, então a opção escolhida vira N descidas e um Enter. Vale só para escolha única — seleção
-	// múltipla e texto livre continuam nos controles manuais do prompt.
+	// múltipla e texto livre precisam ser respondidos no terminal.
 	const answerQuestion = useCallback(
 		(questionId: string, input: { answers: string[]; freeText?: string }) => {
 			const event = transcript.events.find(
@@ -68,7 +70,7 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 			const chosen = input.answers[0];
 			const index = event.payload.options.findIndex((option) => option.label === chosen);
 			if (event.payload.multiSelect || input.freeText || input.answers.length !== 1 || index < 0) {
-				toast.info("Use os controles do prompt abaixo para responder esta pergunta");
+				toast.info("Responda esta pergunta diretamente no terminal");
 				return;
 			}
 
@@ -125,9 +127,7 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 
 	return (
 		<div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-muted/10">
-			<div className="md:hidden">
-				<AgentSwitcherStrip agents={agents} selectedPaneId={paneId} />
-			</div>
+			{isMobile && <AgentSwitcherStrip agents={agents} selectedPaneId={paneId} />}
 
 			<PaneStatusStrip agent={agent} closed={closed} model={transcript.model} />
 
@@ -180,13 +180,15 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 						)}
 
 					{!closed && (
-						<SessionTimeline
-							key={paneId}
-							events={transcript.events}
-							busy={!!busy}
-							{...(agent ? { agent: agent.agent } : {})}
-							{...(blocked ? { onAnswer: answerQuestion } : {})}
-						/>
+						<LinkCwdProvider {...(agent?.cwd ? { cwd: agent.cwd } : {})}>
+							<SessionTimeline
+								key={paneId}
+								events={transcript.events}
+								busy={!!busy}
+								{...(agent ? { agent: agent.agent } : {})}
+								{...(blocked ? { onAnswer: answerQuestion } : {})}
+							/>
+						</LinkCwdProvider>
 					)}
 				</div>
 			</div>
@@ -202,13 +204,6 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 						<ArrowDown className="size-4" />
 						Ir para o fim
 					</Button>
-				)}
-
-				{blocked && (
-					<TerminalPromptControls
-						pending={sendKeys.isPending}
-						onSend={(keys) => sendKeys.mutate({ paneId, keys })}
-					/>
 				)}
 
 				<ThreadComposer

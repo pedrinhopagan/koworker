@@ -110,9 +110,7 @@ const AppTerminalsIndexRoute = AppTerminalsIndexRouteImport.update({
   id: '/terminals/',
   path: '/terminals/',
   getParentRoute: () => AppRoute,
-} as any).lazy(() =>
-  import('./routes/_app/terminals/index.lazy').then((d) => d.Route),
-)
+} as any)
 const AppTarefasIndexRoute = AppTarefasIndexRouteImport.update({
   id: '/tarefas/',
   path: '/tarefas/',
@@ -188,9 +186,7 @@ const AppTerminalsPaneIdIndexRoute = AppTerminalsPaneIdIndexRouteImport.update({
   id: '/terminals/$paneId/',
   path: '/terminals/$paneId/',
   getParentRoute: () => AppRoute,
-} as any).lazy(() =>
-  import('./routes/_app/terminals/$paneId/index.lazy').then((d) => d.Route),
-)
+} as any)
 const AppTarefasTaskIdIndexRoute = AppTarefasTaskIdIndexRouteImport.update({
   id: '/tarefas/$taskId/',
   path: '/tarefas/$taskId/',

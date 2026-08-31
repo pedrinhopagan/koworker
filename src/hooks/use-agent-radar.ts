@@ -1,14 +1,14 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 
-import type { RadarAgent, RadarFocus } from "@/api/helpers/agent-radar/state";
+import type { RadarAgent, RadarFocus } from "@/api/schemas/terminal-workspace";
 import { orpcWs } from "@/client";
 import { subscribeWithRetry } from "@/lib/realtime-subscription";
 
 // A assinatura abre com o mapa inteiro e cada mudança traz o mapa inteiro de novo, então o estado é
 // sempre o último snapshot: reconexão não precisa remontar nada.
 //
-// O snapshot vive num store porque tem mais de um consumidor ao mesmo tempo (a rota /terminals e o
+// O snapshot vive num store porque tem mais de um consumidor ao mesmo tempo (a rota /shells e o
 // contador da sidebar). A assinatura é uma só, contada por consumidor: abre no primeiro que monta e
 // fecha quando o último desmonta.
 type RadarStore = {

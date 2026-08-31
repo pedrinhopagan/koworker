@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { AgentRadarTranscriptEnvelope } from "@/api/helpers/agent-radar/transcript";
-import type { AgentTranscript } from "@/api/helpers/agent-radar/transcript/locate";
+import type {
+	AgentRadarTranscriptEnvelope,
+	AgentTranscript,
+} from "@/api/schemas/agent-radar-transcript";
 import { orpcWs } from "@/client";
 import { mergeAgentSessionEvents, type AgentSessionEvent } from "@/lib/agent-session";
 import { subscribeWithRetry } from "@/lib/realtime-subscription";

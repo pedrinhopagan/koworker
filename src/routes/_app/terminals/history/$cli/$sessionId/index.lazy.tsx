@@ -52,7 +52,7 @@ function HistorySessionPage() {
 			if (!result.reused) {
 				toast.success("Conversa retomada em um pane novo");
 			}
-			await navigate({ to: "/terminals/$paneId", params: { paneId: result.paneId } });
+			await navigate({ to: "/shells", search: { tab: `agent:${result.paneId}` } });
 		},
 	});
 	const openDiff = useMutation({

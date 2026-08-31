@@ -2,7 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { stat } from "node:fs/promises";
 
 import { protectedProcedure } from "../auth/context";
-import { shellSupervisor } from "../helpers/shells/supervisor";
+import { shellRuntime } from "../helpers/shells/supervisor";
 import {
 	ShellCreateSchema,
 	ShellIdSchema,
@@ -30,7 +30,8 @@ async function resolveCwd(cwd: string): Promise<string> {
 export const shellsRouter = {
 	create: protectedProcedure.input(ShellCreateSchema).handler(async ({ input }) => {
 		const cwd = await resolveCwd(input.cwd);
-		return shellSupervisor.open({
+		return shellRuntime.execute({
+			type: "open",
 			cwd,
 			cols: input.cols,
 			rows: input.rows,
@@ -39,10 +40,10 @@ export const shellsRouter = {
 		});
 	}),
 
-	list: protectedProcedure.handler(() => ({ shells: shellSupervisor.list() })),
+	list: protectedProcedure.handler(() => ({ shells: shellRuntime.snapshot() })),
 
 	get: protectedProcedure.input(ShellIdSchema).handler(({ input }) => {
-		const shell = shellSupervisor.get(input.id);
+		const shell = shellRuntime.snapshot(input.id);
 		if (!shell) {
 			throw new ORPCError("NOT_FOUND", { message: "Shell não encontrado" });
 		}
@@ -51,7 +52,7 @@ export const shellsRouter = {
 	}),
 
 	rename: protectedProcedure.input(ShellRenameSchema).handler(({ input }) => {
-		const shell = shellSupervisor.rename(input.id, input.label);
+		const shell = shellRuntime.execute({ type: "rename", id: input.id, label: input.label });
 		if (!shell) {
 			throw new ORPCError("NOT_FOUND", { message: "Shell não encontrado" });
 		}
@@ -60,7 +61,7 @@ export const shellsRouter = {
 	}),
 
 	resize: protectedProcedure.input(ShellResizeSchema).handler(({ input }) => {
-		if (!shellSupervisor.resize(input.id, input.cols, input.rows)) {
+		if (!shellRuntime.execute({ type: "resize", ...input })) {
 			throw new ORPCError("NOT_FOUND", { message: "Shell não encontrado ou encerrado" });
 		}
 
@@ -68,7 +69,7 @@ export const shellsRouter = {
 	}),
 
 	input: protectedProcedure.input(ShellInputSchema).handler(({ input }) => {
-		if (!shellSupervisor.write(input.id, input.data)) {
+		if (!shellRuntime.execute({ type: "input", ...input })) {
 			throw new ORPCError("NOT_FOUND", { message: "Shell não encontrado ou encerrado" });
 		}
 
@@ -76,7 +77,7 @@ export const shellsRouter = {
 	}),
 
 	close: protectedProcedure.input(ShellIdSchema).handler(({ input }) => {
-		if (!shellSupervisor.close(input.id)) {
+		if (!shellRuntime.execute({ type: "close", id: input.id })) {
 			throw new ORPCError("NOT_FOUND", { message: "Shell não encontrado" });
 		}
 

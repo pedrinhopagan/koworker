@@ -5,6 +5,7 @@ import { z } from "zod";
 import { PageShell } from "@/components/layout/page-shell";
 import { ProjectList } from "./-components/project-list";
 import { ProjectSummary } from "./-components/project-summary";
+import { ProjectsEmptyState } from "./-components/projects-empty-state";
 import { useProjectsData } from "./-utils/use-projects-data";
 
 const searchSchema = z.object({
@@ -22,9 +23,9 @@ export const Route = createFileRoute("/_app/projetos/")({
 function ProjetosPage() {
 	const { projetoId } = Route.useSearch();
 	const { data, loading } = useProjectsData(projetoId);
-
 	const selectedId = data.selectedProjectId ?? undefined;
 	const selectedProject = data.selectedProject ?? undefined;
+	const isEmpty = !loading && data.projects.length === 0;
 
 	return (
 		<PageShell
@@ -32,15 +33,20 @@ function ProjetosPage() {
 			description="Acesse CLIs e comandos de cada projeto"
 			icon={FolderKanban}
 			variant="grid"
-			contentClassName="flex-col overflow-y-auto md:!grid-cols-[minmax(260px,1fr)_minmax(0,2fr)] md:overflow-visible"
+			contentClassName="flex-col overflow-y-auto pb-24 md:!grid-cols-[minmax(260px,1fr)_minmax(0,2fr)] md:overflow-visible lg:pb-4"
 		>
-			<div className="order-2 flex min-w-0 flex-col px-4 pb-4 md:order-none md:h-full md:min-h-0 md:overflow-hidden">
-				<ProjectList projects={data.projects} selectedId={selectedId} loading={loading} />
-			</div>
-
-			<section className="order-1 min-w-0 md:order-none md:h-full md:min-h-0 md:overflow-hidden">
-				<ProjectSummary project={selectedProject} />
-			</section>
+			{isEmpty ? (
+				<ProjectsEmptyState />
+			) : (
+				<>
+					<div className="order-2 flex min-w-0 flex-col px-4 pb-4 md:order-none md:h-full md:min-h-0 md:overflow-hidden">
+						<ProjectList projects={data.projects} selectedId={selectedId} loading={loading} />
+					</div>
+					<div className="order-1 min-w-0 md:order-none md:h-full md:min-h-0 md:overflow-hidden">
+						<ProjectSummary project={selectedProject} />
+					</div>
+				</>
+			)}
 		</PageShell>
 	);
 }

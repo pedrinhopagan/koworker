@@ -1,105 +1,96 @@
 import { X } from "lucide-react";
 
-import type { AgentRadarStatus } from "@/constants/agent-radar";
+import type { TerminalWorkspaceEntry } from "@/api/schemas/terminal-workspace";
 import { AgentCliIcon } from "@/components/agent-radar/agent-cli";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";
+import type { AgentRadarStatus } from "@/constants/agent-radar";
 import { AGENT_RADAR_VISUALS } from "@/lib/agent-radar-status";
 import { cn } from "@/lib/utils";
+import type { TerminalWorkspaceActions } from "../-utils/use-terminal-workspace";
+import { terminalWorkspaceEntryTitle } from "./shell-groups";
 
-export type WorkspaceTab =
-	| { key: string; kind: "shell"; id: string; title: string; live: boolean }
-	| {
-			key: string;
-			kind: "agent";
-			id: string;
-			cli: string;
-			title: string;
-			status: AgentRadarStatus;
-	  };
+function radarStatus(entry: TerminalWorkspaceEntry): AgentRadarStatus | null {
+	if (entry.kind === "agent") {
+		return entry.status;
+	}
+
+	return entry.status === "working" || entry.status === "idle" ? entry.status : null;
+}
 
 export function WorkspaceTabs({
-	tabs,
+	entries,
 	activeKey,
+	actions,
 	onSelect,
-	onCloseShell,
 }: {
-	tabs: WorkspaceTab[];
+	entries: TerminalWorkspaceEntry[];
 	activeKey: string | null;
+	actions: TerminalWorkspaceActions;
 	onSelect: (key: string) => void;
-	onCloseShell: (shellId: string) => void;
 }) {
-	if (tabs.length === 0) {
+	if (entries.length === 0) {
 		return null;
 	}
 
 	return (
 		<div
 			data-component="workspace-tabs"
-			className="no-scrollbar flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border bg-chrome/60 px-2 py-1.5"
+			className="no-scrollbar flex h-10 shrink-0 items-stretch overflow-x-auto border-b border-border bg-chrome/60"
 		>
-			{tabs.map((tab) => {
-				const selected = tab.key === activeKey;
+			{entries.map((entry) => {
+				const selected = entry.key === activeKey;
+				const status = radarStatus(entry);
+				const title = terminalWorkspaceEntryTitle(entry);
 
-				if (tab.kind === "shell") {
-					return (
-						<span
-							key={tab.key}
-							data-selected={selected || undefined}
-							className={cn(
-								"group flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border pr-1.5 pl-3 transition-colors",
-								selected
-									? "border-primary/30 bg-primary/10 text-primary"
-									: "border-border bg-background text-muted-foreground hover:bg-muted",
-							)}
+				return (
+					<span
+						key={entry.key}
+						data-selected={selected || undefined}
+						data-agent={entry.agent ?? undefined}
+						className={cn(
+							"group flex shrink-0 items-center gap-1.5 border-r border-border px-2 transition-colors",
+							selected
+								? "bg-background text-foreground shadow-[inset_0_2px_0_var(--project-accent,var(--primary))]"
+								: "bg-chrome/40 text-muted-foreground hover:bg-card hover:text-foreground",
+						)}
+					>
+						<button
+							type="button"
+							onClick={() => onSelect(entry.key)}
+							className="flex h-full min-w-0 items-center gap-1.5 px-1 focus-visible:outline-none"
+							aria-current={selected ? "true" : undefined}
 						>
-							<button
-								type="button"
-								onClick={() => onSelect(tab.key)}
-								className="flex min-w-0 items-center gap-1.5 py-1"
-								aria-current={selected ? "true" : undefined}
-							>
+							{entry.agent ? (
+								<AgentCliIcon agent={entry.agent} className="size-3.5 shrink-0" />
+							) : (
 								<span
 									aria-hidden
 									className={cn(
 										"size-1.5 shrink-0 rounded-full",
-										tab.live ? "bg-primary" : "bg-muted-foreground/40",
+										entry.status === "live" ? "bg-primary" : "bg-muted-foreground/40",
 									)}
 								/>
-								<span className="max-w-36 truncate text-xs font-semibold">{tab.title}</span>
-							</button>
+							)}
+							<span className="max-w-36 truncate text-xs font-semibold">{title}</span>
+							{status && (
+								<RadarStatusMark
+									status={status}
+									className={cn("shrink-0", AGENT_RADAR_VISUALS[status].tone)}
+								/>
+							)}
+						</button>
+
+						{entry.capabilities.close && (
 							<button
 								type="button"
-								aria-label={`Fechar ${tab.title}`}
-								onClick={() => onCloseShell(tab.id)}
-								className="flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-warning/20 hover:text-foreground"
+								aria-label={`Fechar ${title}`}
+								onClick={() => actions.close(entry)}
+								className="flex size-5 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-warning/15 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 							>
 								<X className="size-3" />
 							</button>
-						</span>
-					);
-				}
-
-				return (
-					<button
-						key={tab.key}
-						type="button"
-						onClick={() => onSelect(tab.key)}
-						data-selected={selected || undefined}
-						aria-current={selected ? "true" : undefined}
-						className={cn(
-							"flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 transition-colors",
-							selected
-								? "border-primary/30 bg-primary/10 text-primary"
-								: "border-border bg-background text-muted-foreground hover:bg-muted",
 						)}
-					>
-						<AgentCliIcon agent={tab.cli} className="size-3.5 shrink-0" />
-						<span className="max-w-36 truncate text-xs font-semibold">{tab.title}</span>
-						<RadarStatusMark
-							status={tab.status}
-							className={cn("shrink-0", AGENT_RADAR_VISUALS[tab.status].tone)}
-						/>
-					</button>
+					</span>
 				);
 			})}
 		</div>

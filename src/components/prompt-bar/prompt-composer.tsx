@@ -12,15 +12,17 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AttachmentsPanel } from "@/components/prompt-bar/attachments-panel";
+import { CodexDelegateCopyButton } from "@/components/prompt-bar/codex-delegate-copy-button";
 import { ExecutePanel } from "@/components/prompt-bar/execute-panel";
 import { Collapse, GroupLabel, ToggleBox } from "@/components/prompt-bar/controls";
 import { InvokePanel } from "@/components/prompt-bar/invoke-panel";
 import { PromptField } from "@/components/prompt-bar/prompt-field";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
-import { INVOKE_CLI_OPTIONS } from "@/constants/invoke";
+import { CODEX_DELEGATE_DEFAULTS, INVOKE_CLI_OPTIONS } from "@/constants/invoke";
 import { useRouteDocTarget } from "@/hooks/use-route-doc-target";
 import {
+	buildClaudeCodexDelegatePrompt,
 	buildKoworkerPrompt,
 	buildPromptBody,
 	convertSkillCallsForCli,
@@ -78,15 +80,18 @@ export function PromptComposer() {
 		setFocusing(false);
 	}
 
-	async function handleCopy() {
+	function buildRawCopyPrompt() {
 		const { text, structureTemplate, structureValues, images } = usePromptBarStore.getState();
 		const copyText = interactWithInput
 			? buildPromptBody({ templateSlug: structureTemplate, values: structureValues, text, images })
 			: "";
-		const prompt = convertSkillCallsForCli(
-			buildKoworkerPrompt({ kw: interactWithKw, target: appendTarget, text: copyText }),
-			cli,
-		);
+		return {
+			text,
+			prompt: buildKoworkerPrompt({ kw: interactWithKw, target: appendTarget, text: copyText }),
+		};
+	}
+
+	async function copyAndRecord(prompt: string, text: string, successMessage: string) {
 		if (!prompt.trim()) {
 			toast.info("Nada para copiar");
 			return;
@@ -101,10 +106,28 @@ export function PromptComposer() {
 				...(routeTarget.projectName ? { projectName: routeTarget.projectName } : {}),
 				...(pathname ? { routePath: pathname } : {}),
 			});
-			toast.success("Prompt copiado");
+			toast.success(successMessage);
 		} else {
 			toast.error("Não foi possível copiar o prompt");
 		}
+	}
+
+	async function handleCopy() {
+		const { prompt, text } = buildRawCopyPrompt();
+		await copyAndRecord(convertSkillCallsForCli(prompt, cli), text, "Prompt copiado");
+	}
+
+	async function handleCodexDelegateCopy(model: string) {
+		const { prompt, text } = buildRawCopyPrompt();
+		await copyAndRecord(
+			buildClaudeCodexDelegatePrompt({
+				prompt,
+				model,
+				effort: CODEX_DELEGATE_DEFAULTS.effort,
+			}),
+			text,
+			"Prompt do Codex copiado",
+		);
 	}
 
 	return (
@@ -162,6 +185,9 @@ export function PromptComposer() {
 						<Copy size={14} />
 						Copiar
 					</Button>
+					{cli === "claude" ? (
+						<CodexDelegateCopyButton onCopy={(model) => void handleCodexDelegateCopy(model)} />
+					) : null}
 					<Tooltip label={`Focar a sessão ${cliLabel} (abre uma se não houver)`}>
 						<Button
 							size="sm"

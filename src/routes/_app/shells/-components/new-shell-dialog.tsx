@@ -1,60 +1,56 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
 
-import { orpc } from "@/client";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useProjectFocus } from "@/hooks/use-project-focus";
-import { errorMessage } from "@/lib/orpc-errors";
+import type { TerminalWorkspaceActions } from "../-utils/use-terminal-workspace";
 
 type NewShellDialogProps = {
 	open: boolean;
+	actions: TerminalWorkspaceActions;
 	onClose: () => void;
 };
 
-export function NewShellDialog({ open, onClose }: NewShellDialogProps) {
+export function NewShellDialog({ open, actions, onClose }: NewShellDialogProps) {
 	const navigate = useNavigate();
-	const queryClient = useQueryClient();
 	const { projects, selectedProjectId, loading } = useProjectFocus();
 
 	const [projectId, setProjectId] = useState<string | null>(null);
 	const [customPath, setCustomPath] = useState("");
 	const [label, setLabel] = useState("");
+	const [pending, setPending] = useState(false);
 
 	const activeProjectId = projectId ?? selectedProjectId ?? null;
 	const activeProject = projects.find((candidate) => candidate.id === activeProjectId) ?? null;
 	// Caminho customizado vence quando preenchido; senão a pasta do projeto escolhido.
 	const cwd = customPath.trim() || activeProject?.mainRoute || "";
 
-	const create = useMutation({
-		...orpc.shells.create.mutationOptions(),
-		onSuccess: async (shell) => {
-			await queryClient.invalidateQueries({ queryKey: orpc.shells.list.key() });
-			setCustomPath("");
-			setLabel("");
-			onClose();
-			navigate({ to: "/shells", search: { tab: shell.id } });
-		},
-		onError: (error) => toast.error(errorMessage(error, "Não foi possível abrir o shell")),
-	});
-
 	function submit() {
 		if (!cwd) {
 			return;
 		}
 
-		create.mutate({
-			cwd,
-			...(label.trim() ? { label: label.trim() } : {}),
-			...(activeProjectId ? { projectId: activeProjectId } : {}),
-			cols: 80,
-			rows: 24,
-		});
+		setPending(true);
+		void actions
+			.createShell({
+				cwd,
+				...(label.trim() ? { label: label.trim() } : {}),
+				...(activeProjectId ? { projectId: activeProjectId } : {}),
+				cols: 80,
+				rows: 24,
+			})
+			.then((shell) => {
+				setCustomPath("");
+				setLabel("");
+				onClose();
+				return navigate({ to: "/shells", search: { tab: shell.id } });
+			})
+			.catch(() => {})
+			.finally(() => setPending(false));
 	}
 
 	return (
@@ -70,7 +66,7 @@ export function NewShellDialog({ open, onClose }: NewShellDialogProps) {
 						variant="outline"
 						size="sm"
 						onClick={onClose}
-						disabled={create.isPending}
+						disabled={pending}
 						className="w-full sm:w-auto"
 					>
 						Cancelar
@@ -78,7 +74,7 @@ export function NewShellDialog({ open, onClose }: NewShellDialogProps) {
 					<Button
 						size="sm"
 						onClick={submit}
-						disabled={!cwd || create.isPending}
+						disabled={!cwd || pending}
 						className="w-full sm:w-auto"
 					>
 						Abrir shell
@@ -113,7 +109,7 @@ export function NewShellDialog({ open, onClose }: NewShellDialogProps) {
 						value={customPath}
 						onChange={(event) => setCustomPath(event.target.value)}
 						placeholder="/caminho/absoluto/da/pasta"
-						disabled={create.isPending}
+						disabled={pending}
 					/>
 				</div>
 
@@ -125,7 +121,7 @@ export function NewShellDialog({ open, onClose }: NewShellDialogProps) {
 						value={label}
 						onChange={(event) => setLabel(event.target.value)}
 						placeholder="build, dev server, banco..."
-						disabled={create.isPending}
+						disabled={pending}
 					/>
 				</div>
 

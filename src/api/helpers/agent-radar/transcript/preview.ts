@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 
+import type { AgentTranscript } from "@/api/schemas/agent-radar-transcript";
 import { recentTranscriptText } from "@/lib/agent-timeline";
 import { createTranscriptMirror, createTranscriptParser } from "@/lib/agent-transcript";
 import { claudeTranscriptModel, translateClaudeTranscriptLine } from "@/lib/claude-transcript";
@@ -7,7 +8,7 @@ import { codexTranscriptModel, translateCodexTranscriptLine } from "@/lib/codex-
 import { createOpencodeTranscriptTranslator } from "@/lib/opencode-transcript";
 import { listRadarAgents } from "../state";
 import { openPaneTranscriptEvents, openPaneTranscriptModel } from "./index";
-import { locateAgentTranscript, type AgentTranscript } from "./locate";
+import { locateAgentTranscript } from "./locate";
 
 // A última fala de cada conversa, que é tudo o que a lista de agents mostra. Ler a cauda basta: a
 // frase mais recente está no fim do arquivo, e reler um pedaço do fim é barato perto de manter uma

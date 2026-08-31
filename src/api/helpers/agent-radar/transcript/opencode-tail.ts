@@ -1,12 +1,12 @@
 import { Database } from "bun:sqlite";
 
 import type { AgentSessionEvent } from "@/lib/agent-session";
+import type { AgentTranscript } from "@/api/schemas/agent-radar-transcript";
 import {
 	createOpencodeTranscriptTranslator,
 	type OpencodePartRow,
 } from "@/lib/opencode-transcript";
 import { createTranscriptMirror } from "@/lib/agent-transcript";
-import type { AgentTranscript } from "./locate";
 import type { TranscriptTail } from "./tail";
 
 // O opencode escreve no banco enquanto conversa, e o SQLite em WAL aceita leitor ao lado do escritor.

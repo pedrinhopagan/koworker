@@ -132,9 +132,9 @@ export function SidebarNavContent({
 	const openActionDialog = useNavActionDialogsStore((s) => s.open);
 	const radar = useAgentRadarAttention();
 
-	const splitLeft = useSplitViewStore((s) => s.left);
-	const pinPane = useSplitViewStore((s) => s.pin);
-	const unpinPane = useSplitViewStore((s) => s.unpin);
+	const splitLeft = useSplitViewStore((s) => s.path);
+	const pinPane = useSplitViewStore((s) => s.open);
+	const unpinPane = useSplitViewStore((s) => s.close);
 
 	const layout: SidebarLayout = variant === "drawer" ? "drawer" : compact ? "compact" : "expanded";
 	const iconSize = variant === "drawer" ? 18 : 15;
