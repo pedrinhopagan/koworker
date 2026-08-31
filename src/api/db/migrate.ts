@@ -3,6 +3,7 @@ import Database from "bun:sqlite";
 import { envVariables } from "@/api/config/env";
 import { allocateStorageKey, normalizeStorageSlug } from "@/api/helpers/task-storage-path";
 import { resolveProjectRouteIcon } from "@/constants/projects";
+import { pickTaskGroupColor } from "@/constants/tasks";
 import { normalizeEntityName } from "./entity-name";
 
 type ColumnInfo = {
@@ -57,6 +58,38 @@ function backfillStorageKeys(db: Database, table: "tasks" | "task_groups") {
 		update.run(storageKey, row.id);
 		usedKeys.add(storageKey);
 	}
+}
+
+function recolorBlackTaskGroups(db: Database) {
+	const groups = db
+		.query<{ id: string; project_id: string; color: string }, []>(
+			`SELECT id, project_id, color
+			 FROM task_groups
+			 ORDER BY project_id ASC, display_order ASC, created_at ASC, id ASC`,
+		)
+		.all();
+	const colorsByProject = new Map<string, string[]>();
+
+	for (const group of groups) {
+		if (group.color.trim().toLowerCase() === "#000000") continue;
+		const colors = colorsByProject.get(group.project_id) ?? [];
+		colors.push(group.color);
+		colorsByProject.set(group.project_id, colors);
+	}
+
+	const update = db.query(
+		"UPDATE task_groups SET color = ? WHERE id = ? AND lower(trim(color)) = '#000000'",
+	);
+	db.transaction(() => {
+		for (const group of groups) {
+			if (group.color.trim().toLowerCase() !== "#000000") continue;
+			const colors = colorsByProject.get(group.project_id) ?? [];
+			const color = pickTaskGroupColor(colors);
+			update.run(color, group.id);
+			colors.push(color);
+			colorsByProject.set(group.project_id, colors);
+		}
+	})();
 }
 
 function hasLiveTaskPathDuplicates(db: Database) {
@@ -292,6 +325,7 @@ INSERT INTO project_routes (
 			ensureColumn(sqlite, "task_groups", "storage_slug TEXT");
 		}
 	}
+	recolorBlackTaskGroups(sqlite);
 
 	// tasks.priority_id / tasks.category_id: eram NOT NULL (toda task tinha prioridade e categoria).
 	// Agora são opcionais — a task pode existir sem nenhuma das duas. SQLite não solta o NOT NULL via

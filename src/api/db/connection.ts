@@ -1,6 +1,7 @@
 import { autoIncrement, Database } from "@lobomfz/db";
 import { type } from "arktype";
 import { envVariables } from "@/api/config/env";
+import { DEFAULT_TASK_GROUP_COLOR } from "@/constants/tasks";
 
 const user_type = type.enumerated("admin", "user");
 
@@ -82,7 +83,7 @@ const taskGroupsSchema = type({
 	name: "string",
 	"storage_key?": "string",
 	"storage_slug?": "string",
-	color: type("string").configure({ default: "#000000" }),
+	color: type("string").configure({ default: DEFAULT_TASK_GROUP_COLOR }),
 	display_order: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",

@@ -27,16 +27,65 @@ await db
 	.execute();
 await db
 	.insertInto("projects")
-	.values({
-		id: "aaaaaaaa-0000-4000-8000-000000000001",
-		name: "Projeto",
-		color: "#000000",
-		display_order: 0,
-		main_route: projectRoute,
-		hide_terminal: 0,
-		task_layout_version: 1,
-		created_at: 1,
-	})
+	.values([
+		{
+			id: "aaaaaaaa-0000-4000-8000-000000000001",
+			name: "Projeto",
+			color: "#000000",
+			display_order: 0,
+			main_route: projectRoute,
+			hide_terminal: 0,
+			task_layout_version: 1,
+			created_at: 1,
+		},
+		{
+			id: "bbbbbbbb-0000-4000-8000-000000000001",
+			name: "Outro projeto",
+			color: "#000000",
+			display_order: 1,
+			main_route: join(root, "other-project"),
+			hide_terminal: 0,
+			task_layout_version: 1,
+			created_at: 2,
+		},
+	])
+	.execute();
+await db
+	.insertInto("task_groups")
+	.values([
+		{
+			id: "11111111-0000-4000-8000-000000000001",
+			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
+			name: "Preservada",
+			color: "#6366f1",
+			display_order: 0,
+			created_at: 1,
+		},
+		{
+			id: "22222222-0000-4000-8000-000000000002",
+			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
+			name: "Preta 1",
+			color: "#000000",
+			display_order: 1,
+			created_at: 2,
+		},
+		{
+			id: "33333333-0000-4000-8000-000000000003",
+			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
+			name: "Preta 2",
+			color: "#000000",
+			display_order: 2,
+			created_at: 3,
+		},
+		{
+			id: "44444444-0000-4000-8000-000000000004",
+			project_id: "bbbbbbbb-0000-4000-8000-000000000001",
+			name: "Outro projeto",
+			color: "#000000",
+			display_order: 0,
+			created_at: 4,
+		},
+	])
 	.execute();
 await db
 	.insertInto("project_routes")
@@ -147,6 +196,11 @@ const first = await db
 	.select(["t.id", "t.folder_path", "t.storage_key", "t.storage_slug"])
 	.orderBy("t.created_at", "asc")
 	.execute();
+const firstGroups = await db
+	.selectFrom("task_groups as tg")
+	.select(["tg.id", "tg.color"])
+	.orderBy("tg.id")
+	.execute();
 ensureDbSchema();
 const firstSessions = await db
 	.selectFrom("agent_sessions")
@@ -157,6 +211,11 @@ const second = await db
 	.selectFrom("tasks as t")
 	.select(["t.id", "t.folder_path", "t.storage_key", "t.storage_slug"])
 	.orderBy("t.created_at", "asc")
+	.execute();
+const secondGroups = await db
+	.selectFrom("task_groups as tg")
+	.select(["tg.id", "tg.color"])
+	.orderBy("tg.id")
 	.execute();
 const secondSessions = await db
 	.selectFrom("agent_sessions")
@@ -182,11 +241,13 @@ console.log(
 	JSON.stringify({
 		content: await Bun.file(filePath).text(),
 		first,
+		firstGroups,
 		mtimePreserved: (await stat(filePath)).mtimeMs === before.mtimeMs,
 		pathIndex,
 		projectRoutes,
 		firstSessions,
 		second,
+		secondGroups,
 		secondSessions,
 	}),
 );

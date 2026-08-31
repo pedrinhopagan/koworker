@@ -1,3 +1,4 @@
+import { pickTaskGroupColor } from "@/constants/tasks";
 import type { TaskGroupDbCreateInput, TaskGroupDbUpdateInput } from "../schemas/task-groups";
 import { db, type task_groups } from "./connection";
 import { cleanUpdate } from "./helpers";
@@ -24,17 +25,28 @@ export const dbTaskGroups = {
 		db.selectFrom("task_groups").selectAll().where("id", "=", id).executeTakeFirst(),
 
 	create: async (input: TaskGroupDbCreateInput) => {
-		const maxOrder = await db
-			.selectFrom("task_groups")
-			.select(({ fn }) => [fn.max("display_order").as("maxOrder")])
-			.where("project_id", "=", input.project_id)
-			.executeTakeFirst();
+		const [maxOrder, existingGroups] = await Promise.all([
+			db
+				.selectFrom("task_groups as tg")
+				.select(({ fn }) => [fn.max("tg.display_order").as("maxOrder")])
+				.where("tg.project_id", "=", input.project_id)
+				.executeTakeFirst(),
+			db
+				.selectFrom("task_groups as tg")
+				.select("tg.color")
+				.where("tg.project_id", "=", input.project_id)
+				.execute(),
+		]);
 
 		const displayOrder = ((maxOrder?.maxOrder as number | null) ?? -1) + 1;
 
 		return db
 			.insertInto("task_groups")
-			.values({ ...(input as task_groups), display_order: displayOrder })
+			.values({
+				...(input as task_groups),
+				color: input.color ?? pickTaskGroupColor(existingGroups.map((group) => group.color)),
+				display_order: displayOrder,
+			})
 			.executeTakeFirst();
 	},
 

@@ -2,6 +2,37 @@ export const RECENCY_HIGHLIGHT_DEPTH = 3;
 
 export const TASK_RECENCY_HIGHLIGHT_DEPTH = 5;
 
+export const TASK_GROUP_COLORS = [
+	"#6366f1",
+	"#0ea5e9",
+	"#10b981",
+	"#f59e0b",
+	"#ef4444",
+	"#a855f7",
+	"#ec4899",
+	"#14b8a6",
+	"#84cc16",
+	"#f97316",
+	"#06b6d4",
+	"#d946ef",
+] as const;
+
+export const DEFAULT_TASK_GROUP_COLOR = TASK_GROUP_COLORS[0];
+
+export function pickTaskGroupColor(existingColors: string[]) {
+	const usage = new Map<string, number>(TASK_GROUP_COLORS.map((color) => [color, 0]));
+
+	for (const existingColor of existingColors) {
+		const color = existingColor.trim().toLowerCase();
+		const count = usage.get(color);
+		if (count !== undefined) usage.set(color, count + 1);
+	}
+
+	return TASK_GROUP_COLORS.reduce((selected, color) =>
+		(usage.get(color) ?? 0) < (usage.get(selected) ?? 0) ? color : selected,
+	);
+}
+
 export const TASK_SORT_MODES = [
 	{ mode: "recente", label: "Recente" },
 	{ mode: "categoria", label: "Categoria" },

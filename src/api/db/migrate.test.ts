@@ -7,6 +7,7 @@ const root = await mkdtemp(join(tmpdir(), "koworker-storage-migrate-"));
 let result: {
 	content: string;
 	first: { folder_path: string; storage_key: string | null; storage_slug: string | null }[];
+	firstGroups: { id: string; color: string }[];
 	mtimePreserved: boolean;
 	pathIndex: { name: string } | null;
 	projectRoutes: {
@@ -23,6 +24,7 @@ let result: {
 		updated_at: number;
 	}[];
 	second: { folder_path: string; storage_key: string | null; storage_slug: string | null }[];
+	secondGroups: { id: string; color: string }[];
 	secondSessions: {
 		id: string;
 		status: string;
@@ -69,6 +71,16 @@ describe("ensureDbSchema", () => {
 
 	test("mantém duplicatas legadas visíveis para preflight sem derrubar o boot", () => {
 		expect(result.pathIndex).toBeNull();
+	});
+
+	test("troca features pretas por cores distintas em todos os projetos", () => {
+		expect(result.firstGroups).toEqual(result.secondGroups);
+		expect(result.firstGroups).toEqual([
+			{ id: "11111111-0000-4000-8000-000000000001", color: "#6366f1" },
+			{ id: "22222222-0000-4000-8000-000000000002", color: "#0ea5e9" },
+			{ id: "33333333-0000-4000-8000-000000000003", color: "#10b981" },
+			{ id: "44444444-0000-4000-8000-000000000004", color: "#6366f1" },
+		]);
 	});
 
 	test("atualiza os ícones, remove o atalho legado e adiciona o pi uma única vez", () => {
