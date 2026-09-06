@@ -44,7 +44,7 @@ export function SkillsSyncAction() {
 				queryClient.invalidateQueries({ queryKey: orpc.skills.get.key() }),
 				queryClient.invalidateQueries({ queryKey: orpc.skills.syncPlan.key() }),
 			]);
-			toast.success(`${data.created + data.updated} cópias sincronizadas entre as CLIs`);
+			toast.success(`${data.created + data.updated} entradas centralizadas`);
 		},
 	});
 
@@ -94,7 +94,10 @@ export function SkillsSyncAction() {
 
 		mutation.mutate({
 			planHash: plan.data.planHash,
-			choices: conflicts.map((skill) => ({ slug: skill.slug, ...choices[skill.slug] })),
+			choices: conflicts.map((skill) => ({
+				slug: skill.slug,
+				...choices[skill.slug],
+			})),
 		});
 	}
 
@@ -108,8 +111,8 @@ export function SkillsSyncAction() {
 			<Dialog
 				open={open}
 				onClose={handleClose}
-				title="Sincronizar skills"
-				description="Compartilha cada skill entre todas as CLIs"
+				title="Centralizar skills"
+				description="Uma versão por skill, compartilhada pelas CLIs"
 				className="max-w-3xl"
 				footer={
 					result ? (
@@ -171,11 +174,11 @@ export function SkillsSyncAction() {
 							<CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" />
 							<div className="min-w-0">
 								<Title as="h3" size="sm">
-									Skills sincronizadas
+									Skills centralizadas
 								</Title>
 								<Text size="sm" tone="muted" className="mt-1">
-									{result.created} cópias criadas e {result.updated} atualizadas. Cada skill agora
-									existe em todas as CLIs.
+									{result.created} entradas criadas e {result.updated} reorganizadas. As skills
+									agora partem da biblioteca central.
 								</Text>
 							</div>
 						</div>
@@ -199,12 +202,13 @@ export function SkillsSyncAction() {
 					<div className="grid gap-5">
 						<div className="grid gap-3 sm:grid-cols-4">
 							<Summary label="Skills" value={plan.data.totals.skills} />
-							<Summary label="Cópias a criar" value={plan.data.totals.toCreate} />
-							<Summary label="Cópias a atualizar" value={plan.data.totals.toUpdate} />
+							<Summary label="Entradas a criar" value={plan.data.totals.toCreate} />
+							<Summary label="Entradas a reorganizar" value={plan.data.totals.toUpdate} />
 							<Summary label="Conflitos" value={plan.data.totals.conflicts} warning />
 						</div>
 
 						<div className="grid gap-3 border border-border bg-muted/20 p-4">
+							<PathInfo icon={FolderSync} label="Pasta central" path={plan.data.centralRoot} />
 							<PathInfo icon={Archive} label="Backups em" path={plan.data.backupRoot} />
 						</div>
 
@@ -212,7 +216,7 @@ export function SkillsSyncAction() {
 							<EmptyFeedback
 								icon={CheckCircle2}
 								title="Tudo sincronizado"
-								subtitle="Todas as skills já existem em todas as CLIs com o mesmo conteúdo."
+								subtitle="As CLIs já compartilham a biblioteca central."
 							/>
 						)}
 
@@ -222,8 +226,8 @@ export function SkillsSyncAction() {
 									<AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
 									<Text size="xs" tone="muted">
 										Estas skills têm conteúdo diferente entre as CLIs. Escolha a versão que será
-										replicada para todas; o conteúdo e os arquivos auxiliares selecionados serão
-										mantidos.
+										mantida na biblioteca central; o conteúdo e os arquivos auxiliares selecionados
+										serão mantidos.
 									</Text>
 								</div>
 
@@ -244,12 +248,18 @@ export function SkillsSyncAction() {
 												</Text>
 											</div>
 											<CustomSelect
-												items={skill.sources.map((source) => ({ ...source, id: source.path }))}
+												items={skill.sources.map((source) => ({
+													...source,
+													id: source.path,
+												}))}
 												value={selected?.sourcePath ?? ""}
 												onValueChange={(_, source) =>
 													setChoices((current) => ({
 														...current,
-														[skill.slug]: { sourcePath: source.path, hash: source.hash },
+														[skill.slug]: {
+															sourcePath: source.path,
+															hash: source.hash,
+														},
 													}))
 												}
 												placeholder="Escolha a versão que será mantida"

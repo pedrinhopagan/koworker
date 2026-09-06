@@ -28,7 +28,7 @@ function SkillsPage() {
 	return (
 		<PageShell
 			title="Skills"
-			description="Skills encontradas nas pastas do opencode, Claude Code, Codex e Agents"
+			description="Biblioteca compartilhada pelas CLIs, organizada por categoria"
 			icon={Book}
 			actions={<SkillsSyncAction />}
 		>

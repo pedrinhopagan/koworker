@@ -1,7 +1,19 @@
-import { cp, lstat, mkdir, readdir, realpath, rename, rm, stat } from "node:fs/promises";
+import {
+	cp,
+	lstat,
+	mkdir,
+	readdir,
+	readlink,
+	realpath,
+	rename,
+	rm,
+	stat,
+	symlink,
+} from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { SKILL_SLUG_PATTERN } from "@/constants/skill-slug";
 import { ORPCError } from "@orpc/server";
 import {
 	readSkillFile,
@@ -61,6 +73,7 @@ export type SkillVariant = {
 	contentHash: string;
 	files: SkillDirectoryFile[];
 	group: number;
+	canonicalRoot: string;
 };
 
 export type SkillFsRecord = {
@@ -88,7 +101,11 @@ const CREATE_ROOT = join(home, ".agents/skills");
 
 // Static interno do koworker, resolvido relativo ao módulo (não é caminho do usuário). Menor
 // prioridade de conteúdo: depois dos source_paths, antes dos projetos.
-const KOWORKER_ROOT: SkillRoot = { tool: "koworker", scope: "global", path: STATIC_SKILLS_PATH };
+const KOWORKER_ROOT: SkillRoot = {
+	tool: "koworker",
+	scope: "global",
+	path: STATIC_SKILLS_PATH,
+};
 
 // O diretório do projeto vem do `main_route` que ele mesmo guarda, não de `BASE/<nome>`: os projetos
 // moram em caminhos arbitrários (vários fora de ~/Projects), então adivinhar a partir do nome erra.
@@ -101,10 +118,22 @@ async function projectRoots(projectName: string): Promise<SkillRoot[]> {
 
 function projectSkillRoots(mainRoute: string): SkillRoot[] {
 	return [
-		{ tool: "opencode", scope: "project", path: join(mainRoute, ".opencode/skills") },
-		{ tool: "claude-code", scope: "project", path: join(mainRoute, ".claude/skills") },
+		{
+			tool: "opencode",
+			scope: "project",
+			path: join(mainRoute, ".opencode/skills"),
+		},
+		{
+			tool: "claude-code",
+			scope: "project",
+			path: join(mainRoute, ".claude/skills"),
+		},
 		{ tool: "codex", scope: "project", path: join(mainRoute, ".codex/skills") },
-		{ tool: "agents", scope: "project", path: join(mainRoute, ".agents/skills") },
+		{
+			tool: "agents",
+			scope: "project",
+			path: join(mainRoute, ".agents/skills"),
+		},
 	];
 }
 
@@ -213,7 +242,11 @@ export function skillContentHash(file: SkillFile): string {
 
 const SKILL_LISTING_TTL_MS = 5_000;
 
-type CachedSkillSource = { file: SkillFile; hash: string; manifest: SkillDirectoryManifest };
+type CachedSkillSource = {
+	file: SkillFile;
+	hash: string;
+	manifest: SkillDirectoryManifest;
+};
 
 const skillSourceCache = new Map<string, { value: CachedSkillSource | null; expiresAt: number }>();
 const skillSlugsCache = new Map<string, { value: string[]; mtimeMs: number; expiresAt: number }>();
@@ -300,7 +333,10 @@ async function loadCachedSkillSource(dir: string): Promise<CachedSkillSource | n
 	}
 
 	const value = await loadSkillSource(dir);
-	skillSourceCache.set(dir, { value, expiresAt: Date.now() + SKILL_LISTING_TTL_MS });
+	skillSourceCache.set(dir, {
+		value,
+		expiresAt: Date.now() + SKILL_LISTING_TTL_MS,
+	});
 
 	return value;
 }
@@ -405,7 +441,7 @@ function missingSyncedRoots(slug: string, roots: SkillRoot[], loaded: LoadedSour
 	return roots.filter(
 		(root) =>
 			root.scope === "global" &&
-			SYNCED_SKILL_TOOLS.has(root.tool) &&
+			(root.tool === "agents" || root.tool === "claude-code") &&
 			!presentDirs.has(resolve(join(root.path, slug))),
 	);
 }
@@ -440,6 +476,7 @@ export async function getSkillFromFs(
 			contentHash: source.manifest.contentHash,
 			files: source.manifest.files,
 			group,
+			canonicalRoot: source.manifest.canonicalRoot,
 		};
 	});
 
@@ -460,6 +497,21 @@ export async function standardizeSkillInFs(input: {
 	if (preview.planHash !== input.planHash) {
 		throw new ORPCError("CONFLICT", {
 			message: "As skills mudaram desde a análise. Revise a padronização novamente",
+		});
+	}
+
+	if (preview.libraryPlanHash) {
+		const { applySkillSyncInFs } = await import("./skills-sync");
+		return await applySkillSyncInFs({
+			planHash: preview.libraryPlanHash,
+			slug: input.slug,
+			choices: [
+				{
+					slug: input.slug,
+					sourcePath: preview.sourceDir,
+					hash: preview.sourceHash,
+				},
+			],
 		});
 	}
 
@@ -492,6 +544,32 @@ export async function previewSkillStandardizationInFs(input: {
 		throw new Error("Variante escolhida não encontrada");
 	}
 
+	if (chosen.root.scope === "global" && chosen.root.tool !== "koworker") {
+		const { previewSkillSyncInFs } = await import("./skills-sync");
+		const plan = await previewSkillSyncInFs(input.slug);
+		const sourcePaths = new Set(chosen.manifest.files.map((file) => file.path));
+		const removedPaths = loaded
+			.filter((source) => source.root.scope === "global")
+			.flatMap((source) =>
+				source.manifest.files
+					.filter((file) => !sourcePaths.has(file.path))
+					.map((file) => `${source.dir}:${file.path}`),
+			);
+		return {
+			planHash: Bun.hash(`${plan.planHash}:${chosen.path}:${chosen.manifest.hash}`).toString(),
+			libraryPlanHash: plan.planHash,
+			sourceHash: chosen.manifest.hash,
+			sourceSkillHash: chosen.hash,
+			sourceContentHash: chosen.manifest.contentHash,
+			sourceDir: chosen.dir,
+			updated: plan.totals.toUpdate,
+			created: plan.totals.toCreate,
+			removedFiles: removedPaths.length,
+			removedPaths,
+			targets: [],
+		};
+	}
+
 	const existingTargets = loaded.filter(
 		(source) =>
 			source.path !== chosen.path && source.manifest.contentHash !== chosen.manifest.contentHash,
@@ -517,7 +595,10 @@ export async function previewSkillStandardizationInFs(input: {
 	);
 	const planHash = Bun.hash(
 		JSON.stringify({
-			source: { path: resolve(chosen.path), contentHash: chosen.manifest.contentHash },
+			source: {
+				path: resolve(chosen.path),
+				contentHash: chosen.manifest.contentHash,
+			},
 			targets,
 		}),
 	).toString();
@@ -544,15 +625,27 @@ export async function createSkillInFs(input: {
 	const skillDir = join(await agentsSkillsRoot(), input.slug);
 	const skillPath = join(skillDir, "SKILL.md");
 
-	if (await Bun.file(skillPath).exists()) {
+	if (await getSkillFromFs(input.slug)) {
 		throw new Error(`Já existe uma skill com o slug "${input.slug}"`);
 	}
 
 	await mkdir(skillDir, { recursive: true });
 	invalidateSkillsFsCache();
 	await writeSkillFile(skillPath, {
-		frontmatter: { ...input.metadata, name: input.slug, description: input.description },
+		frontmatter: {
+			...input.metadata,
+			name: input.slug,
+			description: input.description,
+		},
 		body: input.content ?? "",
+	});
+
+	const { previewSkillSyncInFs, applySkillSyncInFs } = await import("./skills-sync");
+	const plan = await previewSkillSyncInFs(input.slug);
+	await applySkillSyncInFs({
+		planHash: plan.planHash,
+		choices: [],
+		slug: input.slug,
 	});
 
 	const skillFile = await readSkillFile(skillPath);
@@ -655,6 +748,7 @@ export async function renameSkillInFs(input: {
 			source,
 			targetDir: join(source.root.path, input.newSlug),
 			originalContent: await Bun.file(source.path).text(),
+			linkTarget: source.manifest.entryType === "symlink" ? await readlink(source.dir) : null,
 		})),
 	);
 	for (const move of moves) {
@@ -680,6 +774,20 @@ export async function renameSkillInFs(input: {
 		}
 
 		for (const move of moves) {
+			if (move.linkTarget) {
+				const owner = moves.find(
+					(candidate) =>
+						resolve(candidate.source.dir) === move.source.manifest.canonicalRoot &&
+						!candidate.linkTarget,
+				);
+				if (owner) {
+					await rm(move.targetDir);
+					await symlink(resolve(owner.targetDir), move.targetDir, "junction");
+				}
+			}
+		}
+
+		for (const move of moves) {
 			await writeSkillFile(join(move.targetDir, "SKILL.md"), {
 				frontmatter: { ...move.source.file.frontmatter, name: input.newSlug },
 				body: move.source.file.body,
@@ -701,6 +809,10 @@ export async function renameSkillInFs(input: {
 			await Bun.write(join(move.targetDir, "SKILL.md"), move.originalContent).catch(() => {});
 		}
 		for (const move of moved.toReversed()) {
+			if (move.linkTarget) {
+				await rm(move.targetDir, { force: true });
+				await symlink(move.linkTarget, move.targetDir, "junction");
+			}
 			await rename(move.targetDir, move.source.dir).catch(() => {});
 		}
 		throw err;
@@ -715,7 +827,10 @@ export async function readSkillFileFromFs(input: {
 }) {
 	const source = await resolveKnownSkillVariant(input);
 	return {
-		content: await readSkillDirectoryText({ dir: source.dir, relativePath: input.relativePath }),
+		content: await readSkillDirectoryText({
+			dir: source.dir,
+			relativePath: input.relativePath,
+		}),
 	};
 }
 
@@ -734,8 +849,15 @@ export async function deleteSkillInFs(input: {
 	variantPath: string;
 }): Promise<void> {
 	const source = await resolveKnownSkillVariant(input);
-	await rm(source.dir, { recursive: true, force: true });
-	invalidateSkillsFsCache();
+	const loaded = await loadSourcesForSlug(input.slug, await buildDeletableRoots());
+	const related = loaded.filter(
+		(candidate) =>
+			candidate.dir === source.dir ||
+			(source.manifest.entryType === "directory" &&
+				candidate.manifest.entryType === "symlink" &&
+				candidate.manifest.canonicalRoot === source.manifest.canonicalRoot),
+	);
+	await removeSkillSources(input.slug, related.length > 0 ? related : [source]);
 }
 
 // Remove a skill de TODAS as fontes onde ela existe (todas as cópias no disco).
@@ -747,10 +869,14 @@ export async function deleteAllSkillInFs(input: {
 		throw new Error("Skill não encontrada");
 	}
 
+	return await removeSkillSources(input.slug, loaded);
+}
+
+async function removeSkillSources(slug: string, loaded: LoadedSource[]) {
 	const backupPath = await createDeleteBackup({
 		root: SKILL_DELETE_BACKUP_ROOT,
-		slug: input.slug,
-		settings: (await dbSkillSettings.getAll()).find((row) => row.slug === input.slug) ?? null,
+		slug,
+		settings: (await dbSkillSettings.getAll()).find((row) => row.slug === slug) ?? null,
 		sources: loaded.map((source) => ({
 			tool: source.root.tool,
 			scope: source.root.scope,
@@ -758,7 +884,10 @@ export async function deleteAllSkillInFs(input: {
 			manifest: source.manifest,
 		})),
 		copySource: async (source, target) => {
-			await cp(source.manifest.canonicalRoot, target, { recursive: true, dereference: false });
+			await cp(source.manifest.canonicalRoot, target, {
+				recursive: true,
+				dereference: false,
+			});
 			const copied = await inspectSkillDirectory(target);
 			if (copied.hash !== source.manifest.hash) {
 				throw new Error(`Falha ao verificar o backup de ${source.path}`);
@@ -779,6 +908,12 @@ export async function deleteAllSkillInFs(input: {
 		if (current.hash !== source.manifest.hash) {
 			throw new Error(`A skill mudou antes da remoção. Backup preservado em ${backupPath}`);
 		}
+	}
+	for (const source of loaded.toSorted(
+		(left, right) =>
+			Number(right.manifest.entryType === "symlink") -
+			Number(left.manifest.entryType === "symlink"),
+	)) {
 		await rm(source.dir, { recursive: true, force: true }).catch((err) => {
 			throw new Error(`Falha ao remover ${source.dir}. Backup preservado em ${backupPath}`, {
 				cause: err,
@@ -787,4 +922,65 @@ export async function deleteAllSkillInFs(input: {
 	}
 
 	return { removed: loaded.length, backupPath };
+}
+
+export async function installSkillInFs(input: { sourceDir: string; replace: boolean }) {
+	const sourceDir = resolve(input.sourceDir);
+	const slug = basename(sourceDir);
+	if (!SKILL_SLUG_PATTERN.test(slug)) {
+		throw new Error("O nome da pasta deve ser um slug de skill válido");
+	}
+	const source = await inspectSkillDirectory(sourceDir);
+	const file = await readSkillFile(join(sourceDir, "SKILL.md"));
+	if (!file || file.frontmatter.name !== slug || !file.frontmatter.description.trim()) {
+		throw new Error("SKILL.md precisa de name igual à pasta e description preenchida");
+	}
+	const targetDir = join(await agentsSkillsRoot(), slug);
+	const existing = await inspectSkillDirectory(targetDir).catch((err: any) => {
+		if (err?.code === "ENOENT") {
+			return null;
+		}
+		throw err;
+	});
+	if (!input.replace && (await getSkillFromFs(slug))) {
+		throw new Error(`A skill ${slug} já existe. Use --replace para atualizar com backup`);
+	}
+	const backupPath = existing
+		? join(SKILL_DELETE_BACKUP_ROOT, `install-${Date.now()}-${crypto.randomUUID()}`, slug)
+		: null;
+	if (backupPath && existing) {
+		await mkdir(dirname(backupPath), { recursive: true });
+		await cp(existing.canonicalRoot, backupPath, { recursive: true });
+		if ((await inspectSkillDirectory(backupPath)).hash !== existing.hash) {
+			throw new Error("Falha na verificação do backup da skill");
+		}
+	}
+	await replaceSkillDirectories([
+		{
+			sourceDir,
+			targetDir,
+			expectedContentHash: source.contentHash,
+			expectedHash: source.hash,
+			expectedTargetContentHash: existing?.contentHash ?? null,
+			expectedTargetHash: existing?.hash ?? null,
+		},
+	]).finally(invalidateSkillsFsCache);
+	const { previewSkillSyncInFs, applySkillSyncInFs } = await import("./skills-sync");
+	const plan = await previewSkillSyncInFs(slug);
+	const result = await applySkillSyncInFs({
+		planHash: plan.planHash,
+		slug,
+		choices: [{ slug, sourcePath: targetDir, hash: source.hash }],
+	}).catch((err) => {
+		throw new Error(
+			`Skill instalada em ${targetDir}, mas os links precisam de sincronização. Backup anterior: ${backupPath ?? "skill nova"}`,
+			{ cause: err },
+		);
+	});
+	return {
+		slug,
+		path: targetDir,
+		backupPath,
+		syncBackupPath: result.backupPath,
+	};
 }

@@ -1,16 +1,28 @@
-import { cp, lstat, mkdir, readlink, readdir, realpath, stat } from "node:fs/promises";
+import {
+	cp,
+	lstat,
+	mkdir,
+	open,
+	readlink,
+	readdir,
+	realpath,
+	rename,
+	rm,
+	stat,
+	symlink,
+} from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { readSkillFile } from "@/lib/skills/parser";
 import { dbSkillSourcePaths } from "../db/skill-source-paths";
 import { invalidateSkillsFsCache, SYNCED_SKILL_TOOLS, type SkillTool } from "./skills-fs";
 import { expandTilde } from "./os-actions";
-import { inspectSkillDirectory, replaceSkillDirectories } from "./skill-directory";
+import { inspectSkillDirectory } from "./skill-directory";
 
 const home = homedir();
 const backupRoot = join(home, "backups", "koworker", "skills");
 
-type SyncRoot = {
+export type SyncRoot = {
 	tool: SkillTool;
 	path: string;
 };
@@ -26,6 +38,7 @@ export type SkillSyncSource = {
 	fileNames: string[];
 	preview: string;
 	updatedAt: number;
+	canonicalRoot: string;
 };
 
 export type SkillSyncItem = {
@@ -38,6 +51,8 @@ export type SkillSyncItem = {
 export type SkillSyncPlan = {
 	planHash: string;
 	backupRoot: string;
+	centralRoot: string;
+	roots: SyncRoot[];
 	skills: SkillSyncItem[];
 	totals: {
 		skills: number;
@@ -52,7 +67,11 @@ async function globalRoots() {
 	const seen = new Set<string>();
 	const roots = rows
 		.filter((row) => row.scope === "global" && SYNCED_SKILL_TOOLS.has(row.tool as SkillTool))
-		.map((row) => ({ tool: row.tool as SkillTool, path: expandTilde(row.path) }));
+		.map((row) => ({
+			tool: row.tool as SkillTool,
+			path: expandTilde(row.path),
+		}))
+		.sort((left, right) => Number(right.tool === "agents") - Number(left.tool === "agents"));
 	const deduplicated: SyncRoot[] = [];
 	for (const root of roots) {
 		const identity = await realpath(root.path).catch((err: any) => {
@@ -67,6 +86,22 @@ async function globalRoots() {
 		}
 	}
 
+	for (const [index, root] of deduplicated.entries()) {
+		for (const other of deduplicated.slice(index + 1)) {
+			for (const [parent, child] of [
+				[root.path, other.path],
+				[other.path, root.path],
+			]) {
+				const path = relative(parent, child);
+				if (path && !path.startsWith("..") && !isAbsolute(path)) {
+					throw new Error("As pastas globais de skills não podem ficar uma dentro da outra");
+				}
+			}
+		}
+	}
+	if (deduplicated.filter((root) => root.tool === "agents").length > 1) {
+		throw new Error("Mantenha uma única pasta global Agents como biblioteca central");
+	}
 	return deduplicated;
 }
 
@@ -78,6 +113,7 @@ async function directoryFingerprint(path: string) {
 		files: manifest.files.length,
 		entryType: manifest.entryType,
 		...(manifest.linkTarget ? { linkTarget: manifest.linkTarget } : {}),
+		canonicalRoot: manifest.canonicalRoot,
 		fileNames: manifest.files.map((file) => file.path),
 	};
 }
@@ -109,6 +145,8 @@ async function slugsForRoot(root: SyncRoot) {
 function fingerprintPlan(data: Omit<SkillSyncPlan, "planHash">) {
 	return Bun.hash(
 		JSON.stringify({
+			centralRoot: data.centralRoot,
+			roots: data.roots,
 			skills: data.skills.map((skill) => ({
 				slug: skill.slug,
 				missingTools: skill.missingTools,
@@ -125,15 +163,19 @@ function fingerprintPlan(data: Omit<SkillSyncPlan, "planHash">) {
 	).toString();
 }
 
-export async function previewSkillSyncInFs(): Promise<SkillSyncPlan> {
+export async function previewSkillSyncInFs(slug?: string): Promise<SkillSyncPlan> {
 	const roots = await globalRoots();
-	if (roots.length < 2) {
-		throw new Error("Cadastre as pastas globais de skills de pelo menos duas CLIs");
+	const central = roots.find((root) => root.tool === "agents");
+	if (!central) {
+		throw new Error("Cadastre a pasta global Agents para centralizar as skills");
 	}
 
 	const sourcesBySlug = new Map<string, { root: SyncRoot; path: string }[]>();
 	for (const root of roots) {
 		for (const source of await slugsForRoot(root)) {
+			if (slug && source.slug !== slug) {
+				continue;
+			}
 			const current = sourcesBySlug.get(source.slug) ?? [];
 			current.push({ root, path: source.path });
 			sourcesBySlug.set(source.slug, current);
@@ -165,7 +207,11 @@ export async function previewSkillSyncInFs(): Promise<SkillSyncPlan> {
 				missingTools: [
 					...new Set(
 						roots
-							.filter((root) => !presentPaths.has(resolve(join(root.path, slug))))
+							.filter(
+								(root) =>
+									(root.tool === "agents" || root.tool === "claude-code") &&
+									!presentPaths.has(resolve(join(root.path, slug))),
+							)
 							.map((root) => root.tool),
 					),
 				],
@@ -176,6 +222,8 @@ export async function previewSkillSyncInFs(): Promise<SkillSyncPlan> {
 	skills.sort((a, b) => a.slug.localeCompare(b.slug));
 	const data = {
 		backupRoot,
+		centralRoot: central.path,
+		roots,
 		skills,
 		totals: {
 			skills: skills.length,
@@ -184,7 +232,17 @@ export async function previewSkillSyncInFs(): Promise<SkillSyncPlan> {
 			toUpdate: skills.reduce((total, skill) => {
 				const chosen = pickDefaultSource(skill.sources);
 				return (
-					total + skill.sources.filter((source) => source.contentHash !== chosen.contentHash).length
+					total +
+					skill.sources.filter((source) => {
+						if (source.tool === "agents") {
+							return source.entryType !== "directory" || source.contentHash !== chosen.contentHash;
+						}
+						return (
+							source.tool !== "claude-code" ||
+							source.entryType !== "symlink" ||
+							source.canonicalRoot !== resolve(join(central.path, skill.slug))
+						);
+					}).length
 				);
 			}, 0),
 		},
@@ -208,7 +266,10 @@ async function backupSources(
 		const originalTarget = join(backupPath, "original", source.tool, slug);
 		await mkdir(dirname(materializedTarget), { recursive: true });
 		await mkdir(dirname(originalTarget), { recursive: true });
-		await cp(source.path, materializedTarget, { recursive: true, dereference: true });
+		await cp(source.path, materializedTarget, {
+			recursive: true,
+			dereference: true,
+		});
 		await cp(source.path, originalTarget, {
 			recursive: true,
 			dereference: false,
@@ -245,71 +306,179 @@ async function backupSources(
 export async function applySkillSyncInFs(input: {
 	planHash: string;
 	choices: { slug: string; sourcePath: string; hash: string }[];
+	slug?: string;
 }) {
-	const plan = await previewSkillSyncInFs();
+	await mkdir(backupRoot, { recursive: true });
+	const lockPath = join(backupRoot, ".sync.lock");
+	const lock = await open(lockPath, "wx").catch((err: NodeJS.ErrnoException) => {
+		if (err.code !== "EEXIST") {
+			throw err;
+		}
+		throw new Error("Outra centralização está em andamento. Confira o lock de skills", {
+			cause: err,
+		});
+	});
+	try {
+		await lock.writeFile(JSON.stringify({ pid: process.pid, createdAt: Date.now() }));
+		return await applyLockedSkillSync(input);
+	} finally {
+		await lock.close();
+		await rm(lockPath);
+		invalidateSkillsFsCache();
+	}
+}
+
+async function applyLockedSkillSync(input: {
+	planHash: string;
+	choices: { slug: string; sourcePath: string; hash: string }[];
+	slug?: string;
+}) {
+	const plan = await previewSkillSyncInFs(input.slug);
 	if (plan.planHash !== input.planHash) {
 		throw new Error("As skills mudaram desde a análise. Revise os conflitos novamente");
 	}
-
 	const roots = await globalRoots();
 	const choices = new Map(input.choices.map((choice) => [choice.slug, choice]));
-	const selected = plan.skills.map((skill) => {
+	const jobs = plan.skills.flatMap((skill) => {
 		const choice = choices.get(skill.slug);
 		if (skill.conflict && !choice) {
 			throw new Error(`Escolha qual versão manter para ${skill.slug}`);
 		}
-
 		const chosen = choice
 			? skill.sources.find(
-					(candidate) => candidate.path === choice.sourcePath && candidate.hash === choice.hash,
+					(source) => source.path === choice.sourcePath && source.hash === choice.hash,
 				)
 			: pickDefaultSource(skill.sources);
 		if (!chosen) {
 			throw new Error(`A versão escolhida para ${skill.slug} não está mais disponível`);
 		}
-
-		return { skill, chosen };
-	});
-
-	const jobs = selected.flatMap(({ skill, chosen }) =>
-		roots.flatMap((root) => {
+		const centralPath = join(plan.centralRoot, skill.slug);
+		return roots.flatMap((root) => {
 			const targetPath = join(root.path, skill.slug);
 			const existing = skill.sources.find((source) => resolve(source.path) === resolve(targetPath));
-			if (existing && existing.contentHash === chosen.contentHash) {
+			const mode = (
+				{
+					agents: "copy",
+					"claude-code": "link",
+					codex: "remove",
+					opencode: "remove",
+					koworker: "remove",
+				} as const
+			)[root.tool];
+			if (mode === "remove" && !existing) {
 				return [];
 			}
-
-			return [{ slug: skill.slug, root, targetPath, existing, chosen }];
-		}),
-	);
-
+			if (
+				mode === "copy" &&
+				existing?.entryType === "directory" &&
+				existing.contentHash === chosen.contentHash
+			) {
+				return [];
+			}
+			if (
+				mode === "link" &&
+				existing?.entryType === "symlink" &&
+				existing.canonicalRoot === resolve(centralPath)
+			) {
+				return [];
+			}
+			return [{ slug: skill.slug, mode, targetPath, centralPath, existing, chosen }];
+		});
+	});
 	if (jobs.length === 0) {
 		return { backupPath: null, created: 0, updated: 0 };
 	}
-
 	const backupPath = await backupSources(
 		plan,
 		jobs.flatMap((job) => (job.existing ? [{ slug: job.slug, source: job.existing }] : [])),
 	);
-
-	await replaceSkillDirectories(
-		jobs.map((job) => ({
-			sourceDir: job.chosen.path,
-			targetDir: job.targetPath,
-			expectedContentHash: job.chosen.contentHash,
-			expectedHash: job.chosen.hash,
-			expectedTargetContentHash: job.existing?.contentHash ?? null,
-			expectedTargetHash: job.existing?.hash ?? null,
-		})),
-	)
-		.catch((err: any) => {
-			throw new Error(`Sincronização interrompida: ${err.message}. Backup em ${backupPath}`, {
-				cause: err,
+	const prepared: {
+		job: (typeof jobs)[number];
+		temporary: string;
+		quarantine: string;
+		moved: boolean;
+		installed: boolean;
+	}[] = [];
+	try {
+		for (const job of jobs) {
+			await mkdir(dirname(job.targetPath), { recursive: true });
+			const temporary = join(dirname(job.targetPath), `.${crypto.randomUUID()}.koworker-preparado`);
+			const quarantine = join(
+				dirname(job.targetPath),
+				`.${crypto.randomUUID()}.koworker-quarentena`,
+			);
+			prepared.push({
+				job,
+				temporary,
+				quarantine,
+				moved: false,
+				installed: false,
 			});
-		})
-		.finally(invalidateSkillsFsCache);
-	const created = jobs.filter((job) => !job.existing).length;
-	const updated = jobs.length - created;
-
-	return { backupPath, created, updated };
+			if (job.mode === "copy") {
+				await cp(job.chosen.path, temporary, {
+					recursive: true,
+					dereference: true,
+				});
+				if ((await directoryFingerprint(temporary)).hash !== job.chosen.hash) {
+					throw new Error(`A origem ${job.chosen.path} mudou durante a preparação`);
+				}
+			}
+			if (job.mode === "link") {
+				await symlink(resolve(job.centralPath), temporary, "junction");
+			}
+		}
+		const current = await previewSkillSyncInFs(input.slug);
+		if (current.planHash !== plan.planHash) {
+			throw new Error("As skills mudaram durante o backup");
+		}
+		for (const item of prepared) {
+			if (item.job.existing) {
+				await rename(item.job.targetPath, item.quarantine);
+				item.moved = true;
+			}
+		}
+		for (const item of prepared) {
+			if (item.job.mode !== "remove") {
+				await rename(item.temporary, item.job.targetPath);
+				item.installed = true;
+			}
+		}
+		for (const item of prepared) {
+			if (
+				item.job.mode !== "remove" &&
+				(await directoryFingerprint(item.job.targetPath)).contentHash !==
+					item.job.chosen.contentHash
+			) {
+				throw new Error(`Falha ao verificar ${item.job.targetPath}`);
+			}
+		}
+	} catch (err) {
+		const failures: unknown[] = [];
+		for (const item of prepared.toReversed()) {
+			try {
+				if (item.installed) {
+					await rm(item.job.targetPath, { recursive: true, force: true });
+				}
+				if (item.moved) {
+					await rename(item.quarantine, item.job.targetPath);
+				}
+			} catch (failure) {
+				failures.push(failure);
+			}
+		}
+		const failure = new AggregateError(
+			[err, ...failures],
+			`Centralização interrompida: ${err instanceof Error ? err.message : err}. Backup em ${backupPath}`,
+		);
+		Object.assign(failure, { cause: err });
+		throw failure;
+	} finally {
+		await Promise.all(prepared.map((item) => rm(item.temporary, { recursive: true, force: true })));
+	}
+	await Promise.all(prepared.map((item) => rm(item.quarantine, { recursive: true, force: true })));
+	return {
+		backupPath,
+		created: jobs.filter((job) => !job.existing).length,
+		updated: jobs.filter((job) => !!job.existing).length,
+	};
 }

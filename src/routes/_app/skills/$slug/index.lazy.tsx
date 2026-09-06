@@ -244,7 +244,12 @@ function SkillEditor({
 	const activeVariant =
 		variants.find((variant) => variant.path === activeVariantPath) ?? variants[0];
 	const hasConflict = new Set(variants.map((variant) => variant.contentHash)).size > 1;
-	const hasMultipleVariants = variants.length > 1;
+	const distinctVariants = variants.filter(
+		(variant, index) =>
+			variants.findIndex((candidate) => candidate.canonicalRoot === variant.canonicalRoot) ===
+			index,
+	);
+	const hasMultipleVariants = distinctVariants.length > 1;
 
 	const saveDocument = useCallback(
 		async (document: {
@@ -318,7 +323,11 @@ function SkillEditor({
 				contentHash: variant.contentHash,
 			})),
 		});
-		await navigate({ to: "/skills/$slug", params: { slug: newSlug }, replace: true });
+		await navigate({
+			to: "/skills/$slug",
+			params: { slug: newSlug },
+			replace: true,
+		});
 	}
 
 	async function selectVariant(path: string) {
@@ -594,7 +603,7 @@ function SkillEditor({
 										</div>
 									)}
 									{hasMultipleVariants &&
-										variants.map((variant) => {
+										distinctVariants.map((variant) => {
 											const isActive = variant.path === activeVariantPath;
 											return (
 												<button

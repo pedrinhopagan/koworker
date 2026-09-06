@@ -8,6 +8,8 @@ import { orpc } from "@/client";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CustomSelect } from "@/components/ui/custom-select";
+import { useSkillCategoriesQuery } from "@/hooks/use-skill-categories";
 import { Label } from "@/components/ui/label";
 
 function slugify(value: string): string {
@@ -37,6 +39,8 @@ export function SkillCreateTile() {
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
 	const [title, setTitle] = useState("");
+	const [categoryId, setCategoryId] = useState("");
+	const categories = useSkillCategoriesQuery();
 
 	const createMutation = useMutation({
 		...orpc.skills.create.mutationOptions(),
@@ -52,12 +56,13 @@ export function SkillCreateTile() {
 	});
 
 	const slug = slugify(title);
-	const canCreate = slug.length > 0 && !createMutation.isPending;
+	const canCreate = slug.length > 0 && !!categoryId && !createMutation.isPending;
 
 	const submit = () => {
 		if (!canCreate) return;
 		createMutation.mutate({
 			slug,
+			categoryId,
 			description: title.trim(),
 			content: starterContent(title.trim()),
 			metadata: { title: title.trim() },
@@ -96,6 +101,15 @@ export function SkillCreateTile() {
 				}
 			>
 				<div className="flex flex-col gap-2">
+					<Label>Categoria</Label>
+					<CustomSelect
+						items={categories.data ?? []}
+						value={categoryId}
+						onValueChange={setCategoryId}
+						renderItem={(item) => item.name}
+						placeholder="Escolha uma categoria"
+						ariaLabel="Categoria"
+					/>
 					<Label htmlFor="skill-title">Título</Label>
 					<Input
 						id="skill-title"

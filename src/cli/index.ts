@@ -95,6 +95,15 @@ Projetos e rotas:
 Skills:
   skill style <slug> [--label ...] [--icon ...] [--color #rrggbb]
                           Define a aparência de uma skill
+  skill install <pasta> --category <id|nome> [--replace]
+                          Instala conteúdo completo na central e vincula as CLIs
+  skill paths             Lista as fontes e a pasta central (Agents)
+  skill categories        Lista as categorias disponíveis
+  skill category <slug> <id|nome>
+                          Categoriza uma skill existente
+  skill sync [slug] [--preview] [--source agents|claude-code|codex|opencode]
+                          Centraliza com backup; --source escolhe a versão principal
+  skill remove <slug>     Remove de todas as fontes com backup
   skill list              Lista as skills globais e sua aparência atual
 
 Backup:

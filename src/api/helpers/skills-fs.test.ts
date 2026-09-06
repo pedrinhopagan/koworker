@@ -181,7 +181,13 @@ afterEach(async () => {
 async function addRow(tool: string, path: string, scope: string, createdAt: number) {
 	await db
 		.insertInto("skill_source_paths")
-		.values({ id: crypto.randomUUID(), tool, path, scope, created_at: createdAt })
+		.values({
+			id: crypto.randomUUID(),
+			tool,
+			path,
+			scope,
+			created_at: createdAt,
+		})
 		.execute();
 }
 
@@ -596,8 +602,69 @@ describe("standardizeSkillInFs", () => {
 		});
 		expect(result.updated).toBe(1);
 		expect(await Bun.file(join(target, "bundle", "sobra.txt")).exists()).toBe(false);
-		expect(new Uint8Array(await readFile(join(target, "bundle", "asset.bin")))).toEqual(
+		expect(new Uint8Array(await readFile(join(source, "bundle", "asset.bin")))).toEqual(
 			new Uint8Array([0, 1, 255]),
 		);
 	});
+});
+
+test("renomeia e remove uma skill compartilhada preservando o link do Claude", async () => {
+	const agents = await homeDir();
+	const claude = await homeDir();
+	await writeSkill(agents, "linked-name", "compartilhada", "compartilhada");
+	await symlink(join(agents, "linked-name"), join(claude, "linked-name"));
+	await addRow("agents", agents, "global", 1);
+	await addRow("claude-code", claude, "global", 2);
+	const skill = await getSkillFromFs("linked-name");
+	await renameSkillInFs({
+		slug: "linked-name",
+		newSlug: "new-linked-name",
+		expectedVariants: skill?.variants.map((variant) => ({
+			path: variant.path,
+			contentHash: variant.contentHash,
+		})),
+	});
+	expect(await readFile(join(claude, "new-linked-name", "SKILL.md"), "utf8")).toContain(
+		"name: new-linked-name",
+	);
+	const result = await deleteAllSkillInFs({ slug: "new-linked-name" });
+	tempDirs.push(result.backupPath);
+	expect(result.removed).toBe(2);
+	expect(await getSkillFromFs("new-linked-name")).toBeNull();
+});
+
+test("instala arquivos auxiliares, exige intenção para substituir e preserva backup", async () => {
+	const agents = await homeDir();
+	const claude = await homeDir();
+	const incoming = await homeDir();
+	await addRow("agents", agents, "global", 1);
+	await addRow("claude-code", claude, "global", 2);
+	await writeSkill(incoming, "installed", "nova", "nova");
+	await writeFile(join(incoming, "installed", "guide.txt"), "referência completa");
+	const { installSkillInFs } = await import("./skills-fs");
+	const first = await installSkillInFs({
+		sourceDir: join(incoming, "installed"),
+		replace: false,
+	});
+	if (first.syncBackupPath) tempDirs.push(first.syncBackupPath);
+	expect(await readFile(join(claude, "installed", "guide.txt"), "utf8")).toBe(
+		"referência completa",
+	);
+	await expect(
+		installSkillInFs({
+			sourceDir: join(incoming, "installed"),
+			replace: false,
+		}),
+	).rejects.toThrow("já existe");
+	await writeFile(join(incoming, "installed", "guide.txt"), "guia atualizado");
+	const updated = await installSkillInFs({
+		sourceDir: join(incoming, "installed"),
+		replace: true,
+	});
+	if (updated.backupPath) tempDirs.push(updated.backupPath);
+	if (updated.syncBackupPath) tempDirs.push(updated.syncBackupPath);
+	expect(await readFile(join(updated.backupPath!, "guide.txt"), "utf8")).toBe(
+		"referência completa",
+	);
+	expect(await readFile(join(claude, "installed", "guide.txt"), "utf8")).toBe("guia atualizado");
 });

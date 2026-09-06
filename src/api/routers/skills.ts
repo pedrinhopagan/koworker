@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { lintPrinciples } from "@/lib/principles/lint";
 import { protectedProcedure } from "../auth/context";
+import { dbSkillCategories } from "../db/skill-categories";
 import { dbSkillSettings } from "../db/skill-settings";
 import { dbSkillSourcePaths } from "../db/skill-source-paths";
 import {
@@ -97,12 +98,23 @@ export const skillsRouter = {
 	}),
 
 	updateSettings: protectedProcedure.input(SkillSettingsSchema).handler(async ({ input }) => {
+		if (input.categoryId && !(await dbSkillCategories.getById(input.categoryId))) {
+			throw new Error("Categoria não encontrada");
+		}
 		await dbSkillSettings.upsert(input);
 		return { success: true };
 	}),
 
 	create: protectedProcedure.input(SkillCreateSchema).handler(async ({ input }) => {
-		return await createSkillInFs(input);
+		if (!(await dbSkillCategories.getById(input.categoryId))) {
+			throw new Error("Escolha uma categoria existente");
+		}
+		const record = await createSkillInFs(input);
+		await dbSkillSettings.upsert({
+			slug: input.slug,
+			categoryId: input.categoryId,
+		});
+		return record;
 	}),
 
 	update: protectedProcedure.input(SkillUpdateSchema).handler(async ({ input }) => {

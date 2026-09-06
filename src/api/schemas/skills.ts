@@ -11,6 +11,7 @@ export const SkillListSchema = z.object({
 });
 
 export const SkillCreateSchema = z.object({
+	categoryId: z.string().min(1),
 	slug: SkillSlugSchema,
 	description: z.string().min(1),
 	content: z.string().optional(),
