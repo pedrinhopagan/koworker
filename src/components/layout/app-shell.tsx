@@ -185,19 +185,17 @@ export function AppShell({ children }: AppShellProps) {
 	const reading = useReadingModeStore((s) => s.reading);
 
 	const pinnedPath = useSplitViewStore((s) => s.path);
-	const splitActive = !isMobile && !!pinnedPath;
 	const inSession = useRouterState({
 		select: (state) => {
 			const pathname = state.location.pathname;
 			return pathname === "/shells" || pathname.startsWith("/shells/");
 		},
 	});
-	const inTerminalConversation = useRouterState({
-		select: (state) => {
-			const pathname = state.location.pathname;
-			return pathname === "/shells" || pathname.startsWith("/shells/");
-		},
+	const inSessionDetail = useRouterState({
+		select: (state) => !!(state.location.search as { tab?: string }).tab,
 	});
+	const compactTerminal = useIsMobileViewport("(max-width: 1023px)") && inSession;
+	const splitActive = !isMobile && !compactTerminal && !!pinnedPath;
 
 	const shellPinned = !!pinnedPath && isShellsPath(pinnedPath);
 	const hidePromptBar = inSession || shellPinned;
@@ -233,10 +231,10 @@ export function AppShell({ children }: AppShellProps) {
 				style={shellStyle}
 				onContextMenuCapture={handleContextMenuCapture}
 			>
-				<AppSidebar />
+				{!compactTerminal && <AppSidebar />}
 
 				<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-					<TabBar />
+					{!(compactTerminal && inSessionDetail) && <TabBar compact={compactTerminal} />}
 
 					<main
 						className={cn(
@@ -262,7 +260,7 @@ export function AppShell({ children }: AppShellProps) {
 						</div>
 					)}
 
-					{(!isMobile || !inTerminalConversation) && <StatusBar />}
+					{!compactTerminal && <StatusBar />}
 				</div>
 
 				<DocSessionSwitcher />

@@ -21,12 +21,20 @@ import { cn } from "@/lib/utils";
 type HomeAgentCardProps = {
 	agent: RadarAgent;
 	compact?: boolean;
+	index?: number;
 	onFocus: (paneId: string) => void;
 	onDiff: (paneId: string) => void;
 	onClose: (paneId: string) => void;
 };
 
-export function HomeAgentCard({ agent, compact, onFocus, onDiff, onClose }: HomeAgentCardProps) {
+export function HomeAgentCard({
+	agent,
+	compact,
+	index = 0,
+	onFocus,
+	onDiff,
+	onClose,
+}: HomeAgentCardProps) {
 	const visual = AGENT_RADAR_VISUALS[agent.status];
 	const destination = { tab: `agent:${agent.paneId}` };
 
@@ -35,10 +43,9 @@ export function HomeAgentCard({ agent, compact, onFocus, onDiff, onClose }: Home
 			<ContextMenuTrigger asChild>
 				<article
 					className={cn(
-						"group relative border border-l-2 shadow-xs transition-colors",
-						visual.surface,
-						visual.edge,
+						"group animate-stagger-fade-in relative border border-border bg-card shadow-xs transition-[background-color,transform] hover:-translate-y-px hover:bg-muted/40",
 					)}
+					style={{ animationDelay: `${index * 45}ms` }}
 				>
 					<Link
 						to="/shells"
@@ -49,7 +56,7 @@ export function HomeAgentCard({ agent, compact, onFocus, onDiff, onClose }: Home
 					<div
 						className={cn(
 							"pointer-events-none relative z-10 flex min-w-0 gap-3",
-							compact ? "p-3" : "p-4",
+							compact ? "p-3" : "p-5",
 						)}
 					>
 						<RadarStatusMark status={agent.status} className="mt-1 shrink-0" />
@@ -69,7 +76,12 @@ export function HomeAgentCard({ agent, compact, onFocus, onDiff, onClose }: Home
 									{relativeTimeFrom(agent.changedAt)}
 								</Text>
 							</div>
-							<Text className={cn("mt-1 truncate font-medium", compact ? "text-xs" : "text-sm")}>
+							<Text
+								className={cn(
+									"mt-1 font-medium",
+									compact ? "truncate text-xs" : "line-clamp-2 text-base leading-snug",
+								)}
+							>
 								{agent.taskTitle ?? agent.title ?? agent.activity ?? "Sessão sem tarefa vinculada"}
 							</Text>
 							{!compact && (

@@ -665,7 +665,7 @@ function GroupSectionBody({
 
 			{!collapsed && (
 				<SortableContext items={allIds} strategy={verticalListSortingStrategy}>
-					<div className="flex flex-col gap-0">
+					<div className="flex flex-col gap-0 px-4">
 						{bucketKeys.map((key) =>
 							buckets[key].map((taskId) => {
 								const task = taskMap.get(taskId);

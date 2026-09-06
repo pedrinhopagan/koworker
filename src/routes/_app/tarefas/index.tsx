@@ -136,8 +136,8 @@ function TarefasPage() {
 				/>
 
 				<div className="min-h-0 min-w-0 flex-1 overflow-y-auto md:bg-background">
-					<div className="mx-auto w-full max-w-5xl px-0 pb-8 md:px-7">
-						<header className="hidden items-center justify-between gap-4 border-b border-border py-3 md:flex">
+					<div className="mx-auto w-full max-w-5xl px-0 pb-8">
+						<header className="hidden items-center justify-between gap-4 border-b border-border px-4 py-3 md:flex">
 							<div className="flex min-w-0 items-baseline gap-2">
 								<Title size="lg" className="truncate">
 									{selectedProject?.name ?? "Todos os projetos"}

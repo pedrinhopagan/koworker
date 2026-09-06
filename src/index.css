@@ -198,8 +198,8 @@
 		@apply bg-background text-foreground;
 	}
 	[data-theme-root] ::selection {
-		background-color: color-mix(in oklab, var(--foreground) 22%, transparent);
-		color: var(--foreground);
+		background-color: var(--foreground);
+		color: var(--background);
 	}
 	:where([data-theme-root], [data-theme-root] *) {
 		scrollbar-color: color-mix(in oklab, var(--muted-foreground) 42%, transparent) transparent;

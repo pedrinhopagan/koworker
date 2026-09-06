@@ -9,6 +9,7 @@ import { Text } from "@/components/typography";
 import { useSelectedProjectStore } from "@/stores/selected-project";
 import { HomeAgentsSummary, HomeRecentActivity } from "./-components/home-agents-summary";
 import { HomeEmptyState } from "./-components/home-empty-state";
+import { HomeMasthead } from "./-components/home-masthead";
 import { HomeProjectShowcase } from "./-components/home-project-showcase";
 
 export const Route = createFileRoute("/_app/")({
@@ -54,11 +55,12 @@ function HomePage() {
 
 			{!loading && project && (
 				<div className="space-y-7">
+					<HomeMasthead project={project} />
 					<div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
-						<div className="lg:col-span-8">
+						<div className="lg:col-span-7">
 							<HomeAgentsSummary />
 						</div>
-						<div className="lg:col-span-4">
+						<div className="lg:col-span-5">
 							<HomeProjectShowcase project={project} />
 						</div>
 					</div>

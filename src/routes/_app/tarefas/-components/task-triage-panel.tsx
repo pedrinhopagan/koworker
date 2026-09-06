@@ -8,6 +8,7 @@ import {
 	SlidersHorizontal,
 	PanelLeft,
 	Plus,
+	GripVertical,
 	Search,
 	X,
 } from "lucide-react";
@@ -22,6 +23,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { Drawer } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SortableList } from "@/components/ui/sortable-list";
 import { Tooltip } from "@/components/ui/tooltip";
 import { TASK_COMPLEXITIES, COMPLEXITY_LABELS, type TaskComplexity } from "@/constants/complexity";
 import type { TaskSortMode } from "@/constants/tasks";
@@ -90,6 +92,7 @@ function FilterSelect({
 }
 
 function FeatureIndex({ groups, tasks, projectId }: Pick<Props, "groups" | "tasks" | "projectId">) {
+	const queryClient = useQueryClient();
 	const visibleGroups = projectId
 		? groups.filter((group) => group.projectId === projectId)
 		: groups;
@@ -100,22 +103,80 @@ function FeatureIndex({ groups, tasks, projectId }: Pick<Props, "groups" | "task
 		}
 		return result;
 	}, [tasks]);
+	const reorder = useMutation({
+		...orpc.taskGroups.reorder.mutationOptions(),
+		onMutate: async (input) => {
+			await queryClient.cancelQueries({
+				predicate: (query) =>
+					Array.isArray(query.queryKey?.[0]) && query.queryKey[0][0] === "taskGroups",
+			});
+			const previous = queryClient.getQueriesData({
+				predicate: (query) =>
+					Array.isArray(query.queryKey?.[0]) && query.queryKey[0][0] === "taskGroups",
+			});
+			const order = new Map(input.orderedIds.map((id, index) => [id, index]));
+
+			queryClient.setQueriesData<TaskGroup[]>(
+				{
+					predicate: (query) =>
+						Array.isArray(query.queryKey?.[0]) && query.queryKey[0][0] === "taskGroups",
+				},
+				(old) =>
+					old &&
+					[...old].sort(
+						(a, b) => (order.get(a.id) ?? old.length) - (order.get(b.id) ?? old.length),
+					),
+			);
+			return { previous };
+		},
+		onError: (_error, _input, context) => {
+			for (const [key, data] of context?.previous ?? []) queryClient.setQueryData(key, data);
+			toast.error("Não foi possível reordenar as features");
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({
+				predicate: (query) =>
+					Array.isArray(query.queryKey?.[0]) && query.queryKey[0][0] === "taskGroups",
+			});
+		},
+	});
 
 	return (
-		<div className="space-y-1">
-			{visibleGroups.map((group) => (
-				<Link
-					key={group.id}
-					to="/tarefas/$taskId"
-					params={{ taskId: group.id }}
-					search={{ projectId: group.projectId }}
-					className="flex h-8 items-center gap-2 border-l-2 px-2 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-					style={{ borderLeftColor: group.color }}
-				>
-					<span className="min-w-0 flex-1 truncate">{group.name}</span>
-					<span className="tabular-nums text-muted-foreground/70">{counts.get(group.id) ?? 0}</span>
-				</Link>
-			))}
+		<div>
+			<SortableList
+				items={visibleGroups}
+				disabled={!projectId || reorder.isPending}
+				onReorder={(items) => reorder.mutate({ orderedIds: items.map((item) => item.id) })}
+				renderItem={(group, { dragHandleProps }) => (
+					<div
+						className="group/feature flex h-8 items-center border-l-2 text-xs text-muted-foreground"
+						style={{ borderLeftColor: group.color }}
+					>
+						{projectId && (
+							<button
+								type="button"
+								aria-label={`Arrastar ${group.name}`}
+								className="cursor-grab touch-none p-1 text-muted-foreground/40 opacity-0 transition-opacity hover:text-foreground group-hover/feature:opacity-100 focus-visible:opacity-100"
+								{...dragHandleProps.attributes}
+								{...(dragHandleProps.listeners as React.HTMLAttributes<HTMLButtonElement>)}
+							>
+								<GripVertical className="size-3.5" />
+							</button>
+						)}
+						<Link
+							to="/tarefas/$taskId"
+							params={{ taskId: group.id }}
+							search={{ projectId: group.projectId }}
+							className="flex min-w-0 flex-1 items-center gap-2 self-stretch px-2 transition-colors hover:bg-secondary hover:text-foreground"
+						>
+							<span className="min-w-0 flex-1 truncate">{group.name}</span>
+							<span className="tabular-nums text-muted-foreground/70">
+								{counts.get(group.id) ?? 0}
+							</span>
+						</Link>
+					</div>
+				)}
+			/>
 			{visibleGroups.length === 0 && (
 				<Text size="xs" tone="muted" className="px-2 py-2">
 					Nenhuma feature neste projeto.
@@ -221,7 +282,7 @@ export function TaskTriagePanel(props: Props) {
 	const sectionLabel = "font-semibold uppercase tracking-[0.12em]";
 
 	const controls = (
-		<div className="space-y-4">
+		<div className="space-y-4 [&_[data-slot=button]]:text-foreground [&_[data-slot=button]]:transition-none [&_[data-slot=button]]:active:scale-100">
 			<div className="space-y-2">
 				<Text size="xs" tone="muted" className={sectionLabel}>
 					Filtros
@@ -414,7 +475,7 @@ export function TaskTriagePanel(props: Props) {
 					{activeChips}
 				</div>
 				{completedButton}
-				<Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
+				<Popover>
 					<PopoverTrigger asChild>
 						<Button
 							size="sm"

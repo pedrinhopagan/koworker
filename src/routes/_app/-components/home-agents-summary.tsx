@@ -1,6 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, CircleAlert, Radio, SquareTerminal } from "lucide-react";
+import { CircleAlert, Radio, SquareTerminal } from "lucide-react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
@@ -8,7 +7,9 @@ import { Text, Title } from "@/components/typography";
 import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { sortRadarAgents } from "@/lib/agent-radar-status";
 import { errorMessage } from "@/lib/orpc-errors";
+import { cn } from "@/lib/utils";
 import { HomeAgentCard } from "./home-agent-card";
+import { HOME_DOT_GRID } from "./home-masthead";
 
 function useAgentActions() {
 	const focus = useMutation({
@@ -38,8 +39,6 @@ export function HomeAgentsSummary() {
 	const attention = sorted.filter(
 		(agent) => agent.status === "blocked" || agent.status === "working",
 	);
-	const blocked = agents.filter((agent) => agent.status === "blocked").length;
-	const working = agents.filter((agent) => agent.status === "working").length;
 
 	return (
 		<section aria-labelledby="attention-title" className="min-w-0">
@@ -59,36 +58,34 @@ export function HomeAgentsSummary() {
 						Precisa de você
 					</Title>
 				</div>
-				<Link
-					to="/shells"
-					className="flex shrink-0 items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
-				>
-					Abrir sala <ArrowUpRight className="size-3.5" />
-				</Link>
+				<Text size="xs" tone="muted" className="shrink-0 font-mono tabular-nums">
+					{attention.length} na fila
+				</Text>
 			</header>
-
-			<div className="mb-4 grid grid-cols-3 border border-border bg-card shadow-xs">
-				<AgentCount label="Bloqueados" value={blocked} tone="text-warning" />
-				<AgentCount label="Trabalhando" value={working} tone="text-primary" />
-				<AgentCount label="Agents" value={agents.length} />
-			</div>
 
 			{loading && <Text tone="muted">Sincronizando agents...</Text>}
 			{!loading && attention.length === 0 && (
-				<div className="border border-dashed border-border bg-card/40 px-5 py-8">
-					<Radio className="size-5 text-muted-foreground" aria-hidden />
-					<Title as="h3" className="mt-3 text-base">
+				<div className="animate-stagger-fade-in relative overflow-hidden border border-dashed border-border bg-card/40 px-5 py-8">
+					<div
+						aria-hidden
+						className={cn(
+							"pointer-events-none absolute inset-0 opacity-60 [mask-image:linear-gradient(to_left,black,transparent_60%)]",
+							HOME_DOT_GRID,
+						)}
+					/>
+					<Radio className="relative size-5 text-muted-foreground" aria-hidden />
+					<Title as="h3" className="relative mt-3 text-base">
 						Nenhuma intervenção agora
 					</Title>
-					<Text size="sm" tone="muted" className="mt-1 max-w-md">
+					<Text size="sm" tone="muted" className="relative mt-1 max-w-md">
 						Não há agents bloqueados ou trabalhando. As sessões recentes continuam registradas
 						abaixo.
 					</Text>
 				</div>
 			)}
-			<div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-				{attention.map((agent) => (
-					<HomeAgentCard key={agent.paneId} agent={agent} {...actions} />
+			<div className="grid gap-3">
+				{attention.map((agent, index) => (
+					<HomeAgentCard key={agent.paneId} agent={agent} index={index} {...actions} />
 				))}
 			</div>
 		</section>
@@ -109,7 +106,7 @@ export function HomeRecentActivity() {
 						Sessões e atividade
 					</Title>
 				</div>
-				<Text size="xs" tone="muted">
+				<Text size="xs" tone="muted" className="font-mono tabular-nums">
 					{recent.length} recentes
 				</Text>
 			</div>
@@ -119,24 +116,11 @@ export function HomeRecentActivity() {
 					Nenhuma sessão aberta neste momento.
 				</Text>
 			)}
-			<div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-				{recent.map((agent) => (
-					<HomeAgentCard key={agent.paneId} agent={agent} compact {...actions} />
+			<div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+				{recent.map((agent, index) => (
+					<HomeAgentCard key={agent.paneId} agent={agent} index={index} compact {...actions} />
 				))}
 			</div>
 		</section>
-	);
-}
-
-function AgentCount({ label, value, tone }: { label: string; value: number; tone?: string }) {
-	return (
-		<div className="min-w-0 border-r border-border px-3 py-3 last:border-r-0 sm:px-4">
-			<Title as="div" className={`text-2xl tabular-nums ${tone ?? ""}`}>
-				{value}
-			</Title>
-			<Text size="xs" tone="muted" className="truncate">
-				{label}
-			</Text>
-		</div>
 	);
 }

@@ -2,9 +2,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
 	Bug,
 	ChevronDown,
+	Crosshair,
 	DatabaseZap,
 	Ellipsis,
 	FolderKanban,
+	Loader2,
 	SquareTerminal,
 } from "lucide-react";
 import { type ComponentType, useEffect, useState } from "react";
@@ -20,11 +22,12 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip } from "@/components/ui/tooltip";
-import { INVOKE_CLI_OPTIONS, type InvokeCli } from "@/constants/invoke";
-import { useProjectFocus } from "@/hooks";
+import { type WorkingCli, WORKING_CLI_OPTIONS } from "@/constants/invoke";
+import { type UseProjectFocusReturn, useProjectFocus } from "@/hooks";
 import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
 import { getAppEnv, getAppVersionFallback, isDevelopmentEnvironment } from "@/lib/env";
 import { getDesktopVersion, isDesktop, openDevtools } from "@/lib/desktop";
+import { focusCliAgent } from "@/lib/terminal";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 
@@ -56,6 +59,8 @@ export function StatusBar() {
 	const isDev = isDevelopmentEnvironment();
 	const cli = usePromptBarStore((s) => s.cli);
 	const setCli = usePromptBarStore((s) => s.setCli);
+	const projectFocus = useProjectFocus();
+	const [focusing, setFocusing] = useState(false);
 
 	useEffect(() => {
 		let active = true;
@@ -97,11 +102,24 @@ export function StatusBar() {
 		}, 120);
 	}
 
-	const cliOptions = INVOKE_CLI_OPTIONS.map((option) => ({
+	async function handleFocusAgent() {
+		setFocusing(true);
+		try {
+			await focusCliAgent({
+				cli,
+				...(projectFocus.selectedProjectId ? { projectId: projectFocus.selectedProjectId } : {}),
+			});
+		} finally {
+			setFocusing(false);
+		}
+	}
+
+	const cliOptions = WORKING_CLI_OPTIONS.map((option) => ({
 		id: option.value,
 		label: option.label,
 		hint: option.hint,
 	}));
+	const cliLabel = cliOptions.find((option) => option.id === cli)?.label ?? cli;
 
 	return (
 		<footer className="flex h-9 items-center justify-between gap-2 border-t border-border/80 bg-chrome px-3 text-xs md:h-8 md:gap-3 md:px-3">
@@ -121,8 +139,24 @@ export function StatusBar() {
 			</div>
 
 			<div className="hidden md:flex items-center gap-1 min-w-0">
-				<ProjectSelectTrigger />
+				<ProjectSelectTrigger projectFocus={projectFocus} />
 				<InvokeCliSelect compact />
+				<Tooltip label={`Focar a sessão ${cliLabel} (abre uma se não houver)`}>
+					<Button
+						variant="outline"
+						size="icon"
+						aria-label={`Focar a sessão ${cliLabel} (abre uma se não houver)`}
+						disabled={focusing}
+						className="size-6 border-border/70 bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+						onClick={() => void handleFocusAgent()}
+					>
+						{focusing ? (
+							<Loader2 className="size-3 animate-spin" />
+						) : (
+							<Crosshair className="size-3" />
+						)}
+					</Button>
+				</Tooltip>
 				<ActionButton onClick={handleOpenConsole} label="Console" icon={Bug} />
 				<ActionButton onClick={handleClearCache} label="Limpar Cache" icon={DatabaseZap} />
 			</div>
@@ -144,7 +178,7 @@ export function StatusBar() {
 						{cliOptions.map((option) => (
 							<DropdownMenuItem
 								key={option.id}
-								onClick={() => setCli(option.id as InvokeCli)}
+								onClick={() => setCli(option.id as WorkingCli)}
 								className={cn(option.id === cli && "font-medium text-foreground")}
 							>
 								<SquareTerminal size={14} />
@@ -154,6 +188,13 @@ export function StatusBar() {
 								</div>
 							</DropdownMenuItem>
 						))}
+
+						<DropdownMenuSeparator />
+
+						<DropdownMenuItem onClick={() => void handleFocusAgent()} disabled={focusing}>
+							{focusing ? <Loader2 className="size-3.5 animate-spin" /> : <Crosshair size={14} />}
+							Focar sessão {cliLabel}
+						</DropdownMenuItem>
 
 						<DropdownMenuSeparator />
 
@@ -173,9 +214,9 @@ export function StatusBar() {
 	);
 }
 
-function ProjectSelectTrigger() {
+function ProjectSelectTrigger({ projectFocus }: { projectFocus: UseProjectFocusReturn }) {
 	const openDialog = useProjectSelectDialogStore((s) => s.openDialog);
-	const { selectedProjectId, selectedProject, accent, loading } = useProjectFocus();
+	const { selectedProjectId, selectedProject, accent, loading } = projectFocus;
 
 	const label =
 		selectedProjectId === undefined

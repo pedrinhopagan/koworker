@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { FONTS } from "@/lib/constants/fonts";
 import { useFontStore } from "@/stores/fonts";
 import { useThemeStore } from "@/stores/theme";
+import { useVisualViewport } from "@/hooks/use-visual-viewport";
 
 interface RouterContext {
 	queryClient: QueryClient;
@@ -34,9 +35,15 @@ function RootComponent() {
 		return <Outlet />;
 	}
 
+	return <RootViewport theme={theme} />;
+}
+
+function RootViewport({ theme }: { theme: string }) {
+	useVisualViewport();
+
 	return (
 		<div className={theme} data-theme-root>
-			<div className="h-dvh flex flex-col bg-background border-l border-[#141414] pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
+			<div className="relative top-[var(--app-viewport-top,0px)] h-[var(--app-viewport-height,100dvh)] flex flex-col bg-background border-l border-[#141414] pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
 				<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 					<ErrorBoundary>
 						<Outlet />

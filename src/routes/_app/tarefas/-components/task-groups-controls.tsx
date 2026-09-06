@@ -482,7 +482,7 @@ export function TaskListControls({
 
 	return (
 		<>
-			<div className="flex flex-col gap-2 md:hidden">
+			<div className="-mx-4 flex flex-col gap-2 md:hidden">
 				<div className="flex gap-2">
 					{searchInput("min-w-0 flex-1")}
 					{completedButton}
@@ -657,7 +657,7 @@ export function TaskGroupHeader({
 	const ChevronIcon = collapsed ? ChevronRight : ChevronDown;
 
 	const header = (
-		<div className="group/header flex items-center gap-2 border-border/60 border-b pb-1">
+		<div className="group/header flex items-center gap-2 border-border/60 border-b px-4 pb-1">
 			{dragHandle}
 			<button
 				type="button"

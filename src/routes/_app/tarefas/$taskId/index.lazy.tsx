@@ -2,17 +2,27 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createLazyFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import {
 	ArrowLeft,
+	Check,
 	File,
 	FileCode2,
 	FileText,
 	ListChecks,
 	type LucideIcon,
 	Loader2,
+	MoreHorizontal,
+	PencilLine,
+	RotateCcw,
+	Trash2,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
+import {
+	DocMobileActionsDrawer,
+	DocSheetActionButton,
+	DocSheetDivider,
+} from "@/components/doc-mobile-actions-drawer";
 import { DocShareControls } from "@/components/doc-share-controls";
 import { FileContextMenu } from "@/components/file-context-menu";
 import {
@@ -24,7 +34,6 @@ import {
 } from "@/components/tasks/task-meta-controls";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -136,6 +145,8 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 	const [renamingFile, setRenamingFile] = useState<string | null>(null);
 	const [renameValue, setRenameValue] = useState("");
 	const [deletingFile, setDeletingFile] = useState<string | null>(null);
+	const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+	const [deletingTask, setDeletingTask] = useState(false);
 	const headerRef = useRef<HTMLDivElement>(null);
 
 	useClickOutside(headerRef, () => setEditing(false), {
@@ -301,9 +312,9 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 				<div className="w-full border-b border-border">
 					<div
 						ref={headerRef}
-						className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3"
+						className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between md:gap-4"
 					>
-						<div className="flex min-w-0 flex-1 items-center gap-3">
+						<div className="flex min-w-0 w-full flex-1 items-center gap-3 md:w-auto">
 							<Link
 								to="/tarefas/$taskId"
 								params={{ taskId: canonical.featureId }}
@@ -313,7 +324,9 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 							>
 								<ArrowLeft className="size-4" />
 							</Link>
-							<Icon icon={ListChecks} color="var(--project-accent, var(--primary))" size="md" />
+							<span className="hidden sm:block">
+								<Icon icon={ListChecks} color="var(--project-accent, var(--primary))" size="md" />
+							</span>
 							<div className="min-w-0 flex-1">
 								{editing ? (
 									<TaskTitleInput
@@ -337,16 +350,38 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 									{headerDescription}
 								</Text>
 							</div>
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon"
+								className="size-11 md:hidden"
+								onClick={() => setMobileActionsOpen(true)}
+								aria-label="Mais ações da tarefa"
+							>
+								<MoreHorizontal className="size-5" />
+							</Button>
 						</div>
-						<div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-							<Checkbox
-								checked={task.done}
-								onCheckedChange={(checked) =>
-									setDoneMutation.mutate({ id: task.id, done: checked === true })
-								}
+						<Button
+							type="button"
+							variant={task.done ? "outline" : "default"}
+							className="h-11 w-full md:hidden"
+							onClick={() => setDoneMutation.mutate({ id: task.id, done: !task.done })}
+							disabled={isMutating}
+						>
+							{task.done ? <RotateCcw className="size-4" /> : <Check className="size-4" />}
+							{task.done ? "Desconcluir tarefa" : "Concluir tarefa"}
+						</Button>
+						<div className="hidden min-w-0 flex-wrap items-center justify-end gap-2 md:flex">
+							<Button
+								type="button"
+								variant={task.done ? "outline" : "default"}
+								size="sm"
+								onClick={() => setDoneMutation.mutate({ id: task.id, done: !task.done })}
 								disabled={isMutating}
-								aria-label={task.done ? "Marcar como não concluída" : "Marcar como concluída"}
-							/>
+							>
+								{task.done ? <RotateCcw className="size-4" /> : <Check className="size-4" />}
+								{task.done ? "Desconcluir" : "Concluir"}
+							</Button>
 							<TaskMetaSelects
 								categoryId={task.categoryId ?? null}
 								priorityId={task.priorityId ?? null}
@@ -379,6 +414,65 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 						</div>
 					</div>
 				</div>
+
+				<DocMobileActionsDrawer
+					open={mobileActionsOpen}
+					onClose={() => setMobileActionsOpen(false)}
+					title="Ações da tarefa"
+				>
+					<div className="flex flex-col gap-2 px-5 pb-3">
+						<Text size="xs" tone="muted">
+							Detalhes
+						</Text>
+						<TaskMetaSelects
+							categoryId={task.categoryId ?? null}
+							priorityId={task.priorityId ?? null}
+							complexity={task.complexity}
+							interactive
+							layout="stacked"
+							onCategoryChange={(categoryId) => updateMutation.mutate({ id: task.id, categoryId })}
+							onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
+							onComplexityChange={(complexity) =>
+								updateMutation.mutate({ id: task.id, complexity })
+							}
+						/>
+					</div>
+					<DocSheetDivider />
+					<DocSheetActionButton
+						icon={<PencilLine className="size-[18px]" />}
+						label={editing ? "Concluir edição" : "Editar tarefa"}
+						onClick={() => {
+							setMobileActionsOpen(false);
+							setEditing((value) => !value);
+						}}
+						disabled={isMutating}
+					/>
+					<FlowRunButton
+						taskId={taskId}
+						layout="stacked"
+						onAction={() => setMobileActionsOpen(false)}
+					/>
+					{share.folderAbs ? (
+						<DocShareControls
+							layout="stacked"
+							onAction={() => setMobileActionsOpen(false)}
+							onOpenInOs={share.openInOs}
+							onCopyContent={() => void share.copyContent()}
+							onCopyZip={() => void share.copyZip()}
+						/>
+					) : null}
+					<DocSheetDivider />
+					<DocSheetActionButton
+						icon={<Trash2 className="size-[18px]" />}
+						label="Excluir tarefa"
+						className="text-destructive hover:bg-destructive/10"
+						onClick={() => {
+							setMobileActionsOpen(false);
+							setDeletingTask(true);
+						}}
+						disabled={isMutating}
+					/>
+				</DocMobileActionsDrawer>
 
 				<div className="min-h-0 flex-1 overflow-y-auto pb-24">
 					<div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
@@ -546,6 +640,17 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 						placeholder="index.md"
 					/>
 				</ConfirmDialog>
+
+				<ConfirmDialog
+					open={deletingTask}
+					onClose={() => setDeletingTask(false)}
+					onConfirm={() => removeTaskMutation.mutate({ id: task.id })}
+					title="Excluir tarefa"
+					description={`“${task.displayTitle}” será excluída.`}
+					confirmLabel="Excluir"
+					variant="danger"
+					loading={removeTaskMutation.isPending}
+				/>
 
 				<ConfirmDialog
 					open={deletingFile !== null}

@@ -43,6 +43,18 @@ export function ProjectSelectDialog({ open, onClose }: ProjectSelectDialogProps)
 			return;
 		}
 
+		if (currentRoutePath === "/tarefas") {
+			const projectId = id === ALL_PROJECTS_ID ? undefined : id;
+			setSelectedProjectId(projectId);
+			navigate({
+				to: "/tarefas",
+				search: (previous) => ({ ...previous, projectId }),
+				replace: true,
+			});
+			onClose();
+			return;
+		}
+
 		if (id === ALL_PROJECTS_ID) {
 			setSelectedProjectId(undefined);
 

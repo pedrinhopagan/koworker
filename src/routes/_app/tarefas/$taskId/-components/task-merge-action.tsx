@@ -42,6 +42,10 @@ export function TaskMergeAction({
 	});
 
 	function merge() {
+		if (cli === "pi") {
+			toast.info("O merge automático pelo Pi ainda não está disponível");
+			return;
+		}
 		const session = cli === "codex" ? invoke.codex : invoke.claude;
 		const model = withoutInvokeInherit(session.model);
 		const effort = withoutInvokeInherit(session.effort);
