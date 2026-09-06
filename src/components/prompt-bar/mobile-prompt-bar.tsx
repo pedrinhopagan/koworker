@@ -44,15 +44,7 @@ export function MobilePromptBar() {
 					if (!next) setExpanded(false);
 				}}
 			>
-				<SheetContent
-					side="bottom"
-					showClose={false}
-					className="h-[92dvh] max-h-[92dvh] pb-[env(safe-area-inset-bottom)]"
-				>
-					<div className="flex shrink-0 justify-center pt-2 pb-1">
-						<div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
-					</div>
-
+				<SheetContent side="bottom" showClose={false} className="h-[92dvh] max-h-[92dvh]">
 					<SheetHeader className="flex-row items-center justify-between gap-3 border-b border-border px-4 pb-2">
 						<SheetTitle asChild>
 							<Title as="h2" size="sm">

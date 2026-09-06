@@ -124,11 +124,7 @@ export const AgentAnswer = memo(function AgentAnswer({
 
 			{reading && (
 				<Sheet open onOpenChange={setReading}>
-					<SheetContent
-						side="bottom"
-						showClose={false}
-						className="h-[94dvh] max-h-[94dvh] pb-[env(safe-area-inset-bottom)]"
-					>
+					<SheetContent side="bottom" showClose={false} className="h-[94dvh] max-h-[94dvh]">
 						<SheetHeader className="flex-row items-start justify-between gap-3 border-b border-border bg-card px-4 py-3">
 							<div className="flex min-w-0 items-start gap-3">
 								<span
