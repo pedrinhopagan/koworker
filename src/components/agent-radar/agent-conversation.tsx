@@ -1,21 +1,34 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowDown, Loader2, SquareTerminal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { agentCliVisual } from "@/components/agent-radar/agent-cli";
-import { AgentSwitcherStrip } from "@/components/agent-radar/agent-list";
+import { LinkCwdProvider } from "@/components/link-cwd";
+import { PaneStatusStrip } from "@/components/agent-radar/pane-status-strip";
+import { ModelPicker } from "@/components/agent-session/model-picker";
 import { SessionTimeline } from "@/components/agent-session/session-timeline";
 import { ThreadComposer } from "@/components/agent-session/thread-composer";
 import { Button } from "@/components/ui/button";
 import { EmptyFeedback } from "@/components/ui/empty-feedback";
+import { agentRadarAgentLabel, agentRadarCli } from "@/constants/agent-radar";
 import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { useAgentRadarTranscript } from "@/hooks/use-agent-radar-transcript";
-import { useIsMobileViewport } from "@/hooks/use-is-mobile-viewport";
+import { type ModelTarget, modelTargetDiff, sessionModelId } from "@/lib/model-target";
 import { errorMessage } from "@/lib/orpc-errors";
-import { PaneStatusStrip } from "@/components/agent-radar/pane-status-strip";
-import { LinkCwdProvider } from "@/components/link-cwd";
+import { clearPromptDraft } from "@/lib/prompt-draft";
+import { activePaneMove, usePaneMoves } from "@/stores/pane-moves";
+
+const CATALOG_STALE_MS = 5 * 60_000;
+const HANDOFF_POLL_MS = 1_500;
+// Pane recém-aberto pode chegar à tela antes de o radar anunciá-lo: "fechado" só depois desse
+// respiro, senão a conversa nova abre com um aviso de pane morto por um instante.
+const CLOSED_SETTLE_MS = 2_500;
+
+function handoffActive(phase: string | undefined) {
+	return phase === "compacting" || phase === "starting";
+}
 
 export function AgentConversationView({ paneId }: { paneId: string }) {
 	const viewport = useRef<HTMLDivElement>(null);
@@ -24,20 +37,80 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 	// evento de scroll redesenhava a conversa inteira enquanto o dedo ainda estava na tela.
 	const anchored = useRef(true);
 	const [pinned, setPinned] = useState(true);
-	const isMobile = useIsMobileViewport();
 	const { agents, loading: radarLoading } = useAgentRadar();
 	const agent = agents.find((candidate) => candidate.paneId === paneId) ?? null;
 	const transcript = useAgentRadarTranscript(paneId);
 	const cli = agent
 		? agentCliVisual(agent.agent)
 		: { label: "Agent", icon: SquareTerminal, tone: "text-muted-foreground" };
-	const closed = !agent && !radarLoading;
 	const busy = agent?.status === "working";
 	const blocked = agent?.status === "blocked";
+
+	// A escolha do seletor vale para a próxima mensagem. Nula, a mensagem vai como está; preenchida,
+	// só o que difere do que o transcript reporta vira troca — e a marca de pendência some sozinha
+	// quando a sessão passa a reportar o que foi escolhido.
+	const catalog = useQuery({
+		...orpc.agentRadar.modelCatalog.queryOptions(),
+		staleTime: CATALOG_STALE_MS,
+	});
+	const sessionCli = agentRadarCli(agent?.agent);
+	const session = {
+		cli: sessionCli,
+		model: sessionModelId(sessionCli ? catalog.data?.[sessionCli] : undefined, transcript.model),
+		effort: transcript.effort,
+	};
+	const [choice, setChoice] = useState<ModelTarget | null>(null);
+	const target: ModelTarget = choice ?? {
+		cli: sessionCli ?? "claude",
+		model: session.model,
+		effort: session.effort,
+	};
+	const diff = choice ? modelTargetDiff(choice, session) : null;
+
+	// Conversa em trânsito para outro pane (reaberta com outro modelo ou migrada de CLI). O registro
+	// vive no store porque é a página `/shells` que segura a aba e navega quando o pane novo chega.
+	const moveKey = `agent:${paneId}`;
+	const move = usePaneMoves((state) => activePaneMove(state.moves, moveKey));
+	const beginMove = usePaneMoves((state) => state.begin);
+	const landMove = usePaneMoves((state) => state.land);
+	const clearMove = usePaneMoves((state) => state.clear);
+	// A fase da migração, para o aviso; quem a leva até o fim é a página `/shells`, que sobrevive ao
+	// pane antigo fechar.
+	const handoff = useQuery({
+		...orpc.agentRadar.switchStatus.queryOptions({ input: { paneId } }),
+		refetchInterval: (query) => (handoffActive(query.state.data?.phase) ? HANDOFF_POLL_MS : false),
+	});
+	const switching = handoffActive(handoff.data?.phase);
+	const [settled, setSettled] = useState(false);
+	const closed = !agent && !radarLoading && settled && !move;
+
+	useEffect(() => {
+		setSettled(false);
+		const timer = setTimeout(() => setSettled(true), CLOSED_SETTLE_MS);
+
+		return () => clearTimeout(timer);
+	}, [paneId]);
+
+	// App reaberto no meio de uma migração: o registro em memória se perdeu, o job no backend não.
+	useEffect(() => {
+		if (handoff.data && handoffActive(handoff.data.phase) && !move) {
+			beginMove(moveKey, handoff.data.cli, "handoff");
+		}
+	}, [beginMove, handoff.data, move, moveKey]);
+
+	useEffect(() => {
+		if (move?.to) {
+			clearPromptDraft(`kowork-radar-draft-${paneId}`);
+		}
+	}, [move?.to, paneId]);
 
 	const send = useMutation({
 		...orpc.agentRadar.send.mutationOptions(),
 		onError: (error) => toast.error(errorMessage(error, "Não foi possível responder ao agent")),
+	});
+	const switchModel = useMutation({
+		...orpc.agentRadar.switchModel.mutationOptions(),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível trocar o modelo")),
 	});
 	const sendKeys = useMutation({
 		...orpc.agentRadar.sendKeys.mutationOptions(),
@@ -113,6 +186,9 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 
 		const observer = new ResizeObserver(follow);
 		observer.observe(node);
+		if (viewport.current) {
+			observer.observe(viewport.current);
+		}
 		window.visualViewport?.addEventListener("resize", follow);
 
 		return () => {
@@ -125,10 +201,57 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 		stickToEnd();
 	}, [paneId, stickToEnd]);
 
+	async function submit(text: string) {
+		stickToEnd();
+		if (!diff) {
+			try {
+				await send.mutateAsync({ paneId, text });
+				return true;
+			} catch {
+				return false;
+			}
+		}
+		if (busy) {
+			toast.info("Aguarde o agent terminar o turno para trocar de modelo");
+			return false;
+		}
+
+		// O registro entra antes da chamada: o pane atual fecha no meio dela, e a página precisa
+		// saber desde já que a conversa está em trânsito para não mostrar o estado vazio.
+		beginMove(moveKey, target.cli, diff.cli ? "handoff" : "reopen");
+		try {
+			const result = await switchModel.mutateAsync({
+				paneId,
+				cli: target.cli,
+				...(diff.model ? { model: diff.model } : {}),
+				...(diff.effort ? { effort: diff.effort } : {}),
+				text,
+			});
+			if (result.kind === "handoff") {
+				// O rascunho fica até a migração terminar: se ela falhar, a mensagem continua ali.
+				void handoff.refetch();
+				return false;
+			}
+
+			landMove(moveKey, `agent:${result.paneId}`);
+			return true;
+		} catch {
+			clearMove(moveKey);
+			return false;
+		}
+	}
+
+	const targetLabel = agentRadarAgentLabel(move?.cli ?? handoff.data?.cli ?? target.cli);
+	const switchingHint =
+		move?.to || move?.kind === "reopen"
+			? "Abrindo a conversa no novo pane…"
+			: handoff.data?.phase === "starting"
+				? `Abrindo a sessão ${targetLabel}…`
+				: `Resumindo a conversa para continuar no ${targetLabel}…`;
+	const inTransit = switching || !!move;
+
 	return (
 		<div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-muted/10">
-			{isMobile && <AgentSwitcherStrip agents={agents} selectedPaneId={paneId} />}
-
 			<PaneStatusStrip agent={agent} closed={closed} model={transcript.model} />
 
 			<div
@@ -136,13 +259,13 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 				data-component="conversation-viewport"
 				onScroll={(event) => {
 					const node = event.currentTarget;
-					const atEnd = node.scrollHeight - node.scrollTop - node.clientHeight < 120;
+					const atEnd = node.scrollHeight - node.scrollTop - node.clientHeight < 24;
 					if (atEnd !== anchored.current) {
 						anchored.current = atEnd;
 						setPinned(atEnd);
 					}
 				}}
-				className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4"
+				className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 sm:px-4"
 			>
 				<div ref={content} className="mx-auto w-full max-w-3xl space-y-5 pb-4 pt-5">
 					{transcript.loading && !closed && (
@@ -206,38 +329,42 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 					</Button>
 				)}
 
+				{inTransit && (
+					<div
+						role="status"
+						data-component="model-switch-status"
+						className="mx-auto flex w-full max-w-3xl items-center gap-2 border border-border bg-card px-3 py-2 text-xs shadow-sm"
+					>
+						<Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
+						<span className="min-w-0 truncate">{switchingHint}</span>
+					</div>
+				)}
+
 				<ThreadComposer
 					draftKey={`kowork-radar-draft-${paneId}`}
 					{...(agent?.projectName ? { projectName: agent.projectName } : {})}
 					{...(agent ? { cli: agent.agent } : {})}
-					currentModel={transcript.model}
-					modelSwitchDisabled={!!busy}
+					accessory={
+						!closed && (
+							<ModelPicker
+								catalog={catalog.data}
+								session={session}
+								value={target}
+								onChange={setChoice}
+								disabled={!!busy || inTransit}
+							/>
+						)
+					}
 					helperText={
 						busy
 							? "Envie orientações enquanto o agent trabalha, sem interromper a execução."
 							: `Ctrl+Enter envia · / abre o menu do ${cli.label} · cole imagens.`
 					}
-					disabled={closed}
-					pending={send.isPending}
+					disabled={closed || inTransit}
+					pending={send.isPending || switchModel.isPending}
 					disabledHintInline
-					onCommand={async (command: string) => {
-						try {
-							await send.mutateAsync({ paneId, text: command });
-							return true;
-						} catch {
-							return false;
-						}
-					}}
-					hint="Este pane foi fechado."
-					onSubmit={async (text) => {
-						stickToEnd();
-						try {
-							await send.mutateAsync({ paneId, text });
-							return true;
-						} catch {
-							return false;
-						}
-					}}
+					hint={closed ? "Este pane foi fechado." : switchingHint}
+					onSubmit={submit}
 				/>
 			</div>
 		</div>

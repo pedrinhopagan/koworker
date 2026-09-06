@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { useId, useState } from "react";
 
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useProjectFocus } from "@/hooks/use-project-focus";
+import { TERMINAL_LABEL_MAX_LENGTH } from "@/api/schemas/terminal-workspace";
 import type { TerminalWorkspaceActions } from "../-utils/use-terminal-workspace";
 
 type NewShellDialogProps = {
@@ -17,6 +19,7 @@ type NewShellDialogProps = {
 
 export function NewShellDialog({ open, actions, onClose }: NewShellDialogProps) {
 	const navigate = useNavigate();
+	const formId = useId();
 	const { projects, selectedProjectId, loading } = useProjectFocus();
 
 	const [projectId, setProjectId] = useState<string | null>(null);
@@ -30,7 +33,7 @@ export function NewShellDialog({ open, actions, onClose }: NewShellDialogProps) 
 	const cwd = customPath.trim() || activeProject?.mainRoute || "";
 
 	function submit() {
-		if (!cwd) {
+		if (!cwd || pending) {
 			return;
 		}
 
@@ -58,7 +61,7 @@ export function NewShellDialog({ open, actions, onClose }: NewShellDialogProps) 
 			open={open}
 			onClose={onClose}
 			title="Novo shell"
-			description="Um PTY real dentro do Kowork, preso à pasta que você escolher"
+			description="Abra um terminal na pasta do projeto ou em outra pasta."
 			className="max-w-md bg-card text-card-foreground"
 			footer={
 				<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -67,22 +70,31 @@ export function NewShellDialog({ open, actions, onClose }: NewShellDialogProps) 
 						size="sm"
 						onClick={onClose}
 						disabled={pending}
-						className="w-full sm:w-auto"
+						className="h-12 w-full sm:h-8 sm:w-auto"
 					>
 						Cancelar
 					</Button>
 					<Button
 						size="sm"
-						onClick={submit}
+						type="submit"
+						form={formId}
 						disabled={!cwd || pending}
-						className="w-full sm:w-auto"
+						className="h-12 w-full sm:h-8 sm:w-auto"
 					>
-						Abrir shell
+						{pending && <Loader2 className="size-4 animate-spin" />}
+						{pending ? "Abrindo…" : "Abrir shell"}
 					</Button>
 				</div>
 			}
 		>
-			<div className="flex flex-col gap-4">
+			<form
+				id={formId}
+				className="flex flex-col gap-4"
+				onSubmit={(event) => {
+					event.preventDefault();
+					submit();
+				}}
+			>
 				<div className="flex flex-col gap-1">
 					<Text size="xs" tone="muted">
 						Projeto
@@ -91,6 +103,8 @@ export function NewShellDialog({ open, actions, onClose }: NewShellDialogProps) 
 						items={projects}
 						value={activeProjectId ?? undefined}
 						loading={loading}
+						disabled={pending}
+						ariaLabel="Projeto do shell"
 						placeholder="Selecione o projeto"
 						emptyMessage="Nenhum projeto cadastrado"
 						onValueChange={(value) => {
@@ -106,6 +120,10 @@ export function NewShellDialog({ open, actions, onClose }: NewShellDialogProps) 
 						Ou uma pasta qualquer
 					</Text>
 					<Input
+						aria-label="Pasta do shell"
+						autoCapitalize="none"
+						spellCheck={false}
+						className="max-lg:h-12 max-lg:text-[16px]"
 						value={customPath}
 						onChange={(event) => setCustomPath(event.target.value)}
 						placeholder="/caminho/absoluto/da/pasta"
@@ -118,6 +136,9 @@ export function NewShellDialog({ open, actions, onClose }: NewShellDialogProps) 
 						Nome (opcional)
 					</Text>
 					<Input
+						aria-label="Nome do shell"
+						maxLength={TERMINAL_LABEL_MAX_LENGTH}
+						className="max-lg:h-12 max-lg:text-[16px]"
 						value={label}
 						onChange={(event) => setLabel(event.target.value)}
 						placeholder="build, dev server, banco..."
@@ -130,7 +151,7 @@ export function NewShellDialog({ open, actions, onClose }: NewShellDialogProps) 
 						Vai nascer em <span className="font-mono">{cwd}</span>
 					</Text>
 				)}
-			</div>
+			</form>
 		</Dialog>
 	);
 }

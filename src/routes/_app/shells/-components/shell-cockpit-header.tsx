@@ -1,22 +1,27 @@
 import { Link } from "@tanstack/react-router";
 import {
+	ArrowLeft,
 	ChevronDown,
 	CircleStop,
-	ExternalLink,
 	GitCompare,
 	History,
+	ListTree,
 	Loader2,
-	Menu,
+	MessageSquare,
+	MessagesSquare,
 	MoreVertical,
 	PanelLeftOpen,
 	Plus,
 	RotateCcw,
+	SquareTerminal,
 	Target,
 	X,
 } from "lucide-react";
 
 import type { TerminalWorkspaceEntry } from "@/api/schemas/terminal-workspace";
+import type { AgentPaneMode } from "@/components/agent-radar/agent-pane-view";
 import { AgentCliIcon } from "@/components/agent-radar/agent-cli";
+import { AgentNavMenuItems } from "@/components/agent-radar/agent-nav-menu-items";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,12 +29,15 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";
 import { AGENT_RADAR_STATUS_LABELS, type AgentRadarStatus } from "@/constants/agent-radar";
 import { useAgentRadarPreviews } from "@/hooks/use-agent-radar-previews";
+import { useRadarAgentNav } from "@/hooks/use-radar-agent-nav";
 import { AGENT_RADAR_VISUALS } from "@/lib/agent-radar-status";
 import { modelDisplayLabel } from "@/lib/model-label";
 import { cn } from "@/lib/utils";
@@ -58,9 +66,11 @@ export function ShellCockpitHeader({
 	reopening,
 	actions,
 	onSelect,
-	onOpenMobile,
+	onBack,
 	onNew,
 	onOpenConversation,
+	agentMode,
+	onAgentModeChange,
 }: {
 	entry: TerminalWorkspaceEntry | null;
 	entries: TerminalWorkspaceEntry[];
@@ -69,12 +79,15 @@ export function ShellCockpitHeader({
 	reopening: boolean;
 	actions: TerminalWorkspaceActions;
 	onSelect: (key: string) => void;
-	onOpenMobile: () => void;
+	onBack: () => void;
 	onNew: () => void;
 	onOpenConversation: () => void;
+	agentMode: AgentPaneMode;
+	onAgentModeChange: (mode: AgentPaneMode) => void;
 }) {
 	const sidebarMode = useShellSidebarStore((state) => state.mode);
 	const toggleSidebar = useShellSidebarStore((state) => state.toggleMode);
+	const { openTask } = useRadarAgentNav();
 	const previews = useAgentRadarPreviews(
 		entry?.kind === "agent",
 		entry?.kind === "agent" ? [entry.id] : [],
@@ -89,23 +102,25 @@ export function ShellCockpitHeader({
 			: terminalWorkspaceStatusText(entry)
 		: "inativo";
 	const groups = groupTerminalWorkspaceEntries(entries, projects);
+	const taskId = entry?.taskId ?? null;
+	const isAgent = entry?.kind === "agent";
 
 	return (
-		<header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-chrome/60 px-2 md:px-3">
+		<header className="flex h-12 min-w-0 shrink-0 items-center gap-1 border-b border-border bg-chrome/60 px-1 lg:h-12 lg:gap-2 lg:px-3">
 			<Button
 				variant="ghost"
 				size="icon"
-				className="md:hidden"
-				onClick={onOpenMobile}
-				aria-label="Abrir sessões"
+				className="size-12 lg:hidden"
+				onClick={onBack}
+				aria-label="Voltar para a lista de sessões"
 			>
-				<Menu className="size-4" />
+				<ArrowLeft className="size-4" />
 			</Button>
 			{sidebarMode === "compact" && (
 				<Button
 					variant="ghost"
 					size="icon"
-					className="max-md:hidden"
+					className="max-lg:hidden"
 					onClick={toggleSidebar}
 					aria-label="Expandir lista de sessões"
 				>
@@ -117,7 +132,7 @@ export function ShellCockpitHeader({
 				<DropdownMenuTrigger asChild>
 					<button
 						type="button"
-						className="flex min-w-0 items-center gap-2 px-1 py-1 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+						className="flex min-h-12 min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring lg:min-h-0 lg:flex-none"
 					>
 						{entry?.agent && <AgentCliIcon agent={entry.agent} className="size-4 shrink-0" />}
 						<div className="min-w-0">
@@ -135,13 +150,16 @@ export function ShellCockpitHeader({
 							>
 								{entry?.projectName ?? entry?.groupLabel ?? "Shells"}
 								{preview?.model && ` · ${modelDisplayLabel(preview.model)}`}
+								{entry && (
+									<span className={cn("sm:hidden", visual?.tone)}>{` · ${statusLabel}`}</span>
+								)}
 							</Text>
 						</div>
 					</button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent
 					align="start"
-					className="max-h-[70dvh] w-[min(360px,calc(100vw-24px))] overflow-y-auto"
+					className="max-h-[70dvh] w-[min(360px,calc(100vw-24px))] overflow-y-auto max-lg:[&_[role^=menuitem]]:min-h-11"
 				>
 					{groups.map((group, index) => (
 						<div key={group.id}>
@@ -167,7 +185,7 @@ export function ShellCockpitHeader({
 				</DropdownMenuContent>
 			</DropdownMenu>
 
-			<span className="flex-1" />
+			<span className="hidden flex-1 lg:block" />
 			<span
 				className={cn(
 					"hidden shrink-0 items-center gap-1.5 border border-border px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-widest sm:flex",
@@ -179,13 +197,86 @@ export function ShellCockpitHeader({
 				{statusLabel}
 			</span>
 
+			{isAgent && (
+				<Button
+					variant="ghost"
+					size="icon"
+					className="size-12 lg:hidden"
+					aria-label={agentMode === "conversation" ? "Ver terminal" : "Ver conversa"}
+					aria-pressed={agentMode === "terminal"}
+					onClick={() =>
+						onAgentModeChange(agentMode === "conversation" ? "terminal" : "conversation")
+					}
+				>
+					{agentMode === "conversation" ? (
+						<SquareTerminal className="size-4" />
+					) : (
+						<MessageSquare className="size-4" />
+					)}
+				</Button>
+			)}
+
+			{taskId && (
+				<Button
+					variant="ghost"
+					size="icon"
+					className="size-12 lg:size-9"
+					aria-label={entry?.taskTitle ? `Abrir tarefa · ${entry.taskTitle}` : "Abrir tarefa"}
+					onClick={() => openTask(taskId, entry?.projectId)}
+				>
+					<ListTree className="size-4 text-primary" />
+				</Button>
+			)}
+
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
-					<Button variant="ghost" size="icon" aria-label="Ações da sessão">
+					<Button
+						variant="ghost"
+						size="icon"
+						className="size-12 lg:size-9"
+						aria-label="Ações da sessão"
+					>
 						<MoreVertical className="size-4" />
 					</Button>
 				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end">
+				<DropdownMenuContent
+					align="end"
+					className="max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto max-lg:[&_[role^=menuitem]]:min-h-12"
+				>
+					{isAgent && (
+						<>
+							<DropdownMenuLabel>Visualização</DropdownMenuLabel>
+							<DropdownMenuRadioGroup value={agentMode}>
+								<DropdownMenuRadioItem
+									value="conversation"
+									onSelect={() => onAgentModeChange("conversation")}
+								>
+									<MessageSquare />
+									Conversa
+								</DropdownMenuRadioItem>
+								<DropdownMenuRadioItem
+									value="terminal"
+									onSelect={() => onAgentModeChange("terminal")}
+								>
+									<SquareTerminal />
+									Terminal
+								</DropdownMenuRadioItem>
+							</DropdownMenuRadioGroup>
+							<DropdownMenuSeparator />
+						</>
+					)}
+					{entry?.kind === "agent" && (entry.taskId || entry.projectId) && (
+						<>
+							<AgentNavMenuItems
+								Item={DropdownMenuItem}
+								projectId={entry.projectId}
+								projectName={entry.projectName}
+								taskId={entry.taskId}
+								taskTitle={entry.taskTitle}
+							/>
+							<DropdownMenuSeparator />
+						</>
+					)}
 					{entry?.kind === "agent" && entry.capabilities.focusExternal && (
 						<DropdownMenuItem onSelect={() => actions.focusExternal(entry)}>
 							<Target />
@@ -222,8 +313,12 @@ export function ShellCockpitHeader({
 						</DropdownMenuItem>
 					)}
 					<DropdownMenuItem onSelect={onOpenConversation}>
-						<ExternalLink />
-						Abrir conversa de agent
+						<MessagesSquare />
+						Nova conversa
+					</DropdownMenuItem>
+					<DropdownMenuItem onSelect={onNew}>
+						<SquareTerminal />
+						Novo shell
 					</DropdownMenuItem>
 					<DropdownMenuItem asChild>
 						<Link to="/terminals/history">
@@ -233,9 +328,9 @@ export function ShellCockpitHeader({
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
-			<Button size="sm" onClick={onNew}>
+			<Button size="sm" className="h-8 max-lg:hidden" aria-label="Nova sessão" onClick={onNew}>
 				<Plus className="size-4" />
-				<span className="max-sm:hidden">Nova sessão</span>
+				Nova sessão
 			</Button>
 		</header>
 	);

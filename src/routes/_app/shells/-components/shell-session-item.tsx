@@ -118,7 +118,7 @@ export const ShellSessionItem = memo(function ShellSessionItem({
 					type="button"
 					onClick={() => actions.focusExternal(entry)}
 					aria-label="Focar no terminal externo"
-					className="absolute right-1 bottom-1 flex size-6 items-center justify-center bg-card text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+					className="absolute right-1 bottom-1 hidden size-6 items-center justify-center bg-card text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 md:flex [@media(pointer:coarse)]:hidden"
 				>
 					<Target className="size-3" />
 				</button>
@@ -128,7 +128,7 @@ export const ShellSessionItem = memo(function ShellSessionItem({
 					type="button"
 					onClick={() => actions.close(entry)}
 					aria-label={`Fechar ${title}`}
-					className="absolute top-1 right-1 flex size-6 items-center justify-center bg-card text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
+					className="absolute top-1 right-1 hidden size-6 items-center justify-center bg-card text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100 md:flex [@media(pointer:coarse)]:hidden"
 				>
 					<X className="size-3" />
 				</button>

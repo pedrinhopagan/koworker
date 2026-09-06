@@ -123,6 +123,14 @@ Procedures em `src/api/routers/kw-terminal.ts`, consumidas pelo módulo de works
 | `overview` | Workspaces com suas tabs, do daemon |
 | `sessionStart` | Cria uma tab e sobe Claude/Codex com prompt, agent, modelo, esforço e modo seguro; devolve o `paneId` |
 | `sessionResumeLast` | Cria uma tab e executa `claude --continue` ou `codex resume --last` após ação explícita |
+
+Procedures de modelo em `src/api/routers/agent-radar.ts`, consumidas pelo seletor da conversa:
+
+| Procedure | Descrição |
+|-----------|-----------|
+| `modelCatalog` | Modelos e níveis de esforço por CLI: claude fixo (`fable`, `opus`, `sonnet`, `haiku`), codex lido de `~/.codex/models_cache.json` |
+| `switchModel` | Mensagem com modelo/esforço/CLI diferentes da sessão; devolve `inplace`, `moved` (novo `paneId`) ou `handoff` |
+| `switchStatus` | Fase da migração entre CLIs (`compacting`, `starting`, `done` com `paneId`, `failed` com `error`) |
 | `tabCreate` / `tabFocus` / `tabRename` / `tabClose` | Ações de tab |
 | `workspaceFocus` / `workspaceRename` / `workspaceClose` | Ações de workspace |
 
@@ -165,6 +173,24 @@ shells embutidos e agents do daemon, com identidade, projeto, status, fidelidade
 explícitas. A rota consome um único hook de estado e ações; não monta queries, mutations ou polling
 por origem. O `paneId` continua sendo a identidade do agent enquanto o pane existe, representado no
 search como `?tab=agent:<paneId>`.
+
+No celular (viewport abaixo de 1024px) a rota é duas telas: `/shells` sem `tab` é a lista em tela
+cheia — busca, a seção **Tarefas em andamento** (uma entrada por tarefa que tem agent aberto, com um
+chip por agent que abre a conversa e o corpo que abre a tarefa) e os grupos por projeto —, com a barra
+inferior Claude / Codex / Shell abrindo o diálogo já com a CLI escolhida. Tocar numa sessão navega
+para `?tab=` e a sessão ocupa a tela inteira sem a barra superior do app: o header tem voltar, o
+seletor de sessão, a alternância Conversa/Terminal, o atalho da tarefa vinculada e o menu de ações
+(que também lista "Abrir tarefa" e "Tarefas do projeto"). Nada é selecionado sozinho na lista, e uma
+aba que deixou de existir devolve à lista em vez de pular para a primeira sessão. No desktop a
+seleção automática e a sidebar continuam iguais.
+
+Citação de arquivo na conversa — link markdown, `código` com cara de caminho (`src/a.ts:12`,
+`package.json`) e o alvo de um passo do rastro (Read, Edit…) — resolve pelo `system.resolveLink` com o
+`cwd` do agent. Em loopback ou no Electron o arquivo abre no app padrão do SO (`system.openPath`);
+fora da máquina (PWA no celular, browser via Tailscale) abre em `/arquivo?path=&line=`, que lê o
+conteúdo por `system.readFile` — só dentro de pasta de projeto cadastrado ou worktree de tarefa,
+texto até 512 KB (markdown renderizado, código com numeração e linha citada destacada) e imagem
+até 4 MB. A decisão vive em `lib/link-paths.ts` (`opensFilesInApp`, `looksLikeFilePath`).
 
 `/terminals` redireciona para `/shells` e `/terminals/$paneId` redireciona para a aba equivalente,
 ambos com `replace`. O namespace `/terminals/history/**` não redireciona e continua reservado ao
@@ -270,10 +296,25 @@ gravado no arquivo, então ele não tem bloco — por isso sessões nascidas do 
 padrão (`--dangerously-skip-permissions` no claude, `--dangerously-bypass-approvals-and-sandbox` no
 codex), com os modos restritivos ainda disponíveis nas opções avançadas.
 
-O modelo em uso na sessão sai do próprio transcript (`message.model` das linhas `assistant` no
-claude, `turn_context.payload.model` no codex) e viaja no envelope de `agentRadarTranscript` e no
-`transcriptPreviews`: a faixa do pane e o cartão da lista mostram o modelo real, não o que o spawn
-pediu — um `/model` no meio da conversa aparece na próxima resposta.
+O modelo e o esforço em uso na sessão saem do próprio transcript (`message.model` e `effort` das
+linhas `assistant` no claude, `turn_context.payload.model`/`effort` no codex) e viajam no envelope de
+`agentRadarTranscript` e no `transcriptPreviews`: a faixa do pane e o cartão da lista mostram o
+modelo real, não o que o spawn pediu — um `/model` no meio da conversa aparece na próxima resposta.
+
+O seletor de modelo da conversa (`components/agent-session/model-picker.tsx`, popover no desktop e
+sheet inferior no celular) escolhe CLI, modelo e esforço para a **próxima mensagem**; a troca só
+acontece no envio, e só o que difere do transcript viaja (`lib/model-target.ts`). O backend
+(`helpers/agent-radar/model-switch.ts`) tem duas estratégias. Mesma CLI: a conversa reabre em outro
+pane pelo id da sessão com as flags novas (`claude --resume … --model --effort`, `codex resume -m …
+-c model_reasoning_effort=…`), porque `/model` e `/effort` do claude persistem como padrão global e o
+codex não troca por texto; o que não mudou vem do transcript aberto. CLI diferente é migração: o
+agent atual recebe um pedido de resumo de passagem (a compactação nativa do codex é cifrada e a do
+claude é opaca ao app), o turno é esperado pelo status do daemon, e o resumo abre uma sessão nova na
+CLI escolhida (mesma pasta, mesma tarefa quando havia). Nos dois casos a mensagem não vai no argv (o
+codex corta o prompt inicial na primeira linha em branco): o CLI sobe sem prompt, o app espera ele
+reportar a sessão ao daemon e cola a mensagem pelo mesmo caminho do composer. O pane antigo fecha
+por último. A UI registra a conversa em trânsito em `stores/pane-moves.ts`: a página `/shells`
+segura a aba enquanto o pane antigo some e só navega quando o novo entra no snapshot.
 
 O `done` do daemon entra no radar como `blocked` (`normalizeAgentRadarStatus`): agent que devolveu a vez
 cobra a mesma coisa que agent travado, então o koworker tem um estado só de "esperando você". Isso vale

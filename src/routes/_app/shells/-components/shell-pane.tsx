@@ -18,16 +18,17 @@ export function ShellPane({
 
 	return (
 		<div data-component="shell-pane" className="flex min-h-0 min-w-0 flex-1 flex-col">
-			<div className="relative min-h-0 flex-1">
+			<div className="relative flex min-h-0 flex-1 flex-col">
 				<ShellTerminal
 					shellId={entry.id}
 					cwd={entry.cwd}
-					className="h-full w-full"
+					className="flex min-h-0 w-full flex-1 flex-col"
+					disabled={status !== "live"}
 					onStatus={(next) => setLiveStatus(next)}
 				/>
 
 				{status !== "live" && (
-					<div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/80">
+					<div className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-chrome px-3 py-2">
 						<Text size="sm" className="font-semibold">
 							{status === "exited"
 								? `Shell encerrado (código ${entry.exitCode ?? "?"})`

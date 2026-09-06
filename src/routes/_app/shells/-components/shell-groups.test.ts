@@ -4,6 +4,7 @@ import type { TerminalWorkspaceEntry } from "@/api/schemas/terminal-workspace";
 import {
 	agentTabKey,
 	groupTerminalWorkspaceEntries,
+	groupTerminalWorkspaceTasks,
 	parseAgentPaneId,
 	parseShellTabKey,
 	terminalWorkspaceEntryDescription,
@@ -155,5 +156,47 @@ describe("groupTerminalWorkspaceEntries", () => {
 
 	test("sem nada aberto a lista é vazia", () => {
 		expect(groupTerminalWorkspaceEntries([], [])).toEqual([]);
+	});
+});
+
+describe("groupTerminalWorkspaceTasks", () => {
+	test("agrupa agents pela tarefa e põe na frente a tarefa que cobra atenção", () => {
+		const tasks = groupTerminalWorkspaceTasks([
+			shell({ key: "shell-9", id: "shell-9" }),
+			agent({ key: "agent:a", id: "a", taskId: null, taskTitle: null }),
+			agent({
+				key: "agent:b",
+				id: "b",
+				taskId: "t1",
+				taskTitle: "Login",
+				status: "working",
+				changedAt: 10,
+			}),
+			agent({
+				key: "agent:c",
+				id: "c",
+				taskId: "t2",
+				taskTitle: "Deploy",
+				status: "blocked",
+				changedAt: 5,
+			}),
+			agent({
+				key: "agent:d",
+				id: "d",
+				taskId: "t1",
+				taskTitle: null,
+				status: "blocked",
+				changedAt: 20,
+			}),
+		]);
+
+		expect(tasks.map((task) => task.taskId)).toEqual(["t1", "t2"]);
+		expect(tasks[0]?.taskTitle).toBe("Login");
+		expect(tasks[0]?.agents.map((entry) => entry.key)).toEqual(["agent:d", "agent:b"]);
+		expect(tasks[1]?.agents).toHaveLength(1);
+	});
+
+	test("sem agent vinculado a tarefa não há grupo", () => {
+		expect(groupTerminalWorkspaceTasks([shell(), agent({ taskId: null })])).toEqual([]);
 	});
 });

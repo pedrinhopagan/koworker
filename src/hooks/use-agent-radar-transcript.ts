@@ -10,7 +10,7 @@ import { subscribeWithRetry } from "@/lib/realtime-subscription";
 
 type TranscriptEnvelope = Pick<
 	AgentRadarTranscriptEnvelope,
-	"events" | "missing" | "model" | "reset" | "source"
+	"events" | "missing" | "model" | "effort" | "reset" | "source"
 >;
 
 // Um agente em rajada escreve vários blocos por segundo. Aplicar lote a lote punha a conversa inteira
@@ -38,6 +38,7 @@ export function useAgentRadarTranscript(paneId: string) {
 	const [events, setEvents] = useState<AgentSessionEvent[]>([]);
 	const [source, setSource] = useState<AgentTranscript | null>(null);
 	const [model, setModel] = useState<string | null>(null);
+	const [effort, setEffort] = useState<string | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const pending = useRef<TranscriptEnvelope[]>([]);
@@ -47,6 +48,7 @@ export function useAgentRadarTranscript(paneId: string) {
 		setEvents([]);
 		setSource(null);
 		setModel(null);
+		setEffort(null);
 		setMissing(false);
 		setLoading(true);
 		pending.current = [];
@@ -75,15 +77,21 @@ export function useAgentRadarTranscript(paneId: string) {
 			// O `reset` recomeça a conversa em outro arquivo: o modelo da sessão anterior não vale mais
 			// até o transcript novo reportar o dele.
 			let nextModel: string | null | undefined;
+			let nextEffort: string | null | undefined;
 			for (const envelope of batch) {
 				if (envelope.reset) {
 					nextModel = envelope.model ?? null;
-				} else if (envelope.model) {
-					nextModel = envelope.model;
+					nextEffort = envelope.effort ?? null;
+				} else {
+					nextModel = envelope.model ?? nextModel;
+					nextEffort = envelope.effort ?? nextEffort;
 				}
 			}
 			if (nextModel !== undefined) {
 				setModel(nextModel);
+			}
+			if (nextEffort !== undefined) {
+				setEffort(nextEffort);
 			}
 
 			setEvents((current) =>
@@ -113,5 +121,5 @@ export function useAgentRadarTranscript(paneId: string) {
 		};
 	}, [paneId]);
 
-	return { events, source, model, missing, loading };
+	return { events, source, model, effort, missing, loading };
 }

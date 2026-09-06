@@ -1,11 +1,16 @@
+import type { Terminal } from "@xterm/xterm";
+import { toast } from "sonner";
+import { TerminalConnectionStatus, TerminalToolbar } from "@/components/terminal-toolbar";
+import { errorMessage } from "@/lib/orpc-errors";
 import { History } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useAgentRadar } from "@/hooks/use-agent-radar";
-import { TERMINAL_FONT_FAMILY, TERMINAL_FONT_SIZE, TERMINAL_THEME } from "@/lib/terminal-look";
+import { TERMINAL_FONT_FAMILY, TERMINAL_FONT_SIZE } from "@/lib/terminal-look";
 import {
 	connectTerminalViewport,
 	createTerminalLayoutScheduler,
+	createTerminalInputQueue,
 	createTerminalResizeGate,
 	mountTerminalViewport,
 } from "@/lib/terminal-viewport";
@@ -13,18 +18,10 @@ import { Button } from "@/components/ui/button";
 import { useSplitViewStore } from "@/stores/split-view";
 import { createAgentTerminalAdapter } from "./agent-terminal-adapter";
 
-const INPUT_FLUSH_MS = 16;
-// Teto do delta de "voltar ao vivo": a ponte clampa no offset dela, o valor só precisa passar
-// do máximo que o cliente já viu publicado.
 const SCROLL_TO_LIVE = -5000;
-// Setas por frame no modo forward: um flick rápido não pode voar pelo transcript do agent inteiro.
 const TUI_WHEEL_ARROW_CAP = 6;
-// Sem cursor (o daemon não reporta linha/coluna) e sem autowrap: cada linha é escrita na posição
-// absoluta dela, e uma linha mais larga que o grid não pode empurrar a seguinte.
 const SCREEN_INIT = "\u001B[?25l\u001B[?7l";
 
-// Reescrever a tela inteira a cada quadro era o que fazia o espelho piscar. Só as linhas que
-// mudaram são repintadas, endereçadas pela posição absoluta.
 export function buildScreenPatch(previous: string[], lines: string[], rows: number) {
 	let patch = "";
 	for (let row = 0; row < rows; row++) {
@@ -43,6 +40,8 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 	const cwd = agents.find((agent) => agent.paneId === paneId)?.cwd;
 	const frameRef = useRef<HTMLDivElement>(null);
 	const hostRef = useRef<HTMLDivElement>(null);
+	const [terminalInstance, setTerminalInstance] = useState<Terminal | null>(null);
+	const [connected, setConnected] = useState(false);
 	const [scrolled, setScrolled] = useState(false);
 	const scrollToLiveRef = useRef<() => void>(() => {});
 
@@ -57,21 +56,18 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 		const viewport = mountTerminalViewport({
 			host,
 			cwd,
+			scroll: (lines) => queueScroll(lines),
 			options: {
 				fontSize: TERMINAL_FONT_SIZE,
 				fontFamily: TERMINAL_FONT_FAMILY,
 				cursorBlink: false,
 				scrollback: 0,
-				theme: TERMINAL_THEME,
 			},
 		});
 		const terminal = viewport.terminal;
+		setTerminalInstance(terminal);
 		terminal.write(SCREEN_INIT);
 
-		// O grid do espelho é o do pane, e o pane agora segue o frame: com a visão aberta o
-		// backend é o controller do PTY (`agentTerminal.resize`), então cols/rows saem da medida
-		// da célula em vez de convergir por corpo de letra. Fonte fixa, tela cheia, um pedido por
-		// frame no máximo — sem relayout em cadeia, não existe loop de ResizeObserver.
 		let cellWidth = 0;
 		let cellHeight = 0;
 		let requestedCols = 0;
@@ -80,6 +76,10 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 		let wheelRaf = 0;
 		let wheelPending = 0;
 		let offset = 0;
+		let disposed = false;
+		let online = false;
+		terminal.options.disableStdin = true;
+		let scrolling = false;
 
 		function scrollToLive() {
 			if (offset <= 0) {
@@ -107,7 +107,6 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 		function fit() {
 			measureCell();
 			if (!cellWidth || !cellHeight || !frame.clientWidth || !frame.clientHeight) {
-				// O primeiro layout do xterm pode perder o primeiro frame; tenta de novo até medir.
 				if ((!cellWidth || !cellHeight) && measureAttempts++ < 20) {
 					layout.request();
 				}
@@ -122,7 +121,16 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 
 			requestedCols = cols;
 			requestedRows = rows;
-			void adapter.resize(cols, rows).catch(() => {});
+			void adapter
+				.resize(cols, rows)
+				.then((result) => {
+					if (!result.ok) {
+						requestedCols = requestedRows = 0;
+					}
+				})
+				.catch(() => {
+					requestedCols = requestedRows = 0;
+				});
 		}
 
 		const layout = createTerminalLayoutScheduler(fit);
@@ -130,61 +138,73 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 		resize.setPaused(useSplitViewStore.getState().resizing);
 		const unsubscribe = useSplitViewStore.subscribe((state) => resize.setPaused(state.resizing));
 
-		// Uma chamada por tecla deixava a digitação atrás do usuário; o buffer junta a rajada e manda
-		// tudo num pacote só. A tradução para o vocabulário de teclas do daemon é do backend. Tecla
-		// também devolve o espelho ao vivo: ninguém digita querendo olhar o histórico.
-		let pending = "";
-		let flush: ReturnType<typeof setTimeout> | null = null;
+		const send = createTerminalInputQueue({
+			send: async (data) => {
+				if (disposed || !online) {
+					throw new Error("Terminal desconectado; entrada não enviada");
+				}
+				return await adapter.input(data);
+			},
+			onError: (error) =>
+				toast.error(
+					errorMessage(
+						error,
+						"Falha ao enviar ao terminal. Confira a conexão antes de tentar novamente.",
+					),
+				),
+		});
 		terminal.onData((data) => {
 			scrollToLive();
-			pending += data;
-			if (flush) {
-				return;
-			}
-			flush = setTimeout(() => {
-				flush = null;
-				const text = pending;
-				pending = "";
-				void adapter.input(text).catch(() => {});
-			}, INPUT_FLUSH_MS);
+			void send(data);
 		});
 
-		// O wheel é nosso: rola o histórico real do pane pela ponte. Devolver false tira o xterm do
-		// caminho — com scrollback 0 ele convertia cada rolagem em seta ↑/↓ pro pane, e o transcript
-		// do TUI scrollava sozinho entre prompts antigos em vez de mover a tela do espelho. Quando a
-		// ponte responde "forward" (pane sem scrollback: TUI em alt screen), o gesto vira seta
-		// DELIBERADA pro agent — é o transcript dele que existe acima, e rolar o mouse passa a
-		// percorrê-lo como num terminal de verdade.
+		async function flushScroll() {
+			wheelRaf = 0;
+			if (disposed || scrolling || !wheelPending) {
+				return;
+			}
+			scrolling = true;
+			const lines = Math.max(-5000, Math.min(5000, wheelPending));
+			wheelPending = 0;
+			try {
+				const result = await adapter.scroll(-lines);
+				if (!disposed && result.ok && result.mode === "forward") {
+					const arrow = lines < 0 ? "\u001B[A" : "\u001B[B";
+					await send(arrow.repeat(Math.min(Math.abs(lines), TUI_WHEEL_ARROW_CAP)));
+				}
+			} catch (error) {
+				if (!disposed) {
+					toast.error(errorMessage(error, "Não foi possível rolar o terminal"), {
+						id: "terminal-scroll",
+					});
+				}
+			} finally {
+				scrolling = false;
+				if (!disposed && wheelPending) {
+					wheelRaf = requestAnimationFrame(() => void flushScroll());
+				}
+			}
+		}
+
+		function queueScroll(lines: number) {
+			wheelPending += lines;
+			if (!scrolling && !wheelRaf) {
+				wheelRaf = requestAnimationFrame(() => void flushScroll());
+			}
+		}
+
+		let wheelRemainder = 0;
 		terminal.attachCustomWheelEventHandler((event) => {
-			if (!event.deltaY) {
-				return false;
+			event.preventDefault();
+			const unit = event.deltaMode === 1 ? cellHeight || 19 : 1;
+			const pixels =
+				event.deltaMode === 2 ? event.deltaY * frame.clientHeight : event.deltaY * unit;
+			wheelRemainder += pixels / (cellHeight || 19);
+			const lines = Math.trunc(wheelRemainder);
+			wheelRemainder -= lines;
+			if (lines) {
+				queueScroll(lines);
 			}
-
-			wheelPending += event.deltaY;
-			if (!wheelRaf) {
-				wheelRaf = requestAnimationFrame(() => {
-					wheelRaf = 0;
-					const lines = Math.round(wheelPending / (cellHeight || 19));
-					wheelPending = 0;
-					if (!lines) {
-						return;
-					}
-
-					void adapter
-						.scroll(-lines)
-						.then((resposta) => {
-							if (!resposta.ok || resposta.mode !== "forward") {
-								return;
-							}
-
-							const seta = lines < 0 ? "\u001B[A" : "\u001B[B";
-							const data = seta.repeat(Math.min(Math.abs(lines), TUI_WHEEL_ARROW_CAP));
-							void adapter.input(data).catch(() => {});
-						})
-						.catch(() => {});
-				});
-			}
-
 			return false;
 		});
 
@@ -193,6 +213,12 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 		let rows = 0;
 
 		function paint(screen: { ansi: string; cols: number; rows: number; offset: number }) {
+			if (disposed) {
+				return;
+			}
+			if (!requestedCols || !requestedRows) {
+				layout.request();
+			}
 			offset = screen.offset;
 			setScrolled(offset > 0);
 			if (screen.cols !== cols || screen.rows !== rows) {
@@ -221,12 +247,24 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 			label: "Terminal do agent",
 			subscribe: adapter.subscribe,
 			onEvent: paint,
+			onConnectionChange: (value) => {
+				online = value;
+				terminal.options.disableStdin = !value;
+				setConnected(value);
+				requestedCols = requestedRows = 0;
+				if (value) {
+					layout.request();
+				}
+			},
 			onReconnect: () => {
 				previous = [];
+				requestedCols = requestedRows = 0;
+				layout.request();
 			},
 		});
 
 		return () => {
+			disposed = true;
 			if (wheelRaf) {
 				cancelAnimationFrame(wheelRaf);
 			}
@@ -234,35 +272,39 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 			observer.disconnect();
 			unsubscribe();
 			layout.dispose();
-			if (flush) {
-				clearTimeout(flush);
-			}
 			viewport.dispose();
 		};
 	}, [paneId, cwd]);
 
 	return (
-		<div
-			ref={frameRef}
-			data-component="agent-terminal"
-			className="relative grid min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
-			onClick={() => hostRef.current?.querySelector<HTMLElement>(".xterm-helper-textarea")?.focus()}
-		>
-			<div ref={hostRef} className="m-auto" />
-			{scrolled && (
-				<Button
-					variant="outline"
-					size="sm"
-					className="absolute right-3 bottom-3 z-10 h-7 gap-1.5 px-2 text-xs"
-					onClick={(event) => {
-						event.stopPropagation();
-						scrollToLiveRef.current();
-					}}
-				>
-					<History className="size-3.5" />
-					histórico do pane
-				</Button>
-			)}
+		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+			<div
+				ref={frameRef}
+				data-component="agent-terminal"
+				className="relative grid min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
+			>
+				{!connected && <TerminalConnectionStatus />}
+				<div ref={hostRef} className="m-auto" />
+				{scrolled && (
+					<Button
+						variant="outline"
+						size="sm"
+						className="absolute right-3 bottom-3 z-10 min-h-11 gap-1.5 px-3 text-xs md:min-h-8"
+						onClick={(event) => {
+							event.stopPropagation();
+							scrollToLiveRef.current();
+						}}
+					>
+						<History className="size-3.5" />
+						Voltar ao vivo
+					</Button>
+				)}
+			</div>
+			<TerminalToolbar
+				terminal={terminalInstance}
+				disabled={!connected}
+				onScrollToEnd={() => scrollToLiveRef.current()}
+			/>
 		</div>
 	);
 }

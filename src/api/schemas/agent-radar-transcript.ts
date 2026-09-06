@@ -11,4 +11,5 @@ export type AgentRadarTranscriptEnvelope = {
 	source?: AgentTranscript;
 	missing?: boolean;
 	model?: string;
+	effort?: string;
 };

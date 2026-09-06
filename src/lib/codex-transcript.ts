@@ -142,7 +142,7 @@ function outputPatch(payload: z.infer<typeof RolloutLineSchema>["payload"]): Tra
 // conversa aparece no turno seguinte.
 const CodexModelLineSchema = z.object({
 	type: z.string(),
-	payload: z.object({ model: z.string().optional() }).optional(),
+	payload: z.object({ model: z.string().optional(), effort: z.string().optional() }).optional(),
 });
 
 export function codexTranscriptModel(raw: unknown): string | null {
@@ -152,6 +152,15 @@ export function codexTranscriptModel(raw: unknown): string | null {
 	}
 
 	return parsed.data.payload?.model?.trim() || null;
+}
+
+export function codexTranscriptEffort(raw: unknown): string | null {
+	const parsed = CodexModelLineSchema.safeParse(raw);
+	if (!parsed.success || parsed.data.type !== "turn_context") {
+		return null;
+	}
+
+	return parsed.data.payload?.effort?.trim() || null;
 }
 
 // O rollout anuncia a fala de dois jeitos conforme a versão do codex: os novos usam `item_completed`

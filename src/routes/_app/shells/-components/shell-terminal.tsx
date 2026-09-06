@@ -1,11 +1,17 @@
 import { FitAddon } from "@xterm/addon-fit";
-import { useEffect, useRef } from "react";
+import type { Terminal } from "@xterm/xterm";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+
+import { TerminalConnectionStatus, TerminalToolbar } from "@/components/terminal-toolbar";
+import { errorMessage } from "@/lib/orpc-errors";
 
 import type { ShellStreamEvent } from "@/api/pubsub";
-import { TERMINAL_FONT_FAMILY, TERMINAL_FONT_SIZE, TERMINAL_THEME } from "@/lib/terminal-look";
+import { TERMINAL_FONT_FAMILY, TERMINAL_FONT_SIZE } from "@/lib/terminal-look";
 import {
 	connectTerminalViewport,
 	createTerminalLayoutScheduler,
+	createTerminalInputQueue,
 	createTerminalResizeGate,
 	mountTerminalViewport,
 } from "@/lib/terminal-viewport";
@@ -28,17 +34,34 @@ type ShellTerminalProps = {
 	shellId: string;
 	cwd?: string;
 	className?: string;
+	disabled?: boolean;
 	onTitle?: (title: string) => void;
 	onStatus?: (status: "live" | "exited" | "closed", exitCode?: number | null) => void;
 };
 
-export function ShellTerminal({ shellId, cwd, className, onTitle, onStatus }: ShellTerminalProps) {
+export function ShellTerminal({
+	shellId,
+	cwd,
+	className,
+	disabled = false,
+	onTitle,
+	onStatus,
+}: ShellTerminalProps) {
 	const hostRef = useRef<HTMLDivElement>(null);
+	const [terminal, setTerminal] = useState<Terminal | null>(null);
+	const [connected, setConnected] = useState(false);
+	const [scrolled, setScrolled] = useState(false);
+	const disabledRef = useRef(disabled);
+	disabledRef.current = disabled;
 
-	// Callbacks vivem em ref: o efeito é dono da instância do xterm e não pode reciclar
-	// terminal vivo porque a tela do pai recriou as funções de callback.
 	const handlers = useRef({ onTitle, onStatus });
 	handlers.current = { onTitle, onStatus };
+
+	useEffect(() => {
+		if (terminal) {
+			terminal.options.disableStdin = disabled || !connected;
+		}
+	}, [terminal, disabled, connected]);
 
 	useEffect(() => {
 		const host = hostRef.current;
@@ -56,19 +79,20 @@ export function ShellTerminal({ shellId, cwd, className, onTitle, onStatus }: Sh
 				fontFamily: TERMINAL_FONT_FAMILY,
 				cursorBlink: true,
 				scrollback: 10_000,
-				theme: TERMINAL_THEME,
 			},
 			prepare: (terminal) => terminal.loadAddon(fit),
 		});
 		const term = viewport.terminal;
+		setTerminal(term);
+		term.onScroll(() => setScrolled(term.buffer.active.viewportY < term.buffer.active.baseY));
 
-		// Em alt screen o buffer não tem scrollback e o xterm converte o wheel em seta ↑/↓ pro
-		// processo — rolar o mouse em TUI sem mouse reporting mexia no app em vez de não fazer
-		// nada, como no alacritty. TUI com mouse reporting não passa por aqui (o caminho de mouse
-		// roda antes) e segue recebendo o wheel.
 		term.attachCustomWheelEventHandler(() => term.buffer.active.type !== "alternate");
 
 		let disposed = false;
+		let online = false;
+		term.options.disableStdin = true;
+		let requestedCols = 0;
+		let requestedRows = 0;
 
 		function fitNow() {
 			if (disposed) {
@@ -81,7 +105,17 @@ export function ShellTerminal({ shellId, cwd, className, onTitle, onStatus }: Sh
 			}
 
 			fit.fit();
-			void adapter.resize(dimensions.cols, dimensions.rows).catch(() => {});
+			if (
+				disabledRef.current ||
+				(dimensions.cols === requestedCols && dimensions.rows === requestedRows)
+			) {
+				return;
+			}
+			requestedCols = dimensions.cols;
+			requestedRows = dimensions.rows;
+			void adapter.resize(dimensions.cols, dimensions.rows).catch(() => {
+				requestedCols = requestedRows = 0;
+			});
 		}
 		const layout = createTerminalLayoutScheduler(fitNow);
 		const resize = createTerminalResizeGate(() => layout.request());
@@ -94,13 +128,32 @@ export function ShellTerminal({ shellId, cwd, className, onTitle, onStatus }: Sh
 
 		const unsubscribe = useSplitViewStore.subscribe((state) => resize.setPaused(state.resizing));
 
+		const send = createTerminalInputQueue({
+			send: async (data) => {
+				if (disposed || !online) {
+					throw new Error("Terminal desconectado; entrada não enviada");
+				}
+				return await adapter.input(data);
+			},
+			onError: (error) =>
+				toast.error(
+					errorMessage(
+						error,
+						"Falha ao enviar ao terminal. Confira a conexão antes de tentar novamente.",
+					),
+				),
+		});
 		term.onData((data) => {
-			void adapter.input(data).catch(() => {});
+			if (!disabledRef.current && online) {
+				void send(data);
+			}
 		});
 
 		function handle(event: ShellStreamEnvelope) {
 			if (event.type === "replay") {
 				term.reset();
+				requestedCols = requestedRows = 0;
+				layout.request();
 				if (event.b64) {
 					term.write(decodeBase64(event.b64));
 				}
@@ -129,8 +182,14 @@ export function ShellTerminal({ shellId, cwd, className, onTitle, onStatus }: Sh
 			label: "Shells",
 			subscribe: adapter.subscribe,
 			onEvent: handle,
+			onConnectionChange: (value) => {
+				online = value;
+				term.options.disableStdin = !value || disabledRef.current;
+				setConnected(value);
+			},
 			onReconnect: () => {
-				handlers.current.onStatus?.("live");
+				requestedCols = requestedRows = 0;
+				layout.request();
 			},
 		});
 
@@ -144,5 +203,26 @@ export function ShellTerminal({ shellId, cwd, className, onTitle, onStatus }: Sh
 		};
 	}, [shellId, cwd]);
 
-	return <div ref={hostRef} data-component="shell-terminal" className={className} />;
+	return (
+		<div data-component="shell-terminal" className={className}>
+			<div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+				{!connected && <TerminalConnectionStatus />}
+				<div ref={hostRef} className="h-full w-full overscroll-contain" />
+				{scrolled && (
+					<button
+						type="button"
+						onClick={() => terminal?.scrollToBottom()}
+						className="absolute right-3 bottom-3 z-10 min-h-11 border border-border bg-popover px-3 text-xs shadow-sm focus-visible:ring-1 focus-visible:ring-ring"
+					>
+						Ir para o fim
+					</button>
+				)}
+			</div>
+			<TerminalToolbar
+				terminal={terminal}
+				disabled={disabled || !connected}
+				onScrollToEnd={() => terminal?.scrollToBottom()}
+			/>
+		</div>
+	);
 }

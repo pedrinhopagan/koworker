@@ -32,8 +32,15 @@ async function openTail(paneId: string, source: AgentTranscript) {
 	return await openTranscriptTail({
 		sessionId: paneId,
 		source,
-		onEvents: (events, reset, model) =>
-			void publish({ paneId, events, reset, source, ...(model ? { model } : {}) }),
+		onEvents: (events, reset, model, effort) =>
+			void publish({
+				paneId,
+				events,
+				reset,
+				source,
+				...(model ? { model } : {}),
+				...(effort ? { effort } : {}),
+			}),
 		onError: (error) => console.error(`[Radar] Falha ao ler a conversa do pane ${paneId}:`, error),
 	});
 }
@@ -116,6 +123,10 @@ export function openPaneTranscriptModel(paneId: string) {
 	return panes.get(paneId)?.tail?.model() ?? null;
 }
 
+export function openPaneTranscriptEffort(paneId: string) {
+	return panes.get(paneId)?.tail?.effort() ?? null;
+}
+
 function release(paneId: string) {
 	const entry = panes.get(paneId);
 	if (!entry) {
@@ -141,12 +152,14 @@ export async function* subscribeAgentRadarTranscript(paneId: string, signal?: Ab
 	if (known) {
 		known.readers += 1;
 		const model = known.tail?.model();
+		const effort = known.tail?.effort();
 		yield {
 			paneId,
 			reset: true,
 			events: known.tail?.events() ?? [],
 			...(known.tail ? { source: known.tail.source } : { missing: true }),
 			...(model ? { model } : {}),
+			...(effort ? { effort } : {}),
 		};
 	} else {
 		panes.set(paneId, {

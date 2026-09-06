@@ -10,6 +10,7 @@ const TranscriptLineSchema = z.object({
 	isSidechain: z.boolean().optional(),
 	isMeta: z.boolean().optional(),
 	isCompactSummary: z.boolean().optional(),
+	effort: z.string().optional(),
 	message: z.object({ content: z.unknown().optional(), model: z.string().optional() }).optional(),
 });
 const UserContentBlocksSchema = z.array(
@@ -151,6 +152,17 @@ export function claudeTranscriptModel(raw: unknown): string | null {
 	const model = parsed.data.message?.model;
 
 	return model && model !== "<synthetic>" ? model : null;
+}
+
+// O esforço viaja fora de `message`, na própria linha, e acompanha o modelo: um `/effort` no meio da
+// conversa muda o valor da resposta seguinte em diante.
+export function claudeTranscriptEffort(raw: unknown): string | null {
+	const parsed = TranscriptLineSchema.safeParse(raw);
+	if (!parsed.success || parsed.data.type !== "assistant" || parsed.data.isSidechain) {
+		return null;
+	}
+
+	return parsed.data.effort?.trim() || null;
 }
 
 export function translateClaudeTranscriptLine(raw: unknown): TranscriptPatch[] {

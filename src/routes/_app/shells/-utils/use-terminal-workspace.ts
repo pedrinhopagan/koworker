@@ -37,9 +37,13 @@ export type TerminalWorkspaceActions = {
 
 type TerminalWorkspaceStore = {
 	snapshot: TerminalWorkspaceSnapshot | null;
+	connected: boolean;
 };
 
-const useTerminalWorkspaceStore = create<TerminalWorkspaceStore>(() => ({ snapshot: null }));
+const useTerminalWorkspaceStore = create<TerminalWorkspaceStore>(() => ({
+	snapshot: null,
+	connected: false,
+}));
 
 let consumers = 0;
 let controller: AbortController | null = null;
@@ -56,6 +60,7 @@ function acquireTerminalWorkspace() {
 		label: "Workspace de terminais",
 		signal: controller.signal,
 		subscribe: (signal) => orpcWs.terminalWorkspace.call(undefined, { signal }),
+		onConnectionChange: (connected) => useTerminalWorkspaceStore.setState({ connected }),
 		onEvent: (snapshot) => {
 			useTerminalWorkspaceStore.setState((state) => ({
 				snapshot: reconcileTerminalWorkspaceSnapshot(state.snapshot, snapshot),
@@ -72,12 +77,13 @@ function releaseTerminalWorkspace() {
 
 	controller?.abort();
 	controller = null;
-	useTerminalWorkspaceStore.setState({ snapshot: null });
+	useTerminalWorkspaceStore.setState({ snapshot: null, connected: false });
 }
 
 export function useTerminalWorkspace() {
 	const queryClient = useQueryClient();
 	const snapshot = useTerminalWorkspaceStore((state) => state.snapshot);
+	const connected = useTerminalWorkspaceStore((state) => state.connected);
 	const { data: projects = [], isPending: projectsPending } = useQuery(
 		orpc.projects.list.queryOptions(),
 	);
@@ -209,6 +215,7 @@ export function useTerminalWorkspace() {
 	};
 
 	return {
+		connected,
 		entries: snapshot?.entries ?? [],
 		focus: snapshot?.focus ?? { workspaceId: null, tabId: null, paneId: null },
 		projects,

@@ -2,6 +2,7 @@ import { realpathSync } from "node:fs";
 
 import { buildClaudeArgv } from "@/lib/claude-command";
 import { buildCodexArgv } from "@/lib/codex-command";
+import type { WorkingCli } from "@/constants/invoke";
 import type { TerminalMultiplexer } from "@/constants/terminal";
 import { PubSub, type TerminalEvent } from "../../pubsub";
 import {
@@ -13,6 +14,7 @@ import {
 import {
 	cliResumeArgv,
 	cliResumeByIdArgv,
+	type CliResumeOptions,
 	cliStartArgv,
 	cliStartWithFullAccessArgv,
 } from "./cli-argv";
@@ -140,7 +142,7 @@ type AdapterProjectParams = { projectId: string; sessionName: string };
 type AdapterWindowParams = AdapterProjectParams & { taskId: string; windowName: string };
 type AdapterFocusAgentParams = {
 	config: TerminalConfig;
-	cli: "claude" | "codex";
+	cli: WorkingCli;
 	mainRoute: string;
 };
 
@@ -1083,7 +1085,7 @@ export function selectAgentForCli(params: {
 
 export const Terminal = {
 	startSession(params: {
-		projectName: string;
+		projectName: string | null;
 		mainRoute: string;
 		cli: "claude" | "codex";
 		// Sessão livre da rota `/shells` ou invocação de agent/skill: quem dispara diz o alvo, o
@@ -1095,10 +1097,13 @@ export const Terminal = {
 		agent?: string;
 		permissionMode?: "bypass" | "plan" | "acceptEdits" | "default";
 		approvalMode?: "bypass" | "fullAuto" | "readOnly" | "default";
+		// Conversa que continua outra (troca de CLI) nasce na pasta onde a anterior rodava.
+		cwd?: string;
 	}) {
 		return createProjectSessionTab({
 			projectName: params.projectName,
 			mainRoute: params.mainRoute,
+			...(params.cwd ? { cwd: params.cwd } : {}),
 			cli: params.cli,
 			tab: params.tab ?? { kind: "session" },
 			command: { kind: "argv", argv: cliStartArgv(params) },
@@ -1125,7 +1130,12 @@ export const Terminal = {
 		cwd: string;
 		cli: "claude" | "codex";
 		sessionId: string;
+		// Troca de modelo de uma sessão viva: a mesma conversa reabre com outro modelo/esforço e já
+		// recebe a mensagem. A tab do pane recém-fechado tem que nascer de novo, nunca ser reusada.
+		options?: CliResumeOptions & { tab?: TerminalTabTarget };
 	}) {
+		const reopening = !!params.options;
+
 		return createProjectSessionTab({
 			projectName: params.projectName,
 			mainRoute: params.mainRoute,
@@ -1133,12 +1143,15 @@ export const Terminal = {
 			cli: params.cli,
 			// O id no rótulo é o que permite reutilizar a tab sem trocar uma conversa pela outra:
 			// retomadas diferentes da mesma CLI precisam de tabs diferentes.
-			tab: {
+			tab: params.options?.tab ?? {
 				kind: "session",
 				label: `Retomar ${params.cli} · ${params.sessionId.slice(0, 8)}`,
 			},
-			command: { kind: "argv", argv: cliResumeByIdArgv(params.cli, params.sessionId) },
-			reuseExisting: true,
+			command: {
+				kind: "argv",
+				argv: cliResumeByIdArgv(params.cli, params.sessionId, params.options ?? {}),
+			},
+			reuseExisting: !reopening,
 		});
 	},
 
@@ -1152,7 +1165,7 @@ export const Terminal = {
 	// está mostrando.
 	async focusAgent(params: {
 		config: TerminalConfig;
-		cli: "claude" | "codex";
+		cli: WorkingCli;
 		projectId?: string;
 		projectName?: string;
 		mainRoute?: string;

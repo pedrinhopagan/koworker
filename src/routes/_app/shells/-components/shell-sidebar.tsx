@@ -14,6 +14,7 @@ import type {
 } from "../-utils/use-terminal-workspace";
 import { groupTerminalWorkspaceEntries, terminalWorkspaceEntryTitle } from "./shell-groups";
 import { ShellSessionItem } from "./shell-session-item";
+import { ShellTaskSection } from "./shell-task-section";
 
 export function ShellSidebar({
 	entries,
@@ -24,6 +25,7 @@ export function ShellSidebar({
 	onSelect,
 	children,
 	mobile = false,
+	actionBar,
 }: {
 	entries: TerminalWorkspaceEntry[];
 	projects: TerminalWorkspaceProject[];
@@ -33,6 +35,7 @@ export function ShellSidebar({
 	onSelect: (key: string) => void;
 	children?: ReactNode;
 	mobile?: boolean;
+	actionBar?: ReactNode;
 }) {
 	const [query, setQuery] = useState("");
 	const mode = useShellSidebarStore((state) => state.mode);
@@ -65,26 +68,24 @@ export function ShellSidebar({
 		<aside
 			data-component="shell-sidebar"
 			data-collapsed={collapsed || undefined}
+			data-mobile={mobile || undefined}
 			className={cn(
 				"flex h-full min-h-0 w-[300px] shrink-0 flex-col border-r border-border bg-chrome/75 transition-[width] duration-150",
-				mobile && "w-full border-r-0",
+				mobile && "w-full border-r-0 bg-background",
 				collapsed && "w-0 overflow-hidden border-r-0",
 			)}
 		>
-			<div
-				className={cn(
-					"flex h-12 shrink-0 items-center gap-2 border-b border-border px-3",
-					mobile && "pr-11",
-				)}
-			>
-				<SquareTerminal className="size-4 text-primary" />
-				<Title as="h2" size="sm" className="flex-1">
-					Sessões
-				</Title>
-				<Text as="span" size="xs" tone="muted" className="font-mono">
-					{entries.length.toString().padStart(2, "0")}
-				</Text>
-			</div>
+			{!mobile && (
+				<div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
+					<SquareTerminal className="size-4 text-primary" />
+					<Title as="h2" size="sm" className="flex-1">
+						Sessões
+					</Title>
+					<Text as="span" size="xs" tone="muted" className="font-mono">
+						{entries.length.toString().padStart(2, "0")}
+					</Text>
+				</div>
+			)}
 
 			<div className="border-b border-border p-2">
 				<div className="relative">
@@ -92,19 +93,24 @@ export function ShellSidebar({
 					<Input
 						value={query}
 						onChange={(event) => setQuery(event.target.value)}
-						placeholder="Buscar sessão, projeto ou pasta"
+						placeholder={
+							mobile
+								? `Buscar em ${entries.length} ${entries.length === 1 ? "sessão" : "sessões"}`
+								: "Buscar sessão, projeto ou pasta"
+						}
 						aria-label="Buscar sessões"
-						className="h-8 bg-background/50 pl-8 text-xs"
+						className="h-12 bg-background/50 pl-8 text-[16px] md:h-8 md:text-xs"
 					/>
 				</div>
 			</div>
 
-			<div className="min-h-0 flex-1 overflow-y-auto py-2">
+			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
 				{loading && entries.length === 0 && (
 					<div className="flex min-h-24 items-center justify-center">
 						<Loader2 className="size-4 animate-spin text-muted-foreground" />
 					</div>
 				)}
+				{mobile && !query && <ShellTaskSection entries={entries} onSelect={onSelect} />}
 				{groups.map((group) => {
 					const project = group.projectId ? (projectById.get(group.projectId) ?? null) : null;
 					return (
@@ -143,6 +149,8 @@ export function ShellSidebar({
 				})}
 				{!loading && groups.length === 0 && <>{children}</>}
 			</div>
+
+			{mobile && actionBar}
 
 			{!mobile && (
 				<button

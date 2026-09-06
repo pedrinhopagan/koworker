@@ -91,6 +91,7 @@ export function openOpencodeTail(input: {
 		source: input.source,
 		events: () => mirror.list(),
 		model: () => translator.model(),
+		effort: () => null,
 		close() {
 			closed = true;
 			clearInterval(timer);

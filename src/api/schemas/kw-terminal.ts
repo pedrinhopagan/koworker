@@ -46,13 +46,13 @@ export const KwTerminalTabTargetSchema = z.discriminatedUnion("kind", [
 
 // Mesma grafia de `schemas/terminal.ts`: modelo e esforço viajam dentro de argv montado na shell
 // do pane, então o charset tem que ser fechado aqui e não confiado ao chamador.
-const KwTerminalModelSchema = z
+export const KwTerminalModelSchema = z
 	.string()
 	.trim()
 	.min(1)
 	.max(100)
 	.regex(/^[A-Za-z0-9._:@/-]+$/, "Modelo inválido");
-const KwTerminalEffortSchema = z
+export const KwTerminalEffortSchema = z
 	.string()
 	.trim()
 	.min(1)

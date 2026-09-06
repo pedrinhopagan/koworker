@@ -7,8 +7,16 @@ import {
 	createTranscriptParser,
 	type TranscriptPatch,
 } from "@/lib/agent-transcript";
-import { claudeTranscriptModel, translateClaudeTranscriptLine } from "@/lib/claude-transcript";
-import { codexTranscriptModel, createCodexTranscriptTranslator } from "@/lib/codex-transcript";
+import {
+	claudeTranscriptEffort,
+	claudeTranscriptModel,
+	translateClaudeTranscriptLine,
+} from "@/lib/claude-transcript";
+import {
+	codexTranscriptEffort,
+	codexTranscriptModel,
+	createCodexTranscriptTranslator,
+} from "@/lib/codex-transcript";
 import { openOpencodeTail } from "./opencode-tail";
 
 const READ_CHUNK_BYTES = 1_000_000;
@@ -23,13 +31,19 @@ export type TranscriptTail = {
 	source: AgentTranscript;
 	events: () => AgentSessionEvent[];
 	model: () => string | null;
+	effort: () => string | null;
 	close: () => void;
 };
 
 type TailInput = {
 	sessionId: string;
 	source: AgentTranscript;
-	onEvents: (events: AgentSessionEvent[], reset: boolean, model: string | null) => void;
+	onEvents: (
+		events: AgentSessionEvent[],
+		reset: boolean,
+		model: string | null,
+		effort?: string | null,
+	) => void;
 	onError: (error: unknown) => void;
 };
 
@@ -64,6 +78,11 @@ const MODEL_EXTRACTORS: Record<"claude" | "codex", (raw: unknown) => string | nu
 	codex: codexTranscriptModel,
 };
 
+const EFFORT_EXTRACTORS: Record<"claude" | "codex", (raw: unknown) => string | null> = {
+	claude: claudeTranscriptEffort,
+	codex: codexTranscriptEffort,
+};
+
 async function readTranscript(input: {
 	path: string;
 	offset: number;
@@ -95,9 +114,12 @@ async function openFileTranscriptTail(
 	const translators = createTranslators();
 	const { translate } = translators[input.source.cli];
 	const extractModel = MODEL_EXTRACTORS[input.source.cli];
+	const extractEffort = EFFORT_EXTRACTORS[input.source.cli];
 	let model: string | null = null;
+	let effort: string | null = null;
 	const parser = createTranscriptParser((raw) => {
 		model = extractModel(raw) ?? model;
+		effort = extractEffort(raw) ?? effort;
 
 		return translate(raw);
 	});
@@ -117,6 +139,7 @@ async function openFileTranscriptTail(
 				parser.reset();
 				translators[input.source.cli].reset?.();
 				model = null;
+				effort = null;
 			},
 			push: (chunk) => events.push(...mirror.apply(parser.push(chunk))),
 		});
@@ -144,7 +167,7 @@ async function openFileTranscriptTail(
 			void pull()
 				.then(({ events, reset }) => {
 					if (!closed && (events.length > 0 || reset)) {
-						input.onEvents(events, reset, model);
+						input.onEvents(events, reset, model, effort);
 					}
 				})
 				.catch(input.onError)
@@ -160,7 +183,7 @@ async function openFileTranscriptTail(
 	}
 
 	const first = await pull();
-	input.onEvents(first.events, true, model);
+	input.onEvents(first.events, true, model, effort);
 
 	const watcher: FSWatcher = watch(input.source.path, { persistent: false }, () => schedule());
 	watcher.on("error", input.onError);
@@ -175,6 +198,7 @@ async function openFileTranscriptTail(
 		source: input.source,
 		events: () => mirror.list(),
 		model: () => model,
+		effort: () => effort,
 		close() {
 			closed = true;
 			pending = false;

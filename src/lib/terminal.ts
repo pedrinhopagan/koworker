@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 
 import { orpc, type RouterInputs, type RouterOutputs } from "@/client";
-import type { InvokeCli } from "@/constants/invoke";
+import type { WorkingCli } from "@/constants/invoke";
 import { errorMessage } from "@/lib/orpc-errors";
 
 // O terminal agora é um serviço do backend (spawn via Bun.spawn na máquina local), então funciona
@@ -79,7 +79,7 @@ async function openRoute(
 // Traz pra frente a sessão do CLI ativo que já está rodando no kw-terminal. Sem agent daquele CLI o
 // backend abre uma no projeto em foco; sem projeto em foco responde com o motivo e viramos toast.
 export async function focusCliAgent(params: {
-	cli: InvokeCli;
+	cli: WorkingCli;
 	projectId?: string;
 }): Promise<boolean> {
 	try {

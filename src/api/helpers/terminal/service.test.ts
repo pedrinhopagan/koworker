@@ -47,6 +47,7 @@ function agentFixture(agent: string, cwd: string): KwTerminalAgent {
 
 const agents = [
 	agentFixture("codex", "/proj/app"),
+	agentFixture("pi", "/proj/app"),
 	agentFixture("claude", "/proj/app/pacote"),
 	agentFixture("claude", "/proj/app"),
 	agentFixture("claude", "/proj/outro"),
@@ -164,6 +165,7 @@ test("escolhe o agent do cli no cwd exato do projeto", () => {
 	expect(selectAgentForCli({ agents, cli: "codex", mainRoute: "/proj/app" })?.cwd).toBe(
 		"/proj/app",
 	);
+	expect(selectAgentForCli({ agents, cli: "pi", mainRoute: "/proj/app" })?.cwd).toBe("/proj/app");
 });
 
 test("aceita subpasta do projeto quando não há agent na raiz", () => {
