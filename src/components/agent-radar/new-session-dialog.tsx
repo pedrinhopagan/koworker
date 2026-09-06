@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ type NewSessionDialogProps = {
 	open: boolean;
 	actions: TerminalWorkspaceActions;
 	onClose: () => void;
+	defaultCli?: InvokeCli;
 };
 
 const CLI_ITEMS = INVOKE_CLI_OPTIONS.map((option) => ({
@@ -52,12 +53,17 @@ function selectItems(options: { value: string; label: string; hint: string }[]) 
 	return options.map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
 }
 
-export function NewSessionDialog({ open, actions, onClose }: NewSessionDialogProps) {
+export function NewSessionDialog({
+	open,
+	actions,
+	onClose,
+	defaultCli = "claude",
+}: NewSessionDialogProps) {
 	const navigate = useNavigate();
 	const { projects, selectedProjectId, loading } = useProjectFocus();
 
 	const [projectId, setProjectId] = useState<string | null>(null);
-	const [cli, setCli] = useState<InvokeCli>("claude");
+	const [cli, setCli] = useState<InvokeCli>(defaultCli);
 	const [label, setLabel] = useState("");
 	const [prompt, setPrompt] = useState("");
 	const [model, setModel] = useState(INVOKE_INHERIT);
@@ -68,6 +74,14 @@ export function NewSessionDialog({ open, actions, onClose }: NewSessionDialogPro
 	const [pending, setPending] = useState(false);
 
 	const activeProjectId = projectId ?? selectedProjectId ?? null;
+
+	useEffect(() => {
+		if (open) {
+			setCli(defaultCli);
+			setModel(INVOKE_INHERIT);
+			setEffort(INVOKE_INHERIT);
+		}
+	}, [open, defaultCli]);
 
 	function submit() {
 		if (!activeProjectId) {
@@ -129,7 +143,7 @@ export function NewSessionDialog({ open, actions, onClose }: NewSessionDialogPro
 						size="sm"
 						onClick={onClose}
 						disabled={pending}
-						className="w-full sm:w-auto"
+						className="h-12 w-full sm:h-8 sm:w-auto"
 					>
 						Cancelar
 					</Button>
@@ -138,7 +152,7 @@ export function NewSessionDialog({ open, actions, onClose }: NewSessionDialogPro
 						size="sm"
 						onClick={resumeLast}
 						disabled={!activeProjectId || pending}
-						className="w-full sm:w-auto"
+						className="h-12 w-full sm:h-8 sm:w-auto"
 					>
 						Retomar última conversa
 					</Button>
@@ -146,7 +160,7 @@ export function NewSessionDialog({ open, actions, onClose }: NewSessionDialogPro
 						size="sm"
 						onClick={submit}
 						disabled={!activeProjectId || pending}
-						className="w-full sm:w-auto"
+						className="h-12 w-full sm:h-8 sm:w-auto"
 					>
 						Abrir nova conversa
 					</Button>

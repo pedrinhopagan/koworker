@@ -13,6 +13,16 @@ const AGENT_RADAR_AGENT_LABELS: Record<string, string> = {
 	pi: "Pi",
 };
 
+// O agent que o daemon reporta, reduzido às CLIs que o app sabe conversar. `claude-code` é o rótulo
+// antigo do mesmo binário.
+export function agentRadarCli(agent: string | null | undefined): "claude" | "codex" | null {
+	if (agent === "claude" || agent === "claude-code") {
+		return "claude";
+	}
+
+	return agent === "codex" ? "codex" : null;
+}
+
 export function agentRadarAgentLabel(agent: string) {
 	return AGENT_RADAR_AGENT_LABELS[agent] ?? agent;
 }

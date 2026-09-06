@@ -2,12 +2,11 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import {
-	CODEX_DELEGATE_DEFAULTS,
 	type CodexApprovalMode,
 	INVOKE_INHERIT,
-	type InvokeCli,
 	type InvokePermissionMode,
 	normalizeCodexModel,
+	type WorkingCli,
 } from "@/constants/invoke";
 import type { PromptTemplateSlug } from "@/constants/prompt-templates";
 import type { PromptEngine, PromptEngineEffort } from "@/api/schemas/prompt";
@@ -87,12 +86,9 @@ const VALID_APPROVAL_MODES = new Set<CodexApprovalMode>([
 interface PromptBarState {
 	text: string;
 	expanded: boolean;
-	// CLI de trabalho da sessão (claude|codex): governa o comando, os knobs de sessão exibidos e a
+	// CLI de trabalho da sessão: governa o comando, os knobs de sessão exibidos e a
 	// grafia das skills no prompt copiado/invocado. Persiste — é um modo de trabalho, não um detalhe.
-	cli: InvokeCli;
-	// Modelo temporário do botão Codex-via-Claude. Vive durante a execução atual, mas fica fora do
-	// localStorage para toda inicialização do app voltar explicitamente ao Sol.
-	codexDelegateModel: string;
+	cli: WorkingCli;
 	// Seção de invocação (Alvo + Sessão) revelada pelo trigger "Invocação". Vive abaixo do `expanded`:
 	// só aparece com o prompt aberto, mas lembra o próprio estado entre sessões.
 	invokeOpen: boolean;
@@ -123,8 +119,7 @@ interface PromptBarState {
 	setText: (text: string) => void;
 	setExpanded: (expanded: boolean) => void;
 	toggleExpanded: () => void;
-	setCli: (cli: InvokeCli) => void;
-	setCodexDelegateModel: (model: string) => void;
+	setCli: (cli: WorkingCli) => void;
 	setInvokeOpen: (open: boolean) => void;
 	toggleInvokeOpen: () => void;
 	setExecuteOpen: (open: boolean) => void;
@@ -201,7 +196,6 @@ export const usePromptBarStore = create<PromptBarState>()(
 			text: "",
 			expanded: false,
 			cli: "claude",
-			codexDelegateModel: CODEX_DELEGATE_DEFAULTS.model,
 			invokeOpen: false,
 			executeOpen: false,
 			attachOpen: false,
@@ -222,7 +216,6 @@ export const usePromptBarStore = create<PromptBarState>()(
 			setExpanded: (expanded) => set({ expanded }),
 			toggleExpanded: () => set((state) => ({ expanded: !state.expanded })),
 			setCli: (cli) => set({ cli }),
-			setCodexDelegateModel: (codexDelegateModel) => set({ codexDelegateModel }),
 			setInvokeOpen: (invokeOpen) => set({ invokeOpen }),
 			toggleInvokeOpen: () => set((state) => ({ invokeOpen: !state.invokeOpen })),
 			setExecuteOpen: (executeOpen) => set({ executeOpen }),
@@ -374,7 +367,7 @@ export const usePromptBarStore = create<PromptBarState>()(
 					invoke.codex.approvalMode = DEFAULT_INVOKE.codex.approvalMode;
 				}
 				invoke.codex.model = normalizeCodexModel(invoke.codex.model);
-				const cli: InvokeCli = saved.cli === "codex" ? "codex" : "claude";
+				const cli: WorkingCli = saved.cli === "codex" || saved.cli === "pi" ? saved.cli : "claude";
 				const images = Array.isArray(saved.images) ? saved.images : [];
 				return {
 					...current,
@@ -382,7 +375,6 @@ export const usePromptBarStore = create<PromptBarState>()(
 					cli,
 					invoke,
 					images,
-					codexDelegateModel: CODEX_DELEGATE_DEFAULTS.model,
 				};
 			},
 		},

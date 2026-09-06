@@ -1,10 +1,10 @@
 import { ChevronDown, SquareTerminal } from "lucide-react";
 
 import { CustomSelect } from "@/components/ui/custom-select";
-import { INVOKE_CLI_OPTIONS, type InvokeCli } from "@/constants/invoke";
+import { type WorkingCli, WORKING_CLI_OPTIONS } from "@/constants/invoke";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 
-const CLI_ITEMS = INVOKE_CLI_OPTIONS.map((option) => ({
+const CLI_ITEMS = WORKING_CLI_OPTIONS.map((option) => ({
 	id: option.value,
 	label: option.label,
 	hint: option.hint,
@@ -19,7 +19,7 @@ export function InvokeCliSelect({ compact = false }: { compact?: boolean }) {
 		<CustomSelect
 			items={CLI_ITEMS}
 			value={cli}
-			onValueChange={(value) => setCli(value as InvokeCli)}
+			onValueChange={(value) => setCli(value as WorkingCli)}
 			{...(compact ? { size: "sm" as const, fitContent: true } : {})}
 			{...(compact
 				? {

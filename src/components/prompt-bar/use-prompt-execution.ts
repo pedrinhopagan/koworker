@@ -57,6 +57,19 @@ export function usePromptExecution(params: {
 		: "";
 
 	const executionPlan = useMemo(() => {
+		if (cli === "pi") {
+			const prompt = convertSkillCallsForCli(
+				flattenPrompt(
+					buildKoworkerPrompt({
+						kw: interactWithKw,
+						target: effectiveRoute,
+						text: effectiveText,
+					}),
+				),
+				cli,
+			);
+			return { prompt, model: undefined, effort: undefined, command: prompt };
+		}
 		if (selection) {
 			return planInvocation({
 				target: toTarget(selection),
@@ -95,6 +108,10 @@ export function usePromptExecution(params: {
 	});
 
 	function handleExecute() {
+		if (cli === "pi") {
+			toast.info("Abrir conversa pelo Pi ainda não está disponível");
+			return;
+		}
 		if (!project || !promptPreview) {
 			toast.error("Escolha o projeto antes de abrir a conversa");
 			return;
@@ -142,7 +159,7 @@ export function usePromptExecution(params: {
 		cli,
 		invoke,
 		promptPreview,
-		canExecute: !!project && !!promptPreview,
+		canExecute: cli !== "pi" && !!project && !!promptPreview,
 		isRunning: start.isPending,
 		liveOutput: "",
 		elapsedLabel: "",

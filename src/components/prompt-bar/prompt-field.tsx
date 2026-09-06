@@ -440,6 +440,7 @@ export function PromptField({
 				/>
 
 				<textarea
+					data-slot="prompt-input"
 					ref={textareaRef}
 					value={value}
 					onChange={handleChange}

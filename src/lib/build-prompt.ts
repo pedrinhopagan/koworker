@@ -1,7 +1,9 @@
 import type { TaskComplexity } from "@/constants/complexity";
-import type { InvokeCli } from "@/constants/invoke";
+import type { WorkingCli } from "@/constants/invoke";
 import { mediaRelativePath } from "@/constants/koworker";
 import { PROMPT_TEMPLATES } from "@/constants/prompt-templates";
+
+export type PromptCopyCli = WorkingCli;
 
 // Marcador de imagem colada no textarea — o que o usuário vê e move livremente pelo texto. Na
 // composição do prompt ele vira `@.koworker/medias/<arquivo>`: a mention de arquivo que o claude
@@ -25,32 +27,16 @@ export function resolveImagePlaceholders(
 	);
 }
 
-// No codex, skills são custom prompts invocados com `$slug` — converte toda chamada `/slug` do prompt
-// (inclusive o `/kw` da cabeça e as digitadas com `/` no texto) pro prefixo `$`. Só casa `/` em início
-// de palavra seguido de um slug terminado em fronteira — caminhos como `/mnt/data` têm outra `/` logo
-// depois e passam retos. No claude o texto passa intacto.
-export function convertSkillCallsForCli(text: string, cli: InvokeCli): string {
-	if (cli !== "codex") {
+// Skills usam `/slug` no Claude, `$slug` no Codex e `/skill:slug` no Pi. Só casa `/` em início de
+// palavra seguido de um slug terminado em fronteira — caminhos como `/mnt/data` passam retos.
+export function convertSkillCallsForCli(text: string, cli: PromptCopyCli): string {
+	if (cli === "claude") {
 		return text;
 	}
-	return text.replaceAll(/(^|\s)\/([a-z0-9][a-z0-9_-]*)(?=\s|$)/gm, "$1$$$2");
-}
-
-// O comando externo continua sendo uma slash command do Claude Code, mas a tarefa é executada pelo
-// Codex; por isso, as skills dentro do argumento de `/codex:rescue` usam a grafia `$slug` do Codex.
-// `--` encerra as opções do companion para flags citadas na tarefa não virarem controles do plugin.
-// Sem conteúdo não copiamos um rescue vazio, mesmo que o cabeçalho do plugin por si só não seja vazio.
-export function buildClaudeCodexDelegatePrompt(params: {
-	prompt: string;
-	model: string;
-	effort: string;
-}): string {
-	const task = convertSkillCallsForCli(params.prompt, "codex").trim();
-	if (!task) {
-		return "";
-	}
-
-	return `/codex:rescue --fresh --model ${params.model} --effort ${params.effort} -- ${task}`;
+	return text.replaceAll(
+		/(^|\s)\/([a-z0-9][a-z0-9_-]*)(?=\s|$)/gm,
+		cli === "codex" ? "$1$$$2" : "$1/skill:$2",
+	);
 }
 
 // O prompt vai como argumento único de `claude "<texto>"` enviado por `tmux send-keys`, onde uma quebra

@@ -1,21 +1,22 @@
-import { Command, Cpu, Loader2, Mic, Send } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Command, Loader2, Mic, Send } from "lucide-react";
+import { type ComponentProps, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { PromptField } from "@/components/prompt-bar/prompt-field";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { CustomSelect } from "@/components/ui/custom-select";
-import { INVOKE_INHERIT, INVOKE_MODEL_OPTIONS, reflectValue } from "@/constants/invoke";
 import { resolveImagePlaceholders } from "@/lib/build-prompt";
 import { clearPromptDraft, readPromptDraft, writePromptDraft } from "@/lib/prompt-draft";
 import { AudioRecorder } from "./audio-recorder";
 
-export function ThreadComposer({
+export function ThreadComposer(props: ComponentProps<typeof ThreadComposerContent>) {
+	return <ThreadComposerContent key={props.draftKey} {...props} />;
+}
+
+function ThreadComposerContent({
 	draftKey,
 	projectName,
 	cli,
-	currentModel,
-	modelSwitchDisabled = false,
+	accessory,
 	disabled,
 	pending,
 	hint,
@@ -23,13 +24,13 @@ export function ThreadComposer({
 	placeholder = "Responda ao agente nesta mesma sessão…",
 	helperText = "Ctrl+Enter envia · / insere uma skill · cole imagens. O agente mantém o contexto desta conversa.",
 	onSubmit,
-	onCommand,
 }: {
 	draftKey: string;
 	projectName?: string;
 	cli?: string;
-	currentModel?: string | null;
-	modelSwitchDisabled?: boolean;
+	// Controle extra na barra, entre o menu de skills e o microfone: é onde a conversa põe o
+	// seletor de modelo.
+	accessory?: ReactNode;
 	disabled: boolean;
 	pending: boolean;
 	hint: string;
@@ -40,75 +41,54 @@ export function ThreadComposer({
 		prompt: string,
 		inputKind: "text" | "audio_transcript",
 	) => boolean | void | Promise<boolean | void>;
-	onCommand?: (command: string) => boolean | void | Promise<boolean | void>;
 }) {
 	const [draft, setDraft] = useState(() => readPromptDraft(draftKey));
+	const latestDraft = useRef(draft);
+	latestDraft.current = draft;
+	const submitting = useRef(false);
 	const [inputKind, setInputKind] = useState<"text" | "audio_transcript">("text");
 	const [dictating, setDictating] = useState(false);
-	const [selectedModel, setSelectedModel] = useState(currentModel ?? "");
-	const [switchingModel, setSwitchingModel] = useState(false);
-	// Só o claude troca de modelo por texto (`/model <nome>`): o codex troca pelo seletor interativo
-	// do próprio TUI, e `/effort` não existe em nenhuma das duas CLIs — select que manda comando
-	// desconhecido só devolve erro dentro do terminal.
-	const modelOptions =
-		cli === "claude"
-			? reflectValue(
-					INVOKE_MODEL_OPTIONS.filter((option) => option.value !== INVOKE_INHERIT),
-					currentModel ?? "",
-				).filter((option) => option.value)
-			: [];
-	const modelItems = modelOptions.map((option) => ({
-		id: option.value,
-		label: option.label,
-		hint: option.hint,
-	}));
-	const selectedModelItem = modelItems.find((item) => item.id === selectedModel);
 
 	useEffect(() => {
-		const timer = setTimeout(() => writePromptDraft(draftKey, draft), 300);
-
-		return () => clearTimeout(timer);
+		if (draft.text || draft.images.length) {
+			writePromptDraft(draftKey, draft);
+		} else {
+			clearPromptDraft(draftKey);
+		}
 	}, [draftKey, draft]);
-
-	useEffect(() => {
-		setSelectedModel(currentModel ?? "");
-	}, [currentModel]);
 
 	// O texto pode chegar por fora do rascunho: o menu de barra aplica o comando e despacha no mesmo
 	// gesto, antes de o estado do campo ter voltado do React.
 	async function submit(override?: string) {
 		const text = (override ?? draft.text).trim();
-		if (!text || disabled || pending) {
+		if (!text || disabled || pending || submitting.current) {
 			return;
 		}
-		const accepted = await onSubmit(resolveImagePlaceholders(text, draft.images), inputKind);
-		if (accepted === false) {
-			return;
-		}
-		setDraft({ text: "", images: [] });
-		clearPromptDraft(draftKey);
-		setInputKind("text");
-	}
-
-	async function switchModel(value: string) {
-		if (!onCommand || disabled || pending || modelSwitchDisabled || switchingModel) {
-			return;
-		}
-
-		setSwitchingModel(true);
+		submitting.current = true;
 		try {
-			const accepted = await onCommand(`/model ${value}`);
-			if (accepted !== false) {
-				setSelectedModel(value);
+			const submitted = resolveImagePlaceholders(text, draft.images);
+			const accepted = await onSubmit(submitted, inputKind);
+			if (
+				accepted === false ||
+				resolveImagePlaceholders(latestDraft.current.text.trim(), latestDraft.current.images) !==
+					submitted
+			) {
+				return;
 			}
+			setDraft({ text: "", images: [] });
+			clearPromptDraft(draftKey);
+			setInputKind("text");
 		} finally {
-			setSwitchingModel(false);
+			submitting.current = false;
 		}
 	}
 
 	return (
-		<div className="z-20 -mx-4 shrink-0 border-t border-border/70 bg-background/90 px-4 pt-2 pb-2 backdrop-blur-xl">
-			<div className="mx-auto w-full max-w-3xl rounded-xl border border-border/70 bg-card p-2 shadow-sm">
+		<div
+			data-component="thread-composer"
+			className="z-20 shrink-0 border-t border-border bg-background py-2"
+		>
+			<div className="mx-auto w-full max-w-3xl border border-border bg-card p-2 shadow-sm">
 				{dictating ? (
 					<div className="pb-1">
 						<AudioRecorder
@@ -141,7 +121,7 @@ export function ThreadComposer({
 							disabled={disabled}
 							placeholder={disabled ? hint : placeholder}
 							className="min-w-0 flex-1"
-							inputClassName="max-h-[200px] min-h-12"
+							inputClassName="max-h-[min(160px,25dvh)] min-h-12 max-md:text-[16px]"
 							menuAbove
 							menuAboveOnMobile
 							onChange={(value) => {
@@ -168,35 +148,7 @@ export function ThreadComposer({
 									>
 										<Command className="size-4" />
 									</Button>
-									{onCommand && modelItems.length > 0 && (
-										<CustomSelect
-											items={modelItems}
-											value={selectedModel}
-											disabled={disabled || pending || modelSwitchDisabled || switchingModel}
-											fitContent
-											ariaLabel="Selecionar modelo da sessão"
-											label="Modelo da sessão"
-											placeholder="Modelo"
-											triggerClassName="h-10 max-w-32 px-2 sm:max-w-44"
-											onValueChange={(value) => void switchModel(value)}
-											renderTrigger={() => (
-												<>
-													{switchingModel ? (
-														<Loader2 className="size-4 shrink-0 animate-spin" />
-													) : (
-														<Cpu className="size-4 shrink-0" />
-													)}
-													<span className="truncate">{selectedModelItem?.label ?? "Modelo"}</span>
-												</>
-											)}
-											renderItem={(item) => (
-												<div className="min-w-0">
-													<div className="truncate font-semibold">{item.label}</div>
-													<div className="truncate text-xs text-muted-foreground">{item.hint}</div>
-												</div>
-											)}
-										/>
-									)}
+									{accessory}
 									<Button
 										type="button"
 										variant="outline"
@@ -211,6 +163,7 @@ export function ThreadComposer({
 									<Button
 										type="button"
 										aria-label="Enviar continuação"
+										data-slot="send"
 										onClick={() => void submit()}
 										disabled={disabled || pending || !draft.text.trim()}
 										className="size-10 shrink-0 p-0"

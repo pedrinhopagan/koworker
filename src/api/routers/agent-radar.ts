@@ -8,6 +8,8 @@ import {
 	hasScreenReaders,
 	scrollAgentTerminalScreen,
 } from "../helpers/agent-radar/terminal-screen";
+import { loadModelCatalog } from "../helpers/agent-radar/model-catalog";
+import { handoffStatus, switchPaneModel } from "../helpers/agent-radar/model-switch";
 import { getRadarAgent } from "../helpers/agent-radar/state";
 import { refreshAgentRadarTranscript } from "../helpers/agent-radar/transcript";
 import { agentRadarTranscriptPreviews } from "../helpers/agent-radar/transcript/preview";
@@ -29,6 +31,7 @@ import {
 	AgentRadarPaneSchema,
 	AgentRadarSendSchema,
 	AgentRadarSendKeysSchema,
+	AgentRadarSwitchModelSchema,
 	AgentRadarTerminalInputSchema,
 	AgentRadarTerminalResizeSchema,
 	AgentRadarTerminalScrollSchema,
@@ -56,6 +59,20 @@ export const agentRadarRouter = {
 
 		return { sent: true };
 	}),
+
+	// O que cada CLI aceita em `/model` (claude) e `-m` (codex), com os níveis de esforço por modelo.
+	modelCatalog: protectedProcedure.handler(() => loadModelCatalog()),
+
+	// Mensagem que vai com modelo, esforço ou CLI diferentes da sessão. Claude troca por texto no
+	// mesmo pane; codex reabre a thread com as flags; CLI diferente compacta e continua em sessão nova,
+	// acompanhada por `switchStatus`.
+	switchModel: protectedProcedure
+		.input(AgentRadarSwitchModelSchema)
+		.handler(({ input }) => switchPaneModel(input)),
+
+	switchStatus: protectedProcedure
+		.input(AgentRadarPaneSchema)
+		.handler(({ input }) => handoffStatus(input.paneId)),
 
 	interrupt: protectedProcedure.input(AgentRadarInterruptSchema).handler(async ({ input }) => {
 		agentOrThrow(input.paneId);

@@ -12,14 +12,18 @@ export function withoutInvokeInherit(value: string) {
 	return value === INVOKE_INHERIT ? undefined : value;
 }
 
-// CLI de trabalho da sessão: governa o comando montado (claude vs codex), os knobs de sessão exibidos
-// e a grafia das skills no prompt (`/slug` no claude, `$slug` no codex).
+// CLIs com suporte completo a invocação e conversa pelo Koworker.
 export const INVOKE_CLIS = ["claude", "codex"] as const;
 
 export type InvokeCli = (typeof INVOKE_CLIS)[number];
 
-export const INVOKE_CLI_OPTIONS: {
-	value: InvokeCli;
+// CLI de trabalho escolhida no footer. Pi já participa de foco e cópia, mas ainda não de invocação.
+export const WORKING_CLIS = ["claude", "codex", "pi"] as const;
+
+export type WorkingCli = (typeof WORKING_CLIS)[number];
+
+export const WORKING_CLI_OPTIONS: {
+	value: WorkingCli;
 	label: string;
 	hint: string;
 }[] = [
@@ -33,7 +37,16 @@ export const INVOKE_CLI_OPTIONS: {
 		label: "Codex",
 		hint: "sessões `codex` — skills convertidas para $",
 	},
+	{
+		value: "pi",
+		label: "Pi",
+		hint: "sessões `pi` — skills convertidas para /skill:",
+	},
 ];
+
+export const INVOKE_CLI_OPTIONS = WORKING_CLI_OPTIONS.filter(
+	(option): option is typeof option & { value: InvokeCli } => option.value !== "pi",
+);
 
 // Modos de permissão do `claude`. `bypass` é o atalho histórico (--dangerously-skip-permissions);
 // os demais viram `--permission-mode <x>`. Ordem = ordem no select.
@@ -107,13 +120,18 @@ const MODEL_LABELS: Record<(typeof SKILL_MODEL_VALUES)[number], string> = {
 	fable: "Fable",
 };
 
-const EFFORT_LABELS: Record<(typeof SKILL_EFFORT_VALUES)[number], string> = {
+export const EFFORT_LABELS: Record<string, string> = {
 	low: "Baixo",
 	medium: "Médio",
 	high: "Alto",
 	xhigh: "Extra",
 	max: "Máximo",
+	ultra: "Ultra",
 };
+
+export function effortLabel(effort: string | null | undefined) {
+	return effort ? (EFFORT_LABELS[effort] ?? effort) : "Padrão";
+}
 
 export const INVOKE_MODEL_OPTIONS: InvokeOption[] = [
 	{
@@ -176,11 +194,6 @@ export const CODEX_APPROVAL_OPTIONS: {
 	{ value: "readOnly", label: "Só leitura", hint: "--sandbox read-only" },
 	{ value: "default", label: "Perguntar", hint: "aprovações padrão do codex" },
 ];
-
-export const CODEX_DELEGATE_DEFAULTS = {
-	model: "gpt-5.6-sol",
-	effort: "medium",
-} as const;
 
 export const CODEX_MODEL_OPTIONS: InvokeOption[] = [
 	{

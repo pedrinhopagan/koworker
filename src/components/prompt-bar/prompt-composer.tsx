@@ -2,36 +2,37 @@ import {
 	ChevronRight,
 	ChevronsDownUp,
 	ChevronsUpDown,
-	Copy,
-	Crosshair,
-	Loader2,
 	type LucideIcon as LucideIconType,
 } from "lucide-react";
 import { useRouterState } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
+import { CliLogo } from "@/components/icons/cli-logos";
 import { AttachmentsPanel } from "@/components/prompt-bar/attachments-panel";
-import { CodexDelegateCopyButton } from "@/components/prompt-bar/codex-delegate-copy-button";
 import { ExecutePanel } from "@/components/prompt-bar/execute-panel";
 import { Collapse, GroupLabel, ToggleBox } from "@/components/prompt-bar/controls";
 import { InvokePanel } from "@/components/prompt-bar/invoke-panel";
 import { PromptField } from "@/components/prompt-bar/prompt-field";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
-import { CODEX_DELEGATE_DEFAULTS, INVOKE_CLI_OPTIONS } from "@/constants/invoke";
 import { useRouteDocTarget } from "@/hooks/use-route-doc-target";
 import {
-	buildClaudeCodexDelegatePrompt,
 	buildKoworkerPrompt,
 	buildPromptBody,
 	convertSkillCallsForCli,
 	copyToClipboard,
+	type PromptCopyCli,
 } from "@/lib/build-prompt";
 import { recordPromptHistory } from "@/lib/prompt-history";
-import { focusCliAgent } from "@/lib/terminal";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
+
+const PROMPT_COPY_CLI_LABELS: Record<PromptCopyCli, string> = {
+	claude: "Claude",
+	codex: "Codex",
+	pi: "Pi",
+};
 
 export function PromptComposer() {
 	const cli = usePromptBarStore((s) => s.cli);
@@ -67,18 +68,11 @@ export function PromptComposer() {
 	}, [routeTarget.taskId, routeTarget.categoryStructureSlug, setStructureTemplate]);
 
 	const appendTarget = interactWithRoute ? routeTarget.path : null;
-
-	const [focusing, setFocusing] = useState(false);
-	const cliLabel = INVOKE_CLI_OPTIONS.find((option) => option.value === cli)?.label ?? cli;
-
-	async function handleFocusAgent() {
-		setFocusing(true);
-		await focusCliAgent({
-			cli,
-			...(routeTarget.projectId ? { projectId: routeTarget.projectId } : {}),
-		});
-		setFocusing(false);
-	}
+	const supportsInvocation = cli !== "pi";
+	const allSectionsOpen =
+		attachOpen && structureOpen && (!supportsInvocation || (invokeOpen && executeOpen));
+	const allSectionsClosed =
+		!attachOpen && !structureOpen && (!supportsInvocation || (!invokeOpen && !executeOpen));
 
 	function buildRawCopyPrompt() {
 		const { text, structureTemplate, structureValues, images } = usePromptBarStore.getState();
@@ -112,21 +106,12 @@ export function PromptComposer() {
 		}
 	}
 
-	async function handleCopy() {
-		const { prompt, text } = buildRawCopyPrompt();
-		await copyAndRecord(convertSkillCallsForCli(prompt, cli), text, "Prompt copiado");
-	}
-
-	async function handleCodexDelegateCopy(model: string) {
+	async function handleCopy(targetCli: PromptCopyCli) {
 		const { prompt, text } = buildRawCopyPrompt();
 		await copyAndRecord(
-			buildClaudeCodexDelegatePrompt({
-				prompt,
-				model,
-				effort: CODEX_DELEGATE_DEFAULTS.effort,
-			}),
+			convertSkillCallsForCli(prompt, targetCli),
 			text,
-			"Prompt do Codex copiado",
+			`Prompt para ${PROMPT_COPY_CLI_LABELS[targetCli]} copiado`,
 		);
 	}
 
@@ -147,59 +132,55 @@ export function PromptComposer() {
 					open={structureOpen}
 					onToggle={toggleStructureOpen}
 				/>
-				<SectionTrigger
-					label="Invocação"
-					hint="alvo (agent/skill), knobs da sessão do CLI e o botão Invocar"
-					open={invokeOpen}
-					onToggle={toggleInvokeOpen}
-				/>
-				<SectionTrigger
-					label="Conversa"
-					hint="abre o prompt em um pane real do terminal"
-					open={executeOpen}
-					onToggle={toggleExecuteOpen}
-				/>
+				{supportsInvocation && (
+					<>
+						<SectionTrigger
+							label="Invocação"
+							hint="alvo (agent/skill), knobs da sessão do CLI e o botão Invocar"
+							open={invokeOpen}
+							onToggle={toggleInvokeOpen}
+						/>
+						<SectionTrigger
+							label="Conversa"
+							hint="abre o prompt em um pane real do terminal"
+							open={executeOpen}
+							onToggle={toggleExecuteOpen}
+						/>
+					</>
+				)}
 
 				<div className="flex items-center">
 					<SectionBulkButton
 						label="Abrir todas as seções"
 						icon={ChevronsUpDown}
-						disabled={attachOpen && structureOpen && invokeOpen && executeOpen}
+						disabled={allSectionsOpen}
 						onClick={() => setAllSectionsOpen(true)}
 					/>
 					<SectionBulkButton
 						label="Fechar todas as seções"
 						icon={ChevronsDownUp}
-						disabled={!attachOpen && !structureOpen && !invokeOpen && !executeOpen}
+						disabled={allSectionsClosed}
 						onClick={() => setAllSectionsOpen(false)}
 					/>
 				</div>
 
 				<div className="ml-auto flex shrink-0 items-center gap-1">
-					<Button
-						size="sm"
-						variant="outline"
-						className="h-12 px-4 md:h-8 md:px-3"
-						onClick={() => void handleCopy()}
-					>
-						<Copy size={14} />
-						Copiar
-					</Button>
-					{cli === "claude" ? (
-						<CodexDelegateCopyButton onCopy={(model) => void handleCodexDelegateCopy(model)} />
-					) : null}
-					<Tooltip label={`Focar a sessão ${cliLabel} (abre uma se não houver)`}>
-						<Button
-							size="sm"
-							variant="outline"
-							aria-label={`Focar a sessão ${cliLabel} (abre uma se não houver)`}
-							disabled={focusing}
-							className="size-12 px-0 md:size-8"
-							onClick={() => void handleFocusAgent()}
-						>
-							{focusing ? <Loader2 size={14} className="animate-spin" /> : <Crosshair size={14} />}
-						</Button>
-					</Tooltip>
+					{(["claude", "codex", "pi"] as const).map((targetCli) => {
+						const label = PROMPT_COPY_CLI_LABELS[targetCli];
+						return (
+							<Tooltip key={targetCli} label={`Copiar prompt para ${label}`}>
+								<Button
+									size="sm"
+									variant="outline"
+									aria-label={`Copiar prompt para ${label}`}
+									className="size-12 px-0 md:size-8"
+									onClick={() => void handleCopy(targetCli)}
+								>
+									<CliLogo cli={targetCli} className="size-4" />
+								</Button>
+							</Tooltip>
+						);
+					})}
 				</div>
 			</div>
 
@@ -232,24 +213,28 @@ export function PromptComposer() {
 				<AttachmentsPanel taskId={routeTarget.taskId} />
 			</CollapsibleSection>
 
-			<CollapsibleSection open={invokeOpen}>
-				<InvokePanel
-					projectId={routeTarget.projectId}
-					projectName={routeTarget.projectName}
-					routePath={routeTarget.path}
-					nextStage={routeTarget.nextStage}
-				/>
-			</CollapsibleSection>
+			{supportsInvocation && (
+				<>
+					<CollapsibleSection open={invokeOpen}>
+						<InvokePanel
+							projectId={routeTarget.projectId}
+							projectName={routeTarget.projectName}
+							routePath={routeTarget.path}
+							nextStage={routeTarget.nextStage}
+						/>
+					</CollapsibleSection>
 
-			<CollapsibleSection open={executeOpen}>
-				<ExecutePanel
-					projectId={routeTarget.projectId}
-					projectName={routeTarget.projectName}
-					routePath={routeTarget.path}
-					taskId={routeTarget.taskId}
-					nextStage={routeTarget.nextStage}
-				/>
-			</CollapsibleSection>
+					<CollapsibleSection open={executeOpen}>
+						<ExecutePanel
+							projectId={routeTarget.projectId}
+							projectName={routeTarget.projectName}
+							routePath={routeTarget.path}
+							taskId={routeTarget.taskId}
+							nextStage={routeTarget.nextStage}
+						/>
+					</CollapsibleSection>
+				</>
+			)}
 		</>
 	);
 }

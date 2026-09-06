@@ -104,10 +104,10 @@ export function useInvocation(params: {
 		patchCodexSession({ model: INVOKE_INHERIT, effort: INVOKE_INHERIT });
 	}, [projectName, patchClaudeSession, patchCodexSession, setSelection]);
 
-	// Agents são um conceito do claude (`--agent`); mudar pro codex com um agent selecionado solta o
+	// Agents são um conceito do claude (`--agent`); mudar de CLI com um agent selecionado solta o
 	// alvo pra não montar um comando impossível.
 	useEffect(() => {
-		if (cli === "codex" && selectionRef?.kind === "agent") {
+		if (cli !== "claude" && selectionRef?.kind === "agent") {
 			setSelection(null);
 		}
 	}, [cli, selectionRef, setSelection]);
@@ -118,7 +118,7 @@ export function useInvocation(params: {
 	// Agente do próximo passo do fluxo da tarefa aberta (backend infere `nextStage` pelos artefatos).
 	// Vira o chip de sugestão pré-selecionável enquanto nenhum alvo foi escolhido — só no claude.
 	const suggestedAgent = useMemo(() => {
-		if (!nextStage || cli === "codex") return null;
+		if (!nextStage || cli !== "claude") return null;
 		const slug = STAGE_AGENT[nextStage];
 		return taskAgents.find((agent) => agent.slug === slug) ?? null;
 	}, [nextStage, cli, taskAgents]);
@@ -165,6 +165,9 @@ export function useInvocation(params: {
 	// Com alvo: o comando exato do cli ativo. Sem alvo: o prompt que "Copiar prompt" produz — assim os
 	// toggles têm feedback visível mesmo antes de escolher agent/skill.
 	const preview = useMemo(() => {
+		if (cli === "pi") {
+			return null;
+		}
 		if (selection) {
 			return planInvocation({
 				target: toTarget(selection),
@@ -189,6 +192,10 @@ export function useInvocation(params: {
 	}, [selection, cli, interactWithKw, effectiveRoute, effectiveText, invoke]);
 
 	function handleInvoke() {
+		if (cli === "pi") {
+			toast.info("A invocação pelo Pi ainda não está disponível");
+			return;
+		}
 		const project = projectsQuery.data?.find((entry) => entry.id === projectId);
 		if (!project || !selection) {
 			toast.error("Projeto da rota não encontrado");
@@ -233,7 +240,7 @@ export function useInvocation(params: {
 		agentsLoading,
 		skillsLoading,
 		preview,
-		canInvoke: !!projectId && !!selection,
+		canInvoke: cli !== "pi" && !!projectId && !!selection,
 		invoking,
 		handleInvoke,
 	};

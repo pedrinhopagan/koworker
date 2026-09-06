@@ -246,22 +246,33 @@ export function SessionTimeline({
 	onAnswer?: (questionId: string, input: { answers: string[]; freeText?: string }) => void;
 }) {
 	const groups = useMemo(() => toTimelineGroups(events), [events]);
-	const [expanded, setExpanded] = useState(false);
-	const folded = !expanded && groups.length > FOLD_KEEP_VISIBLE;
-	const visible = folded ? groups.slice(-FOLD_KEEP_VISIBLE) : groups;
-	const hiddenCount = groups.length - visible.length;
+	const [firstVisibleKey, setFirstVisibleKey] = useState<string | null>(null);
+	const knownStart = groups.findIndex((group) => group.key === firstVisibleKey);
+	const hiddenCount = knownStart < 0 ? Math.max(0, groups.length - FOLD_KEEP_VISIBLE) : knownStart;
+	const visible = groups.slice(hiddenCount);
+	if (knownStart < 0 && visible.length) {
+		setFirstVisibleKey(visible[0].key);
+	}
 
 	return (
-		<div className="min-w-0 space-y-4">
+		<div
+			data-component="session-timeline"
+			data-hidden-count={hiddenCount}
+			data-visible-count={visible.length}
+			className="min-w-0 space-y-4"
+		>
 			{hiddenCount > 0 && (
 				<button
 					type="button"
-					onClick={() => setExpanded(true)}
+					data-slot="load-previous"
+					onClick={() =>
+						setFirstVisibleKey(groups[Math.max(0, hiddenCount - FOLD_KEEP_VISIBLE)].key)
+					}
 					className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2.5 text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 				>
 					<ChevronUp className="size-3.5 shrink-0" />
 					<Text as="span" size="xs">
-						Mostrar {hiddenCount.toLocaleString("pt-BR")} blocos anteriores
+						Mostrar {Math.min(hiddenCount, FOLD_KEEP_VISIBLE)} blocos anteriores
 					</Text>
 				</button>
 			)}

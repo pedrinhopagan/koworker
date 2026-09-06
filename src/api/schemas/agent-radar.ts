@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { KwTerminalEffortSchema, KwTerminalModelSchema } from "./kw-terminal";
 import { TERMINAL_GRID_LIMITS, TERMINAL_INPUT_MAX_LENGTH } from "./terminal-workspace";
 
 export const AgentRadarPaneSchema = z.object({ paneId: z.string().min(1) });
@@ -9,6 +10,14 @@ export const AgentRadarPaneSchema = z.object({ paneId: z.string().min(1) });
 export const AgentRadarSendSchema = z.object({
 	paneId: z.string().min(1),
 	text: z.string().trim().min(1).max(20_000),
+});
+
+// A mensagem que muda de modelo, esforço ou CLI antes de ir: só o que difere da sessão viaja, e a
+// CLI é sempre dita porque é ela que decide entre trocar no lugar, reabrir ou compactar e migrar.
+export const AgentRadarSwitchModelSchema = AgentRadarSendSchema.extend({
+	cli: z.enum(["claude", "codex"]),
+	model: KwTerminalModelSchema.optional(),
+	effort: KwTerminalEffortSchema.optional(),
 });
 
 export const AgentRadarInterruptSchema = AgentRadarPaneSchema;
@@ -42,3 +51,15 @@ export const AgentRadarTerminalScrollResultSchema = z.object({
 	ok: z.boolean(),
 	mode: z.enum(["history", "forward"]).optional(),
 });
+
+// O catálogo que o seletor de modelo mostra: por CLI, os modelos que ela aceita e os níveis de
+// esforço de cada um. `defaultEffort` é o que o CLI usa quando nada é dito.
+export type CliModelOption = {
+	id: string;
+	label: string;
+	hint: string;
+	efforts: string[];
+	defaultEffort: string | null;
+};
+
+export type ModelCatalog = Record<"claude" | "codex", CliModelOption[]>;
