@@ -30,6 +30,7 @@ import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/ind
 import { Route as AppMostruarioIndexRouteImport } from './routes/_app/mostruario/index'
 import { Route as AppMediaIndexRouteImport } from './routes/_app/media/index'
 import { Route as AppExecutarIndexRouteImport } from './routes/_app/executar/index'
+import { Route as AppArquivoIndexRouteImport } from './routes/_app/arquivo/index'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents/index'
 import { Route as AppVaultFileNameIndexRouteImport } from './routes/_app/vault/$fileName/index'
 import { Route as AppTerminalsHistoryIndexRouteImport } from './routes/_app/terminals/history/index'
@@ -162,6 +163,13 @@ const AppExecutarIndexRoute = AppExecutarIndexRouteImport.update({
   path: '/executar/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppArquivoIndexRoute = AppArquivoIndexRouteImport.update({
+  id: '/arquivo/',
+  path: '/arquivo/',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/arquivo/index.lazy').then((d) => d.Route),
+)
 const AppAgentsIndexRoute = AppAgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
@@ -295,6 +303,7 @@ export interface FileRoutesByFullPath {
   '/sistema': typeof AppSistemaRoute
   '/parear/$token': typeof ParearTokenRoute
   '/agents/': typeof AppAgentsIndexRoute
+  '/arquivo/': typeof AppArquivoIndexRoute
   '/executar/': typeof AppExecutarIndexRoute
   '/media/': typeof AppMediaIndexRoute
   '/mostruario/': typeof AppMostruarioIndexRoute
@@ -334,6 +343,7 @@ export interface FileRoutesByTo {
   '/parear/$token': typeof ParearTokenRoute
   '/': typeof AppIndexRoute
   '/agents': typeof AppAgentsIndexRoute
+  '/arquivo': typeof AppArquivoIndexRoute
   '/executar': typeof AppExecutarIndexRoute
   '/media': typeof AppMediaIndexRoute
   '/mostruario': typeof AppMostruarioIndexRoute
@@ -375,6 +385,7 @@ export interface FileRoutesById {
   '/parear/$token': typeof ParearTokenRoute
   '/_app/': typeof AppIndexRoute
   '/_app/agents/': typeof AppAgentsIndexRoute
+  '/_app/arquivo/': typeof AppArquivoIndexRoute
   '/_app/executar/': typeof AppExecutarIndexRoute
   '/_app/media/': typeof AppMediaIndexRoute
   '/_app/mostruario/': typeof AppMostruarioIndexRoute
@@ -416,6 +427,7 @@ export interface FileRouteTypes {
     | '/sistema'
     | '/parear/$token'
     | '/agents/'
+    | '/arquivo/'
     | '/executar/'
     | '/media/'
     | '/mostruario/'
@@ -455,6 +467,7 @@ export interface FileRouteTypes {
     | '/parear/$token'
     | '/'
     | '/agents'
+    | '/arquivo'
     | '/executar'
     | '/media'
     | '/mostruario'
@@ -495,6 +508,7 @@ export interface FileRouteTypes {
     | '/parear/$token'
     | '/_app/'
     | '/_app/agents/'
+    | '/_app/arquivo/'
     | '/_app/executar/'
     | '/_app/media/'
     | '/_app/mostruario/'
@@ -680,6 +694,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppExecutarIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/arquivo/': {
+      id: '/_app/arquivo/'
+      path: '/arquivo'
+      fullPath: '/arquivo/'
+      preLoaderRoute: typeof AppArquivoIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/agents/': {
       id: '/_app/agents/'
       path: '/agents'
@@ -810,6 +831,7 @@ interface AppRouteChildren {
   AppSistemaRoute: typeof AppSistemaRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAgentsIndexRoute: typeof AppAgentsIndexRoute
+  AppArquivoIndexRoute: typeof AppArquivoIndexRoute
   AppExecutarIndexRoute: typeof AppExecutarIndexRoute
   AppMediaIndexRoute: typeof AppMediaIndexRoute
   AppMostruarioIndexRoute: typeof AppMostruarioIndexRoute
@@ -847,6 +869,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSistemaRoute: AppSistemaRoute,
   AppIndexRoute: AppIndexRoute,
   AppAgentsIndexRoute: AppAgentsIndexRoute,
+  AppArquivoIndexRoute: AppArquivoIndexRoute,
   AppExecutarIndexRoute: AppExecutarIndexRoute,
   AppMediaIndexRoute: AppMediaIndexRoute,
   AppMostruarioIndexRoute: AppMostruarioIndexRoute,

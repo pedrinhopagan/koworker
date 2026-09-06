@@ -1,3 +1,5 @@
+import { realpath } from "node:fs/promises";
+
 import { ORPCError } from "@orpc/server";
 
 import { protectedProcedure } from "../auth/context";
@@ -9,6 +11,9 @@ import {
 	shareZip,
 	systemCapabilities,
 } from "../helpers/os-actions";
+import { dbProjects } from "../db/projects";
+import { dbTasks } from "../db/tasks";
+import { readViewableFile } from "../helpers/file-view";
 import { resolveLinkTarget } from "../helpers/link-target";
 import {
 	acquireRedeployLock,
@@ -98,6 +103,24 @@ export const systemRouter = {
 	resolveLink: protectedProcedure
 		.input(LinkTargetSchema)
 		.handler(({ input }) => resolveLinkTarget(input)),
+
+	// O PWA fora da máquina não pode abrir o arquivo no app padrão; lê o conteúdo e mostra no app.
+	// Só pasta de projeto cadastrado (e worktree de tarefa): o celular enxerga o que o agent tocou,
+	// não o disco inteiro.
+	readFile: protectedProcedure.input(OsPathSchema).handler(async ({ input }) => {
+		const [projects, tasks] = await Promise.all([dbProjects.getAll(), dbTasks.listLinkTargets()]);
+		const roots = new Set<string>(projects.map((project) => project.main_route));
+		for (const task of tasks) {
+			if (task.worktree_path) {
+				roots.add(task.worktree_path);
+			}
+		}
+
+		return readViewableFile(
+			input.path,
+			await Promise.all([...roots].map((root) => realpath(root).catch(() => root))),
+		);
+	}),
 
 	shareZip: protectedProcedure.input(OsPathSchema).handler(({ input }) => shareZip(input.path)),
 

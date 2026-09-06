@@ -27,6 +27,8 @@ routes/
 │   │   ├── index.tsx
 │   │   ├── $shellId/index.tsx
 │   │   └── -components/
+│   ├── arquivo/
+│   │   └── index.tsx           (leitor de arquivo citado: ?path=&line=)
 │   ├── radar/               (redirects legados para /shells)
 │   ├── executar/
 │   │   ├── index.tsx
@@ -106,6 +108,7 @@ routes/
 - `/terminals/history/$cli/$sessionId` — a conversa antiga em leitura, com retomada em pane novo
 - `/shells` — workspace único de terminais: shells PTY embutidos e conversas de agent do radar, agrupados por projeto na sidebar, com faixa de abas (`?tab=shell-3` ou `?tab=agent:<paneId>`)
 - `/shells/$shellId` — redirect (replace) para `/shells?tab=<id>`
+- `/arquivo?path=<absoluto>&line=<n>` — leitor de arquivo citado numa conversa (markdown renderizado ou código com linha destacada); só arquivos dentro de projeto cadastrado ou worktree de tarefa, é o destino dos links de arquivo quando o cliente não está na máquina do backend
 - Links legados `/radar` e `/radar/$paneId` redirecionam para `/shells` por `replace`.
 
 ## LAYOUTS E GUARDA
@@ -126,7 +129,7 @@ Já divididas: `fontes`, `executar/`, `executar/$executionId/`, `projetos/$proje
 `vault/`, `vault/$fileName/`, `tarefas/$taskId/`, `tarefas/$taskId/$file`,
 `tarefas/$taskId/$file_/$canonicalFile`, `skills/$slug/`, `agents/$slug/`, `media/`,
 `media/$fileName/`, `mostruario/`, `terminals/history/`,
-`terminals/history/$cli/$sessionId/`, `shells/`.
+`terminals/history/$cli/$sessionId/`, `shells/`, `arquivo/`.
 
 ## REGRAS
 

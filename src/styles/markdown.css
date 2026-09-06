@@ -101,6 +101,12 @@
 	border-color: var(--primary);
 }
 
+.md-view-path {
+	cursor: pointer;
+	text-decoration: underline dotted;
+	text-underline-offset: 2px;
+}
+
 .cm-md-highlight {
 	padding: 0.05em 0.15em;
 	border-radius: 3px;

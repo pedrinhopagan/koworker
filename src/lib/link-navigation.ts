@@ -2,9 +2,15 @@ import type { Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
+import { isDesktop } from "@/lib/desktop";
+import { fileViewerHref, linkLine, opensFilesInApp } from "@/lib/link-paths";
 
 const LINK_PATTERN =
 	/https?:\/\/[^\s<>"']+|file:\/\/\/[^\s<>"']+|(?:^|\s)(\.{0,2}\/[^\s<>"']+|\/[^\s<>"']+)/g;
+
+export type LinkNavigate = (href: string) => void;
+
+const assignLocation: LinkNavigate = (href) => window.location.assign(href);
 
 export function fileHref(path: string) {
 	return `file://${path
@@ -13,7 +19,11 @@ export function fileHref(path: string) {
 		.join("/")}`;
 }
 
-export async function openLinkTarget(target: string, cwd?: string) {
+export async function openLinkTarget(
+	target: string,
+	cwd?: string,
+	navigate: LinkNavigate = assignLocation,
+) {
 	if (/^(https?:|mailto:)/i.test(target)) {
 		window.open(target, "_blank", "noopener,noreferrer");
 		return;
@@ -22,13 +32,18 @@ export async function openLinkTarget(target: string, cwd?: string) {
 	const result = await orpc.system.resolveLink.call({ target, ...(cwd ? { cwd } : {}) });
 
 	if (result.kind === "internal") {
-		window.location.assign(result.href);
+		navigate(result.href);
 		return;
 	}
 
-	// `file://` não navega a partir de uma página http (e o Electron nega o `window.open`): quem abre
-	// o arquivo no app padrão é o backend, que roda na máquina do usuário.
 	if (result.kind === "file") {
+		if (opensFilesInApp(window.location.hostname, isDesktop())) {
+			navigate(fileViewerHref(result.path, linkLine(target)));
+			return;
+		}
+
+		// `file://` não navega a partir de uma página http (e o Electron nega o `window.open`): quem abre
+		// o arquivo no app padrão é o backend, que roda na máquina do usuário.
 		await orpc.system.openPath
 			.call({ path: result.path })
 			.catch((error: Error) => toast.error(`Não foi possível abrir o arquivo: ${error.message}`));
@@ -37,7 +52,10 @@ export async function openLinkTarget(target: string, cwd?: string) {
 
 	if (result.kind === "external") {
 		window.open(result.href, "_blank", "noopener,noreferrer");
+		return;
 	}
+
+	toast.info("Não foi possível resolver o caminho citado");
 }
 
 export function registerTerminalLinks(terminal: Terminal, cwd?: string) {

@@ -8,12 +8,16 @@ import {
 	TriangleAlert,
 	type LucideIcon,
 } from "lucide-react";
+import { useRouter } from "@tanstack/react-router";
 import { memo, useState } from "react";
 
+import { useLinkCwd } from "@/components/link-cwd";
 import { MarkdownView } from "@/components/markdown-view";
 import { Text } from "@/components/typography";
 import type { AgentSessionEvent } from "@/lib/agent-session";
 import { TRAIL_LABELS } from "@/lib/agent-timeline";
+import { openLinkTarget } from "@/lib/link-navigation";
+import { looksLikeFilePath } from "@/lib/link-paths";
 import { cn } from "@/lib/utils";
 import { TOOL_ICONS } from "./tool-icons";
 import { TraceLabel, TraceShell, toneOf } from "./trace-primitives";
@@ -68,6 +72,8 @@ function LongTextRow({ icon, label, text }: { icon: LucideIcon; label: string; t
 // linha só refaz quando o próprio bloco muda de estado.
 export const TraceRow = memo(function TraceRow({ event }: { event: AgentSessionEvent }) {
 	const { payload } = event;
+	const cwd = useLinkCwd();
+	const router = useRouter({ warn: false });
 
 	if (payload.kind === "thinking") {
 		return <LongTextRow icon={Brain} label={TRAIL_LABELS.thinking} text={payload.text} />;
@@ -106,6 +112,20 @@ export const TraceRow = memo(function TraceRow({ event }: { event: AgentSessionE
 	const Icon = TOOL_ICONS[payload.label] ?? Terminal;
 	const failed = payload.status === "error";
 	const running = payload.status === "running";
+	const detail = payload.detail;
+	const cited = !!detail && looksLikeFilePath(detail);
+
+	function openDetail() {
+		if (detail) {
+			void openLinkTarget(detail, cwd, (href) => {
+				if (router) {
+					void router.navigate({ href });
+					return;
+				}
+				window.location.assign(href);
+			});
+		}
+	}
 
 	return (
 		<TraceShell icon={Icon} spinning={running} tone={toneOf(payload.status)}>
@@ -113,12 +133,22 @@ export const TraceRow = memo(function TraceRow({ event }: { event: AgentSessionE
 				<TraceLabel tone={failed ? "error" : undefined}>{payload.label}</TraceLabel>
 				{payload.status === "ok" && <Check className="size-3 shrink-0 text-muted-foreground" />}
 			</span>
-			{payload.detail && (
+			{detail && cited && (
+				<button
+					type="button"
+					onClick={openDetail}
+					data-slot="trace-path"
+					className="mt-0.5 block max-w-full cursor-pointer truncate text-left font-mono text-[11px] leading-5 text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+				>
+					{detail}
+				</button>
+			)}
+			{detail && !cited && (
 				<Text
 					as="span"
 					className="mt-0.5 block truncate font-mono text-[11px] leading-5 text-muted-foreground"
 				>
-					{payload.detail}
+					{detail}
 				</Text>
 			)}
 		</TraceShell>

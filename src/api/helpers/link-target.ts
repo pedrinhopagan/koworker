@@ -19,7 +19,7 @@ function asPath(target: string, cwd?: string) {
 		return normalize(withoutPosition);
 	}
 
-	if (cwd && /^(\.\.?\/|[^/:]+\/)/.test(withoutPosition)) {
+	if (cwd && /^(\.\.?\/|[^/:]+(\/|$))/.test(withoutPosition)) {
 		return resolve(cwd, withoutPosition);
 	}
 

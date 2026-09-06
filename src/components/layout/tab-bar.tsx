@@ -40,7 +40,7 @@ const routeDisplayPaths: Record<string, string> = {
 	"/tarefas/$taskId/$file/$canonicalFile": "/tarefas/$featureId/$taskId/$file",
 };
 
-export function TabBar() {
+export function TabBar({ compact = false }: { compact?: boolean }) {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const currentPath = location.pathname;
@@ -96,17 +96,23 @@ export function TabBar() {
 					className={cn(
 						iconButton({ active: mobileNavOpen }),
 						"md:hidden min-h-12 min-w-12 px-4 py-3",
+						compact && "md:block",
 					)}
 					aria-label="Abrir menu de navegação"
 				>
 					<Menu size={20} />
 				</button>
 
-				<div className="min-w-0 flex-1 truncate text-sm font-medium text-foreground md:hidden">
+				<div
+					className={cn(
+						"min-w-0 flex-1 truncate text-sm font-medium text-foreground md:hidden",
+						compact && "md:block",
+					)}
+				>
 					{getActiveTabLabel(currentPath)}
 				</div>
 
-				{sidebarMode === "compact" ? (
+				{sidebarMode === "compact" && !compact ? (
 					<div className="hidden min-w-0 self-stretch items-center border-r border-border md:flex">
 						<span className="max-w-44 truncate px-4 text-sm font-medium text-foreground">
 							{projectLabel}
@@ -114,7 +120,7 @@ export function TabBar() {
 					</div>
 				) : null}
 
-				<div className="hidden md:flex">
+				<div className={cn("hidden md:flex", compact && "md:hidden")}>
 					{topTabs.map((tab) => (
 						<Link
 							key={tab.path}
@@ -127,7 +133,7 @@ export function TabBar() {
 					))}
 				</div>
 
-				<div className="hidden md:block flex-1 text-center">
+				<div className={cn("hidden md:block flex-1 text-center", compact && "md:hidden")}>
 					<Tooltip label="Copiar padrão da rota">
 						<button
 							type="button"
@@ -139,14 +145,14 @@ export function TabBar() {
 					</Tooltip>
 				</div>
 
-				<div className="md:hidden">
+				<div className={cn("md:hidden", compact && "md:block")}>
 					<NewVaultNoteButton
 						className={cn(iconButton(), "min-h-12 min-w-12 px-4 py-3")}
 						iconSize={20}
 					/>
 				</div>
 
-				<div className="hidden items-center pr-1 md:flex">
+				<div className={cn("hidden items-center pr-1 md:flex", compact && "md:hidden")}>
 					<Tooltip label="Nova tarefa">
 						<button
 							type="button"

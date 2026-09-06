@@ -1,5 +1,6 @@
 import { highlightTree } from "@lezer/highlight";
 import type { SyntaxNode, Tree } from "@lezer/common";
+import { useRouter } from "@tanstack/react-router";
 import {
 	createElement,
 	Fragment,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/markdown-engine";
 import { cn } from "@/lib/utils";
 import { fileHref, openLinkTarget } from "@/lib/link-navigation";
+import { looksLikeFilePath } from "@/lib/link-paths";
 
 // As classes que o `highlightTree` devolve precisam existir no documento; dentro do editor quem as
 // monta é o `syntaxHighlighting`, aqui é esta chamada — idempotente e feita uma vez por bundle.
@@ -173,9 +175,15 @@ function renderInline(doc: string, node: SyntaxNode): ReactNode[] {
 		}
 
 		if (child.name === "InlineCode") {
+			const text = plainText(doc, child);
+			const cited = looksLikeFilePath(text);
 			out.push(
-				<code key={key} className="cm-md-inline-code">
-					{plainText(doc, child)}
+				<code
+					key={key}
+					className={cn("cm-md-inline-code", cited && "md-view-path")}
+					data-path={cited ? text.trim() : undefined}
+				>
+					{text}
 				</code>,
 			);
 			continue;
@@ -412,6 +420,7 @@ export const MarkdownView = memo(function MarkdownView({
 	className?: string;
 }) {
 	const cwd = useLinkCwd();
+	const router = useRouter({ warn: false });
 	const languages = useCodeLanguages();
 	const content = useMemo(
 		() => renderDocument(text, markdownParser.parse(text)),
@@ -420,8 +429,24 @@ export const MarkdownView = memo(function MarkdownView({
 		[text, languages],
 	);
 
+	function navigate(href: string) {
+		if (router) {
+			void router.navigate({ href });
+			return;
+		}
+		window.location.assign(href);
+	}
+
 	function handleClick(event: MouseEvent<HTMLDivElement>) {
-		const link = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[href]");
+		const target = event.target as HTMLElement;
+		const cited = target.closest<HTMLElement>("code[data-path]");
+		if (cited?.dataset.path) {
+			event.preventDefault();
+			void openLinkTarget(cited.dataset.path, cwd, navigate);
+			return;
+		}
+
+		const link = target.closest<HTMLAnchorElement>("a[href]");
 		if (!link) {
 			return;
 		}
@@ -430,7 +455,7 @@ export const MarkdownView = memo(function MarkdownView({
 		if (!filesystemLink) return;
 
 		event.preventDefault();
-		void openLinkTarget(raw, cwd);
+		void openLinkTarget(raw, cwd, navigate);
 	}
 
 	return (

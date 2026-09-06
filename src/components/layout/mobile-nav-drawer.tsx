@@ -17,5 +17,8 @@ export function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
 
 export function getActiveTabLabel(currentPath: string): string {
 	const active = tabs.find((tab) => isTabActive(currentPath, tab.path));
+	if (!active && isTabActive(currentPath, "/arquivo")) {
+		return "Arquivo";
+	}
 	return active?.label ?? "Menu";
 }
