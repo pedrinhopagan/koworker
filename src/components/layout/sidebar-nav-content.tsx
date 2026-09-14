@@ -12,6 +12,7 @@ import {
 } from "@/components/layout/sidebar-nav-config";
 import { SidebarAgentPulse } from "@/components/layout/sidebar-agent-pulse";
 import { SidebarTooltip } from "@/components/layout/sidebar-tooltip";
+import { Text } from "@/components/typography";
 import { useProjectFocus } from "@/hooks";
 import { useAgentRadarAttention } from "@/hooks/use-agent-radar";
 import { useNavActionDialogsStore } from "@/hooks/use-nav-action-dialogs";
@@ -41,9 +42,6 @@ const sidebarItem = tv({
 			compact: "flex items-center justify-center p-2.5",
 			expanded: "flex items-center gap-3 px-3 py-2.5",
 			drawer: "flex min-h-12 items-center gap-3 px-5 py-3 text-base",
-		},
-		danger: {
-			true: "hover:text-destructive",
 		},
 	},
 });
@@ -346,7 +344,7 @@ export function SidebarNavContent({
 		const isSwitcher = item.id === "openSwitcher";
 		const active = isSwitcher && currentInList;
 		const className = cn(
-			sidebarItem({ active: false, layout, danger: item.id === "hideWindow" }),
+			sidebarItem({ active: false, layout }),
 			active && "text-[var(--project-accent,var(--primary))]",
 		);
 		const Icon = item.icon;
@@ -411,10 +409,23 @@ export function SidebarNavContent({
 		<>
 			<nav className={cn(variant === "drawer" && "-mx-5 -mt-5 flex flex-col")}>
 				{renderSelectProjectItem()}
-				<div className="mb-2 border-t border-border" />
-				{sidebarNavGroups.map((group, groupIndex) => (
-					<div key={groupIndex}>
-						{groupIndex > 0 ? <div className="my-2 border-t border-border" /> : null}
+				{sidebarNavGroups.map((group) => (
+					<div key={group.label} className="border-t border-border pb-1">
+						{layout === "compact" ? (
+							<div className="h-1.5" />
+						) : (
+							<Text
+								as="div"
+								size="xs"
+								tone="faint"
+								className={cn(
+									"pt-3 pb-1 font-semibold uppercase tracking-[0.14em] select-none",
+									layout === "drawer" ? "px-5" : "px-3",
+								)}
+							>
+								{group.label}
+							</Text>
+						)}
 						{group.items.map(renderItem)}
 					</div>
 				))}

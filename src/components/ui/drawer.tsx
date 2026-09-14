@@ -57,7 +57,13 @@ export function Drawer({
 							</SheetDescription>
 						)}
 					</div>
-					<Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 shrink-0">
+					<Button
+						variant="ghost"
+						size="icon"
+						onClick={onClose}
+						aria-label="Fechar"
+						className="-mr-2 -mt-1 shrink-0 text-muted-foreground hover:text-foreground"
+					>
 						<X className="size-4" />
 					</Button>
 				</SheetHeader>

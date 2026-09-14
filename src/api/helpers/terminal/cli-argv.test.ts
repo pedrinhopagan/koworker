@@ -103,3 +103,11 @@ test("retomada por id aceita modelo, esforço e acesso total", () => {
 		"opus",
 	]);
 });
+
+test("opencode 2 retoma pelo id e ignora as opções das outras clis", () => {
+	expect(cliResumeByIdArgv("opencode2", "ses_abc")).toEqual(["opencode2", "--session", "ses_abc"]);
+	// Modelo, esforço e acesso total são flags que só o claude e o codex têm.
+	expect(
+		cliResumeByIdArgv("opencode2", "ses_abc", { model: "opus", effort: "high", fullAccess: true }),
+	).toEqual(["opencode2", "--session", "ses_abc"]);
+});

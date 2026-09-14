@@ -15,6 +15,7 @@ import {
 	type HistoryTaskIndex,
 	type SessionTaskLink,
 } from "./links";
+import { listOpencode2SessionFiles } from "./opencode2";
 import {
 	listClaudeSessionFiles,
 	listCodexSessionFiles,
@@ -95,11 +96,16 @@ function projectRoots(project: Project | null) {
 function candidateFiles(input: { cli: HistoryCli | null; project: Project | null }) {
 	const files: CliSessionFile[] = [];
 
-	if (input.cli !== "codex") {
+	if (!input.cli || input.cli === "claude") {
 		files.push(...listClaudeSessionFiles(projectRoots(input.project)));
 	}
-	if (input.cli !== "claude") {
+	if (!input.cli || input.cli === "codex") {
 		files.push(...listCodexSessionFiles());
+	}
+	// A conversa do opencode 2 já traz o diretório onde rodou, então o filtro de projeto acontece
+	// aqui em vez de depois da leitura do cabeçalho.
+	if (!input.cli || input.cli === "opencode2") {
+		files.push(...listOpencode2SessionFiles(projectRoots(input.project)));
 	}
 
 	return files;
@@ -230,7 +236,7 @@ export async function listCliSessions(input: {
 }
 
 function locate(cli: HistoryCli, sessionId: string) {
-	const files = cli === "claude" ? listClaudeSessionFiles() : listCodexSessionFiles();
+	const files = candidateFiles({ cli, project: null });
 	const file = files.find((candidate) => candidate.sessionId === sessionId);
 
 	if (!file) {

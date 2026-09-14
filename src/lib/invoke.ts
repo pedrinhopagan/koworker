@@ -4,7 +4,6 @@ import { buildKoworkerPrompt, convertSkillCallsForCli, flattenPrompt } from "@/l
 import { buildClaudeArgv } from "@/lib/claude-command";
 import { buildCodexArgv } from "@/lib/codex-command";
 import { argvToShellCommand } from "@/lib/shell-argv";
-import { recordPromptHistory } from "@/lib/prompt-history";
 import type { InvokeConfig } from "@/stores/prompt-bar";
 
 type ProjectInfo = { id: string; name: string; mainRoute: string };
@@ -97,7 +96,7 @@ export function planInvocation(request: InvokeRequest): InvokePlan {
 
 export async function runInvocation(params: { project: ProjectInfo; request: InvokeRequest }) {
 	const { project, request } = params;
-	const { target, cli, routePath, text, config } = request;
+	const { target, cli, config } = request;
 	const { prompt, model, effort } = planInvocation(request);
 	const result = await orpc.kwTerminal.sessionStart.call({
 		projectId: project.id,
@@ -110,18 +109,6 @@ export async function runInvocation(params: { project: ProjectInfo; request: Inv
 		...(cli === "claude"
 			? { permissionMode: config.claude.permissionMode }
 			: { approvalMode: config.codex.approvalMode }),
-	});
-
-	recordPromptHistory({
-		kind: target.kind,
-		text,
-		prompt,
-		...(routePath ? { target: routePath } : {}),
-		...(target.kind === "agent" ? { agentSlug: target.slug } : { skillSlug: target.slug }),
-		projectId: project.id,
-		projectName: project.name,
-		...(model ? { model } : {}),
-		...(effort ? { effort } : {}),
 	});
 
 	return result;

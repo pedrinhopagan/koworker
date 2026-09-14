@@ -14,6 +14,7 @@ import { PubSub } from "./pubsub";
 import { agentHistoryRouter } from "./routers/agent-history";
 import { agentRadarRouter } from "./routers/agent-radar";
 import { agentSessionsRouter } from "./routers/agent-sessions";
+import { agentCategoriesRouter } from "./routers/agent-categories";
 import { agentsRouter } from "./routers/agents";
 import { categoriesRouter } from "./routers/categories";
 import { devicesRouter } from "./routers/devices";
@@ -91,6 +92,7 @@ export const router = {
 	skills: skillsRouter,
 	skillCategories: skillCategoriesRouter,
 	agents: agentsRouter,
+	agentCategories: agentCategoriesRouter,
 	agentHistory: agentHistoryRouter,
 	agentRadar: agentRadarRouter,
 	agentSessions: agentSessionsRouter,

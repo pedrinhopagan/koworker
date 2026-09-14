@@ -127,6 +127,27 @@ async function deliverPrompt(paneId: string, text: string) {
 	}
 }
 
+async function startConversation(
+	agent: RadarAgent,
+	input: ModelSwitchInput,
+): Promise<ModelSwitchResult> {
+	const project = await projectFor(agent);
+	const result = await Terminal.startSession({
+		...project,
+		cwd: agent.cwd,
+		cli: input.cli,
+		tab: continuationTab(agent),
+		...(input.model ? { model: input.model } : {}),
+		...(input.effort ? { effort: input.effort } : {}),
+		permissionMode: "bypass",
+		approvalMode: "bypass",
+	});
+	await deliverPrompt(result.paneId, input.text);
+	await kwTerminalPaneClose(agent.paneId);
+
+	return { kind: "moved", paneId: result.paneId };
+}
+
 // A mesma conversa reabre em outro pane com as flags novas: fecha o atual (dois processos na
 // mesma sessão brigam pelo arquivo) e retoma pelo id. O que não mudou vem do transcript aberto,
 // para a retomada não cair no padrão da config quando só o esforço (ou só o modelo) foi trocado.
@@ -270,7 +291,8 @@ export function handoffStatus(paneId: string): HandoffJob | null {
 	return handoffs.get(paneId) ?? null;
 }
 
-export function switchPaneModel(input: ModelSwitchInput): Promise<ModelSwitchResult> {
+export async function switchPaneModel(input: ModelSwitchInput): Promise<ModelSwitchResult> {
+	await syncPaneTranscriptSource(input.paneId);
 	const agent = getRadarAgent(input.paneId);
 	if (!agent) {
 		throw new ORPCError("NOT_FOUND", { message: "Este agent não está mais aberto no terminal" });
@@ -286,11 +308,15 @@ export function switchPaneModel(input: ModelSwitchInput): Promise<ModelSwitchRes
 		});
 	}
 
+	if (!agent.sessionId && !agent.sessionPath) {
+		return startConversation(agent, input);
+	}
+
 	if (agentRadarCli(agent.agent) === input.cli) {
 		return reopen(agent, input);
 	}
 
 	startHandoff(agent, input);
 
-	return Promise.resolve({ kind: "handoff" });
+	return { kind: "handoff" };
 }

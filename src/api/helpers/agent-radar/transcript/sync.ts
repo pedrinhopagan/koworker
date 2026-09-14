@@ -36,11 +36,18 @@ export async function syncPaneTranscriptSource(paneId: string) {
 
 	// OpenCode sem reporte é instância aberta antes da integração existir. O plugin só vale para a
 	// próxima instância (carrega na partida), então instala para o futuro e adota do banco a sessão
-	// mais recente daquele diretório para a conversa de agora.
-	if (!session.sessionId && !session.sessionPath && agent.agent === "opencode") {
-		void ensureOpencodeIntegration();
+	// mais recente daquele diretório para a conversa de agora. O 2 não tem plugin — quem reporta é o
+	// herdr, lendo o serviço — mas a adoção pelo diretório serve igual quando o reporte não veio.
+	if (
+		!session.sessionId &&
+		!session.sessionPath &&
+		(agent.agent === "opencode" || agent.agent === "opencode2")
+	) {
+		if (agent.agent === "opencode") {
+			void ensureOpencodeIntegration();
+		}
 
-		const adopted = locateOpencodeSessionByDirectory(agent.cwd);
+		const adopted = locateOpencodeSessionByDirectory(agent.cwd, agent.agent);
 		if (adopted) {
 			session = { sessionId: adopted, sessionPath: null };
 		}

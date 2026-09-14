@@ -126,16 +126,16 @@ export function StatusBar() {
 			<div className="min-w-0 flex items-center gap-2 truncate">
 				<div
 					className={cn(
-						"shrink-0 px-2 py-0.5 rounded border text-[11px] uppercase tracking-wide bg-muted/25 text-muted-foreground",
+						"shrink-0 border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
 						isDev
-							? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-amber-200/75"
-							: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/5 dark:text-emerald-200/75",
+							? "border-warning/40 bg-warning/10 text-warning"
+							: "border-success/40 bg-success/10 text-success",
 					)}
 				>
 					{appEnv}
 				</div>
 
-				<div className="truncate text-muted-foreground/85">v{appVersion}</div>
+				<div className="shrink-0 text-muted-foreground">v{appVersion}</div>
 			</div>
 
 			<div className="hidden md:flex items-center gap-1 min-w-0">
@@ -238,7 +238,7 @@ function ProjectSelectTrigger({ projectFocus }: { projectFocus: UseProjectFocusR
 					<FolderKanban size={12} className="shrink-0" />
 				)}
 				<span className="truncate text-left">{label}</span>
-				<ChevronDown size={12} className="shrink-0 opacity-50" />
+				<ChevronDown size={12} className="shrink-0 text-muted-foreground" />
 			</button>
 		</Tooltip>
 	);

@@ -33,6 +33,7 @@ import {
 	replaceSkillDirectories,
 	type SkillDirectoryFile,
 	type SkillDirectoryManifest,
+	writeSkillDirectoryText,
 } from "./skill-directory";
 
 export type SkillTool = "opencode" | "claude-code" | "codex" | "agents" | "koworker";
@@ -826,12 +827,44 @@ export async function readSkillFileFromFs(input: {
 	relativePath: string;
 }) {
 	const source = await resolveKnownSkillVariant(input);
+	const manifest = await inspectSkillDirectory(source.dir);
+	const content = await readSkillDirectoryText({
+		dir: source.dir,
+		relativePath: input.relativePath,
+		manifest,
+	});
+
+	// O hash acompanha a leitura: é ele que a escrita seguinte devolve como `expectedHash`.
 	return {
-		content: await readSkillDirectoryText({
-			dir: source.dir,
-			relativePath: input.relativePath,
-		}),
+		content,
+		hash: manifest.files.find((file) => file.path === input.relativePath)?.hash ?? "",
 	};
+}
+
+// Edição dos arquivos que acompanham a skill. O SKILL.md fica de fora: ele é frontmatter + corpo e
+// só muda por `updateSkillInFs` — gravar aqui o texto do editor apagaria o frontmatter.
+export async function writeSkillFileInFs(input: {
+	slug: string;
+	projectName?: string;
+	variantPath: string;
+	relativePath: string;
+	content: string;
+	expectedHash: string;
+}) {
+	if (input.relativePath === "SKILL.md") {
+		throw new Error("O SKILL.md é salvo pelo editor da skill");
+	}
+
+	const source = await resolveKnownSkillVariant(input);
+	const written = await writeSkillDirectoryText({
+		dir: source.dir,
+		relativePath: input.relativePath,
+		content: input.content,
+		expectedHash: input.expectedHash,
+	});
+	invalidateSkillsFsCache();
+
+	return written;
 }
 
 export async function exportSkillTextFromFs(input: {

@@ -14,7 +14,9 @@ let deleteSkillInFs: typeof import("./skills-fs").deleteSkillInFs;
 let getSkillFromFs: typeof import("./skills-fs").getSkillFromFs;
 let listSkillsFromFs: typeof import("./skills-fs").listSkillsFromFs;
 let previewSkillStandardizationInFs: typeof import("./skills-fs").previewSkillStandardizationInFs;
+let readSkillFileFromFs: typeof import("./skills-fs").readSkillFileFromFs;
 let renameSkillInFs: typeof import("./skills-fs").renameSkillInFs;
+let writeSkillFileInFs: typeof import("./skills-fs").writeSkillFileInFs;
 let standardizeSkillInFs: typeof import("./skills-fs").standardizeSkillInFs;
 let skillContentHash: typeof import("./skills-fs").skillContentHash;
 let updateSkillInFs: typeof import("./skills-fs").updateSkillInFs;
@@ -32,10 +34,12 @@ beforeAll(async () => {
 		getSkillFromFs,
 		listSkillsFromFs,
 		previewSkillStandardizationInFs,
+		readSkillFileFromFs,
 		renameSkillInFs,
 		skillContentHash,
 		standardizeSkillInFs,
 		updateSkillInFs,
+		writeSkillFileInFs,
 	} = await import("./skills-fs"));
 });
 
@@ -206,6 +210,61 @@ async function homeDir(): Promise<string> {
 	tempDirs.push(dir);
 	return dir;
 }
+
+describe("writeSkillFileInFs", () => {
+	test("edita arquivo auxiliar da variante, recusa o SKILL.md e path fora da skill", async () => {
+		const dir = await homeDir();
+		await writeSkill(dir, "edita-arquivo", "descricao", "corpo");
+		await mkdir(join(dir, "edita-arquivo", "references"), { recursive: true });
+		await writeFile(join(dir, "edita-arquivo", "references", "guia.md"), "velho\n");
+		await addRow("agents", dir, "global", 1);
+
+		const variant = (await getSkillFromFs("edita-arquivo"))?.variants.at(0);
+		if (!variant) {
+			throw new Error("Variante não encontrada");
+		}
+		const target = { slug: "edita-arquivo", variantPath: variant.path };
+		const read = await readSkillFileFromFs({ ...target, relativePath: "references/guia.md" });
+		expect(read.content).toBe("velho\n");
+
+		const written = await writeSkillFileInFs({
+			...target,
+			relativePath: "references/guia.md",
+			content: "novo\n",
+			expectedHash: read.hash,
+		});
+		expect(await readFile(join(dir, "edita-arquivo", "references", "guia.md"), "utf8")).toBe(
+			"novo\n",
+		);
+		// A leitura seguinte já enxerga o novo conteúdo: a escrita invalida o cache de fs.
+		const reread = await readSkillFileFromFs({ ...target, relativePath: "references/guia.md" });
+		expect(reread.content).toBe("novo\n");
+		expect(reread.hash).toBe(written.hash);
+
+		for (const recusa of [
+			// SKILL.md tem frontmatter e só muda por updateSkillInFs.
+			{ ...target, relativePath: "SKILL.md", expectedHash: written.hash },
+			// Variante inventada não resolve nas fontes autorizadas.
+			{
+				slug: "edita-arquivo",
+				variantPath: join(dir, "outra", "SKILL.md"),
+				relativePath: "references/guia.md",
+				expectedHash: reread.hash,
+			},
+		]) {
+			let error: Error | null = null;
+			try {
+				await writeSkillFileInFs({ ...recusa, content: "invadido" });
+			} catch (err: any) {
+				error = err;
+			}
+			expect(error).not.toBeNull();
+		}
+		expect(await readFile(join(dir, "edita-arquivo", "references", "guia.md"), "utf8")).toBe(
+			"novo\n",
+		);
+	});
+});
 
 describe("listSkillsFromFs", () => {
 	test("serve o conteúdo em cache e revalida assim que uma mutation acontece", async () => {

@@ -1,4 +1,4 @@
-import { PanelLeft } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { SidebarNavContent } from "@/components/layout/sidebar-nav-content";
 import { SidebarTooltip } from "@/components/layout/sidebar-tooltip";
@@ -15,13 +15,13 @@ export function AppSidebar() {
 			type="button"
 			onClick={toggleMode}
 			className={cn(
-				"flex h-8 w-full items-center gap-2 border-t border-border px-3 text-xs text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground",
+				"flex h-9 w-full items-center gap-3 border-t border-border px-3 text-xs text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground",
 				compact && "justify-center px-0",
 			)}
 			aria-label={compact ? "Expandir sidebar" : "Recolher sidebar"}
 		>
-			<PanelLeft size={14} />
-			{compact ? null : <span className="truncate">← Esconder</span>}
+			{compact ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+			{compact ? null : <span className="truncate">Recolher</span>}
 		</button>
 	);
 

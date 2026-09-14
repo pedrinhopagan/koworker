@@ -66,6 +66,12 @@ export const SkillFileReadSchema = SkillVariantTargetSchema.extend({
 	relativePath: SkillRelativePathSchema,
 });
 
+export const SkillFileWriteSchema = SkillVariantTargetSchema.extend({
+	relativePath: SkillRelativePathSchema,
+	content: z.string(),
+	expectedHash: z.string().min(1),
+});
+
 export const SkillTextExportSchema = SkillVariantTargetSchema;
 
 export const SkillStandardizePreviewSchema = SkillVariantTargetSchema;

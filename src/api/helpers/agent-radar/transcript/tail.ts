@@ -17,6 +17,7 @@ import {
 	codexTranscriptModel,
 	createCodexTranscriptTranslator,
 } from "@/lib/codex-transcript";
+import { openOpencode2Tail } from "./opencode2-tail";
 import { openOpencodeTail } from "./opencode-tail";
 
 const READ_CHUNK_BYTES = 1_000_000;
@@ -52,11 +53,15 @@ type FileSource = Extract<AgentTranscript, { cli: "claude" | "codex" }>;
 // Ponto único de abertura para o resto do radar: quem quer a conversa de um pane não precisa saber
 // se ela vive num arquivo que cresce (claude, codex) ou num banco que muda no lugar (opencode).
 export async function openTranscriptTail(input: TailInput): Promise<TranscriptTail> {
-	if (input.source.cli === "opencode") {
-		return openOpencodeTail(input);
+	const source = input.source;
+	if (source.cli === "opencode") {
+		return openOpencodeTail({ ...input, source });
+	}
+	if (source.cli === "opencode2") {
+		return openOpencode2Tail({ ...input, source });
 	}
 
-	return await openFileTranscriptTail({ ...input, source: input.source });
+	return await openFileTranscriptTail({ ...input, source });
 }
 
 // Cada arquivo aberto ganha tradutor próprio: o do codex guarda estado entre linhas para não

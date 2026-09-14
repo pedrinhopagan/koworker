@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const HistoryCliSchema = z.enum(["claude", "codex"]);
+export const HistoryCliSchema = z.enum(["claude", "codex", "opencode2"]);
 export type HistoryCli = z.infer<typeof HistoryCliSchema>;
 
 export const AgentHistoryListSchema = z.object({

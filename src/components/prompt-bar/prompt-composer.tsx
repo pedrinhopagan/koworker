@@ -4,7 +4,6 @@ import {
 	ChevronsUpDown,
 	type LucideIcon as LucideIconType,
 } from "lucide-react";
-import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
@@ -24,7 +23,7 @@ import {
 	copyToClipboard,
 	type PromptCopyCli,
 } from "@/lib/build-prompt";
-import { recordPromptHistory } from "@/lib/prompt-history";
+import { recordCopiedPrompt } from "@/lib/prompt-history";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 
@@ -54,7 +53,6 @@ export function PromptComposer() {
 	const setStructureTemplate = usePromptBarStore((s) => s.setStructureTemplate);
 
 	const routeTarget = useRouteDocTarget();
-	const pathname = useRouterState({ select: (s) => s.location.pathname });
 
 	const lastSuggestedTaskId = useRef<string | null>(null);
 	useEffect(() => {
@@ -79,26 +77,20 @@ export function PromptComposer() {
 		const copyText = interactWithInput
 			? buildPromptBody({ templateSlug: structureTemplate, values: structureValues, text, images })
 			: "";
-		return {
-			text,
-			prompt: buildKoworkerPrompt({ kw: interactWithKw, target: appendTarget, text: copyText }),
-		};
+		return buildKoworkerPrompt({ kw: interactWithKw, target: appendTarget, text: copyText });
 	}
 
-	async function copyAndRecord(prompt: string, text: string, successMessage: string) {
+	async function copyAndRecord(prompt: string, successMessage: string) {
 		if (!prompt.trim()) {
 			toast.info("Nada para copiar");
 			return;
 		}
 		const ok = await copyToClipboard(prompt);
 		if (ok) {
-			recordPromptHistory({
-				kind: "copy",
-				text,
+			recordCopiedPrompt({
 				prompt,
-				...(appendTarget ? { target: appendTarget } : {}),
+				...(routeTarget.projectId ? { projectId: routeTarget.projectId } : {}),
 				...(routeTarget.projectName ? { projectName: routeTarget.projectName } : {}),
-				...(pathname ? { routePath: pathname } : {}),
 			});
 			toast.success(successMessage);
 		} else {
@@ -107,10 +99,8 @@ export function PromptComposer() {
 	}
 
 	async function handleCopy(targetCli: PromptCopyCli) {
-		const { prompt, text } = buildRawCopyPrompt();
 		await copyAndRecord(
-			convertSkillCallsForCli(prompt, targetCli),
-			text,
+			convertSkillCallsForCli(buildRawCopyPrompt(), targetCli),
 			`Prompt para ${PROMPT_COPY_CLI_LABELS[targetCli]} copiado`,
 		);
 	}
@@ -335,7 +325,7 @@ function SectionBulkButton({
 				aria-label={label}
 				disabled={disabled}
 				onClick={onClick}
-				className="flex size-12 items-center justify-center text-muted-foreground/60 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40 disabled:hover:text-muted-foreground/60 md:size-6"
+				className="flex size-12 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40 disabled:hover:text-muted-foreground md:size-6"
 			>
 				<Icon className="size-4 md:size-3.5" />
 			</button>

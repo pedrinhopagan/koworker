@@ -112,7 +112,7 @@ export function MiniSelect({
 					<>
 						<Icon className="size-3.5 shrink-0 text-muted-foreground" />
 						<span className="truncate text-left text-xs">{active?.label ?? ""}</span>
-						<ChevronDown className="size-3.5 shrink-0 opacity-50" />
+						<ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
 					</>
 				)}
 				renderItem={(option) => <span className="text-xs">{option.label}</span>}

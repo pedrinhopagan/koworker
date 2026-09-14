@@ -6,6 +6,7 @@ export type AgentSource = AgentRecord["sources"][number];
 export type AgentDetail = NonNullable<RouterOutputs["agents"]["get"]>;
 export type AgentVariant = AgentDetail["variants"][number];
 export type AgentSourcePath = RouterOutputs["agents"]["listPaths"][number];
+export type AgentCategory = RouterOutputs["agentCategories"]["list"][number];
 
 export type TaskAgent = {
 	id: string;
@@ -15,6 +16,7 @@ export type TaskAgent = {
 	findings: PrinciplesFinding[];
 	icon: string;
 	color: string;
+	categoryId: string | null;
 	sources: AgentSource[];
 	conflict: boolean;
 	primaryPath: string;

@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useDeferredValue, useMemo } from "react";
 import { toast } from "sonner";
 
@@ -14,7 +14,6 @@ import {
 	flattenPrompt,
 } from "@/lib/build-prompt";
 import { type InvokeTarget, planInvocation } from "@/lib/invoke";
-import { recordPromptHistory } from "@/lib/prompt-history";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 
 function toTarget(selection: NonNullable<Selection>): InvokeTarget {
@@ -48,7 +47,6 @@ export function usePromptExecution(params: {
 	const interactWithInput = usePromptBarStore((state) => state.interactWithInput);
 	const { selection } = useInvocation(params);
 	const navigate = useNavigate();
-	const pathname = useRouterState({ select: (state) => state.location.pathname });
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
 	const project = projectsQuery.data?.find((entry) => entry.id === params.projectId);
 	const effectiveRoute = interactWithRoute ? params.routePath : null;
@@ -135,23 +133,6 @@ export function usePromptExecution(params: {
 			...(cli === "claude"
 				? { permissionMode: invoke.claude.permissionMode }
 				: { approvalMode: invoke.codex.approvalMode }),
-		});
-
-		recordPromptHistory({
-			kind: selection?.kind ?? "copy",
-			text: effectiveText || text,
-			prompt: promptPreview,
-			...(effectiveRoute ? { target: effectiveRoute } : {}),
-			...(selection?.kind === "agent"
-				? { agentSlug: selection.agent.slug }
-				: selection?.kind === "skill"
-					? { skillSlug: selection.skill.slug }
-					: {}),
-			projectId: project.id,
-			projectName: project.name,
-			...(pathname ? { routePath: pathname } : {}),
-			...(executionPlan.model ? { model: executionPlan.model } : {}),
-			...(executionPlan.effort ? { effort: executionPlan.effort } : {}),
 		});
 	}
 

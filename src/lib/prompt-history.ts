@@ -1,8 +1,7 @@
 import { orpc, type RouterInputs } from "@/client";
 
-// Registra de forma durável (SQLite no backend) cada prompt despachado pela barra, para análise
-// futura. Fire-and-forget: é um log de observação, não pode atrasar nem quebrar a ação do usuário,
-// então a falha é engolida — o disparo do prompt em si já aconteceu.
-export function recordPromptHistory(input: RouterInputs["promptHistory"]["record"]) {
-	void orpc.promptHistory.record.call(input).catch(() => {});
+// Prompt copiado pelo clipboard é o único que não deixa transcript em disco: fica registrado aqui para
+// aparecer no histórico ao lado do que as CLIs gravaram. Fire-and-forget: a cópia já aconteceu.
+export function recordCopiedPrompt(input: RouterInputs["promptHistory"]["recordCopy"]) {
+	void orpc.promptHistory.recordCopy.call(input).catch(() => {});
 }

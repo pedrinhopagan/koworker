@@ -21,9 +21,9 @@ function TerminalHistoryPage() {
 	return (
 		<PageShell
 			title="Histórico de conversas"
-			description="Tudo que Claude e Codex já gravaram em disco, em ordem"
+			description="Tudo que Claude, Codex e OpenCode 2 já gravaram em disco, em ordem"
 			icon={History}
-			headerClassName="mb-4"
+			headerClassName="mb-5"
 			contentClassName="flex min-h-0 max-w-none flex-col"
 			actions={
 				<Button asChild variant="outline" size="sm">
@@ -34,7 +34,7 @@ function TerminalHistoryPage() {
 				</Button>
 			}
 		>
-			<div className="mx-auto flex w-full max-w-4xl shrink-0 flex-col gap-1.5 pb-3">
+			<div className="mx-auto flex w-full max-w-4xl shrink-0 items-center gap-3 pb-4">
 				<HistoryFilters
 					value={filters}
 					projects={projects}
@@ -42,16 +42,14 @@ function TerminalHistoryPage() {
 					onChange={update}
 				/>
 				{!history.loading && (
-					<Text size="xs" tone="muted">
-						{history.total === 1
-							? "1 conversa encontrada"
-							: `${history.total} conversas encontradas`}
+					<Text size="xs" tone="faint" className="hidden shrink-0 tabular-nums sm:block">
+						{history.total === 1 ? "1 conversa" : `${history.total} conversas`}
 					</Text>
 				)}
 			</div>
 
 			<div className="min-h-0 flex-1 overflow-y-auto">
-				<div className="mx-auto w-full max-w-4xl pb-6">
+				<div className="mx-auto w-full max-w-4xl pb-8">
 					<HistoryList
 						sessions={history.sessions}
 						search={linkSearch}

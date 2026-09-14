@@ -4,6 +4,7 @@ import { type ComponentProps, useState } from "react";
 import type { ModelCatalog } from "@/api/schemas/agent-radar";
 import { CliLogo } from "@/components/icons/cli-logos";
 import { Text } from "@/components/typography";
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { agentRadarAgentLabel } from "@/constants/agent-radar";
@@ -19,7 +20,6 @@ import { cn } from "@/lib/utils";
 
 type ModelPickerProps = {
 	catalog: ModelCatalog | undefined;
-	// O que a sessão está usando agora, pelo transcript: é contra isso que a escolha vira troca.
 	session: ModelSession;
 	value: ModelTarget;
 	onChange: (target: ModelTarget) => void;
@@ -37,15 +37,12 @@ function switchNotice(target: ModelTarget, cliChanged: boolean) {
 	return "Vale a partir do próximo envio.";
 }
 
-// Uma escolha por toque: tocar num modelo ou num esforço aplica e fecha. Só a troca de CLI mantém
-// o painel aberto, porque ela troca a lista e ainda falta escolher o modelo.
 function ModelPickerPanel({
 	catalog,
 	session,
 	value,
 	onChange,
-	onDone,
-}: Omit<ModelPickerProps, "disabled"> & { onDone: () => void }) {
+}: Omit<ModelPickerProps, "disabled">) {
 	const options = catalog?.[value.cli] ?? [];
 	const selected = options.find((option) => option.id === value.model);
 	const efforts = selected?.efforts ?? options[0]?.efforts ?? [];
@@ -80,7 +77,7 @@ function ModelPickerPanel({
 								}
 							}}
 							className={cn(
-								"flex h-10 items-center justify-center gap-1.5 text-xs font-medium transition-colors",
+								"flex h-11 items-center justify-center gap-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:h-10 md:text-xs",
 								checked
 									? "bg-background text-foreground shadow-xs"
 									: "text-muted-foreground hover:text-foreground",
@@ -118,15 +115,14 @@ function ModelPickerPanel({
 									effort:
 										value.effort && option.efforts.includes(value.effort) ? value.effort : null,
 								});
-								onDone();
 							}}
 							className={cn(
-								"flex min-h-12 items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-muted",
+								"flex min-h-12 items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
 								checked && "bg-muted/60",
 							)}
 						>
 							<span className="min-w-0 flex-1">
-								<span className="flex items-center gap-2">
+								<span className="flex flex-wrap items-center gap-x-2">
 									<Text as="span" size="sm" className="font-medium">
 										{option.label}
 									</Text>
@@ -137,7 +133,7 @@ function ModelPickerPanel({
 									)}
 								</span>
 								{option.hint && (
-									<Text as="span" size="xs" tone="muted" className="block truncate">
+									<Text as="span" size="xs" tone="muted" className="block break-words">
 										{option.hint}
 									</Text>
 								)}
@@ -153,7 +149,11 @@ function ModelPickerPanel({
 					<Text size="xs" tone="muted" className="mb-2 font-semibold uppercase tracking-[0.12em]">
 						Esforço
 					</Text>
-					<div role="radiogroup" aria-label="Esforço" className="flex flex-wrap gap-1.5">
+					<div
+						role="radiogroup"
+						aria-label="Esforço"
+						className="grid grid-cols-3 gap-2 md:flex md:flex-wrap md:gap-1.5"
+					>
 						{efforts.map((effort) => {
 							const checked = effort === value.effort;
 
@@ -167,10 +167,9 @@ function ModelPickerPanel({
 									data-value={effort}
 									onClick={() => {
 										onChange({ ...value, effort });
-										onDone();
 									}}
 									className={cn(
-										"min-h-9 border px-3 text-xs transition-colors",
+										"min-h-11 border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:min-h-9 md:text-xs",
 										checked
 											? "border-primary bg-primary text-primary-foreground"
 											: "border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground",
@@ -224,16 +223,19 @@ export function ModelPicker({
 				data-component="model-picker"
 				data-pending={pending || undefined}
 				disabled={disabled}
-				className="relative flex h-10 min-w-0 max-w-40 items-center gap-1.5 border border-input bg-background px-2.5 text-xs shadow-xs transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:max-w-56"
+				className="relative flex h-11 min-w-0 max-w-48 items-center gap-1.5 border border-input bg-background px-2.5 text-xs shadow-xs transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:h-10 md:max-w-56"
 				{...props}
 			>
 				<CliLogo cli={value.cli} className="size-4 shrink-0" />
-				<span className="min-w-0 truncate font-medium">{modelLabel}</span>
-				{value.effort && (
-					<span className="hidden shrink-0 text-muted-foreground sm:inline">
-						· {effortLabel(value.effort)}
-					</span>
-				)}
+				<span className="flex min-w-0 flex-1 flex-col items-start md:flex-row md:items-center md:gap-1.5">
+					<span className="max-w-full truncate font-medium">{modelLabel}</span>
+					{value.effort && (
+						<span className="text-muted-foreground md:shrink-0">
+							<span className="hidden md:inline">· </span>
+							{effortLabel(value.effort)}
+						</span>
+					)}
+				</span>
 				<ChevronDown className="size-3.5 shrink-0 opacity-60" />
 				{pending && (
 					<span aria-hidden className="absolute -top-1 -right-1 size-2 rounded-full bg-primary" />
@@ -243,13 +245,19 @@ export function ModelPicker({
 	}
 
 	const panel = (
-		<ModelPickerPanel
-			catalog={catalog}
-			session={session}
-			value={value}
-			onChange={onChange}
-			onDone={() => setOpen(false)}
-		/>
+		<ModelPickerPanel catalog={catalog} session={session} value={value} onChange={onChange} />
+	);
+
+	const footer = (
+		<div className="shrink-0 border-t border-border p-4">
+			<Button
+				data-component="model-picker-done"
+				className="h-11 w-full"
+				onClick={() => setOpen(false)}
+			>
+				Concluir
+			</Button>
+		</div>
 	);
 
 	if (isMobile) {
@@ -257,10 +265,13 @@ export function ModelPicker({
 			<>
 				{trigger({ onClick: () => setOpen(true) })}
 				<Sheet open={open} onOpenChange={setOpen}>
-					<SheetContent side="bottom" showClose={false}>
-						<SheetTitle className="sr-only">Modelo da sessão</SheetTitle>
-						<SheetDescription className="sr-only">{description}</SheetDescription>
-						<div className="min-h-0 overflow-y-auto">{panel}</div>
+					<SheetContent side="bottom" showClose={false} className="touch-pan-y">
+						<div className="shrink-0 border-b border-border px-4 pt-3 pb-4">
+							<SheetTitle>Modelo e esforço</SheetTitle>
+							<SheetDescription className="mt-1 text-xs">{description}</SheetDescription>
+						</div>
+						<div className="min-h-0 overflow-y-auto overscroll-contain touch-pan-y">{panel}</div>
+						{footer}
 					</SheetContent>
 				</Sheet>
 			</>
@@ -270,8 +281,13 @@ export function ModelPicker({
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>{trigger({})}</PopoverTrigger>
-			<PopoverContent align="start" side="top" className="w-80 p-0">
-				{panel}
+			<PopoverContent
+				align="start"
+				side="top"
+				className="flex max-h-[var(--radix-popover-content-available-height)] w-80 flex-col p-0"
+			>
+				<div className="min-h-0 overflow-y-auto overscroll-contain">{panel}</div>
+				{footer}
 			</PopoverContent>
 		</Popover>
 	);

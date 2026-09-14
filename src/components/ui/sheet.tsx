@@ -184,7 +184,7 @@ const SheetContent = React.forwardRef<
 				)}
 				{children}
 				{showClose && (
-					<SheetPrimitive.Close className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none">
+					<SheetPrimitive.Close className="absolute top-3 right-3 flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none">
 						<X className="size-4" />
 						<span className="sr-only">Fechar</span>
 					</SheetPrimitive.Close>

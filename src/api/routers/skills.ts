@@ -17,6 +17,7 @@ import {
 	renameSkillInFs,
 	standardizeSkillInFs,
 	updateSkillInFs,
+	writeSkillFileInFs,
 } from "../helpers/skills-fs";
 import { applySkillSyncInFs, previewSkillSyncInFs } from "../helpers/skills-sync";
 import {
@@ -25,6 +26,7 @@ import {
 	SkillDeleteSchema,
 	SkillGetSchema,
 	SkillFileReadSchema,
+	SkillFileWriteSchema,
 	SkillListSchema,
 	SkillPathAddSchema,
 	SkillPathRemoveSchema,
@@ -139,6 +141,10 @@ export const skillsRouter = {
 
 	readFile: protectedProcedure.input(SkillFileReadSchema).handler(async ({ input }) => {
 		return await readSkillFileFromFs(input);
+	}),
+
+	writeFile: protectedProcedure.input(SkillFileWriteSchema).handler(async ({ input }) => {
+		return await writeSkillFileInFs(input);
 	}),
 
 	exportText: protectedProcedure.input(SkillTextExportSchema).handler(async ({ input }) => {

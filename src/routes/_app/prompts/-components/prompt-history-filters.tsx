@@ -1,37 +1,37 @@
-import { Plus, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
+import type { PromptSource } from "@/api/schemas/prompt-history";
 import type { RouterOutputs } from "@/client";
-import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
-import { PROMPT_HISTORY_KIND_LABEL, type PromptHistoryKind } from "./prompt-history-kind";
+import { PROMPT_SOURCE_LABEL } from "./prompt-source";
 
 type Project = RouterOutputs["projects"]["list"][number];
 
 type PromptHistoryFiltersProps = {
 	q: string;
-	kind: PromptHistoryKind | undefined;
+	source: PromptSource | undefined;
 	projectId: string | undefined;
 	projects: Project[];
-	onChange: (next: { q?: string; kind?: PromptHistoryKind; projectId?: string }) => void;
-	onNew: () => void;
+	onChange: (next: { q?: string; source?: PromptSource; projectId?: string }) => void;
 };
 
-const kindItems = [
-	{ id: "all", label: "Todos" },
-	...Object.entries(PROMPT_HISTORY_KIND_LABEL).map(([id, label]) => ({ id, label })),
+const ALL = "all";
+
+const sourceItems = [
+	{ id: ALL, label: "Todas as origens" },
+	...Object.entries(PROMPT_SOURCE_LABEL).map(([id, label]) => ({ id, label })),
 ];
 
 export function PromptHistoryFilters({
 	q,
-	kind,
+	source,
 	projectId,
 	projects,
 	onChange,
-	onNew,
 }: PromptHistoryFiltersProps) {
 	const projectItems = [
-		{ id: "all", label: "Todos os projetos" },
+		{ id: ALL, label: "Todos os projetos" },
 		...projects.map((project) => ({ id: project.id, label: project.name })),
 	];
 
@@ -43,17 +43,17 @@ export function PromptHistoryFilters({
 					type="search"
 					value={q}
 					onChange={(event) => onChange({ q: event.target.value || undefined })}
-					placeholder="Buscar por texto, prompt, alvo ou projeto"
+					placeholder="Buscar no texto do prompt, projeto ou pasta"
 					className="h-11 pl-9 text-base md:h-9 md:text-sm"
 				/>
 			</div>
 
-			<div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,160px)_minmax(0,220px)_auto] sm:items-center">
+			<div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,180px)_minmax(0,220px)] sm:items-center">
 				<CustomSelect
-					items={kindItems}
-					value={kind ?? "all"}
+					items={sourceItems}
+					value={source ?? ALL}
 					onValueChange={(value) =>
-						onChange({ kind: value === "all" ? undefined : (value as PromptHistoryKind) })
+						onChange({ source: value === ALL ? undefined : (value as PromptSource) })
 					}
 					renderItem={(item) => item.label}
 					triggerClassName="h-11 w-full text-base md:h-9 md:text-sm"
@@ -61,16 +61,11 @@ export function PromptHistoryFilters({
 
 				<CustomSelect
 					items={projectItems}
-					value={projectId ?? "all"}
-					onValueChange={(value) => onChange({ projectId: value === "all" ? undefined : value })}
+					value={projectId ?? ALL}
+					onValueChange={(value) => onChange({ projectId: value === ALL ? undefined : value })}
 					renderItem={(item) => item.label}
 					triggerClassName="h-11 w-full text-base md:h-9 md:text-sm"
 				/>
-
-				<Button type="button" onClick={onNew} className="h-11 md:h-9">
-					<Plus className="size-4" />
-					Novo prompt
-				</Button>
 			</div>
 		</div>
 	);

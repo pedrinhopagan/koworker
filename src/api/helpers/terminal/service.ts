@@ -15,6 +15,7 @@ import {
 	cliResumeArgv,
 	cliResumeByIdArgv,
 	type CliResumeOptions,
+	type ResumableCli,
 	cliStartArgv,
 	cliStartWithFullAccessArgv,
 } from "./cli-argv";
@@ -188,7 +189,7 @@ export function projectWorkspace(params: { projectName: string | null; mainRoute
 async function createProjectSessionTab(params: {
 	projectName: string | null;
 	mainRoute: string;
-	cli: "claude" | "codex";
+	cli: ResumableCli;
 	tab: TerminalTabTarget;
 	// A tab nasce na raiz do projeto por padrão; conversa retomada do histórico nasce na pasta onde
 	// ela rodou, que pode ser um worktree ou uma subpasta.
@@ -199,7 +200,11 @@ async function createProjectSessionTab(params: {
 	reuseExisting?: boolean;
 }) {
 	await ensureKwTerminalServer();
-	await kwTerminalIntegrationInstall(params.cli);
+	// O opencode 2 não tem integração para instalar: quem reporta estado e sessão dele é o próprio
+	// kw-terminal, lendo o serviço local do opencode.
+	if (params.cli !== "opencode2") {
+		await kwTerminalIntegrationInstall(params.cli);
+	}
 	const { workspace } = await projectWorkspace(params);
 
 	if (params.reuseExisting) {
@@ -1128,7 +1133,7 @@ export const Terminal = {
 		projectName: string | null;
 		mainRoute: string;
 		cwd: string;
-		cli: "claude" | "codex";
+		cli: ResumableCli;
 		sessionId: string;
 		// Troca de modelo de uma sessão viva: a mesma conversa reabre com outro modelo/esforço e já
 		// recebe a mensagem. A tab do pane recém-fechado tem que nascer de novo, nunca ser reusada.

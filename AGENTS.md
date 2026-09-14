@@ -77,11 +77,11 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 - **Booleanos**: não existem; são `INTEGER` 0/1 (`done`, `hide_terminal`, `quick_invoke`)
 - **JSON**: colunas JSON são `TEXT` com `JSON.stringify/parse` (`tasks.file_order`, `task_storage_runs.manifest`, `agent_events.payload`)
 - **Soft delete**: `projects`, `tasks`, `execution_runs` e `agent_sessions` possuem `deleted_at`
-- **Conjuntos finitos**: só `user_type`, `task_storage_runs.status`, `prompt_history.kind`, `execution_runs.kind`, `execution_runs.status`, `agent_sessions.status` e `agent_events.kind` são enums no DSL. Complexidade, stage, tool e scope são texto livre no DB e o conjunto é garantido em `src/constants/` + boundary Zod.
+- **Conjuntos finitos**: só `user_type`, `task_storage_runs.status`, `prompts.source`, `execution_runs.kind`, `execution_runs.status`, `agent_sessions.status` e `agent_events.kind` são enums no DSL. Complexidade, stage, tool e scope são texto livre no DB e o conjunto é garantido em `src/constants/` + boundary Zod.
 
 ## ENTIDADES
 
-21 tabelas, na ordem de registro em `connection.ts`. `?` marca coluna opcional (nullable).
+22 tabelas, na ordem de registro em `connection.ts`. `?` marca coluna opcional (nullable).
 
 ### users
 - `id` (integer, autoincrement), `name`, `password`
@@ -159,13 +159,20 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 ### agent_source_paths
 - `id` (uuid), `tool`, `path`, `scope` (default `custom`), `created_at`
 
-### prompt_history
-- `id` (uuid), `kind`: `copy | agent | skill`
-- `text` (instrução crua) e `prompt` (texto final despachado)
-- `target?`, `agent_slug?`, `skill_slug?`
-- `project_id?`, `project_name?`: **sem FK**, o histórico sobrevive à exclusão do projeto
-- `route_path?`, `model?`, `effort?`, `created_at`
-- Deduplicado na entrada: reenviar prompt idêntico rebumpa `created_at` em vez de duplicar
+### prompts
+- `id` (uuid), `source`: `claude | codex | copy`
+- `prompt` (texto como foi enviado), `norm` (chave de dedup: grafia de skill unificada `$kw`/`[$kw](…)` → `/kw` e espaço colapsado; `normalizePrompt` em `api/helpers/agent-history/prompt-text.ts`)
+- `session_id?`, `transcript_path?`: a conversa da CLI de onde a linha foi lida (`copy` não tem)
+- `cwd?`, `project_id?`, `project_name?`: **sem FK**, o histórico sobrevive à exclusão do projeto
+- `sent_at`, `created_at`
+- Uma linha por envio. `claude`/`codex` são indexados dos transcripts em disco (`~/.claude/projects`,
+  `~/.codex/sessions`, inclusive Codex Desktop) por `syncPromptIndex`; `copy` é o que saiu da barra pelo
+  clipboard, único rastro de prompt colado fora das CLIs. A rota lista agrupado por `norm`
+
+### prompt_transcripts
+- `path` (PK), `size_bytes`, `indexed_at`
+- Até onde cada transcript foi lido: arquivo com o mesmo tamanho não é relido; o que cresceu tem as
+  linhas de `prompts` trocadas inteiras
 
 ### agent_sessions
 - `id` (uuid): no claude é também o `--session-id`, então retomar é `--resume <id>` na mesma linha

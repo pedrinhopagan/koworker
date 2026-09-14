@@ -1,13 +1,16 @@
-import { Copy, Inbox, Pencil } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Copy, FolderGit2, Inbox, MessageSquareText } from "lucide-react";
+import { useState } from "react";
 
 import type { RouterOutputs } from "@/client";
+import { AgentCliIcon } from "@/components/agent-radar/agent-cli";
 import { Text } from "@/components/typography";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Chip } from "@/components/ui/chip";
 import { EmptyFeedback } from "@/components/ui/empty-feedback";
 import { formatDateTime, relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
-import { PROMPT_HISTORY_KIND_LABEL } from "./prompt-history-kind";
+import { PROMPT_SOURCE_LABEL } from "./prompt-source";
 
 type PromptHistoryItem = RouterOutputs["promptHistory"]["list"]["items"][number];
 
@@ -15,27 +18,14 @@ type PromptHistoryListProps = {
 	items: PromptHistoryItem[];
 	loading: boolean;
 	onCopy: (item: PromptHistoryItem) => void;
-	onEdit: (item: PromptHistoryItem) => void;
 };
 
-function promptMeta(item: PromptHistoryItem) {
-	return [
-		item.projectName,
-		item.target,
-		item.routePath,
-		item.agentSlug ? `agent:${item.agentSlug}` : null,
-		item.skillSlug ? `skill:${item.skillSlug}` : null,
-		item.model,
-		item.effort,
-	].filter(Boolean);
-}
-
-export function PromptHistoryList({ items, loading, onCopy, onEdit }: PromptHistoryListProps) {
+export function PromptHistoryList({ items, loading, onCopy }: PromptHistoryListProps) {
 	if (loading) {
 		return (
 			<div className="flex flex-col gap-3">
 				{Array.from({ length: 6 }).map((_, index) => (
-					<div key={index} className="h-36 animate-pulse border border-border bg-muted/20" />
+					<div key={index} className="h-32 animate-pulse border border-border bg-muted/20" />
 				))}
 			</div>
 		);
@@ -46,7 +36,7 @@ export function PromptHistoryList({ items, loading, onCopy, onEdit }: PromptHist
 			<EmptyFeedback
 				icon={Inbox}
 				title="Nenhum prompt encontrado"
-				subtitle="Ajuste os filtros ou adicione um prompt manualmente."
+				subtitle="Ajuste os filtros ou mande um prompt pelo Claude ou pelo Codex."
 				className="min-h-72"
 			/>
 		);
@@ -55,81 +45,97 @@ export function PromptHistoryList({ items, loading, onCopy, onEdit }: PromptHist
 	return (
 		<div className="flex flex-col gap-3">
 			{items.map((item) => (
-				<PromptHistoryCard key={item.id} item={item} onCopy={onCopy} onEdit={onEdit} />
+				<PromptHistoryCard key={item.id} item={item} onCopy={onCopy} />
 			))}
 		</div>
 	);
 }
 
-type PromptHistoryCardProps = {
+function homeless(cwd: string) {
+	return cwd.replace(/^\/home\/[^/]+/, "~");
+}
+
+function PromptHistoryCard({
+	item,
+	onCopy,
+}: {
 	item: PromptHistoryItem;
 	onCopy: (item: PromptHistoryItem) => void;
-	onEdit: (item: PromptHistoryItem) => void;
-};
-
-function PromptHistoryCard({ item, onCopy, onEdit }: PromptHistoryCardProps) {
-	const meta = promptMeta(item);
-	const title = item.text.trim() || item.prompt;
+}) {
+	const [expanded, setExpanded] = useState(false);
 
 	return (
-		<article className="border border-border bg-card p-3 transition-colors hover:bg-secondary/30 md:p-4">
-			<div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start">
-				<div className="min-w-0 flex-1">
-					<div className="flex flex-wrap items-center gap-2">
-						<Chip variant="primary" size="sm">
-							{PROMPT_HISTORY_KIND_LABEL[item.kind]}
-						</Chip>
-						<Text size="xs" tone="muted" className="font-mono tabular-nums">
-							{relativeTimeFrom(item.createdAt)}
-						</Text>
-						<Text size="xs" tone="muted" className="hidden font-mono tabular-nums sm:inline">
-							{formatDateTime(item.createdAt)}
-						</Text>
-					</div>
+		<article className="border border-border bg-card p-3 shadow-xs transition-colors hover:bg-secondary/30 md:p-4">
+			<div className="flex min-w-0 flex-wrap items-center gap-2">
+				{item.sources.map(({ source, count }) => (
+					<Badge key={source} variant="muted" className="gap-1">
+						{source !== "copy" && <AgentCliIcon agent={source} className="size-3" />}
+						{PROMPT_SOURCE_LABEL[source]}
+						{count > 1 && <span className="tabular-nums">×{count}</span>}
+					</Badge>
+				))}
 
-					<Text
-						as="div"
-						size="sm"
-						className="mt-3 line-clamp-2 min-w-0 break-words font-medium text-foreground"
-					>
-						{title}
-					</Text>
+				{item.projectName && (
+					<Badge variant="outline" className="truncate">
+						{item.projectName}
+					</Badge>
+				)}
 
-					<pre className="mt-3 max-h-32 min-w-0 overflow-hidden whitespace-pre-wrap break-words border border-border bg-background/70 p-3 font-mono text-xs leading-relaxed text-muted-foreground">
-						{item.prompt}
-					</pre>
+				<span className="flex-1" />
 
-					{meta.length > 0 && (
-						<div className="mt-3 flex flex-wrap gap-1.5">
-							{meta.map((value) => (
-								<Chip key={value} variant="ghost" size="xs" className="max-w-full truncate">
-									{value}
-								</Chip>
-							))}
-						</div>
+				<Text
+					as="span"
+					size="xs"
+					tone="muted"
+					className="font-mono tabular-nums"
+					title={formatDateTime(item.lastSentAt)}
+				>
+					{relativeTimeFrom(item.lastSentAt)}
+				</Text>
+			</div>
+
+			<button
+				type="button"
+				onClick={() => setExpanded((current) => !current)}
+				className="mt-3 block w-full text-left"
+			>
+				<pre
+					className={cn(
+						"min-w-0 whitespace-pre-wrap break-words border border-border bg-background/70 p-3 font-mono text-xs leading-relaxed text-foreground",
+						!expanded && "line-clamp-6",
 					)}
-				</div>
+				>
+					{item.prompt}
+				</pre>
+			</button>
 
-				<div className={cn("grid shrink-0 grid-cols-2 gap-2", "lg:w-32 lg:grid-cols-1")}>
-					<Button
-						type="button"
-						variant="outline"
-						onClick={() => onCopy(item)}
-						className="h-11 md:h-9"
-					>
-						<Copy className="size-4" />
-						Copiar
+			<div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+				{item.cwd && (
+					<span className="inline-flex min-w-0 items-center gap-1 text-muted-foreground">
+						<FolderGit2 className="size-3 shrink-0" />
+						<Text as="span" size="xs" tone="muted" className="truncate font-mono">
+							{homeless(item.cwd)}
+						</Text>
+					</span>
+				)}
+
+				<span className="flex-1" />
+
+				{item.session && (
+					<Button asChild variant="ghost" size="sm">
+						<Link
+							to="/terminals/history/$cli/$sessionId"
+							params={{ cli: item.session.cli, sessionId: item.session.sessionId }}
+						>
+							<MessageSquareText className="size-4" />
+							Abrir conversa
+						</Link>
 					</Button>
-					<Button
-						type="button"
-						variant="ghost"
-						onClick={() => onEdit(item)}
-						className="h-11 md:h-9"
-					>
-						<Pencil className="size-4" />
-						Editar
-					</Button>
-				</div>
+				)}
+				<Button type="button" variant="outline" size="sm" onClick={() => onCopy(item)}>
+					<Copy className="size-4" />
+					Copiar
+				</Button>
 			</div>
 		</article>
 	);

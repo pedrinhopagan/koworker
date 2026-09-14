@@ -8,9 +8,10 @@ import { agentRadarAgentLabel } from "@/constants/agent-radar";
 const ALL = "todos";
 
 const CLI_ITEMS = [
-	{ id: ALL, label: "Claude e Codex" },
+	{ id: ALL, label: "Todas as CLIs" },
 	{ id: "claude", label: agentRadarAgentLabel("claude") },
 	{ id: "codex", label: agentRadarAgentLabel("codex") },
+	{ id: "opencode2", label: agentRadarAgentLabel("opencode2") },
 ];
 
 export type HistoryFiltersValue = {
@@ -33,7 +34,7 @@ export function HistoryFilters({
 	const projectItems = [{ id: ALL, name: "Todos os projetos" }, ...projects];
 
 	return (
-		<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+		<div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
 			<div className="relative flex-1">
 				<Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
 				<Input

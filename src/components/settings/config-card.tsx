@@ -36,7 +36,7 @@ export function ConfigCard({
 				className,
 			)}
 		>
-			<Icon icon={icon} size="sm" className={cn("mt-0.5", iconClassName)} />
+			<Icon icon={icon} size="sm" className="mt-0.5 shrink-0" iconClassName={iconClassName} />
 			<div className="space-y-1">
 				<Title as="h3" size="sm" className="text-sm font-semibold">
 					{title}

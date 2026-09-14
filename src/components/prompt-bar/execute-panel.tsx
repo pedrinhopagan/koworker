@@ -160,7 +160,7 @@ function PromptPreview({ prompt }: { prompt: string | null }) {
 				disabled={!prompt}
 				aria-label={expanded ? "Recolher prompt" : "Expandir prompt"}
 				aria-expanded={expanded}
-				className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground disabled:cursor-default disabled:hover:text-muted-foreground/50"
+				className="shrink-0 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-default disabled:opacity-40"
 			>
 				<ChevronRight
 					className={cn("h-3.5 w-3.5 transition-transform duration-150", expanded && "rotate-90")}

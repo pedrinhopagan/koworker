@@ -56,8 +56,8 @@ function HomePage() {
 			{!loading && project && (
 				<div className="space-y-7">
 					<HomeMasthead project={project} />
-					<div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
-						<div className="lg:col-span-7">
+					<div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+						<div className="min-h-80 lg:relative lg:col-span-7">
 							<HomeAgentsSummary />
 						</div>
 						<div className="lg:col-span-5">

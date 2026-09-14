@@ -41,8 +41,11 @@ export function HomeAgentsSummary() {
 	);
 
 	return (
-		<section aria-labelledby="attention-title" className="min-w-0">
-			<header className="mb-3 flex items-end justify-between gap-4 border-b border-border pb-3">
+		<section
+			aria-labelledby="attention-title"
+			className="animate-stagger-fade-in flex min-w-0 flex-col border border-border bg-card shadow-xs lg:absolute lg:inset-0"
+		>
+			<header className="flex shrink-0 items-end justify-between gap-4 border-b border-border px-4 py-4 sm:px-5">
 				<div>
 					<div className="flex items-center gap-2">
 						<CircleAlert className="size-4 text-warning" aria-hidden />
@@ -63,30 +66,32 @@ export function HomeAgentsSummary() {
 				</Text>
 			</header>
 
-			{loading && <Text tone="muted">Sincronizando agents...</Text>}
-			{!loading && attention.length === 0 && (
-				<div className="animate-stagger-fade-in relative overflow-hidden border border-dashed border-border bg-card/40 px-5 py-8">
-					<div
-						aria-hidden
-						className={cn(
-							"pointer-events-none absolute inset-0 opacity-60 [mask-image:linear-gradient(to_left,black,transparent_60%)]",
-							HOME_DOT_GRID,
-						)}
-					/>
-					<Radio className="relative size-5 text-muted-foreground" aria-hidden />
-					<Title as="h3" className="relative mt-3 text-base">
-						Nenhuma intervenção agora
-					</Title>
-					<Text size="sm" tone="muted" className="relative mt-1 max-w-md">
-						Não há agents bloqueados ou trabalhando. As sessões recentes continuam registradas
-						abaixo.
-					</Text>
+			<div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+				{loading && <Text tone="muted">Sincronizando agents...</Text>}
+				{!loading && attention.length === 0 && (
+					<div className="animate-stagger-fade-in relative overflow-hidden border border-dashed border-border bg-background/40 px-5 py-8">
+						<div
+							aria-hidden
+							className={cn(
+								"pointer-events-none absolute inset-0 opacity-60 [mask-image:linear-gradient(to_left,black,transparent_60%)]",
+								HOME_DOT_GRID,
+							)}
+						/>
+						<Radio className="relative size-5 text-muted-foreground" aria-hidden />
+						<Title as="h3" className="relative mt-3 text-base">
+							Nenhuma intervenção agora
+						</Title>
+						<Text size="sm" tone="muted" className="relative mt-1 max-w-md">
+							Não há agents bloqueados ou trabalhando. As sessões recentes continuam registradas
+							abaixo.
+						</Text>
+					</div>
+				)}
+				<div className="grid gap-3">
+					{attention.map((agent, index) => (
+						<HomeAgentCard key={agent.paneId} agent={agent} index={index} {...actions} />
+					))}
 				</div>
-			)}
-			<div className="grid gap-3">
-				{attention.map((agent, index) => (
-					<HomeAgentCard key={agent.paneId} agent={agent} index={index} {...actions} />
-				))}
 			</div>
 		</section>
 	);

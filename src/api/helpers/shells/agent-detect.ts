@@ -3,7 +3,7 @@ import { basename, join } from "node:path";
 
 // Mesmos slugs do radar (constants/agent-radar.ts): o item herda o rótulo e o ícone do card de
 // conversa sem tradução extra.
-const AGENT_PROCESS_NAMES = new Set(["claude", "codex", "opencode", "gemini", "pi"]);
+const AGENT_PROCESS_NAMES = new Set(["claude", "codex", "opencode", "opencode2", "gemini", "pi"]);
 
 async function processAgentSlug(pid: number, procRoot: string): Promise<string | null> {
 	const raw = await readFile(join(procRoot, String(pid), "cmdline"), "utf8").catch(() => null);
@@ -15,7 +15,8 @@ async function processAgentSlug(pid: number, procRoot: string): Promise<string |
 	// agent é o caminho do script e não o interpretador.
 	const args = raw.split("\0").filter(Boolean);
 	for (const arg of args.slice(0, 2)) {
-		const name = basename(arg);
+		// O opencode é distribuído como binário empacotado e chega com `.exe` no nome mesmo no Linux.
+		const name = basename(arg).replace(/\.exe$/, "");
 		if (AGENT_PROCESS_NAMES.has(name)) {
 			return name;
 		}

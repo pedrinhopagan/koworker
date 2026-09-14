@@ -2,9 +2,12 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
+import { DEFAULT_AGENT_CATEGORIES } from "@/constants/agent-categories";
 import { DEFAULT_CATEGORIES } from "@/constants/categories";
 import { expandTilde } from "../helpers/os-actions";
 import { defaultSystemSettings, setSystemSettings } from "../helpers/system-settings";
+import { dbAgentCategories } from "./agent-categories";
+import { dbAgentSettings } from "./agent-settings";
 import { dbAgentSourcePaths } from "./agent-source-paths";
 import { dbCategories } from "./categories";
 import { db } from "./connection";
@@ -31,6 +34,8 @@ const SEEDED_MARKER = "default_sources_seeded";
 // Marca própria das categorias default: separa o ciclo de vida delas do dos roots de SO, para que
 // semear uma não force a outra.
 const CATEGORIES_SEEDED_MARKER = "default_categories_seeded";
+
+const AGENT_CATEGORIES_SEEDED_MARKER = "default_agent_categories_seeded";
 
 // Garante que cada root default de plataforma exista com scope 'global', sem duplicar. Compara com o
 // til expandido para reconhecer linhas custom equivalentes (ex.: `~/.claude/skills`) e nunca remove
@@ -103,4 +108,39 @@ export async function ensureDefaultCategories() {
 	}
 
 	await dbSettings.set({ key: CATEGORIES_SEEDED_MARKER, value: "1" });
+}
+
+// Semeia, uma única vez, as categorias de agents e o ícone/cor/categoria de cada perfil conhecido.
+// Categoria existente por nome normalizado é reaproveitada; override que o usuário já gravou em
+// agent_settings (ícone, cor ou categoria) nunca é sobrescrito.
+export async function ensureDefaultAgentCategories() {
+	if (await dbSettings.has(AGENT_CATEGORIES_SEEDED_MARKER)) {
+		return;
+	}
+
+	const settingsBySlug = new Map((await dbAgentSettings.getAll()).map((row) => [row.slug, row]));
+
+	for (const category of DEFAULT_AGENT_CATEGORIES) {
+		const existing = await dbAgentCategories.findByNormalizedName(category.name);
+		const categoryId = existing?.id ?? crypto.randomUUID();
+		if (!existing) {
+			await dbAgentCategories.create({
+				id: categoryId,
+				name: category.name,
+				color: category.color,
+			});
+		}
+
+		for (const agent of category.agents) {
+			const current = settingsBySlug.get(agent.slug);
+			await dbAgentSettings.upsert({
+				slug: agent.slug,
+				icon: current?.icon ?? agent.icon,
+				color: current?.color ?? category.color,
+				categoryId: current?.category_id ?? categoryId,
+			});
+		}
+	}
+
+	await dbSettings.set({ key: AGENT_CATEGORIES_SEEDED_MARKER, value: "1" });
 }

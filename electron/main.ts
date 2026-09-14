@@ -114,6 +114,21 @@ function registerIpc() {
 	ipcMain.handle(DESKTOP_CHANNELS.hideWindow, hideWindow);
 	ipcMain.handle(DESKTOP_CHANNELS.showWindow, showWindow);
 	ipcMain.handle(DESKTOP_CHANNELS.toggleWindow, toggleWindow);
+	ipcMain.handle(DESKTOP_CHANNELS.minimizeWindow, () => mainWindow?.minimize());
+	ipcMain.handle(DESKTOP_CHANNELS.toggleMaximize, () => {
+		if (!mainWindow) {
+			return false;
+		}
+
+		if (mainWindow.isMaximized()) {
+			mainWindow.unmaximize();
+		} else {
+			mainWindow.maximize();
+		}
+
+		return mainWindow.isMaximized();
+	});
+	ipcMain.handle(DESKTOP_CHANNELS.isMaximized, () => mainWindow?.isMaximized() ?? false);
 	ipcMain.handle(DESKTOP_CHANNELS.pickProjectFolder, async (_event, startIn?: string) => {
 		const options = {
 			properties: ["openDirectory"],
@@ -237,6 +252,12 @@ async function createWindow() {
 	});
 	mainWindow.on("closed", () => {
 		mainWindow = null;
+	});
+	mainWindow.on("maximize", () => {
+		mainWindow?.webContents.send(DESKTOP_CHANNELS.maximizedChanged, true);
+	});
+	mainWindow.on("unmaximize", () => {
+		mainWindow?.webContents.send(DESKTOP_CHANNELS.maximizedChanged, false);
 	});
 	mainWindow.webContents.setWindowOpenHandler(({ url }) => {
 		if (url.startsWith("http://") || url.startsWith("https://")) {

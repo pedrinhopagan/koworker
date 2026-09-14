@@ -3,12 +3,13 @@ import { join } from "node:path";
 import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 import type { AgentTranscript } from "@/api/schemas/agent-radar-transcript";
 
-const TRANSCRIPT_CLIS = ["claude", "codex", "opencode"] as const;
+const TRANSCRIPT_CLIS = ["claude", "codex", "opencode", "opencode2"] as const;
 
 export type TranscriptCli = (typeof TRANSCRIPT_CLIS)[number];
 
 // O claude e o codex guardam a conversa num arquivo por sessão; o opencode guarda todas no mesmo
-// banco SQLite, então a fonte carrega também o id que acha a conversa lá dentro.
+// banco SQLite — as duas versões dele no mesmo arquivo, em tabelas diferentes — então a fonte
+// carrega também o id que acha a conversa lá dentro.
 const CLAUDE_PROJECTS_DIR = join(homedir(), ".claude", "projects");
 const CODEX_SESSIONS_DIR = join(homedir(), ".codex", "sessions");
 const OPENCODE_DB_PATH = join(homedir(), ".local", "share", "opencode", "opencode.db");
@@ -73,7 +74,9 @@ export async function locateAgentTranscript(
 		return null;
 	}
 
-	if (agent.sessionPath && cli !== "opencode") {
+	const opencode = cli === "opencode" || cli === "opencode2";
+
+	if (agent.sessionPath && !opencode) {
 		return (await Bun.file(agent.sessionPath).exists()) ? { cli, path: agent.sessionPath } : null;
 	}
 
@@ -81,7 +84,7 @@ export async function locateAgentTranscript(
 		return null;
 	}
 
-	if (cli === "opencode") {
+	if (opencode) {
 		return (await Bun.file(directories.opencodeDbPath).exists())
 			? { cli, path: directories.opencodeDbPath, sessionId: agent.sessionId }
 			: null;

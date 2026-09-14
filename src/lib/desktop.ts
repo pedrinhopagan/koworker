@@ -2,6 +2,10 @@ export type KoworkDesktopBridge = {
 	hideWindow: () => Promise<void>;
 	showWindow: () => Promise<void>;
 	toggleWindow: () => Promise<void>;
+	minimizeWindow: () => Promise<void>;
+	toggleMaximize: () => Promise<boolean>;
+	isMaximized: () => Promise<boolean>;
+	onMaximizedChange: (listener: (maximized: boolean) => void) => () => void;
 	pickProjectFolder: (startIn?: string) => Promise<string | null>;
 	openDevtools: () => Promise<boolean>;
 	getVersion: () => Promise<string>;
@@ -19,6 +23,22 @@ export function isDesktop(): boolean {
 
 export function hideWindow(): void {
 	void window.kowork?.hideWindow();
+}
+
+export function minimizeWindow(): void {
+	void window.kowork?.minimizeWindow();
+}
+
+export async function toggleMaximize(): Promise<boolean> {
+	return (await window.kowork?.toggleMaximize()) ?? false;
+}
+
+export async function isWindowMaximized(): Promise<boolean> {
+	return (await window.kowork?.isMaximized()) ?? false;
+}
+
+export function onWindowMaximizedChange(listener: (maximized: boolean) => void): () => void {
+	return window.kowork?.onMaximizedChange(listener) ?? (() => {});
 }
 
 export async function showWindow(): Promise<void> {

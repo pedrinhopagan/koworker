@@ -42,12 +42,7 @@ export {
 	PromptRunRetrySchema,
 } from "./prompt";
 export { PushSubscriptionSchema, PushUnsubscribeSchema } from "./notifications";
-export {
-	PromptHistoryCreateSchema,
-	PromptHistoryListSchema,
-	PromptHistoryRecordSchema,
-	PromptHistoryUpdateSchema,
-} from "./prompt-history";
+export { PromptCopySchema, PromptHistoryListSchema, PromptSourceSchema } from "./prompt-history";
 export {
 	ProjectRouteCreateSchema,
 	ProjectRouteIdSchema,
@@ -62,6 +57,11 @@ export {
 	ProjectReorderSchema,
 	ProjectUpdateSchema,
 } from "./projects";
+export {
+	AgentCategoryCreateSchema,
+	AgentCategoryIdSchema,
+	AgentCategoryUpdateSchema,
+} from "./agent-categories";
 export {
 	SkillCategoryCreateSchema,
 	SkillCategoryIdSchema,

@@ -38,19 +38,32 @@ function canonical(value: string) {
 	return resolved;
 }
 
+// A versão 2 do opencode guarda as conversas dela no mesmo arquivo de banco, em outra tabela: a
+// `session` é do 1 e a `session_v2` é do 2. Cada uma responde só pelas suas.
+export const OPENCODE_SESSION_TABLES = {
+	opencode: "session",
+	opencode2: "session_v2",
+} as const;
+
+export type OpencodeVariant = keyof typeof OPENCODE_SESSION_TABLES;
+
 // A sessão viva mais recente do diretório do pane. `parent_id` marca sessão de subagente (task
 // tool): adotar uma delas mostraria a conversa de um subagente no lugar da conversa real.
-export function locateOpencodeSessionByDirectory(cwd: string): string | null {
+export function locateOpencodeSessionByDirectory(
+	cwd: string,
+	variant: OpencodeVariant = "opencode",
+): string | null {
 	if (!opencodeDbExists()) {
 		return null;
 	}
 
+	const table = OPENCODE_SESSION_TABLES[variant];
 	const db = new Database(OPENCODE_DB_PATH, { readonly: true });
 	try {
 		const exact = (
 			db
 				.query(
-					`SELECT id FROM session
+					`SELECT id FROM ${table}
 					 WHERE parent_id IS NULL AND time_archived IS NULL AND directory = ?
 					 ORDER BY time_updated DESC LIMIT 1`,
 				)
@@ -65,7 +78,7 @@ export function locateOpencodeSessionByDirectory(cwd: string): string | null {
 		const target = canonical(cwd);
 		const rows = db
 			.query(
-				`SELECT id, directory FROM session
+				`SELECT id, directory FROM ${table}
 				 WHERE parent_id IS NULL AND time_archived IS NULL
 				 ORDER BY time_updated DESC LIMIT 200`,
 			)

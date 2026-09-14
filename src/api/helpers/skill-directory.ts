@@ -1,4 +1,5 @@
 import {
+	chmod,
 	cp,
 	lstat,
 	mkdir,
@@ -209,6 +210,53 @@ export async function readSkillDirectoryText(input: {
 	}
 
 	return new TextDecoder().decode(bytes);
+}
+
+// Grava um arquivo de texto da pasta da skill. `expectedHash` é o do manifesto lido: se o arquivo
+// mudou no disco (agent editando a mesma skill), a escrita falha em vez de sobrescrever. A troca é
+// atômica pelo rename de um temporário irmão, com o modo do original copiado — sobrescrever um
+// script direto pelo `Bun.write` derrubaria o bit de execução.
+export async function writeSkillDirectoryText(input: {
+	dir: string;
+	relativePath: string;
+	content: string;
+	expectedHash: string;
+}) {
+	const relativePath = validateSkillRelativePath(input.relativePath);
+	const manifest = await inspectSkillDirectory(input.dir);
+	const file = manifest.files.find((candidate) => candidate.path === relativePath);
+	if (!file) {
+		throw new Error(`Arquivo não encontrado: ${relativePath}`);
+	}
+	if (file.kind === "binary") {
+		throw new Error(`O arquivo ${relativePath} é binário e não pode ser editado`);
+	}
+	if (file.hash !== input.expectedHash) {
+		throw new Error(
+			`O arquivo ${relativePath} mudou desde a última leitura. Recarregue antes de salvar`,
+		);
+	}
+
+	const bytes = new TextEncoder().encode(input.content);
+	if (bytes.length > SKILL_TEXT_FILE_LIMIT) {
+		throw new Error(`O arquivo ${relativePath} excede o limite de 1 MiB`);
+	}
+
+	const target = join(manifest.canonicalRoot, ...relativePath.split("/"));
+	const targetStat = await lstat(target);
+	if (targetStat.isSymbolicLink() || !targetStat.isFile()) {
+		throw new Error(`Entrada não suportada em ${relativePath}`);
+	}
+
+	const temporary = join(dirname(target), `.${crypto.randomUUID()}.koworker-write`);
+	await Bun.write(temporary, bytes);
+	await chmod(temporary, targetStat.mode & 0o777);
+	await rename(temporary, target).catch(async (err) => {
+		await rm(temporary, { force: true });
+		throw err;
+	});
+
+	return { hash: Bun.hash(bytes).toString(), size: bytes.length };
 }
 
 export async function exportSkillDirectoryText(dir: string) {

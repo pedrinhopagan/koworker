@@ -1,6 +1,7 @@
 import Database from "bun:sqlite";
 
 import { envVariables } from "@/api/config/env";
+import { normalizePrompt } from "@/api/helpers/agent-history/prompt-text";
 import { allocateStorageKey, normalizeStorageSlug } from "@/api/helpers/task-storage-path";
 import { resolveProjectRouteIcon } from "@/constants/projects";
 import { pickTaskGroupColor } from "@/constants/tasks";
@@ -488,6 +489,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS task_storage_runs_active_project_unique_idx
 		}
 	}
 
+	// agent_settings.category_id: mesma história de skill_settings acima — a tabela agent_categories
+	// nasce no boot pelo @lobomfz/db; aqui só a coluna nova nos bancos já existentes.
+	if (!hasColumn(tableInfo(sqlite, "agent_settings"), "category_id")) {
+		ensureColumn(sqlite, "agent_settings", "category_id TEXT");
+	}
+
 	// agent_source_paths / skill_source_paths: os roots default de agents/skills deixaram de ser
 	// constantes no código e viraram linhas semeadas (scope 'global'); os cadastrados pelo usuário
 	// ficam 'custom'. A coluna nova em bancos já existentes nasce 'custom' (todas as linhas antigas
@@ -576,11 +583,47 @@ CREATE UNIQUE INDEX IF NOT EXISTS task_storage_runs_active_project_unique_idx
 	sqlite.exec(
 		"CREATE INDEX IF NOT EXISTS execution_runs_deleted_at_idx ON execution_runs (deleted_at)",
 	);
+	// prompts substitui prompt_history: o que foi despachado para claude/codex é reindexado a partir dos
+	// transcripts em disco, então só o que saiu pelo clipboard (`copy`) tem migração — é o único rastro
+	// de prompt colado fora das CLIs.
+	if (tableInfo(sqlite, "prompt_history").length > 0) {
+		const insert = sqlite.query(
+			"INSERT INTO prompts (id, source, prompt, norm, project_id, project_name, sent_at, created_at) VALUES (?, 'copy', ?, ?, ?, ?, ?, ?)",
+		);
+		const legacy = sqlite
+			.query<
+				{
+					id: string;
+					prompt: string;
+					project_id: string | null;
+					project_name: string | null;
+					created_at: number;
+				},
+				[]
+			>(
+				"SELECT id, prompt, project_id, project_name, created_at FROM prompt_history WHERE kind = 'copy'",
+			)
+			.all();
+
+		sqlite.transaction(() => {
+			for (const row of legacy) {
+				insert.run(
+					row.id,
+					row.prompt,
+					normalizePrompt(row.prompt),
+					row.project_id,
+					row.project_name,
+					row.created_at,
+					row.created_at,
+				);
+			}
+			sqlite.exec("DROP TABLE prompt_history");
+		})();
+	}
+	sqlite.exec("CREATE INDEX IF NOT EXISTS prompts_norm_idx ON prompts (norm)");
+	sqlite.exec("CREATE INDEX IF NOT EXISTS prompts_sent_at_idx ON prompts (sent_at)");
 	sqlite.exec(
-		"CREATE INDEX IF NOT EXISTS prompt_history_project_created_idx ON prompt_history (project_id, created_at)",
-	);
-	sqlite.exec(
-		"CREATE INDEX IF NOT EXISTS prompt_history_created_idx ON prompt_history (created_at)",
+		"CREATE INDEX IF NOT EXISTS prompts_transcript_path_idx ON prompts (transcript_path)",
 	);
 	sqlite.exec("CREATE INDEX IF NOT EXISTS task_groups_project_id_idx ON task_groups (project_id)");
 	sqlite.exec(

@@ -169,7 +169,7 @@ function CustomSelect<T extends { id: string }>({
 								className="min-w-0 flex-1 truncate text-left"
 							/>
 							<SelectPrimitive.Icon asChild>
-								<ChevronDown className="size-4 opacity-50" />
+								<ChevronDown className="size-4 text-muted-foreground" />
 							</SelectPrimitive.Icon>
 						</>
 					)}

@@ -4,6 +4,10 @@ import type { WorkingCli } from "@/constants/invoke";
 
 export type TerminalCli = "claude" | "codex";
 
+// CLIs que uma conversa do histórico pode retomar pelo id. O opencode 2 entra só aqui: ele não é
+// uma CLI que o app inicia com prompt, modelo e modo de permissão como as outras.
+export type ResumableCli = TerminalCli | "opencode2";
+
 export type CliStartParams = {
 	cli: TerminalCli;
 	prompt?: string;
@@ -71,10 +75,14 @@ export type CliResumeOptions = {
 // retomada é a troca de modelo de uma sessão viva: `/model` do claude persiste como padrão global e o
 // codex não troca por texto, então as duas reabrem com flags.
 export function cliResumeByIdArgv(
-	cli: TerminalCli,
+	cli: ResumableCli,
 	sessionId: string,
 	options: CliResumeOptions = {},
 ): string[] {
+	if (cli === "opencode2") {
+		return ["opencode2", "--session", sessionId];
+	}
+
 	if (cli === "codex") {
 		return [
 			"codex",

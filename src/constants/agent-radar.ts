@@ -9,6 +9,7 @@ const AGENT_RADAR_AGENT_LABELS: Record<string, string> = {
 	"claude-code": "Claude Code",
 	codex: "Codex",
 	opencode: "OpenCode",
+	opencode2: "OpenCode 2",
 	gemini: "Gemini CLI",
 	pi: "Pi",
 };

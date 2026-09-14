@@ -69,7 +69,7 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
   - `/tarefas/$taskId` e `/tarefas/$taskId/$file` permanecem como links legados e redirecionam por `replace`.
   - `/vault/$fileName` (`$fileName` é o nome do `.md` solto, ex. `notas.md` — não é uma task)
   - `/media/$fileName` (`$fileName` é o asset em `.koworker/medias/`; `?projectId` no search identifica o projeto)
-  - `/skills/$slug` (`$slug` é o slug da skill, ex. `commit` — edita o `SKILL.md` da pasta dona)
+  - `/skills/$slug` (`$slug` é o slug da skill, ex. `commit` — edita o `SKILL.md` e os demais arquivos de texto da pasta dona, escolhidos na faixa de arquivos)
   - `/agents/$slug` (`$slug` é o slug do agent, ex. `planner` — edita o `.md` da pasta dona)
   - `/terminals/$paneId` permanece como deep link legado e redireciona para `?tab=agent:<paneId>`.
   - `/terminals/history/$cli/$sessionId` (`$cli` é `claude` ou `codex`; `$sessionId` é o id que a própria CLI gravou no transcript)

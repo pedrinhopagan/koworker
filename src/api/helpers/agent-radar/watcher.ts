@@ -297,9 +297,11 @@ async function syncRadar(current: number) {
 				// OpenCode sem reporte: a integração não carregou nesta instância. Instala para as
 				// próximas e adota do banco a sessão mais recente daquele diretório, que é o único
 				// sinal disponível — todas as conversas moram no mesmo arquivo de banco.
-				if (pane.agent === "opencode" && !session.sessionId) {
-					void ensureOpencodeIntegration();
-					const adopted = locateOpencodeSessionByDirectory(pane.cwd);
+				if ((pane.agent === "opencode" || pane.agent === "opencode2") && !session.sessionId) {
+					if (pane.agent === "opencode") {
+						void ensureOpencodeIntegration();
+					}
+					const adopted = locateOpencodeSessionByDirectory(pane.cwd, pane.agent);
 
 					return [pane.pane_id, adopted ? { sessionId: adopted, path: null } : null] as const;
 				}

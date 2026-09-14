@@ -164,11 +164,16 @@ const { ensureDbSchema } = await import("./api/db/migrate");
 ensureDbSchema();
 
 // Semeia settings de SO e roots default de agents/skills por plataforma (primeira execução).
-const { ensureDefaultSettings, ensureDefaultCategories, migrateTerminalMultiplexerRename } =
-	await import("./api/db/seed-defaults");
+const {
+	ensureDefaultSettings,
+	ensureDefaultCategories,
+	ensureDefaultAgentCategories,
+	migrateTerminalMultiplexerRename,
+} = await import("./api/db/seed-defaults");
 await migrateTerminalMultiplexerRename();
 await ensureDefaultSettings();
 await ensureDefaultCategories();
+await ensureDefaultAgentCategories();
 
 const { purgeOrphanStorageLocks } = await import("./api/helpers/task-storage-coordinator");
 await purgeOrphanStorageLocks().catch((error) => {
@@ -192,6 +197,11 @@ const { startAgentRadar, stopAgentRadar } = await import("./api/helpers/agent-ra
 await startAgentRadar().catch((error) => {
 	console.error("Falha ao iniciar a central de agents:", error);
 });
+
+// Índice de prompts das CLIs: a primeira varredura depois do boot lê todo transcript novo; as
+// próximas, disparadas pela rota de prompts, só o que cresceu.
+const { startPromptIndexer } = await import("./api/helpers/agent-history/prompt-index");
+startPromptIndexer();
 
 let shuttingDown = false;
 

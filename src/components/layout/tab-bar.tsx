@@ -1,18 +1,17 @@
-import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Menu, SquarePen, X } from "lucide-react";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Menu, SquarePen } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { tv } from "tailwind-variants";
 import { getActiveTabLabel, MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
-import { NewVaultNoteButton } from "@/components/layout/sidebar-nav-actions";
+import { RoutePathButton } from "@/components/layout/route-path-button";
 import { isTabActive, tabs, topTabs } from "@/components/layout/tab-nav-config";
+import { WindowControls } from "@/components/layout/window-controls";
+import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useNavActionDialogsStore } from "@/hooks/use-nav-action-dialogs";
 import { useProjectFocus } from "@/hooks/use-project-focus";
-import { copyToClipboard } from "@/lib/build-prompt";
-import { hideWindow, isDesktop } from "@/lib/desktop";
+import { isDesktop } from "@/lib/desktop";
 import { cn } from "@/lib/utils";
-import { getWindowToggleShortcutTooltip } from "@/lib/window-shortcut";
 import { useSidebarNavStore } from "@/stores/sidebar-nav";
 
 const tabItem = tv({
@@ -25,35 +24,14 @@ const tabItem = tv({
 	},
 });
 
-const iconButton = tv({
-	base: "px-3 py-2 text-sm transition-colors cursor-pointer text-muted-foreground hover:text-foreground",
-	variants: {
-		active: {
-			true: "text-primary",
-		},
-	},
-});
-
-const routeDisplayPaths: Record<string, string> = {
-	"/tarefas/$taskId/": "/tarefas/$featureId",
-	"/tarefas/$taskId/$file": "/tarefas/$featureId/$taskId",
-	"/tarefas/$taskId/$file/$canonicalFile": "/tarefas/$featureId/$taskId/$file",
-};
-
 export function TabBar({ compact = false }: { compact?: boolean }) {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const currentPath = location.pathname;
-	const currentRoutePath = useRouterState({
-		select: (state) => state.matches.at(-1)?.fullPath ?? "/",
-	});
-	const displayPath =
-		routeDisplayPaths[currentRoutePath] ??
-		(currentRoutePath === "/" ? currentRoutePath : currentRoutePath.replace(/\/$/, ""));
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
 	const openActionDialog = useNavActionDialogsStore((s) => s.open);
 	const sidebarMode = useSidebarNavStore((s) => s.mode);
-	const { selectedProjectId, selectedProject, loading } = useProjectFocus();
+	const { selectedProjectId, selectedProject, accent, loading } = useProjectFocus();
 	const projectLabel =
 		selectedProjectId === undefined
 			? "Todos os projetos"
@@ -77,50 +55,60 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [navigate]);
 
-	async function handleCopyRoutePath() {
-		const ok = await copyToClipboard(displayPath);
-		toast[ok ? "success" : "error"](ok ? "Rota copiada" : "Falha ao copiar rota");
-	}
+	const mobileOnly = cn("flex md:hidden", compact && "md:flex");
+	const desktopOnly = cn("hidden md:flex", compact && "md:hidden");
 
 	return (
 		<>
 			<nav
 				className={cn(
-					"flex items-center border-b gap-2 md:gap-4 border-border bg-chrome select-none",
+					"flex h-12 items-center border-b border-border bg-chrome select-none md:h-auto",
 					isDesktop() && "desktop-drag-region cursor-grab active:cursor-grabbing",
 				)}
 			>
-				<button
-					type="button"
+				<Button
+					variant="ghost"
+					size="icon"
 					onClick={() => setMobileNavOpen(true)}
-					className={cn(
-						iconButton({ active: mobileNavOpen }),
-						"md:hidden min-h-12 min-w-12 px-4 py-3",
-						compact && "md:block",
-					)}
+					className={cn(mobileOnly, "size-12 text-muted-foreground hover:text-foreground")}
 					aria-label="Abrir menu de navegação"
+					aria-expanded={mobileNavOpen}
 				>
-					<Menu size={20} />
-				</button>
+					<Menu className="size-5" />
+				</Button>
 
-				<div
-					className={cn(
-						"min-w-0 flex-1 truncate text-sm font-medium text-foreground md:hidden",
-						compact && "md:block",
-					)}
-				>
-					{getActiveTabLabel(currentPath)}
+				<div className={cn(mobileOnly, "min-w-0 flex-1 flex-col justify-center")}>
+					<span className="truncate text-sm font-semibold text-foreground">
+						{getActiveTabLabel(currentPath)}
+					</span>
+					<span className="flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-muted-foreground">
+						{accent?.color && (
+							<span
+								aria-hidden
+								className="size-1.5 shrink-0 rounded-full"
+								style={{ backgroundColor: accent.color }}
+							/>
+						)}
+						<span className="truncate">{projectLabel}</span>
+					</span>
 				</div>
 
-				{sidebarMode === "compact" && !compact ? (
-					<div className="hidden min-w-0 self-stretch items-center border-r border-border md:flex">
-						<span className="max-w-44 truncate px-4 text-sm font-medium text-foreground">
+				{sidebarMode === "compact" && !compact && (
+					<div className="hidden min-w-0 items-center gap-2 self-stretch border-r border-border px-4 md:flex">
+						{accent?.color && (
+							<span
+								aria-hidden
+								className="size-2 shrink-0 rounded-sm"
+								style={{ backgroundColor: accent.color }}
+							/>
+						)}
+						<span className="max-w-44 truncate text-sm font-medium text-foreground">
 							{projectLabel}
 						</span>
 					</div>
-				) : null}
+				)}
 
-				<div className={cn("hidden md:flex", compact && "md:hidden")}>
+				<div className={desktopOnly}>
 					{topTabs.map((tab) => (
 						<Link
 							key={tab.path}
@@ -133,49 +121,35 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 					))}
 				</div>
 
-				<div className={cn("hidden md:block flex-1 text-center", compact && "md:hidden")}>
-					<Tooltip label="Copiar padrão da rota">
-						<button
-							type="button"
-							onClick={() => void handleCopyRoutePath()}
-							className="text-xs text-muted-foreground opacity-30 transition-opacity hover:opacity-70"
-						>
-							{displayPath}
-						</button>
-					</Tooltip>
+				<div className={cn(desktopOnly, "flex-1 items-center justify-center")}>
+					<RoutePathButton />
 				</div>
 
-				<div className={cn("md:hidden", compact && "md:block")}>
-					<NewVaultNoteButton
-						className={cn(iconButton(), "min-h-12 min-w-12 px-4 py-3")}
-						iconSize={20}
-					/>
-				</div>
+				<Button
+					variant="ghost"
+					size="icon"
+					onClick={() => openActionDialog("newTask")}
+					className={cn(mobileOnly, "size-12 text-muted-foreground hover:text-foreground")}
+					aria-label="Nova tarefa"
+				>
+					<SquarePen className="size-5" />
+				</Button>
 
-				<div className={cn("hidden items-center pr-1 md:flex", compact && "md:hidden")}>
+				<div className={cn(desktopOnly, "items-center gap-0.5 pr-1 self-stretch")}>
 					<Tooltip label="Nova tarefa">
-						<button
-							type="button"
+						<Button
+							variant="ghost"
+							size="icon-sm"
 							onClick={() => openActionDialog("newTask")}
-							className={iconButton()}
+							className="text-muted-foreground hover:text-foreground"
 							aria-label="Nova tarefa"
 						>
-							<SquarePen size={16} />
-						</button>
+							<SquarePen className="size-4" />
+						</Button>
 					</Tooltip>
-					{isDesktop() ? (
-						<Tooltip label={`Esconder janela — ${getWindowToggleShortcutTooltip()}`}>
-							<button
-								type="button"
-								onClick={() => hideWindow()}
-								className={cn(iconButton(), "hover:text-destructive")}
-								aria-label="Esconder janela"
-							>
-								<X size={16} />
-							</button>
-						</Tooltip>
-					) : null}
 				</div>
+
+				<WindowControls />
 			</nav>
 
 			<MobileNavDrawer open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />

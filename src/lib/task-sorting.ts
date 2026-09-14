@@ -12,10 +12,6 @@ export function sortTasksByMode(
 	const priorityLevel = new Map(priorities.map((priority) => [priority.id, priority.level]));
 
 	return [...tasks].sort((a, b) => {
-		if (a.done !== b.done) {
-			return a.done ? 1 : -1;
-		}
-
 		if (mode === "categoria") {
 			const aOrder = a.categoryId ? categoryOrder.get(a.categoryId) : undefined;
 			const bOrder = b.categoryId ? categoryOrder.get(b.categoryId) : undefined;
