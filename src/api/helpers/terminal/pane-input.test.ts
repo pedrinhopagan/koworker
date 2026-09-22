@@ -44,3 +44,12 @@ test("rajada de digitação com correção no meio", () => {
 		{ keys: ["left", "enter"] },
 	]);
 });
+
+test("preserva quebras de linha de prompt como Shift+Enter sem enviar antes do fim", () => {
+	expect(translatePaneInput(`linha um${ESC}[13;2ulinha dois\r`)).toEqual([
+		{ text: "linha um" },
+		{ keys: ["shift+enter"] },
+		{ text: "linha dois" },
+		{ keys: ["enter"] },
+	]);
+});

@@ -28,6 +28,7 @@ const SEQUENCE_KEYS: Record<string, string> = {
 	OC: "right",
 	OD: "left",
 	"[Z": "shift+tab",
+	"[13;2u": "shift+enter",
 };
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz";
