@@ -3,11 +3,6 @@ import { z } from "zod";
 import { INVOKE_CLIS, WORKING_CLIS } from "@/constants/invoke";
 import { SKILL_SLUG_PATTERN } from "@/constants/skill-slug";
 
-const ProjectRefSchema = z.object({
-	id: z.string(),
-	name: z.string(),
-});
-
 const PermissionModeSchema = z.enum([
 	"bypass",
 	"plan",
@@ -62,8 +57,4 @@ export const CloseProjectSessionSchema = z.object({
 export const CloseTaskWindowSchema = z.object({
 	projectId: z.string(),
 	taskId: z.string(),
-});
-
-export const InvocationSessionsSchema = z.object({
-	projects: ProjectRefSchema.array(),
 });

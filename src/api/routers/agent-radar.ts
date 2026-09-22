@@ -27,7 +27,6 @@ import {
 	kwTerminalPaneSendText,
 } from "../helpers/terminal/kw-terminal";
 import { revealKwTerminalClient } from "../helpers/terminal/service";
-import { getSystemSettings } from "../helpers/system-settings";
 import {
 	AgentRadarInterruptSchema,
 	AgentRadarPaneSchema,
@@ -159,14 +158,7 @@ export const agentRadarRouter = {
 			throw new ORPCError("NOT_FOUND", { message: "Falha ao focar o agent no kw-terminal" });
 		}
 
-		const settings = await getSystemSettings();
-		await revealKwTerminalClient({
-			config: {
-				template: settings.terminalTemplate,
-				multiplexer: settings.terminalMultiplexer,
-			},
-			workingDir: agent.cwd,
-		});
+		await revealKwTerminalClient({ workingDir: agent.cwd });
 
 		return { ok: true };
 	}),

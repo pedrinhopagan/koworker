@@ -3,6 +3,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join } from "node:path";
 
 import { getSystemSettings } from "./system-settings";
+import { kwTerminalAvailable } from "./terminal/kw-terminal";
 import { spawnEnv } from "./spawn";
 import { runSystemOpen } from "./system-open";
 import { zipDirectory } from "./zip";
@@ -211,11 +212,9 @@ async function copyFileToClipboard(zipPath: string): Promise<boolean> {
 }
 
 // Capacidades do host que a UI precisa conhecer, mas que só o backend sabe (ele roda na máquina do
-// usuário). A primeira versão Windows sai sem terminal — decisão do plano de portabilidade: a UI de
-// tarefas fica completa, a invocação por terminal chega depois. Nas demais plataformas o terminal é
-// um serviço do backend e está sempre disponível.
+// usuário). O terminal externo é o kw-terminal: sem ele instalado, ou no Windows, não há terminal.
 export function systemCapabilities(): { canOpenTerminal: boolean } {
-	return { canOpenTerminal: process.platform !== "win32" };
+	return { canOpenTerminal: kwTerminalAvailable() };
 }
 
 export type DirectorySuggestion = { name: string; path: string };

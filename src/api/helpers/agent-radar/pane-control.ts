@@ -10,25 +10,70 @@ import { spawnEnv } from "@/api/helpers/spawn";
 const RELEASE_GRACE_MS = 50;
 const MAX_COLS = 500;
 const MAX_ROWS = 500;
+// O daemon fecha todo frame posicionando o cursor e dizendo se ele aparece (`ESC[r;cH` e
+// `ESC[?25h`/`l`), então a cauda do frame basta para saber onde o caret da TUI está.
+const FRAME_TAIL_B64 = 128;
 
 export type ControlProcess = {
 	stdin: { write(text: string): unknown; flush?(): unknown };
+	stdout?: ReadableStream<Uint8Array>;
 	kill(): unknown;
 	exited: Promise<number>;
 };
+
+export type TerminalCursor = { row: number; col: number };
+
+type CursorState = TerminalCursor & { visible: boolean };
 
 type PaneControl = {
 	proc: ControlProcess;
 	cols: number;
 	rows: number;
+	cursor: CursorState | null;
 };
+
+// O `pane.read` não diz onde está o cursor; o stream do controller diz. Claude e Codex desenham o
+// caret com o cursor real do terminal, e sem ele o espelho mostrava o texto digitado sem posição.
+export function frameCursor(b64: string, previous: CursorState | null): CursorState | null {
+	const segments = Buffer.from(b64.slice(-FRAME_TAIL_B64), "base64")
+		.toString("latin1")
+		.split("\u001B[");
+	let position: RegExpExecArray | null = null;
+	let visible: boolean | null = null;
+	for (let index = segments.length - 1; index > 0 && (!position || visible === null); index--) {
+		const segment = segments[index]!;
+		position ??= /^(\d+);(\d+)H/.exec(segment);
+		if (visible === null && /^\?25[hl]/.test(segment)) {
+			visible = segment[3] === "h";
+		}
+	}
+
+	if (!position && visible === null) {
+		return previous;
+	}
+
+	return {
+		row: position ? Number(position[1]) : (previous?.row ?? 1),
+		col: position ? Number(position[2]) : (previous?.col ?? 1),
+		visible: visible ?? previous?.visible ?? false,
+	};
+}
+
+function frameBytes(line: string): string | null {
+	try {
+		const frame = JSON.parse(line) as { type?: string; bytes?: unknown };
+		return frame.type === "terminal.frame" && typeof frame.bytes === "string" ? frame.bytes : null;
+	} catch {
+		return null;
+	}
+}
 
 type SpawnImpl = (argv: string[]) => ControlProcess;
 
 function defaultSpawn(argv: string[]): ControlProcess {
 	return Bun.spawn(argv, {
 		stdin: "pipe",
-		stdout: "ignore",
+		stdout: "pipe",
 		stderr: "ignore",
 		env: spawnEnv(),
 	}) as unknown as ControlProcess;
@@ -90,8 +135,9 @@ export class PaneTerminalControls {
 				String(rows),
 				"--takeover",
 			]);
-			const control: PaneControl = { proc, cols, rows };
+			const control: PaneControl = { proc, cols, rows, cursor: null };
 			this.controls.set(paneId, control);
+			void this.follow(control);
 			void proc.exited.then(() => {
 				if (this.controls.get(paneId) === control) {
 					this.controls.delete(paneId);
@@ -121,6 +167,12 @@ export class PaneTerminalControls {
 		return { cols: control.cols, rows: control.rows };
 	}
 
+	cursor(paneId: string): TerminalCursor | null {
+		const cursor = this.controls.get(paneId)?.cursor;
+
+		return cursor?.visible ? { row: cursor.row, col: cursor.col } : null;
+	}
+
 	release(paneId: string): void {
 		const control = this.controls.get(paneId);
 		if (!control) {
@@ -140,6 +192,36 @@ export class PaneTerminalControls {
 	releaseAll(): void {
 		for (const paneId of this.controls.keys()) {
 			this.release(paneId);
+		}
+	}
+
+	// O stdout precisa ser drenado sempre: pipe cheio trava o controller e, com ele, o resize.
+	private async follow(control: PaneControl): Promise<void> {
+		const stdout = control.proc.stdout;
+		if (!stdout) {
+			return;
+		}
+
+		const reader = stdout.getReader();
+		const decoder = new TextDecoder();
+		let pending = "";
+		try {
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) {
+					return;
+				}
+				const lines = (pending + decoder.decode(value, { stream: true })).split("\n");
+				pending = lines.pop() ?? "";
+				for (const line of lines) {
+					const bytes = frameBytes(line);
+					if (bytes) {
+						control.cursor = frameCursor(bytes, control.cursor);
+					}
+				}
+			}
+		} catch {
+			control.cursor = null;
 		}
 	}
 

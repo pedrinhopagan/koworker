@@ -1,6 +1,6 @@
+import type { Server } from "bun";
 import { stat } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
-import type { Server } from "bun";
 import type { z } from "zod";
 
 import "./api/arktype";
@@ -11,9 +11,9 @@ import { registerWsSession, unregisterWsSession, type WsSessionData } from "./ap
 import { envVariables } from "./api/config/env";
 import { dbProjects } from "./api/db/projects";
 import { DbUsers } from "./api/db/users";
-import { createGeneratedProjectLogo } from "./api/helpers/generated-project-logo";
 import { serveFilePreview } from "./api/helpers/file-preview";
 import { verifyFilePreviewToken } from "./api/helpers/file-preview-access";
+import { createGeneratedProjectLogo } from "./api/helpers/generated-project-logo";
 import { isNotifyAuthorized } from "./api/helpers/notify-auth";
 import { resolveProjectLogo, resolveProjectLogoByName } from "./api/helpers/project-logo";
 import { assertSingleTenantRuntime } from "./api/helpers/terminal-access";
@@ -21,8 +21,8 @@ import { PubSub } from "./api/pubsub";
 import { TaskNotifySchema } from "./api/schemas";
 import { KwTerminalNavigateSchema } from "./api/schemas/kw-terminal";
 import homepage from "./index.html";
-import { staticCacheHeader } from "./lib/static-cache";
 import { DEFAULT_KOWORK_PORT } from "./lib/runtime-config";
+import { staticCacheHeader } from "./lib/static-cache";
 
 const isProduction = envVariables.NODE_ENV === "production";
 // hot-deploy grava KOWORK_DIST_DIR no ambiente; string vazia já vira undefined em env.ts
@@ -167,15 +167,10 @@ const { ensureDbSchema } = await import("./api/db/migrate");
 ensureDbSchema();
 
 // Semeia settings de SO e roots default de agents/skills por plataforma (primeira execução).
-const {
-	ensureDefaultSettings,
-	ensureDefaultCategories,
-	ensureDefaultAgentCategories,
-	migrateTerminalMultiplexerRename,
-} = await import("./api/db/seed-defaults");
-await migrateTerminalMultiplexerRename();
+const { ensureDefaultSettings, ensureDefaultAgentCategories, migrateLegacyTerminalSettings } =
+	await import("./api/db/seed-defaults");
+await migrateLegacyTerminalSettings();
 await ensureDefaultSettings();
-await ensureDefaultCategories();
 await ensureDefaultAgentCategories();
 
 const { purgeOrphanStorageLocks } = await import("./api/helpers/task-storage-coordinator");
@@ -200,11 +195,6 @@ const { startAgentRadar, stopAgentRadar } = await import("./api/helpers/agent-ra
 await startAgentRadar().catch((error) => {
 	console.error("Falha ao iniciar a central de agents:", error);
 });
-
-// Índice de prompts das CLIs: a primeira varredura depois do boot lê todo transcript novo; as
-// próximas, disparadas pela rota de prompts, só o que cresceu.
-const { startPromptIndexer } = await import("./api/helpers/agent-history/prompt-index");
-startPromptIndexer();
 
 let shuttingDown = false;
 

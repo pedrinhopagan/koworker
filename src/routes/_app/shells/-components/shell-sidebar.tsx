@@ -4,6 +4,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import type { TerminalWorkspaceEntry } from "@/api/schemas/terminal-workspace";
 import { ProjectLogo } from "@/components/project-logo";
 import { Text, Title } from "@/components/typography";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAgentRadarPreviews } from "@/hooks/use-agent-radar-previews";
 import { cn } from "@/lib/utils";
@@ -76,7 +77,7 @@ export function ShellSidebar({
 			)}
 		>
 			{!mobile && (
-				<div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
+				<div className="flex h-12 shrink-0 items-center gap-2 border-b border-border pr-1.5 pl-3">
 					<SquareTerminal className="size-4 text-primary" />
 					<Title as="h2" size="sm" className="flex-1">
 						Sessões
@@ -84,6 +85,15 @@ export function ShellSidebar({
 					<Text as="span" size="xs" tone="muted" className="font-mono">
 						{entries.length.toString().padStart(2, "0")}
 					</Text>
+					<Button
+						variant="ghost"
+						size="icon"
+						onClick={toggleMode}
+						aria-label="Recolher lista de sessões"
+						className="text-muted-foreground hover:text-foreground"
+					>
+						<PanelLeftClose className="size-4" />
+					</Button>
 				</div>
 			)}
 
@@ -151,17 +161,6 @@ export function ShellSidebar({
 			</div>
 
 			{mobile && actionBar}
-
-			{!mobile && (
-				<button
-					type="button"
-					onClick={toggleMode}
-					className="flex h-10 shrink-0 items-center justify-center gap-2 border-t border-border text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
-				>
-					<PanelLeftClose className="size-4" />
-					Recolher lista
-				</button>
-			)}
 		</aside>
 	);
 }

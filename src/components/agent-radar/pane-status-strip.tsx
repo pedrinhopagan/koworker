@@ -46,7 +46,7 @@ export function PaneStatusStrip({
 	return (
 		<div
 			className={cn(
-				"sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-background/95 px-3 py-2 backdrop-blur",
+				"sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-background/95 px-3 py-2 backdrop-blur max-lg:hidden",
 				agent.status === "blocked" && "border-warning/40 bg-warning/8",
 			)}
 		>

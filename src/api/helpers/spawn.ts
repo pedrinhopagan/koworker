@@ -124,8 +124,7 @@ export function collectStream(
 }
 
 // Roda um processo capturando stdout e stderr com teto de tempo: o timer mata o processo e sinaliza
-// o estouro por `timedOut`. Neutro de propósito — o chamador decide como tratar (o autofill vira
-// ORPCError; o runner de fluxo vira um evento de falha).
+// o estouro por `timedOut`. Neutro de propósito: o chamador decide como tratar.
 export async function spawnCapture(params: {
 	cmd: string[];
 	cwd: string;

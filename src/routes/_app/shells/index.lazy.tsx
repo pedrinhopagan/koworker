@@ -49,6 +49,8 @@ function ShellsWorkspacePage() {
 	if (view.key !== activeKey) {
 		setView({ key: activeKey, mode: "conversation" });
 	}
+	// Sem transcript não há conversa para mostrar: o terminal, com o composer embaixo, é o chat.
+	const mode = activeEntry?.capabilities.converse ? view.mode : "terminal";
 
 	// Conversa em trânsito (modelo trocado, CLI trocada): a aba atual fica de pé enquanto o pane
 	// antigo some e a URL só muda quando o pane novo entra no snapshot.
@@ -150,6 +152,8 @@ function ShellsWorkspacePage() {
 				</>
 			)}
 
+			{!showList && connecting}
+
 			{!showList && (
 				<ShellWorkspace
 					rail={
@@ -167,7 +171,6 @@ function ShellsWorkspacePage() {
 						)
 					}
 				>
-					{connecting}
 					<ShellCockpitHeader
 						entry={activeEntry}
 						entries={entries}
@@ -175,8 +178,8 @@ function ShellsWorkspacePage() {
 						canReopen={canReopen}
 						reopening={reopening}
 						actions={actions}
-						agentMode={view.mode}
-						onAgentModeChange={(mode) => setView({ key: activeKey, mode })}
+						agentMode={mode}
+						onAgentModeChange={(next) => setView({ key: activeKey, mode: next })}
 						onSelect={select}
 						onBack={backToList}
 						onNew={() => openSession("shell")}
@@ -188,8 +191,8 @@ function ShellsWorkspacePage() {
 							<TerminalWorkspaceViewport
 								entry={activeEntry}
 								actions={actions}
-								agentMode={view.mode}
-								onModeChange={(mode) => setView({ key: activeKey, mode })}
+								agentMode={mode}
+								onModeChange={(next) => setView({ key: activeKey, mode: next })}
 							/>
 						)}
 						{!activeEntry && !loading && move && (

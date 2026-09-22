@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { PaneTerminalControls, type ControlProcess } from "./pane-control";
+import { frameCursor, PaneTerminalControls, type ControlProcess } from "./pane-control";
 
 type FakeProcess = ControlProcess & {
 	writes: string[];
@@ -143,5 +143,32 @@ describe("PaneTerminalControls", () => {
 		await Bun.sleep(80);
 		expect(spawned[0]!.killed).toBe(true);
 		expect(spawned[1]!.killed).toBe(false);
+	});
+});
+
+function frame(ansi: string) {
+	return Buffer.from(ansi, "latin1").toString("base64");
+}
+
+describe("frameCursor", () => {
+	test("a cauda do frame diz onde a TUI deixou o cursor e se ele aparece", () => {
+		const shown = frame(
+			`${"x".repeat(400)}\u001B[36;100H\u001B[0m\u001B[33;3H\u001B[?25h\u001B[?2026l\u001B[33;3H\u001B[?25h`,
+		);
+		expect(frameCursor(shown, null)).toEqual({ row: 33, col: 3, visible: true });
+
+		const hidden = frame(
+			"\u001B[12;1H\u001B[0m\u001B[24;80H\u001B[?25l\u001B[?2026l\u001B[24;80H\u001B[?25l",
+		);
+		expect(frameCursor(hidden, { row: 33, col: 3, visible: true })).toEqual({
+			row: 24,
+			col: 80,
+			visible: false,
+		});
+	});
+
+	test("frame sem cursor mantém o estado anterior", () => {
+		const previous = { row: 5, col: 7, visible: true };
+		expect(frameCursor(frame("\u001B[0;39;49m texto"), previous)).toBe(previous);
 	});
 });

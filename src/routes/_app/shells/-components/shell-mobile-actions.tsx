@@ -30,20 +30,33 @@ export function ShellMobileActions({
 					Reabrir terminais
 				</Button>
 			)}
-			<div className="grid grid-cols-2 gap-2">
-				<Button variant="outline" className="h-12" onClick={() => onConversation("claude")}>
+			<div className="grid grid-cols-4 gap-1.5">
+				<Button
+					variant="outline"
+					className="h-14 flex-col gap-1 px-1 text-xs"
+					onClick={() => onConversation("claude")}
+				>
 					<AgentCliIcon agent="claude" className="size-4" />
 					Claude
 				</Button>
-				<Button variant="outline" className="h-12" onClick={() => onConversation("codex")}>
+				<Button
+					variant="outline"
+					className="h-14 flex-col gap-1 px-1 text-xs"
+					onClick={() => onConversation("codex")}
+				>
 					<AgentCliIcon agent="codex" className="size-4" />
 					Codex
 				</Button>
-				<Button variant="outline" className="h-12" onClick={onPersonal}>
+				<Button
+					variant="outline"
+					className="h-14 flex-col gap-1 px-1 text-xs"
+					aria-label="Codex pessoal"
+					onClick={onPersonal}
+				>
 					<AgentCliIcon agent="codex" className="size-4" />
-					Codex pessoal
+					Pessoal
 				</Button>
-				<Button variant="outline" className="h-12" onClick={onShell}>
+				<Button variant="outline" className="h-14 flex-col gap-1 px-1 text-xs" onClick={onShell}>
 					<SquareTerminal className="size-4" />
 					Shell
 				</Button>

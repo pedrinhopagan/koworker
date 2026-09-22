@@ -4,6 +4,7 @@ import type {
 } from "@/api/schemas/terminal-workspace";
 
 import { getRadarFocus, listRadarAgents } from "./agent-radar/state";
+import { transcriptCli } from "./agent-radar/transcript/locate";
 import { shellRuntime } from "./shells/supervisor";
 import { getTerminalWorkspaceRevision } from "./terminal-workspace-events";
 
@@ -76,7 +77,9 @@ export function terminalWorkspaceSnapshot(): TerminalWorkspaceSnapshot {
 		createdAt: null,
 		changedAt: agent.changedAt,
 		exitCode: null,
-		capabilities: AGENT_CAPABILITIES,
+		// Sem transcript legível (gemini, pi…) não existe conversa: o pane abre no terminal, e o
+		// composer de lá é o chat.
+		capabilities: { ...AGENT_CAPABILITIES, converse: !!transcriptCli(agent.agent) },
 	}));
 
 	return {

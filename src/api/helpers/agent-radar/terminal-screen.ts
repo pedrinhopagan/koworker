@@ -100,7 +100,9 @@ async function tick(paneId: string, reader: ScreenReader) {
 		}
 
 		reader.failing = false;
-		const signature = `${cols}x${rows}@${reader.offset}\n${read.ansi}`;
+		// Rolado no histórico, o cursor do vivo não pertence à janela publicada.
+		const cursor = reader.offset > 0 ? null : paneTerminalControls.cursor(paneId);
+		const signature = `${cols}x${rows}@${reader.offset}:${cursor ? `${cursor.row},${cursor.col}` : "-"}\n${read.ansi}`;
 		if (signature !== reader.last) {
 			reader.last = signature;
 			await PubSub.publish("agentTerminalScreen", paneId, {
@@ -110,6 +112,7 @@ async function tick(paneId: string, reader: ScreenReader) {
 				cols,
 				rows,
 				offset: reader.offset,
+				cursor,
 			});
 		}
 	} catch (error) {
@@ -155,7 +158,14 @@ export async function* subscribeAgentTerminalScreen(paneId: string, signal?: Abo
 
 		const size = paneTerminalControls.grid(paneId) ?? (await kwTerminalPaneSize(paneId));
 		const read = await kwTerminalPaneRead(paneId);
-		yield { paneId, ansi: read.ansi, revision: read.revision, offset: reader.offset, ...size };
+		yield {
+			paneId,
+			ansi: read.ansi,
+			revision: read.revision,
+			offset: reader.offset,
+			cursor: reader.offset > 0 ? null : paneTerminalControls.cursor(paneId),
+			...size,
+		};
 		yield* events;
 	} finally {
 		reader.readers -= 1;

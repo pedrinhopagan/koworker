@@ -2,7 +2,7 @@
 
 ## OBJETIVO
 
-Gerenciar terminais integrados ao Kowork para execução de AI Coding Agents. Cada projeto tem sua própria sessão (workspace tmux/kw-terminal ou janela isolada no modo none), e cada tarefa pode ter sua própria tab/window.
+Gerenciar o terminal externo do Kowork para execução de AI Coding Agents. O terminal externo é sempre o kw-terminal: cada projeto tem seu workspace e cada tarefa ou rota pode ter sua própria tab. Os shells integrados (PTY do próprio app, rota `/shells`) são outro sistema e não passam por aqui.
 
 ## ARQUITETURA
 
@@ -13,13 +13,12 @@ Frontend (React)                    Backend (Bun + ORPC)
 │   terminal.ts   │ ── ORPC ────▶ │ routers/terminal.ts  │
 └────────┬────────┘                │ helpers/terminal/    │
          │                          │   service.ts         │
-         │                          │ tmux.ts | kw-terminal.ts │
+         │                          │   kw-terminal.ts     │
          │                          └──────────┬───────────┘
          │                                     │
          │                                     ▼
          │                          ┌──────────────────────┐
-         │                          │ Multiplexador        │
-         │                          │ tmux | kw-terminal | none │
+         │                          │ kw-terminal server   │
          │                          └──────────┬───────────┘
          │                                     │
          ▼                                     ▼
@@ -29,17 +28,17 @@ Frontend (React)                    Backend (Bun + ORPC)
 └─────────────────┘                └──────────────────────┘
 ```
 
-O frontend fala só com ORPC (`src/lib/terminal.ts`). O backend resolve template + multiplexador a partir das settings do sistema e delega ao adapter `tmux`, `kw-terminal` ou `none`. Todos implementam o mesmo contrato de abrir, consultar, listar e encerrar sessões, windows e invocações.
+O frontend fala só com ORPC (`src/lib/terminal.ts`). O backend abre, consulta, lista e encerra workspaces e tabs do kw-terminal.
 
-## MULTIPLEXADORES
+## KW-TERMINAL
 
-| Modo | Sessão do projeto | Window da tarefa | Attach / foco |
-|------|-------------------|------------------|---------------|
-| `tmux` | Sessão `kw_<slug>` | Window tmux | Emulador via `terminal_template` + `tmux attach` |
-| `kw-terminal` | Workspace `--label sessionName` | Tab `--label windowName` | `kw-terminal workspace focus` + `kw-terminal tab focus`; spawna emulador com o cliente TUI se nenhum estiver aberto, depois foco WM |
-| `none` | N/A (só tracking em memória) | Processo do emulador | Cada abertura spawna janela nova |
+| Sessão do projeto | Tab da tarefa/rota | Foco |
+|-------------------|--------------------|------|
+| Workspace `--label sessionName` | Tab `--label windowName` | `kw-terminal workspace focus` + `kw-terminal tab focus`; sem cliente TUI aberto, abre a janela do kw-terminal e depois foca pelo WM |
 
-Configuração em `/sistema`: chave `terminal_multiplexer` (`tmux` | `none` | `kw-terminal`) e `terminal_template` (usado no spawn de emulador nos três modos: attach do tmux, cliente TUI do kw-terminal e janela do none).
+Não há configuração. A janela do cliente TUI é fixa por plataforma (`kwTerminalWindowArgv`): Alacritty no Linux e Terminal.app no macOS. As chaves antigas `terminal_multiplexer` e `terminal_template` são apagadas no boot (`migrateLegacyTerminalSettings`, só Linux/macOS).
+
+Disponibilidade: `kwTerminalAvailable()` exige Linux ou macOS com o binário `kw-terminal` no PATH. É o que `system.capabilities.canOpenTerminal` responde e o que `ensureKwTerminalServer` confere antes de tudo. Sem suporte (Windows, ou kw-terminal ausente) a abertura falha com "Terminal externo indisponível" e o launchpad do projeto mostra o aviso; não existe outro terminal de reserva.
 
 ## ESTRUTURA DE ARQUIVOS
 
@@ -60,14 +59,10 @@ src/api/
 ├── routers/terminal.ts      # Router ORPC (procedures + WS)
 ├── helpers/terminal/
 │   ├── service.ts           # Orquestração (open/close/monitor)
-│   ├── tmux.ts              # Adapter tmux
-│   ├── kw-terminal.ts       # Adapter kw-terminal CLI
+│   ├── kw-terminal.ts       # CLI do kw-terminal, disponibilidade e janela do cliente TUI
 │   ├── names.ts             # Labels estáveis (session/window)
-│   ├── focus.ts             # Foco WM (best-effort)
-│   └── emulator.ts          # Spawn de emulador (tmux/none)
+│   └── focus.ts             # Foco WM (best-effort)
 └── schemas/terminal.ts      # Schemas Zod de entrada
-
-src/constants/terminal.ts    # Presets de emulador + multiplexadores
 ```
 
 ## API FRONTEND
@@ -184,6 +179,16 @@ seletor de sessão, a alternância Conversa/Terminal, o atalho da tarefa vincula
 aba que deixou de existir devolve à lista em vez de pular para a primeira sessão. No desktop a
 seleção automática e a sidebar continuam iguais.
 
+No toque todo terminal é um chat. A visão Terminal (espelho do agent e shell embutido) tem, abaixo
+da faixa de teclas, o mesmo composer da conversa (`TerminalComposer`, com rascunho compartilhado
+com a visão Conversa, ditado, colar e multilinha): no agent o texto vai por `agentRadar.send`, no
+shell por `paste` do xterm, que respeita o bracketed paste do programa, seguido de Enter. Tocar na
+tela não sobe o teclado (`inputmode="none"` no textarea do xterm); digitar direto, para vim ou
+prompt de senha, é o botão de teclado da faixa, até o foco sair. A visão Conversa só existe onde o
+app lê o transcript (`converse` = claude, codex, opencode); os demais agents abrem direto no
+terminal, e o composer dele é o chat. A faixa de status da conversa some abaixo de 1024px, porque o
+header já mostra projeto, modelo e estado.
+
 Citação de arquivo na conversa — link markdown, `código` com cara de caminho (`src/a.ts:12`,
 `package.json`) e o alvo de um passo do rastro (Read, Edit…) — resolve pelo `system.resolveLink` com o
 `cwd` do agent. Em loopback ou no Electron o arquivo abre no app padrão do SO (`system.openPath`);
@@ -223,9 +228,12 @@ redesenham perto de 9 Hz, e o laço captura tudo.
 
 No cliente, a tela chega inteira mas só as linhas que mudaram são repintadas, endereçadas por
 posição absoluta com autowrap desligado — reescrever o grid a cada quadro era o que fazia o espelho
-piscar. O cursor fica escondido porque `pane.read` não reporta linha e coluna; quem desenha o caret
-é a TUI do agent. A fonte é fixa (a mesma do alacritty/kw-terminal da máquina: Noto Sans Mono a
-16px, `lib/terminal-look.ts`).
+piscar. O `pane.read` não reporta linha e coluna do cursor, e Claude e Codex desenham o caret com o
+cursor real do terminal; quem sabe onde ele está é o stream do controller (abaixo). Cada frame do
+daemon termina com `ESC[r;cH` e `ESC[?25h`/`l`, então a ponte lê só a cauda do frame
+(`frameCursor`), publica `cursor` junto com a tela e o cliente posiciona o cursor depois do patch.
+Sem controller, ou com o espelho rolado no histórico, o cursor fica escondido. A fonte é fixa (a
+mesma do alacritty/kw-terminal da máquina: Noto Sans Mono a 16px, `lib/terminal-look.ts`).
 
 O tamanho do grid não é mais da TUI: com a visão Terminal aberta, o backend vira o **controller do
 PTY** — um `kw-terminal terminal session control <paneId> --cols N --rows N --takeover` por pane
@@ -236,7 +244,9 @@ grid publicado no stream é o do controller — o `pane.layout` continua com o r
 publicá-lo recortava a largura do espelho na janela do kw-terminal. Ao fechar a visão (último
 leitor do stream sai), o controller recebe `terminal.release` e cai, e o daemon remove o lock e
 devolve o pane ao tamanho do layout. Resize que o daemon recusar (versão velha, pane morto) não
-derruba o espelho: ele segue em leitura, centrado no grid que o pane tiver.
+derruba o espelho: ele segue em leitura, centrado no grid que o pane tiver. O stdout do controller
+(linhas `terminal.frame`) é drenado sempre, porque pipe cheio trava o processo; dele só sai o
+cursor.
 
 O wheel do espelho é dono dele mesmo. Com `scrollback: 0`, o xterm convertia cada rolagem em seta
 ↑/↓ pro pane (`!buffer.hasScrollback` dispara a emulação de alternate scroll dele) — o transcript
@@ -400,8 +410,8 @@ Jobs rodam no workspace dedicado `kw_execucoes`, uma tab por run
 por `tee` para `$TMPDIR/kowork-executions/<runId>.log`; o backend acompanha esse log
 (`readNewLogBytes`) e mantém o rastreamento do run (status, passos, output) exatamente como no modo
 headless. Exit code sai em `<runId>.exit`. Cancelamento fecha a tab; fechar a tab por fora encerra o
-run como cancelado. Fallback: multiplexador diferente de kw-terminal ou falha ao abrir a tab caem no
-spawn headless. O watcher do radar exclui esse workspace, portanto o job não ganha entrada
+run como cancelado. Sem kw-terminal (ou falha ao abrir a tab) o job roda headless: a tab era só o
+espelho da saída, que continua visível na própria execução. O watcher do radar exclui esse workspace, portanto o job não ganha entrada
 conversacional, preview de transcript ou composer. Implementação: `src/api/helpers/execution-terminal.ts`
 e `runViaKwTerminal` em `src/api/helpers/prompt-run.ts`.
 
@@ -429,17 +439,16 @@ Maps por `projectId` / `taskId`; `handleEvent` reage aos quatro tipos de evento.
 - O daemon `kw-terminal server` é dono do próprio ciclo de vida: o backend o lança FORA do seu cgroup (`spawnDetachedFromService`, unidade transitória do systemd), porque filho direto morre no restart de `kowork-backend.service` e arrasta todas as panes e agents junto. Nunca spawne processos de longa vida como filhos diretos do serviço
 - Build/deploy não pode usar kill por padrão largo (`pkill`/`killall`): morte de processo é por PID, com padrão ancorado ao binário exato; só `kowork-backend.service` e unidades de redeploy/kw-terminal podem ser reiniciadas. Guarda automatizada em `scripts/desktop/deploy-guard.test.ts`
 - Foco de janela WM suporta Wayland (kdotool) e X11 (xdotool); no kw-terminal é best-effort após focus CLI, casando o título fixo "kw-terminal - Kowork"
-- Sessões tmux/kw-terminal são monitoradas a cada 3s para detectar fechamento externo
-- Modo kw-terminal auto-inicia o server headless (`kw-terminal server`) quando não está rodando e abre o cliente TUI (`kw-terminal session attach default`) num emulador quando nenhum está aberto, detectado por `pgrep`
-- Sem migração automática entre multiplexadores; sessões antigas permanecem no modo original
+- Workspaces e tabs abertos pelo Kowork são monitorados a cada 3s para detectar fechamento externo
+- O backend auto-inicia o server headless (`kw-terminal server`) quando não está rodando e abre o cliente TUI (`kw-terminal session attach default`) numa janela quando nenhum está aberto, detectado por `pgrep`
 
 ## FLUXO DE EXECUÇÃO
 
 1. Frontend chama `executeInTerminal` → ORPC `openForTask`
-2. Backend lê `TerminalConfig` (template + multiplexador)
-3. Cria ou reutiliza sessão/workspace e tab/window conforme labels
-4. Envia comando ao pane (`kw-terminal pane run` / `tmux send-keys` / argv no emulador)
-5. Se `background: false`, foca workspace/tab e garante um emulador atachado (tmux) ou um cliente TUI aberto (kw-terminal), depois foco WM
+2. Backend garante o `kw-terminal server` (falha com "Terminal externo indisponível" sem kw-terminal)
+3. Cria ou reutiliza workspace e tab conforme labels
+4. Envia comando ao pane (`kw-terminal pane run`)
+5. Se `background: false`, foca workspace/tab e garante um cliente TUI aberto, depois foco WM
 6. Publica eventos no PubSub
 7. Frontend atualiza store via WebSocket
 
@@ -447,15 +456,14 @@ Maps por `projectId` / `taskId`; `handleEvent` reage aos quatro tipos de evento.
 
 **Runtime:**
 
-- `tmux` (modo tmux)
-- `kw-terminal` com server rodando (modo kw-terminal)
-- Emulador configurado no template (modo tmux/none/kw-terminal)
+- `kw-terminal` no PATH (Linux ou macOS)
+- Alacritty no Linux para a janela do cliente TUI (Terminal.app no macOS)
 - `kdotool`/`xdotool` (foco WM, best-effort)
 
 ## ANTI-PATTERNS
 
 | Proibido | Correto |
 |----------|---------|
-| Chamar tmux/kw-terminal direto do frontend | Usar funções de `terminal.ts` |
+| Chamar o kw-terminal direto do frontend | Usar funções de `terminal.ts` |
 | Assumir ID volátil kw-terminal após restart | Lookup por label (`sessionName` / `windowName`) |
 | Ignorar erros | Sempre tratar e mostrar toast |

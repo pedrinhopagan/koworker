@@ -1,10 +1,16 @@
+import { useMutation } from "@tanstack/react-query";
 import type { Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
-import { TerminalConnectionStatus, TerminalToolbar } from "@/components/terminal-toolbar";
+import {
+	TerminalComposer,
+	TerminalConnectionStatus,
+	TerminalToolbar,
+} from "@/components/terminal-toolbar";
 import { errorMessage } from "@/lib/orpc-errors";
 import { History } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { orpc } from "@/client";
 import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { TERMINAL_FONT_FAMILY, TERMINAL_FONT_SIZE } from "@/lib/terminal-look";
 import {
@@ -35,9 +41,18 @@ export function buildScreenPatch(previous: string[], lines: string[], rows: numb
 	return patch && `${patch}\u001B[0m`;
 }
 
+export function screenCursor(cursor: { row: number; col: number } | null) {
+	return cursor ? `\u001B[${cursor.row};${cursor.col}H\u001B[?25h` : "\u001B[?25l";
+}
+
 export function AgentTerminalView({ paneId }: { paneId: string }) {
 	const { agents } = useAgentRadar();
-	const cwd = agents.find((agent) => agent.paneId === paneId)?.cwd;
+	const agent = agents.find((candidate) => candidate.paneId === paneId);
+	const cwd = agent?.cwd;
+	const send = useMutation({
+		...orpc.agentRadar.send.mutationOptions(),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível enviar ao terminal")),
+	});
 	const frameRef = useRef<HTMLDivElement>(null);
 	const hostRef = useRef<HTMLDivElement>(null);
 	const [terminalInstance, setTerminalInstance] = useState<Terminal | null>(null);
@@ -60,7 +75,8 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 			options: {
 				fontSize: TERMINAL_FONT_SIZE,
 				fontFamily: TERMINAL_FONT_FAMILY,
-				cursorBlink: false,
+				cursorBlink: true,
+				cursorInactiveStyle: "block",
 				scrollback: 0,
 			},
 		});
@@ -211,8 +227,15 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 		let previous: string[] = [];
 		let cols = 0;
 		let rows = 0;
+		let caret = "";
 
-		function paint(screen: { ansi: string; cols: number; rows: number; offset: number }) {
+		function paint(screen: {
+			ansi: string;
+			cols: number;
+			rows: number;
+			offset: number;
+			cursor: { row: number; col: number } | null;
+		}) {
 			if (disposed) {
 				return;
 			}
@@ -228,13 +251,16 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 				terminal.reset();
 				terminal.write(SCREEN_INIT);
 				previous = [];
+				caret = "";
 			}
 
 			const lines = screen.ansi.split(/\r?\n/);
 			const patch = buildScreenPatch(previous, lines, rows);
 			previous = lines;
-			if (patch) {
-				terminal.write(patch);
+			const nextCaret = screenCursor(screen.cursor);
+			if (patch || nextCaret !== caret) {
+				caret = nextCaret;
+				terminal.write(patch + nextCaret);
 			}
 		}
 
@@ -258,6 +284,7 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 			},
 			onReconnect: () => {
 				previous = [];
+				caret = "";
 				requestedCols = requestedRows = 0;
 				layout.request();
 			},
@@ -304,6 +331,21 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 				terminal={terminalInstance}
 				disabled={!connected}
 				onScrollToEnd={() => scrollToLiveRef.current()}
+			/>
+			<TerminalComposer
+				draftKey={`kowork-radar-draft-${paneId}`}
+				cli={agent?.agent}
+				projectName={agent?.projectName}
+				disabled={!connected || !agent}
+				onSend={async (text) => {
+					scrollToLiveRef.current();
+					try {
+						await send.mutateAsync({ paneId, text });
+						return true;
+					} catch {
+						return false;
+					}
+				}}
 			/>
 		</div>
 	);

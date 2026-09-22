@@ -5,9 +5,9 @@ import {
 } from "@/constants/agent-radar";
 import { dbProjects } from "../../db/projects";
 import { EXECUTION_WORKSPACE_LABEL } from "../execution-terminal";
-import { getSystemSettings } from "../system-settings";
 import {
 	ensureKwTerminalServer,
+	kwTerminalAvailable,
 	ensureOpencodeIntegration,
 	kwTerminalAgentList,
 	kwTerminalPaneList,
@@ -490,10 +490,9 @@ async function connect() {
 	}
 }
 
-// A central só existe onde existe kw-terminal: nos modos tmux e none não há daemon de onde ler
-// status, e subir um só pra observar seria criar terminal que o usuário não pediu.
+// A central só existe onde existe kw-terminal: sem ele não há daemon de onde ler status.
 export async function startAgentRadar() {
-	if (running || (await getSystemSettings()).terminalMultiplexer !== "kw-terminal") {
+	if (running || !kwTerminalAvailable()) {
 		return;
 	}
 

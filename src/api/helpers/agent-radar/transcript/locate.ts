@@ -61,7 +61,7 @@ async function codexTranscript(sessionId: string, sessionsDir: string) {
 		)[0] ?? null
 	);
 }
-function transcriptCli(agent: string): TranscriptCli | null {
+export function transcriptCli(agent: string): TranscriptCli | null {
 	return TRANSCRIPT_CLIS.find((cli) => cli === agent) ?? null;
 }
 

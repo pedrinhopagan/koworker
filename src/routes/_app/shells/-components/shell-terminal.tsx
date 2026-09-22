@@ -3,7 +3,11 @@ import type { Terminal } from "@xterm/xterm";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { TerminalConnectionStatus, TerminalToolbar } from "@/components/terminal-toolbar";
+import {
+	TerminalComposer,
+	TerminalConnectionStatus,
+	TerminalToolbar,
+} from "@/components/terminal-toolbar";
 import { errorMessage } from "@/lib/orpc-errors";
 
 import type { ShellStreamEvent } from "@/api/pubsub";
@@ -20,6 +24,10 @@ import { createShellViewportAdapter } from "../-utils/shell-viewport-adapter";
 
 export type ShellStreamEnvelope = ShellStreamEvent | { type: "replay"; b64: string };
 
+// Colar e dar Enter no mesmo instante faz a TUI (claude, codex) engolir o Enter como parte da
+// colagem; o respiro é o mesmo do envio da conversa.
+const SUBMIT_DELAY_MS = 120;
+
 function decodeBase64(b64: string): Uint8Array {
 	const binary = atob(b64);
 	const bytes = new Uint8Array(binary.length);
@@ -33,6 +41,7 @@ function decodeBase64(b64: string): Uint8Array {
 type ShellTerminalProps = {
 	shellId: string;
 	cwd?: string;
+	agent?: string | null;
 	className?: string;
 	disabled?: boolean;
 	onTitle?: (title: string) => void;
@@ -42,6 +51,7 @@ type ShellTerminalProps = {
 export function ShellTerminal({
 	shellId,
 	cwd,
+	agent,
 	className,
 	disabled = false,
 	onTitle,
@@ -203,6 +213,21 @@ export function ShellTerminal({
 		};
 	}, [shellId, cwd]);
 
+	// `paste` respeita o bracketed paste que o programa do shell ligou, então texto de várias
+	// linhas chega inteiro em vez de executar linha a linha.
+	async function sendText(text: string) {
+		if (!terminal || disabled || !connected) {
+			return false;
+		}
+		terminal.paste(text);
+		await new Promise((resolve) => {
+			setTimeout(resolve, SUBMIT_DELAY_MS);
+		});
+		terminal.input("\r", true);
+		terminal.scrollToBottom();
+		return true;
+	}
+
 	return (
 		<div data-component="shell-terminal" className={className}>
 			<div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -222,6 +247,12 @@ export function ShellTerminal({
 				terminal={terminal}
 				disabled={disabled || !connected}
 				onScrollToEnd={() => terminal?.scrollToBottom()}
+			/>
+			<TerminalComposer
+				draftKey={`kowork-radar-draft-${shellId}`}
+				cli={agent}
+				disabled={disabled || !connected}
+				onSend={sendText}
 			/>
 		</div>
 	);

@@ -361,9 +361,8 @@ export async function kwTerminalPaneSendText(paneId: string, text: string) {
 	});
 }
 
-// Paridade com o tmux, cuja CLI sobe o daemon sozinha no primeiro comando: se o servidor kw-terminal
-// não está de pé, lançamos `kw-terminal server` headless e aguardamos o socket responder. O cliente
-// TUI que o usuário abrir depois atacha nesse mesmo servidor.
+// Se o servidor kw-terminal não está de pé, lançamos `kw-terminal server` headless e aguardamos o
+// socket responder. O cliente TUI que o usuário abrir depois atacha nesse mesmo servidor.
 //
 // O daemon PRECISA nascer fora do cgroup do backend: um filho direto morre no restart do serviço
 // (KillMode control-group derruba o cgroup inteiro), e era assim que deploys encerravam todas as
@@ -397,7 +396,19 @@ function launchKwTerminalServer(): void {
 	}
 }
 
+// O kw-terminal é o único terminal externo: sem ele instalado (ou no Windows, onde ele não roda) a
+// abertura falha com o motivo, sem cair em outro terminal.
+export function kwTerminalAvailable(): boolean {
+	return process.platform !== "win32" && !!Bun.which("kw-terminal", { PATH: spawnEnv().PATH });
+}
+
 async function ensureKwTerminalServerOnce(): Promise<void> {
+	if (!kwTerminalAvailable()) {
+		throw new Error(
+			"Terminal externo indisponível: instale o kw-terminal (Linux ou macOS) para abrir terminais",
+		);
+	}
+
 	if (await kwTerminalServerRunning()) {
 		return;
 	}
@@ -416,10 +427,26 @@ async function ensureKwTerminalServerOnce(): Promise<void> {
 	);
 }
 
-// Argv do cliente TUI que o koworker spawna dentro do emulador quando não há nenhum aberto. `session
-// attach default` atacha no server que ensureKwTerminalServer garante (o mesmo onde vivem os
-// workspaces), espelhando o `tmux attach-session` do caminho tmux.
-export const KW_TERMINAL_CLIENT_ARGV = ["kw-terminal", "session", "attach", "default"];
+// Argv do cliente TUI que o koworker abre quando não há nenhum aberto. `session attach default` atacha
+// no server que ensureKwTerminalServer garante (o mesmo onde vivem os workspaces).
+const KW_TERMINAL_CLIENT_ARGV = ["kw-terminal", "session", "attach", "default"];
+
+// A janela que hospeda o cliente TUI: Alacritty no Linux e Terminal.app no macOS, os emuladores que o
+// koworker sempre usou por padrão. No Windows o kw-terminal não roda, então não há janela.
+export function kwTerminalWindowArgv(title: string): string[] | null {
+	if (process.platform === "linux") {
+		return ["alacritty", "--title", title, "-e", ...KW_TERMINAL_CLIENT_ARGV];
+	}
+	if (process.platform === "darwin") {
+		return [
+			"osascript",
+			"-e",
+			`tell application "Terminal" to do script "${KW_TERMINAL_CLIENT_ARGV.join(" ")}"`,
+		];
+	}
+
+	return null;
+}
 
 // O server kw-terminal não expõe contagem de clientes conectados pela CLI, então detectamos pelo
 // processo: qualquer invocação do TUI (bare `kw-terminal`, `kw-terminal session attach ...`,
@@ -433,8 +460,7 @@ export function isKwTerminalClientProcess(command: string): boolean {
 	);
 }
 
-// Há um cliente TUI do kw-terminal realmente aberto? `pgrep` é unix, como o
-// `sessionHasTerminalAttached` do caminho tmux (o modo kw-terminal também só roda em unix).
+// Há um cliente TUI do kw-terminal realmente aberto? `pgrep` é unix, como o próprio kw-terminal.
 export async function kwTerminalClientAttached(): Promise<boolean> {
 	const proc = Bun.spawn(["pgrep", "-af", "kw-terminal"], {
 		stdout: "pipe",

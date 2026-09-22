@@ -4,7 +4,6 @@ import { protectedProcedure } from "../auth/context";
 import { dbProjectRoutes } from "../db/project-routes";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
-import { getSystemSettings } from "../helpers/system-settings";
 import { Terminal } from "../helpers/terminal/service";
 import { killStrayAgentBrowsers } from "../helpers/terminal/stray";
 import { PubSub } from "../pubsub";
@@ -12,16 +11,9 @@ import {
 	CloseProjectSessionSchema,
 	CloseTaskWindowSchema,
 	FocusAgentSchema,
-	InvocationSessionsSchema,
 	OpenForRouteSchema,
 	OpenForTaskSchema,
 } from "../schemas/terminal";
-
-// Fronteira dona da config: lê as settings de SO e resolve o emulador/multiplexador que o serviço usa.
-async function terminalConfig() {
-	const settings = await getSystemSettings();
-	return { template: settings.terminalTemplate, multiplexer: settings.terminalMultiplexer };
-}
 
 async function projectOrThrow(projectId: string) {
 	const project = await dbProjects.getById(projectId);
@@ -36,7 +28,6 @@ export const terminalRouter = {
 		const project = input.projectId ? await projectOrThrow(input.projectId) : null;
 
 		return Terminal.focusAgent({
-			config: await terminalConfig(),
 			cli: input.cli,
 			...(project
 				? { projectId: project.id, projectName: project.name, mainRoute: project.main_route }
@@ -47,7 +38,6 @@ export const terminalRouter = {
 	openForTask: protectedProcedure.input(OpenForTaskSchema).handler(async ({ input }) => {
 		const project = await projectOrThrow(input.projectId);
 		return Terminal.openForTask({
-			config: await terminalConfig(),
 			...input,
 			projectName: project.name,
 			mainRoute: project.main_route,
@@ -63,7 +53,6 @@ export const terminalRouter = {
 			throw new ORPCError("NOT_FOUND", { message: "Rota não encontrada" });
 		}
 		return Terminal.openForRoute({
-			config: await terminalConfig(),
 			...input,
 			projectName: project.name,
 			routeName: route.name,
@@ -77,7 +66,6 @@ export const terminalRouter = {
 		.handler(async ({ input }) => {
 			const project = await projectOrThrow(input.projectId);
 			await Terminal.closeProjectSession({
-				config: await terminalConfig(),
 				projectId: project.id,
 				projectName: project.name,
 			});
@@ -94,7 +82,6 @@ export const terminalRouter = {
 		}
 
 		await Terminal.closeTaskWindow({
-			config: await terminalConfig(),
 			projectId: project.id,
 			projectName: project.name,
 			taskId: task.id,
@@ -103,26 +90,9 @@ export const terminalRouter = {
 		return { ok: true };
 	}),
 
-	listInvocationSessions: protectedProcedure
-		.input(InvocationSessionsSchema)
-		.handler(async ({ input }) =>
-			Terminal.listInvocationSessions({ config: await terminalConfig(), projects: input.projects }),
-		),
-
-	closeInvocationSessions: protectedProcedure
-		.input(InvocationSessionsSchema)
-		.handler(async ({ input }) => {
-			const closed = await Terminal.closeInvocationSessions({
-				config: await terminalConfig(),
-				projects: input.projects,
-			});
-			return { closed };
-		}),
-
 	sweepAllActive: protectedProcedure.handler(async () => {
 		const projects = await dbProjects.getAll();
 		const closed = await Terminal.closeInvocationSessions({
-			config: await terminalConfig(),
 			projects: projects.map((project) => ({ id: project.id, name: project.name })),
 		});
 		await killStrayAgentBrowsers();
