@@ -9,7 +9,6 @@ import { orpc } from "@/client";
 import { Title } from "@/components/typography";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip } from "@/components/ui/tooltip";
-import { COMPLEXITY_COLORS } from "@/constants/complexity";
 import { recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
@@ -25,22 +24,17 @@ import { relativeTimeFrom } from "@/lib/relative-time";
 import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { cn } from "@/lib/utils";
 import { canonicalTaskRoute } from "@/routes/_app/tarefas/-utils/task-route-resolution";
-import type { TaskGroup, TaskWithMeta } from "@/types/tasks";
+import type { Task, TaskGroup } from "@/types/tasks";
 import { CompleteTaskFeatureDialog } from "./CompleteTaskFeatureDialog";
 import {
+	TaskContextMenu,
+	taskMenuItems,
 	type TaskMenuActions,
 	type TaskMenuData,
 	type TaskMenuTarget,
-	TaskContextMenu,
-	taskMenuItems,
 } from "./task-context-menu";
+import { TaskEditControls, TaskTitleInput, taskTitlePlaceholder } from "./task-edit-controls";
 import { TaskMobileActionsDrawer } from "./task-mobile-actions-drawer";
-import {
-	TASK_SELECT_CONTENT_SELECTOR,
-	TaskMetaControls,
-	TaskTitleInput,
-	taskTitlePlaceholder,
-} from "./task-meta-controls";
 
 export const taskItemVariants = tv({
 	base: "flex items-center justify-between gap-4 border border-transparent bg-card transition-all duration-200 hover:border-border hover:bg-secondary/30 animate-fade-in w-full min-w-0 overflow-hidden",
@@ -58,7 +52,7 @@ export const taskItemVariants = tv({
 export type TaskItemVariant = VariantProps<typeof taskItemVariants>["variant"];
 
 type TaskItemProps = {
-	task: TaskWithMeta;
+	task: Task;
 	variant?: TaskItemVariant;
 	// Destaque de recência: 1 = última editada (mais forte), 2/3 = anteriores (mais sutil).
 	highlight?: number;
@@ -69,7 +63,7 @@ type TaskItemProps = {
 };
 
 type TaskActionSurfaceProps = {
-	task: TaskWithMeta;
+	task: Task;
 	target: TaskMenuTarget;
 	mode: "context" | "mobile";
 	disabled: boolean;
@@ -92,8 +86,6 @@ function TaskActionSurface({
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
-	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
-	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	const projects = projectsQuery.data ?? [];
 	const canonical = canonicalTaskRoute(task);
 
@@ -114,16 +106,6 @@ function TaskActionSurface({
 		projects: projects
 			.filter((project) => project.id !== task.projectId)
 			.map((project) => ({ id: project.id, name: project.name, color: project.color })),
-		priorities: (prioritiesQuery.data ?? []).map((priority) => ({
-			id: priority.id,
-			name: priority.name,
-			color: priority.color,
-		})),
-		categories: (categoriesQuery.data ?? []).map((category) => ({
-			id: category.id,
-			name: category.name,
-			color: category.color,
-		})),
 		...(features
 			? {
 					features: features.map((feature) => ({
@@ -179,8 +161,6 @@ function TaskActionSurface({
 			if (dir) void openFolderInOs(dir);
 		},
 		onRename,
-		onSetPriority: (_value, priorityId) => updateMutation.mutate({ id: task.id, priorityId }),
-		onSetCategory: (_value, categoryId) => updateMutation.mutate({ id: task.id, categoryId }),
 		onToggleDone,
 		onIgnoreRecency: () => ignoreRecencyMutation.mutate({ id: task.id }),
 		onMoveToProject: (_value, projectId) =>
@@ -211,8 +191,6 @@ function TaskActionSurface({
 			target={target}
 			data={data}
 			actions={actions}
-			complexity={task.complexity}
-			onComplexityChange={(complexity) => updateMutation.mutate({ id: task.id, complexity })}
 			disabled={isMutating}
 		/>
 	);
@@ -228,7 +206,6 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 
 	useClickOutside(cardRef, () => setEditing(false), {
 		enabled: editing,
-		ignoreSelector: TASK_SELECT_CONTENT_SELECTOR,
 	});
 
 	const setDoneMutation = useSetDoneMutation(task.projectId);
@@ -254,8 +231,6 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 	const isMutating =
 		setDoneMutation.isPending || removeTaskMutation.isPending || updateMutation.isPending;
 
-	// Salva sem sair do modo: quem controla o modo é o lápis. Assim dá pra renomear e
-	// mexer nos selects na mesma sessão sem o blur do input fechar a edição.
 	function saveTitle(value: string) {
 		const next = value.trim();
 		if (next === (task.title ?? "")) return;
@@ -270,8 +245,6 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 		label: task.displayTitle,
 		done: isDone,
 		folderPath: task.folderPath,
-		priorityId: task.priority?.id ?? null,
-		categoryId: task.category?.id ?? null,
 		groupId: task.groupId ?? null,
 	};
 	const fileBadgeLabel = hasArtifacts ? (
@@ -324,8 +297,6 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 					isDone && "opacity-60",
 					!isDone && highlight === 1 && "bg-primary/[0.04]",
 				)}
-				// Sem prioridade, a borda cai pra cor da complexidade — sempre há uma.
-				style={{ borderColor: `${task.priority?.color ?? COMPLEXITY_COLORS[task.complexity]}30` }}
 			>
 				{!isDone && highlight ? (
 					<span
@@ -398,21 +369,14 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 					</span>
 				) : null}
 
-				<TaskMetaControls
-					className="hidden md:flex"
-					category={task.category}
-					priority={task.priority}
-					categoryId={task.category?.id ?? null}
-					priorityId={task.priority?.id ?? null}
-					complexity={task.complexity}
-					editing={editing}
-					disabled={isMutating}
-					onToggleEdit={() => setEditing((value) => !value)}
-					onCategoryChange={(categoryId) => updateMutation.mutate({ id: task.id, categoryId })}
-					onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
-					onComplexityChange={(complexity) => updateMutation.mutate({ id: task.id, complexity })}
-					onDelete={() => removeTaskMutation.mutate({ id: task.id })}
-				/>
+				<div className="pointer-events-none relative z-10 hidden shrink-0 items-center gap-2 md:flex">
+					<TaskEditControls
+						editing={editing}
+						disabled={isMutating}
+						onToggleEdit={() => setEditing((value) => !value)}
+						onDelete={() => removeTaskMutation.mutate({ id: task.id })}
+					/>
+				</div>
 
 				<button
 					type="button"

@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams, useSearch } from "@tanstack/react-router";
 
 import { orpc } from "@/client";
-import type { TaskStage } from "@/constants/complexity";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useSkillQuery } from "@/hooks/use-skills";
 import { NO_FEATURE_ROUTE_ID } from "@/routes/_app/tarefas/-utils/task-route-resolution";
@@ -15,8 +14,6 @@ export type RouteDocTarget = {
 	projectName?: string;
 	projectId?: string;
 	taskId?: string;
-	categoryStructureSlug?: string | null;
-	nextStage?: TaskStage | null;
 };
 
 export function useRouteDocTarget(): RouteDocTarget {
@@ -88,8 +85,6 @@ export function useRouteDocTarget(): RouteDocTarget {
 			projectName: task?.project?.name,
 			projectId: task?.project?.id,
 			taskId: task.id,
-			categoryStructureSlug: task?.category?.structureSlug ?? null,
-			nextStage: task?.nextStage ?? null,
 		};
 	}
 

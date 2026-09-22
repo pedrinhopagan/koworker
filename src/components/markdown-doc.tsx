@@ -4,7 +4,15 @@ import { EditorSelection, EditorState, Prec } from "@codemirror/state";
 import { type Command, EditorView, keymap, placeholder } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+	forwardRef,
+	useEffect,
+	useImperativeHandle,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 
 import {
 	collapseAllHeadings,
@@ -279,8 +287,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
 		// Captura do ponto de leitura: listener de scroll com debounce, mais uma captura final na
 		// desmontagem (troca de arquivo/saída da página). Lê o `view` direto — o store fica sempre
-		// fresco sem depender de ler o handle no unmount (quando o ref já pode estar nulo).
-		useEffect(() => {
+		// fresco sem depender de ler o handle no unmount (quando o ref já pode estar nulo). Layout
+		// effect porque a limpeza dele roda com o editor ainda no documento: na de um effect comum o
+		// DOM já saiu, o `scrollTop` lido é 0 e a posição salva virava o topo do arquivo.
+		useLayoutEffect(() => {
 			if (!view) return;
 
 			const scroller = view.scrollDOM;

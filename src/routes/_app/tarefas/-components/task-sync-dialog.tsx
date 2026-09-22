@@ -12,20 +12,14 @@ import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { TaskStoragePreview } from "./task-storage-preview";
 import { TaskSyncRow, type TaskSyncDraft } from "./task-sync-row";
 
-type Category = RouterOutputs["categories"]["list"][number];
-type Priority = RouterOutputs["priorities"]["list"][number];
 type Feature = RouterOutputs["taskGroups"]["list"][number];
 
 export function TaskSyncAction({
 	projectId,
-	categories,
-	priorities,
 	features,
 	triggerClassName,
 }: {
 	projectId: string | null;
-	categories: Category[];
-	priorities: Priority[];
 	features: Feature[];
 	triggerClassName?: string;
 }) {
@@ -100,7 +94,6 @@ export function TaskSyncAction({
 				...task,
 				selected: true,
 				groupId: "",
-				complexity: "medio",
 				done: false,
 			})),
 		);
@@ -117,9 +110,6 @@ export function TaskSyncAction({
 				folderName: draft.folderName,
 				title: draft.title.trim(),
 				groupId: draft.groupId,
-				categoryId: draft.categoryId,
-				priorityId: draft.priorityId,
-				complexity: draft.complexity,
 				done: draft.done,
 			})),
 		});
@@ -303,8 +293,6 @@ export function TaskSyncAction({
 							<TaskSyncRow
 								key={`${draft.projectId}:${draft.folderName}`}
 								draft={draft}
-								categories={categories}
-								priorities={priorities}
 								features={features.filter((feature) => feature.projectId === draft.projectId)}
 								disabled={pending}
 								onChange={(updates) =>

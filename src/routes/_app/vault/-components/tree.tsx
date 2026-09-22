@@ -39,9 +39,6 @@ type TreeProps = {
 	// Destino válido do drag-and-drop (pasta de tarefa elegível durante o arraste atual). Liga o
 	// `useDroppable` da row e o highlight. Sem arraste/destino inválido → false em tudo.
 	canDrop?: (node: TreeNode) => boolean;
-	// Acessório irmão do botão da row (ex.: ordenação inline na linha "Tarefas"). Fica fora do
-	// botão — botão dentro de botão é inválido.
-	renderAccessory?: (node: TreeNode) => ReactNode;
 };
 
 export function Tree(props: TreeProps) {
@@ -191,18 +188,10 @@ const TreeRow = memo(function TreeRow({
 	) : (
 		base
 	);
-	const accessory = props.renderAccessory?.(node);
 
 	const content = (
 		<div className="vault-branch-content">
-			{accessory ? (
-				<div className="flex flex-wrap items-center">
-					<div className="min-w-0 flex-1">{wrapped}</div>
-					{accessory}
-				</div>
-			) : (
-				wrapped
-			)}
+			{wrapped}
 
 			{"children" in node && open && (
 				<div className="vault-branch-children">
@@ -235,16 +224,6 @@ const TreeRow = memo(function TreeRow({
 	);
 });
 
-function MetaRow({ color, label, value }: { color: string | null; label: string; value: string }) {
-	return (
-		<span className="flex items-center gap-1.5">
-			<span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: color ?? "#666" }} />
-			<span className="text-muted-foreground">{label}</span>
-			<span className="text-foreground">{value}</span>
-		</span>
-	);
-}
-
 function TaskFolderTooltip({ node }: { node: TaskFolder }) {
 	return (
 		<div className="flex flex-col gap-1">
@@ -252,8 +231,6 @@ function TaskFolderTooltip({ node }: { node: TaskFolder }) {
 				<Folder className="size-3.5 shrink-0" />
 				Tarefa
 			</span>
-			<MetaRow color={node.priorityColor} label="Prioridade" value={node.priorityName ?? "—"} />
-			<MetaRow color={node.categoryColor} label="Categoria" value={node.categoryName ?? "—"} />
 			<span className="text-muted-foreground">Editada {relativeTimeFrom(node.lastEditedAt)}</span>
 		</div>
 	);

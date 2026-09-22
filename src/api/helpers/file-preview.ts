@@ -2,7 +2,13 @@ import { basename, extname } from "node:path";
 
 import { ORPCError } from "@orpc/server";
 
+import { PREVIEW_SCROLL_MESSAGE } from "@/lib/file-preview";
 import { resolveViewableFile } from "./file-view";
+
+// O documento roda numa origem isolada, então a página não enxerga a rolagem dele. O HTML avisa o
+// app só a direção e a posição de quem rolou, para o celular recolher o cabeçalho e dar a tela ao
+// conteúdo. `capture` pega também quem rola num contêiner interno, não só a janela.
+const PREVIEW_SCROLL_BRIDGE = `<script>(()=>{const last=new WeakMap();addEventListener("scroll",(event)=>{const target=event.target===document?document.scrollingElement:event.target;if(!target)return;const top=target.scrollTop;const delta=top-(last.get(target)??top);last.set(target,top);if(delta)parent.postMessage({type:"${PREVIEW_SCROLL_MESSAGE}",delta,top},"*")},{capture:true,passive:true})})()</script>`;
 
 export async function serveFilePreview(request: Request, roots: string[]) {
 	if (request.method !== "GET" && request.method !== "HEAD") {
@@ -45,6 +51,13 @@ export async function serveFilePreview(request: Request, roots: string[]) {
 		if (request.headers.get("if-none-match") === headers.get("etag")) {
 			headers.delete("Content-Length");
 			return new Response(null, { status: 304, headers });
+		}
+
+		if (headers.get("Content-Type") === "text/html; charset=utf-8") {
+			const html = request.method === "HEAD" ? null : (await file.text()) + PREVIEW_SCROLL_BRIDGE;
+			headers.delete("Content-Length");
+			headers.delete("Accept-Ranges");
+			return new Response(html, { headers });
 		}
 
 		const range = request.headers.has("if-range") ? null : request.headers.get("range");

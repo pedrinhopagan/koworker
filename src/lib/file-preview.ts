@@ -5,3 +5,5 @@ export function isPreviewDocument(path: string) {
 export function filePreviewUrl(path: string, token: string) {
 	return `/api/file-preview/${token}/${path.split(/[\\/]/).map(encodeURIComponent).join("/")}`;
 }
+
+export const PREVIEW_SCROLL_MESSAGE = "kowork:preview-scroll";

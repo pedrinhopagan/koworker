@@ -4,7 +4,6 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
-import { STAGE_AGENT, type TaskStage } from "@/constants/complexity";
 import {
 	INVOKE_INHERIT,
 	resolveSkillEffortPreference,
@@ -12,8 +11,12 @@ import {
 } from "@/constants/invoke";
 import { useAgentsQuery } from "@/hooks/use-agents";
 import { useSkillsQuery } from "@/hooks/use-skills";
-import { buildKoworkerPrompt, buildPromptBody, flattenPrompt } from "@/lib/build-prompt";
-import { convertSkillCallsForCli } from "@/lib/build-prompt";
+import {
+	buildKoworkerPrompt,
+	convertSkillCallsForCli,
+	flattenPrompt,
+	resolveImagePlaceholders,
+} from "@/lib/build-prompt";
 import { type InvokeTarget, planInvocation, runInvocation } from "@/lib/invoke";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 import type { TaskAgent } from "@/types/agents";
@@ -51,17 +54,14 @@ export function useInvocation(params: {
 	projectName?: string;
 	routePath: string | null;
 	taskId?: string;
-	nextStage?: TaskStage | null;
 	active: boolean;
 }) {
-	const { projectId, projectName, routePath, nextStage } = params;
+	const { projectId, projectName, routePath } = params;
 
 	// Painel fechado assina "" (nenhuma tecla re-renderiza); aberto, o deferred prioriza a digitação
 	// sobre o preview do comando.
 	const text = useDeferredValue(usePromptBarStore((s) => (params.active ? s.text : "")));
 	const cli = usePromptBarStore((s) => s.cli);
-	const structureTemplate = usePromptBarStore((s) => s.structureTemplate);
-	const structureValues = usePromptBarStore((s) => s.structureValues);
 	const images = usePromptBarStore((s) => s.images);
 	const interactWithKw = usePromptBarStore((s) => s.interactWithKw);
 	const interactWithRoute = usePromptBarStore((s) => s.interactWithRoute);
@@ -115,25 +115,8 @@ export function useInvocation(params: {
 	// Só skills com invocação rápida entram na lista (mesmo critério do menu /).
 	const skillList = useMemo(() => taskSkills.filter((skill) => skill.quickInvoke), [taskSkills]);
 
-	// Agente do próximo passo do fluxo da tarefa aberta (backend infere `nextStage` pelos artefatos).
-	// Vira o chip de sugestão pré-selecionável enquanto nenhum alvo foi escolhido — só no claude.
-	const suggestedAgent = useMemo(() => {
-		if (!nextStage || cli !== "claude") return null;
-		const slug = STAGE_AGENT[nextStage];
-		return taskAgents.find((agent) => agent.slug === slug) ?? null;
-	}, [nextStage, cli, taskAgents]);
-
 	const effectiveRoute = interactWithRoute ? routePath : null;
-	// O corpo compõe a estrutura (template ativo do painel de anexos) antes do texto livre — o mesmo
-	// que o "Copiar prompt" produz.
-	const effectiveText = interactWithInput
-		? buildPromptBody({
-				templateSlug: structureTemplate,
-				values: structureValues,
-				text,
-				images,
-			})
-		: "";
+	const effectiveText = interactWithInput ? resolveImagePlaceholders(text.trim(), images) : "";
 
 	function selectTarget(next: NonNullable<Selection>) {
 		const target = next.kind === "agent" ? next.agent : next.skill;
@@ -234,7 +217,6 @@ export function useInvocation(params: {
 		selection,
 		selectTarget,
 		clearTarget,
-		suggestedAgent,
 		skillList,
 		taskAgents,
 		agentsLoading,

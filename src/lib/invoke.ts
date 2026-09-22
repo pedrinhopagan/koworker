@@ -30,7 +30,7 @@ export type InvokeRequest = {
 	config: InvokeConfig;
 };
 
-// Prompt sempre em UMA linha: `tmux send-keys` trata quebra como Enter e submeteria o comando cedo —
+// Prompt sempre em UMA linha: o pane do terminal trata quebra como Enter e submeteria o comando cedo;
 // essa é a correção de fundo das invocações. Agent: `/kw <rota> <texto>`; skill com kw ligado: `/kw
 // <rota> /<slug> <texto>` (o `/kw` assume a cabeça e a rota como alvo, a skill desce pro corpo);
 // skill sem kw: `/<slug> <rota> <texto>`, com rota/texto como args posicionais. No fim, o cli

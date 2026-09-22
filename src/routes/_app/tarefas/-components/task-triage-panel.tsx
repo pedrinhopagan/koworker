@@ -1,16 +1,15 @@
-import { Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
 	CheckCircle2,
+	ChevronDown,
 	ChevronsDownUp,
 	ChevronsUpDown,
-	ChevronDown,
-	SlidersHorizontal,
+	GripVertical,
 	PanelLeft,
 	Plus,
-	GripVertical,
 	Search,
-	X,
+	SlidersHorizontal,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -25,21 +24,15 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SortableList } from "@/components/ui/sortable-list";
 import { Tooltip } from "@/components/ui/tooltip";
-import { TASK_COMPLEXITIES, COMPLEXITY_LABELS, type TaskComplexity } from "@/constants/complexity";
 import type { TaskSortMode } from "@/constants/tasks";
 import { useDebouncedSearch } from "@/hooks/use-debounced-search";
 import { errorMessage } from "@/lib/orpc-errors";
-import type { TaskGroup, TaskWithMeta } from "@/types/tasks";
+import type { Task, TaskGroup } from "@/types/tasks";
 
-type Category = RouterOutputs["categories"]["list"][number];
-type Priority = RouterOutputs["priorities"]["list"][number];
 type Project = RouterOutputs["projects"]["list"][number];
 
 export type TriageSearch = {
 	q?: string;
-	taskTypeId?: string;
-	priorityId?: string;
-	complexity?: TaskComplexity;
 	includeCompleted?: boolean;
 };
 
@@ -47,9 +40,7 @@ type Props = {
 	projectId: string | null;
 	projects: Project[];
 	groups: TaskGroup[];
-	tasks: TaskWithMeta[];
-	categories: Category[];
-	priorities: Priority[];
+	tasks: Task[];
 	search: TriageSearch;
 	onSearchChange: (next: TriageSearch) => void;
 	onProjectChange: (projectId?: string) => void;
@@ -57,39 +48,8 @@ type Props = {
 	onSortModeChange: (mode: TaskSortMode) => void;
 	onCollapseAll: () => void;
 	onExpandAll: () => void;
-	onNewTask: () => void;
 	maintenance: React.ReactNode;
 };
-
-function FilterSelect({
-	label,
-	value,
-	items,
-	onChange,
-}: {
-	label: string;
-	value?: string;
-	items: { id: string; name: string; color?: string }[];
-	onChange: (value?: string) => void;
-}) {
-	const selected = items.find((item) => item.id === value);
-	return (
-		<CustomSelect
-			items={[{ id: "__all__", name: `Todas: ${label}` }, ...items]}
-			value={value ?? "__all__"}
-			onValueChange={(next) => onChange(next === "__all__" ? undefined : next)}
-			label={label}
-			triggerClassName="h-8 w-full bg-background text-xs"
-			renderTrigger={() => (
-				<>
-					<span className="truncate">{selected?.name ?? label}</span>
-					<ChevronDown className="ml-auto size-3.5 text-muted-foreground" />
-				</>
-			)}
-			renderItem={(item) => <span className="block truncate px-3 py-2">{item.name}</span>}
-		/>
-	);
-}
 
 function FeatureIndex({ groups, tasks, projectId }: Pick<Props, "groups" | "tasks" | "projectId">) {
 	const queryClient = useQueryClient();
@@ -195,13 +155,7 @@ export function TaskTriagePanel(props: Props) {
 	const [searchDraft, setSearchDraft] = useDebouncedSearch(props.search.q ?? "", (next) => {
 		props.onSearchChange({ ...props.search, q: next.trim() || undefined });
 	});
-	const activeFilters = [
-		props.search.taskTypeId,
-		props.search.priorityId,
-		props.search.complexity,
-	].filter(Boolean);
 	const selectedProject = props.projects.find((project) => project.id === props.projectId);
-	const complexityItems = TASK_COMPLEXITIES.map((id) => ({ id, name: COMPLEXITY_LABELS[id] }));
 	const projectItems = [
 		{ id: "__all__", name: "Todos os projetos", color: "#64748b" },
 		...props.projects,
@@ -230,15 +184,6 @@ export function TaskTriagePanel(props: Props) {
 		});
 	}
 
-	function clearFilters() {
-		props.onSearchChange({
-			...props.search,
-			taskTypeId: undefined,
-			priorityId: undefined,
-			complexity: undefined,
-		});
-	}
-
 	const searchBox = (
 		<div className="relative">
 			<Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -251,44 +196,10 @@ export function TaskTriagePanel(props: Props) {
 		</div>
 	);
 
-	const filters = (
-		<div className="space-y-2">
-			<FilterSelect
-				label="Tipo"
-				value={props.search.taskTypeId}
-				items={props.categories}
-				onChange={(taskTypeId) => props.onSearchChange({ ...props.search, taskTypeId })}
-			/>
-			<FilterSelect
-				label="Prioridade"
-				value={props.search.priorityId}
-				items={props.priorities}
-				onChange={(priorityId) => props.onSearchChange({ ...props.search, priorityId })}
-			/>
-			<FilterSelect
-				label="Complexidade"
-				value={props.search.complexity}
-				items={complexityItems}
-				onChange={(complexity) =>
-					props.onSearchChange({
-						...props.search,
-						complexity: complexity as TaskComplexity | undefined,
-					})
-				}
-			/>
-		</div>
-	);
-
 	const sectionLabel = "font-semibold uppercase tracking-[0.12em]";
 
 	const controls = (
 		<div className="space-y-4 [&_[data-slot=button]]:text-foreground [&_[data-slot=button]]:transition-none [&_[data-slot=button]]:active:scale-100">
-			<div className="space-y-2">
-				<Text size="xs" tone="muted" className={sectionLabel}>
-					Filtros
-				</Text>
-				{filters}
-			</div>
 			<div className="space-y-2">
 				<Text size="xs" tone="muted" className={sectionLabel}>
 					Ordenação
@@ -334,56 +245,7 @@ export function TaskTriagePanel(props: Props) {
 				</Text>
 				{props.maintenance}
 			</div>
-			{activeFilters.length > 0 && (
-				<Button
-					size="sm"
-					variant="ghost"
-					className="w-full justify-start text-muted-foreground"
-					onClick={clearFilters}
-				>
-					<X className="size-4" />
-					Limpar filtros
-				</Button>
-			)}
 		</div>
-	);
-
-	const activeChips = activeFilters.length > 0 && (
-		<>
-			{props.search.taskTypeId && (
-				<Button
-					size="sm"
-					variant="secondary"
-					className="h-6 shrink-0 px-2 text-xs"
-					onClick={() => props.onSearchChange({ ...props.search, taskTypeId: undefined })}
-				>
-					{props.categories.find((item) => item.id === props.search.taskTypeId)?.name}
-					<X className="size-3" />
-				</Button>
-			)}
-			{props.search.priorityId && (
-				<Button
-					size="sm"
-					variant="secondary"
-					className="h-6 shrink-0 px-2 text-xs"
-					onClick={() => props.onSearchChange({ ...props.search, priorityId: undefined })}
-				>
-					{props.priorities.find((item) => item.id === props.search.priorityId)?.name}
-					<X className="size-3" />
-				</Button>
-			)}
-			{props.search.complexity && (
-				<Button
-					size="sm"
-					variant="secondary"
-					className="h-6 shrink-0 px-2 text-xs"
-					onClick={() => props.onSearchChange({ ...props.search, complexity: undefined })}
-				>
-					{COMPLEXITY_LABELS[props.search.complexity]}
-					<X className="size-3" />
-				</Button>
-			)}
-		</>
 	);
 
 	const completedButton = (
@@ -411,10 +273,6 @@ export function TaskTriagePanel(props: Props) {
 			<div className="sticky top-0 z-20 -mx-5 border-b border-border bg-background/95 px-5 py-2 backdrop-blur md:hidden">
 				{searchBox}
 				<div className="mt-2 flex gap-2 overflow-x-auto">
-					<Button size="sm" className="shrink-0" onClick={props.onNewTask}>
-						<Plus className="size-4" />
-						Nova tarefa
-					</Button>
 					{completedButton}
 					<Button
 						size="sm"
@@ -427,17 +285,14 @@ export function TaskTriagePanel(props: Props) {
 					</Button>
 					<Button
 						size="sm"
-						variant={activeFilters.length ? "secondary" : "outline"}
+						variant="outline"
 						className="shrink-0"
 						onClick={() => setFiltersOpen(true)}
 					>
 						<SlidersHorizontal className="size-4" />
-						Mais {activeFilters.length > 0 && `(${activeFilters.length})`}
+						Mais
 					</Button>
 				</div>
-				{activeFilters.length > 0 && (
-					<div className="mt-2 flex gap-1.5 overflow-x-auto">{activeChips}</div>
-				)}
 			</div>
 
 			<div className="col-span-2 hidden items-center gap-2 border-b border-border bg-card/35 px-4 py-2 md:flex">
@@ -471,19 +326,13 @@ export function TaskTriagePanel(props: Props) {
 					/>
 				</div>
 				<div className="min-w-0 max-w-md flex-1">{searchBox}</div>
-				<div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
-					{activeChips}
-				</div>
+				<div className="flex-1" />
 				{completedButton}
 				<Popover>
 					<PopoverTrigger asChild>
-						<Button
-							size="sm"
-							variant={activeFilters.length ? "secondary" : "outline"}
-							className="shrink-0"
-						>
+						<Button size="sm" variant="outline" className="shrink-0">
 							<SlidersHorizontal className="size-4" />
-							Mais {activeFilters.length > 0 && `(${activeFilters.length})`}
+							Mais
 						</Button>
 					</PopoverTrigger>
 					<PopoverContent align="end" className="w-72 p-4">
@@ -583,7 +432,7 @@ export function TaskTriagePanel(props: Props) {
 					open={filtersOpen}
 					onClose={() => setFiltersOpen(false)}
 					side="bottom"
-					title="Filtros e ordenação"
+					title="Opções da lista"
 				>
 					<div className="space-y-4">
 						<CustomSelect

@@ -1,11 +1,22 @@
 import { AuthLoginSchema } from "./auth";
 
-export { AuthLoginSchema } from "./auth";
+export {
+	AgentCategoryCreateSchema,
+	AgentCategoryIdSchema,
+	AgentCategoryUpdateSchema,
+} from "./agent-categories";
 export {
 	AgentRadarPaneSchema,
 	AgentRadarSendSchema,
 	AgentRadarTerminalInputSchema,
 } from "./agent-radar";
+export { AgentSessionIdSchema, AgentSessionListSchema } from "./agent-session";
+export {
+	AgentCreateSchema,
+	AgentDeleteSchema,
+	AgentSettingsSchema,
+	AgentUpdateSchema,
+} from "./agents";
 export {
 	MediaDeleteSchema,
 	MediaListSchema,
@@ -15,34 +26,8 @@ export {
 	MostruarioListSchema,
 	TaskOpenArtifactSchema,
 } from "./assets";
-export {
-	CategoryCreateSchema,
-	CategoryIdSchema,
-	CategoryMigrateAndDeleteSchema,
-	CategoryReorderSchema,
-	CategoryUpdateSchema,
-} from "./categories";
-export {
-	PriorityCreateSchema,
-	PriorityIdSchema,
-	PriorityMigrateAndDeleteSchema,
-	PriorityReorderSchema,
-	PriorityUpdateSchema,
-} from "./priorities";
-export { FlowTaskSchema } from "./flow";
-export { AgentSessionIdSchema, AgentSessionListSchema } from "./agent-session";
-export {
-	AudioTranscriptionSchema,
-	PromptAutofillResultSchema,
-	PromptAutofillSchema,
-	PromptExecuteSchema,
-	PromptRunClearSchema,
-	PromptRunIdSchema,
-	PromptRunListSchema,
-	PromptRunRetrySchema,
-} from "./prompt";
+export { AuthLoginSchema } from "./auth";
 export { PushSubscriptionSchema, PushUnsubscribeSchema } from "./notifications";
-export { PromptCopySchema, PromptHistoryListSchema, PromptSourceSchema } from "./prompt-history";
 export {
 	ProjectRouteCreateSchema,
 	ProjectRouteIdSchema,
@@ -58,15 +43,13 @@ export {
 	ProjectUpdateSchema,
 } from "./projects";
 export {
-	AgentCategoryCreateSchema,
-	AgentCategoryIdSchema,
-	AgentCategoryUpdateSchema,
-} from "./agent-categories";
-export {
-	SkillCategoryCreateSchema,
-	SkillCategoryIdSchema,
-	SkillCategoryUpdateSchema,
-} from "./skill-categories";
+	AudioTranscriptionSchema,
+	PromptExecuteSchema,
+	PromptRunClearSchema,
+	PromptRunIdSchema,
+	PromptRunListSchema,
+	PromptRunRetrySchema,
+} from "./prompt";
 export {
 	ShellCreateSchema,
 	ShellIdSchema,
@@ -75,12 +58,10 @@ export {
 	ShellResizeSchema,
 } from "./shells";
 export {
-	RadarAgentSchema,
-	RadarFocusSchema,
-	ShellRecordSchema,
-	TerminalWorkspaceEntrySchema,
-	TerminalWorkspaceSnapshotSchema,
-} from "./terminal-workspace";
+	SkillCategoryCreateSchema,
+	SkillCategoryIdSchema,
+	SkillCategoryUpdateSchema,
+} from "./skill-categories";
 export {
 	SkillCreateSchema,
 	SkillDeleteSchema,
@@ -88,12 +69,6 @@ export {
 	SkillSettingsSchema,
 	SkillUpdateSchema,
 } from "./skills";
-export {
-	AgentCreateSchema,
-	AgentDeleteSchema,
-	AgentSettingsSchema,
-	AgentUpdateSchema,
-} from "./agents";
 export {
 	TaskGroupCreateSchema,
 	TaskGroupFolderSchema,
@@ -144,6 +119,13 @@ export {
 	VaultUnlinkFilesSchema,
 	VaultWriteFileSchema,
 } from "./tasks";
+export {
+	RadarAgentSchema,
+	RadarFocusSchema,
+	ShellRecordSchema,
+	TerminalWorkspaceEntrySchema,
+	TerminalWorkspaceSnapshotSchema,
+} from "./terminal-workspace";
 
 export const EndpointSchemas = {
 	authLogin: AuthLoginSchema,

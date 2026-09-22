@@ -8,9 +8,8 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { CliLogo } from "@/components/icons/cli-logos";
-import { AttachmentsPanel } from "@/components/prompt-bar/attachments-panel";
-import { ExecutePanel } from "@/components/prompt-bar/execute-panel";
 import { Collapse, GroupLabel, ToggleBox } from "@/components/prompt-bar/controls";
+import { ExecutePanel } from "@/components/prompt-bar/execute-panel";
 import { InvokePanel } from "@/components/prompt-bar/invoke-panel";
 import { PromptField } from "@/components/prompt-bar/prompt-field";
 import { Button } from "@/components/ui/button";
@@ -18,12 +17,11 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useRouteDocTarget } from "@/hooks/use-route-doc-target";
 import {
 	buildKoworkerPrompt,
-	buildPromptBody,
 	convertSkillCallsForCli,
 	copyToClipboard,
 	type PromptCopyCli,
+	resolveImagePlaceholders,
 } from "@/lib/build-prompt";
-import { recordCopiedPrompt } from "@/lib/prompt-history";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 
@@ -38,60 +36,37 @@ export function PromptComposer() {
 	const invokeOpen = usePromptBarStore((s) => s.invokeOpen);
 	const executeOpen = usePromptBarStore((s) => s.executeOpen);
 	const attachOpen = usePromptBarStore((s) => s.attachOpen);
-	const structureOpen = usePromptBarStore((s) => s.structureOpen);
 	const interactWithKw = usePromptBarStore((s) => s.interactWithKw);
 	const interactWithRoute = usePromptBarStore((s) => s.interactWithRoute);
 	const interactWithInput = usePromptBarStore((s) => s.interactWithInput);
 	const toggleInvokeOpen = usePromptBarStore((s) => s.toggleInvokeOpen);
 	const toggleExecuteOpen = usePromptBarStore((s) => s.toggleExecuteOpen);
 	const toggleAttachOpen = usePromptBarStore((s) => s.toggleAttachOpen);
-	const toggleStructureOpen = usePromptBarStore((s) => s.toggleStructureOpen);
 	const setAllSectionsOpen = usePromptBarStore((s) => s.setAllSectionsOpen);
 	const setInteractWithKw = usePromptBarStore((s) => s.setInteractWithKw);
 	const setInteractWithRoute = usePromptBarStore((s) => s.setInteractWithRoute);
 	const setInteractWithInput = usePromptBarStore((s) => s.setInteractWithInput);
-	const setStructureTemplate = usePromptBarStore((s) => s.setStructureTemplate);
 
 	const routeTarget = useRouteDocTarget();
 
-	const lastSuggestedTaskId = useRef<string | null>(null);
-	useEffect(() => {
-		const { taskId, categoryStructureSlug } = routeTarget;
-		if (!taskId || !categoryStructureSlug) return;
-		if (lastSuggestedTaskId.current === taskId) return;
-		lastSuggestedTaskId.current = taskId;
-		if (usePromptBarStore.getState().structureTemplate === null) {
-			setStructureTemplate(categoryStructureSlug);
-		}
-	}, [routeTarget.taskId, routeTarget.categoryStructureSlug, setStructureTemplate]);
-
 	const appendTarget = interactWithRoute ? routeTarget.path : null;
 	const supportsInvocation = cli !== "pi";
-	const allSectionsOpen =
-		attachOpen && structureOpen && (!supportsInvocation || (invokeOpen && executeOpen));
-	const allSectionsClosed =
-		!attachOpen && !structureOpen && (!supportsInvocation || (!invokeOpen && !executeOpen));
+	const allSectionsOpen = attachOpen && (!supportsInvocation || (invokeOpen && executeOpen));
+	const allSectionsClosed = !attachOpen && (!supportsInvocation || (!invokeOpen && !executeOpen));
 
 	function buildRawCopyPrompt() {
-		const { text, structureTemplate, structureValues, images } = usePromptBarStore.getState();
-		const copyText = interactWithInput
-			? buildPromptBody({ templateSlug: structureTemplate, values: structureValues, text, images })
-			: "";
+		const { text, images } = usePromptBarStore.getState();
+		const copyText = interactWithInput ? resolveImagePlaceholders(text.trim(), images) : "";
 		return buildKoworkerPrompt({ kw: interactWithKw, target: appendTarget, text: copyText });
 	}
 
-	async function copyAndRecord(prompt: string, successMessage: string) {
+	async function copyPrompt(prompt: string, successMessage: string) {
 		if (!prompt.trim()) {
 			toast.info("Nada para copiar");
 			return;
 		}
 		const ok = await copyToClipboard(prompt);
 		if (ok) {
-			recordCopiedPrompt({
-				prompt,
-				...(routeTarget.projectId ? { projectId: routeTarget.projectId } : {}),
-				...(routeTarget.projectName ? { projectName: routeTarget.projectName } : {}),
-			});
 			toast.success(successMessage);
 		} else {
 			toast.error("Não foi possível copiar o prompt");
@@ -99,7 +74,7 @@ export function PromptComposer() {
 	}
 
 	async function handleCopy(targetCli: PromptCopyCli) {
-		await copyAndRecord(
+		await copyPrompt(
 			convertSkillCallsForCli(buildRawCopyPrompt(), targetCli),
 			`Prompt para ${PROMPT_COPY_CLI_LABELS[targetCli]} copiado`,
 		);
@@ -115,12 +90,6 @@ export function PromptComposer() {
 					hint="o que anexar ao prompt: /kw, caminho da rota e o texto digitado"
 					open={attachOpen}
 					onToggle={toggleAttachOpen}
-				/>
-				<SectionTrigger
-					label="Estruturação"
-					hint="estrutura do prompt (Goal, Contexto...) e preenchimento por IA"
-					open={structureOpen}
-					onToggle={toggleStructureOpen}
 				/>
 				{supportsInvocation && (
 					<>
@@ -192,15 +161,11 @@ export function PromptComposer() {
 					/>
 					<ToggleBox
 						label="input"
-						hint="anexa o texto digitado (e a estrutura ativa) ao prompt"
+						hint="anexa o texto digitado ao prompt"
 						checked={interactWithInput}
 						onChange={setInteractWithInput}
 					/>
 				</div>
-			</CollapsibleSection>
-
-			<CollapsibleSection open={structureOpen}>
-				<AttachmentsPanel taskId={routeTarget.taskId} />
 			</CollapsibleSection>
 
 			{supportsInvocation && (
@@ -210,7 +175,6 @@ export function PromptComposer() {
 							projectId={routeTarget.projectId}
 							projectName={routeTarget.projectName}
 							routePath={routeTarget.path}
-							nextStage={routeTarget.nextStage}
 						/>
 					</CollapsibleSection>
 
@@ -220,7 +184,6 @@ export function PromptComposer() {
 							projectName={routeTarget.projectName}
 							routePath={routeTarget.path}
 							taskId={routeTarget.taskId}
-							nextStage={routeTarget.nextStage}
 						/>
 					</CollapsibleSection>
 				</>

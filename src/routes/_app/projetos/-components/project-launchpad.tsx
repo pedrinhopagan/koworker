@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Bot, Command, Plus } from "lucide-react";
+import { Bot, Command, Plus, SquareTerminal } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { Text, Title } from "@/components/typography";
@@ -19,7 +19,7 @@ type ProjectLaunchpadProps = {
 };
 
 export function ProjectLaunchpad({ project, onReorder }: ProjectLaunchpadProps) {
-	const { canOpenTerminal } = useCapabilities();
+	const { canOpenTerminal, terminalUnavailable } = useCapabilities();
 	const showTerminal = canOpenTerminal && !project.hideTerminal;
 	const sorted = useMemo(
 		() => [...project.routes].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)),
@@ -76,6 +76,15 @@ export function ProjectLaunchpad({ project, onReorder }: ProjectLaunchpadProps) 
 			</div>
 
 			<div className="mt-4 space-y-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-2 lg:[scrollbar-gutter:stable]">
+				{terminalUnavailable && (
+					<div className="flex items-start gap-3 border border-dashed border-border bg-muted/15 px-3 py-2.5">
+						<SquareTerminal className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+						<Text size="xs" tone="muted">
+							Terminal externo indisponível neste computador. Os atalhos abrem no kw-terminal, que
+							precisa estar instalado (Linux ou macOS).
+						</Text>
+					</div>
+				)}
 				{showTerminal && <ProjectRouteShortcutItem project={projectInfo} isTerminal />}
 				{cliRoutes.length > 0 && (
 					<ShortcutGroup title="CLIs" count={cliRoutes.length} icon={<Bot className="size-4" />}>

@@ -3,15 +3,14 @@ import { useNavigate } from "@tanstack/react-router";
 import { useDeferredValue, useMemo } from "react";
 import { toast } from "sonner";
 
-import { type Selection, useInvocation } from "@/components/prompt-bar/use-invocation";
 import { orpc } from "@/client";
+import { type Selection, useInvocation } from "@/components/prompt-bar/use-invocation";
 import { INVOKE_INHERIT } from "@/constants/invoke";
-import type { TaskStage } from "@/constants/complexity";
 import {
 	buildKoworkerPrompt,
-	buildPromptBody,
 	convertSkillCallsForCli,
 	flattenPrompt,
+	resolveImagePlaceholders,
 } from "@/lib/build-prompt";
 import { type InvokeTarget, planInvocation } from "@/lib/invoke";
 import { usePromptBarStore } from "@/stores/prompt-bar";
@@ -33,14 +32,11 @@ export function usePromptExecution(params: {
 	projectName?: string;
 	routePath: string | null;
 	taskId?: string;
-	nextStage?: TaskStage | null;
 	active: boolean;
 }) {
 	const text = useDeferredValue(usePromptBarStore((state) => (params.active ? state.text : "")));
 	const cli = usePromptBarStore((state) => state.cli);
 	const invoke = usePromptBarStore((state) => state.invoke);
-	const structureTemplate = usePromptBarStore((state) => state.structureTemplate);
-	const structureValues = usePromptBarStore((state) => state.structureValues);
 	const images = usePromptBarStore((state) => state.images);
 	const interactWithKw = usePromptBarStore((state) => state.interactWithKw);
 	const interactWithRoute = usePromptBarStore((state) => state.interactWithRoute);
@@ -50,9 +46,7 @@ export function usePromptExecution(params: {
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
 	const project = projectsQuery.data?.find((entry) => entry.id === params.projectId);
 	const effectiveRoute = interactWithRoute ? params.routePath : null;
-	const effectiveText = interactWithInput
-		? buildPromptBody({ templateSlug: structureTemplate, values: structureValues, text, images })
-		: "";
+	const effectiveText = interactWithInput ? resolveImagePlaceholders(text.trim(), images) : "";
 
 	const executionPlan = useMemo(() => {
 		if (cli === "pi") {

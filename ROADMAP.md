@@ -28,11 +28,10 @@ arquivo é o errado. Schema e convenções ficam no `AGENTS.md` da raiz.
 | CRUD de projetos e rotas de projeto | Pronto | `routers/projects.ts`, `routers/project-routes.ts` |
 | CRUD de tarefas (conteúdo em `.md` no disco) | Pronto | `routers/tasks.ts`, `helpers/task-*.ts` |
 | Features (`task_groups`) | Pronto | `routers/task-groups.ts` |
-| Categorias e prioridades | Pronto | `routers/categories.ts`, `routers/priorities.ts` |
 | Storage v1/v2, plano, backup e reconciliação | Pronto | `routers/task-storage.ts`, `helpers/task-storage-coordinator.ts` |
 | Execuções (`execution_runs`) | Pronto | `db/execution-runs.ts`, `routers/prompt.ts`, `routers/flow.ts` |
 | Watcher de FS que sincroniza tarefas | Pronto | `helpers/tasks-watcher.ts`, `helpers/task-sync.ts` |
-| Terminal (tmux / kw-terminal / none) | Pronto | `routers/terminal.ts`, `routers/kw-terminal.ts`, `docs/TERMINAL.md` |
+| Terminal externo (kw-terminal) | Pronto | `routers/terminal.ts`, `routers/kw-terminal.ts`, `docs/TERMINAL.md` |
 | Skills e agents lidos do disco, com sync entre ferramentas | Pronto | `helpers/skills-fs.ts`, `helpers/skills-sync.ts`, `helpers/agents-fs.ts` |
 | Vault, mídias e docs de projeto | Pronto | `routers/vault.ts`, `routers/media.ts`, `helpers/project-docs.ts` |
 | Transcrição de áudio | Pronto | `helpers/audio-transcription.ts` |
@@ -111,7 +110,7 @@ Itens confirmados como ausentes ou incompletos hoje. Sem estimativa: entram quan
 
 - Electron para janela, tray e empacotamento.
 - SQLite local, TypeScript para toda lógica, React + TanStack Router/Query.
-- Integração com terminal (tmux / kw-terminal).
+- Integração com terminal (kw-terminal).
 
 ### Novo no v2
 

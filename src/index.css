@@ -177,6 +177,9 @@
 
 	--shadow-xs: 0 1px 0 0 rgb(0 0 0 / 0.06);
 	--shadow-sm: 0 1px 0 0 rgb(0 0 0 / 0.12);
+
+	--spacing-shell-bar: 40px;
+	--spacing-shell-foot: 32px;
 }
 
 @layer base {
@@ -236,15 +239,6 @@
 	.no-scrollbar {
 		-ms-overflow-style: none; /* IE/Edge antigo */
 		scrollbar-width: none; /* Firefox */
-	}
-
-	.doc-switcher-open .cm-scroller,
-	.doc-switcher-open main,
-	.doc-switcher-open [class*="overflow-y-auto"]:not(.doc-switcher-list),
-	.doc-switcher-open [class*="overflow-auto"]:not(.doc-switcher-list),
-	.doc-switcher-open [class*="overflow-y-scroll"]:not(.doc-switcher-list),
-	.doc-switcher-open [class*="overflow-scroll"]:not(.doc-switcher-list) {
-		overflow: hidden !important;
 	}
 
 	.desktop-drag-region {

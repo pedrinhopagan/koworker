@@ -1,6 +1,6 @@
 # KOWORK KNOWLEDGE BASE
 
-**Atualizado:** 2026-08-26 (seção de entidades derivada de `src/api/db/connection.ts`)
+**Atualizado:** 2026-09-22 (seção de entidades derivada de `src/api/db/connection.ts`)
 
 ## VISÃO GERAL
 
@@ -13,7 +13,7 @@ src/
 ├── api/                 # ORPC (router.ts, routers/, schemas/), auth, config, db, helpers, pubsub
 ├── routes/              # TanStack Router (file-based)
 ├── components/          # Componentes de UI (shadcn + base)
-├── constants/           # Conjuntos finitos de domínio (complexidade, categorias, release...)
+├── constants/           # Conjuntos finitos de domínio (invocação, projetos, release...)
 ├── hooks/
 ├── lib/
 ├── stores/              # Zustand
@@ -33,7 +33,7 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 | **PubSub** | `src/api/pubsub/` | Eventos em tempo real |
 | **Rotas** | `src/routes/` | TanStack Router |
 | **UI base** | `src/components/ui/` | shadcn (preset Lyra) |
-| **Constantes de domínio** | `src/constants/` | Complexidade, categorias default, templates de prompt |
+| **Constantes de domínio** | `src/constants/` | Invocação, projetos, categorias de agents, release |
 | **CLI** | `src/cli/` | Comandos que atualizam tasks |
 
 ## ALIASES
@@ -77,11 +77,11 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 - **Booleanos**: não existem; são `INTEGER` 0/1 (`done`, `hide_terminal`, `quick_invoke`)
 - **JSON**: colunas JSON são `TEXT` com `JSON.stringify/parse` (`tasks.file_order`, `task_storage_runs.manifest`, `agent_events.payload`)
 - **Soft delete**: `projects`, `tasks`, `execution_runs` e `agent_sessions` possuem `deleted_at`
-- **Conjuntos finitos**: só `user_type`, `task_storage_runs.status`, `prompts.source`, `execution_runs.kind`, `execution_runs.status`, `agent_sessions.status` e `agent_events.kind` são enums no DSL. Complexidade, stage, tool e scope são texto livre no DB e o conjunto é garantido em `src/constants/` + boundary Zod.
+- **Conjuntos finitos**: só `user_type`, `task_storage_runs.status`, `prompts.source`, `execution_runs.kind`, `execution_runs.status`, `agent_sessions.status` e `agent_events.kind` são enums no DSL. Stage, tool e scope são texto livre no DB e o conjunto é garantido em `src/constants/` + boundary Zod.
 
 ## ENTIDADES
 
-22 tabelas, na ordem de registro em `connection.ts`. `?` marca coluna opcional (nullable).
+21 tabelas, na ordem de registro em `connection.ts`. `?` marca coluna opcional (nullable).
 
 ### users
 - `id` (integer, autoincrement), `name`, `password`
@@ -93,15 +93,6 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 - `main_route` (caminho do projeto no disco)
 - `hide_terminal` (0/1), `task_layout_version` (default 1)
 - `created_at`, `updated_at?`, `deleted_at?`
-
-### categories (seed default: feature, fix, doc, study)
-- `id` (uuid), `name`, `color` (hex, default `#000000`)
-- `structure_slug?` (slug em `constants/prompt-templates.ts`)
-- `display_order` (default 0), `created_at`, `updated_at?`
-
-### priorities
-- `id` (uuid), `name`, `level` (default 1), `color` (hex, default `#000000`)
-- `display_order` (default 0), `created_at`, `updated_at?`
 
 ### project_routes
 - `id` (uuid), `project_id` (FK projects.id, cascade)
@@ -119,15 +110,14 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 - `folder_path`: pasta da task relativa a `projects.main_route`. O conteúdo canônico vive nos `.md` dessa pasta; a linha é só índice.
 - `storage_key?`, `storage_slug?`: identidade congelada de storage
 - `title?`: nullable. Sem título, o display cai no primeiro `.md` (`resolveDisplayTitle`)
-- `priority_id?` (FK priorities.id, restrict), `category_id?` (FK categories.id, restrict): ambas opcionais
-- `complexity` (default `medio`): conjunto em `constants/complexity.ts`
 - `group_id?` (FK task_groups.id, set null): nulo = pseudo-grupo "Sem grupo"
-- `display_order` (default 0): ordem manual dentro do bucket `group_id` + `category_id`
+- `display_order` (default 0): ordem manual dentro do grupo
 - `file_order?`: JSON array de nomes de `.md` para ordenar as abas
 - `merge_ready_at?`, `worktree_branch?`, `merge_target_branch?`, `worktree_path?`, `worktree_pr_url?`: entrega em worktree
 - `done` (0/1, default 0), `completed_at?`
 - `created_at`, `updated_at?`, `deleted_at?`
 - **Não existem** `description`, `notes`, `ai_metadata`, `status` nem `acceptance_criteria`. Esse conteúdo mora nos `.md` da pasta.
+- A classificação antiga (`priority_id`, `category_id`, `complexity` e as tabelas `categories`/`priorities`) saiu na migração de 22/09/2026. `ensureDbSchema` grava um backup `<banco>.bak-classificacao-<data>` antes de reconstruir `tasks`; restaurar é copiar esse arquivo sobre o banco com o servidor parado.
 
 ### task_storage_runs
 - `id` (uuid), `project_id` (FK projects.id, restrict)
@@ -152,9 +142,14 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 - `scope` (default `custom`; `global` = root default semeado por plataforma)
 - `created_at`
 
+### agent_categories
+- `id` (uuid), `name`, `color` (hex, default `#000000`)
+- `display_order` (default 0), `created_at`, `updated_at?`
+
 ### agent_settings
 - `slug` (PK, nome do arquivo `.md` do agent)
 - `label?`, `icon?`, `color?`, `created_at`, `updated_at?`
+- `category_id?` (FK agent_categories.id, set null)
 
 ### agent_source_paths
 - `id` (uuid), `tool`, `path`, `scope` (default `custom`), `created_at`
@@ -165,14 +160,12 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 - `session_id?`, `transcript_path?`: a conversa da CLI de onde a linha foi lida (`copy` não tem)
 - `cwd?`, `project_id?`, `project_name?`: **sem FK**, o histórico sobrevive à exclusão do projeto
 - `sent_at`, `created_at`
-- Uma linha por envio. `claude`/`codex` são indexados dos transcripts em disco (`~/.claude/projects`,
-  `~/.codex/sessions`, inclusive Codex Desktop) por `syncPromptIndex`; `copy` é o que saiu da barra pelo
-  clipboard, único rastro de prompt colado fora das CLIs. A rota lista agrupado por `norm`
+- Histórico legado: nada mais grava aqui. A página Prompts, o indexador dos transcripts e o registro
+  de cópia da barra saíram; o histórico mora nas conversas dos agentes. As linhas antigas ficam.
 
 ### prompt_transcripts
 - `path` (PK), `size_bytes`, `indexed_at`
-- Até onde cada transcript foi lido: arquivo com o mesmo tamanho não é relido; o que cresceu tem as
-  linhas de `prompts` trocadas inteiras
+- Legado do indexador de prompts (até onde cada transcript tinha sido lido). Preservado, sem escrita.
 
 ### agent_sessions
 - `id` (uuid): no claude é também o `--session-id`, então retomar é `--resume <id>` na mesma linha
@@ -213,15 +206,6 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 - Retrato único do que estava aberto no kw-terminal: reescrito inteiro a cada mudança do radar e nunca
   com a lista vazia, porque a queda do daemon (ou o desligamento da máquina) apagaria o retrato
 
-### agent_session_snapshots
-- `id` (uuid), `pane_id`, `workspace_label`, `tab_label`, `agent`, `cwd`
-- `project_id?`, `project_name?`: **sem FK**, o retrato é histórico e sobrevive à exclusão do projeto
-- `status`: status do radar no instante da captura; `working` é o que faz a restauração disparar `continue`
-- `session_id?`, `session_path?`: a sessão do CLI, quando o agent a reportou ao daemon
-- `title?`, `task_id?`, `task_title?`, `captured_at`, `restored_at?`
-- Retrato único do que estava aberto no kw-terminal: reescrito inteiro a cada mudança do radar e nunca
-  com a lista vazia, porque a queda do daemon (ou o desligamento da máquina) apagaria o retrato
-
 ### push_subscriptions
 - `id` (uuid), `user_id` (FK users.id, cascade)
 - `endpoint`, `p256dh`, `auth`, `expiration_time?`
@@ -236,17 +220,17 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 
 ### settings
 - `key` (PK), `value` (string), `updated_at?`
-- Chave-valor de SO: pasta base de projetos, template de emulador, multiplexador. O shape tipado e os defaults por plataforma vivem em `api/helpers/system-settings.ts`.
+- Chave-valor de SO: pasta base de projetos e endereço do celular. O shape tipado e os defaults vivem em `api/helpers/system-settings.ts`. As chaves antigas `terminal_multiplexer` e `terminal_template` são apagadas no boot (Linux/macOS): o terminal externo é sempre o kw-terminal.
 
 ## STATUS E CONCLUSÃO
 
+- Tarefas nascem só pelos agentes (`kw-cli create`/`task create`, `tasks.create`, execuções). A UI renomeia, move e conclui, mas não cria. Nota nova também nasce dentro de uma tarefa; o Vault só edita as notas soltas que já existem.
 - `tasks` não tem coluna de status. Só `done` (0/1) e `completed_at`.
 - Execução é rastreada em `execution_runs`, que é outra entidade: uma tarefa pode ter N runs (ou nenhum).
 - Claude e Codex são sessão (`agent_sessions`) com N turnos, cada turno um `execution_runs`. No Claude
   o processo fica vivo entre turnos; no Codex cada turno é um `codex exec resume <thread>` e o id da
   thread mora em `agent_sessions.cli_session_id`. A execução de chamada única sobrou só na barra de
   prompt (`prompt.execute`). Detalhe em `docs/SESSOES.md`.
-- A etapa do fluxo (`grill`, `plano`, `execucao`, `execucao-fases`, `revisao`) é **inferida dos artefatos da pasta** (`inferTaskStage`), nunca persistida na task. A ordem por complexidade vive em `COMPLEXITY_FLOWS` (`execucao-fases` só no fluxo `extremo`) e cada etapa tem agente próprio em `STAGE_AGENT`.
 - O estado visual do progresso é derivado por função em `src/lib/` (não é coluna).
 
 ## STORAGE DE TAREFAS
@@ -317,5 +301,5 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 | `src/components/AGENTS.md` | Componentes base |
 | `src/cli/AGENTS.md` | CLI para AI Agents |
 | `electron/AGENTS.md` | Wrapper desktop Electron |
-| `docs/TERMINAL.md` | Sistema de terminais (tmux / kw-terminal / none + ORPC PubSub) |
+| `docs/TERMINAL.md` | Terminal externo (kw-terminal) e ORPC PubSub |
 | `docs/SESSOES.md` | Sessões de agente: processo vivo, protocolo do CLI, permissão e pergunta |

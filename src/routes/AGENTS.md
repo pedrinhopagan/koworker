@@ -39,9 +39,6 @@ routes/
 │   │   ├── $slug/index.tsx
 │   │   ├── -components/
 │   │   └── -utils/
-│   ├── prompts/
-│   │   ├── index.tsx
-│   │   └── -components/
 │   ├── skills/
 │   │   ├── index.tsx
 │   │   ├── $slug/index.tsx
@@ -93,7 +90,6 @@ routes/
 - `/skills/$slug`
 - `/agents`
 - `/agents/$slug`
-- `/prompts`
 - `/vault`
 - `/vault/$fileName`
 - `/media`

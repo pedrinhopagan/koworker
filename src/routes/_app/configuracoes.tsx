@@ -1,29 +1,17 @@
+import { sweepAllActiveTerminals } from "@/lib/terminal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import {
-	Flag,
-	MonitorSmartphone,
-	Palette,
-	QrCode,
-	RefreshCw,
-	Settings,
-	SlidersHorizontal,
-	Tags,
-	Type,
-} from "lucide-react";
-import { toast } from "sonner";
+import { Brush, MonitorSmartphone, Palette, QrCode, RefreshCw, Settings } from "lucide-react";
 import { useEffect } from "react";
+import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { ConfigCard } from "@/components/settings/config-card";
 import { PushNotificationsCard } from "@/components/settings/push-notifications-card";
-import { CategoryManagerDrawer } from "@/components/tasks/CategoryManagerDrawer";
-import { PriorityManagerDrawer } from "@/components/tasks/PriorityManagerDrawer";
 import { Text, Title } from "@/components/typography";
 import { Icon } from "@/components/ui/icon";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useDevices } from "@/hooks/use-devices";
-import { useManageDrawerStore } from "@/stores/manage-drawers";
 import { activateLatestPwa } from "@/lib/register-sw";
 import { PageShell } from "../../components/layout/page-shell";
 
@@ -151,7 +139,6 @@ function DevicesCard() {
 }
 
 function ConfiguracoesPage() {
-	const openManageDrawer = useManageDrawerStore((s) => s.open);
 	const navigate = useNavigate();
 
 	return (
@@ -193,34 +180,6 @@ function ConfiguracoesPage() {
 								iconClassName="h-4 w-4"
 							/>
 						</div>
-						<ConfigCard
-							icon={Type}
-							title="Tipografia"
-							description="Escolha a fonte da interface e a fonte de leitura de .md."
-							onClick={() => navigate({ to: "/fontes" })}
-						/>
-					</div>
-				</section>
-
-				<div className="border-t border-border" />
-
-				<section className="space-y-3">
-					<Title as="h2" size="xs" className="text-muted-foreground uppercase tracking-wide">
-						Tarefas
-					</Title>
-					<div className="grid gap-4 sm:grid-cols-2">
-						<ConfigCard
-							icon={Tags}
-							title="Gerenciar categorias"
-							description="Gerencie categorias para organizar tarefas."
-							onClick={() => openManageDrawer("categories")}
-						/>
-						<ConfigCard
-							icon={Flag}
-							title="Gerenciar prioridades"
-							description="Ajuste os níveis de prioridade e a ordem exibida."
-							onClick={() => openManageDrawer("priorities")}
-						/>
 					</div>
 				</section>
 
@@ -232,10 +191,10 @@ function ConfiguracoesPage() {
 					</Title>
 					<div className="grid gap-4 sm:grid-cols-2">
 						<ConfigCard
-							icon={SlidersHorizontal}
-							title="Terminal e fontes"
-							description="Emulador, multiplexador, pasta base e fontes de agents/skills."
-							onClick={() => navigate({ to: "/sistema" })}
+							icon={Brush}
+							title="Encerrar invocações e agent-browser"
+							description="Fecha os terminais de invocação de todos os projetos e os navegadores do agent-browser, inclusive os que estiverem em uso."
+							onClick={() => void sweepAllActiveTerminals()}
 						/>
 						<DevicesCard />
 						<ConfigCard
@@ -248,9 +207,6 @@ function ConfiguracoesPage() {
 					</div>
 				</section>
 			</div>
-
-			<CategoryManagerDrawer />
-			<PriorityManagerDrawer />
 		</PageShell>
 	);
 }

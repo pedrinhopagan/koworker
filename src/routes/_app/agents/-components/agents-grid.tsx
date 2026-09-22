@@ -10,7 +10,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { AGENT_TOOL_LABEL } from "@/constants/agents";
-import { useDocEntityPin } from "@/hooks/use-doc-entity-pin";
 import { copyToClipboard } from "@/lib/build-prompt";
 import { openFolderInOs } from "@/lib/os-share";
 import { LucideIcon } from "@/lib/lucide-icon";
@@ -295,17 +294,6 @@ function AgentTile({ agent, index, categories, onAppearance }: AgentTileProps) {
 	const [confirmDelete, setConfirmDelete] = useState(false);
 	const { removeAllAgent, removing } = useAgentMutations();
 
-	const { pinned, togglePin } = useDocEntityPin({
-		kind: "agent",
-		primaryPath: agent.primaryPath,
-		meta: {
-			title: agent.label,
-			icon: agent.icon,
-			iconColor: agent.color,
-			nav: { to: "/agents/$slug", params: { slug: agent.slug } },
-		},
-	});
-
 	// Link absoluto inset-0 navega; o conteúdo é pointer-events-none acima dele (clique no corpo cai no
 	// link). Só os controles próprios (menu, findings) reativam o ponteiro. Igual ao TaskItem. O botão
 	// abre o menu no clique esquerdo; o clique direito no card abre o mesmo menu, ancorado no botão.
@@ -345,8 +333,6 @@ function AgentTile({ agent, index, categories, onAppearance }: AgentTileProps) {
 					open={menuOpen}
 					onOpenChange={setMenuOpen}
 					docActions={{
-						pinned,
-						onTogglePin: togglePin,
 						onOpen: () => navigate({ to: "/agents/$slug", params: { slug: agent.slug } }),
 						onOpenInOs: () => void openFolderInOs(agent.primaryDir),
 						onCopyPath: () => void copyAgentPath(agent.primaryPath),

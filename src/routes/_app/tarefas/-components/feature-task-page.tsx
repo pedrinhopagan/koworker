@@ -4,19 +4,15 @@ import { Layers3, Loader2 } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import type { TaskComplexity } from "@/constants/complexity";
 import { useTaskSortMode } from "@/hooks/use-task-sort-mode";
 import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
+import { NO_FEATURE_ROUTE_ID } from "../-utils/task-route-resolution";
+import { useTasksData } from "../-utils/use-tasks-data";
 import { GroupedTaskList, noGroupKey } from "./grouped-task-list";
 import { TaskListControls } from "./task-groups-controls";
-import { useTasksData } from "../-utils/use-tasks-data";
-import { NO_FEATURE_ROUTE_ID } from "../-utils/task-route-resolution";
 
 type FeatureTaskSearch = {
 	q?: string;
-	taskTypeId?: string;
-	priorityId?: string;
-	complexity?: TaskComplexity;
 	includeCompleted?: boolean;
 };
 
@@ -70,8 +66,6 @@ export function FeatureTaskPage({
 				<TaskListControls
 					projectId={projectId}
 					search={{ value: search, onChange: onSearchChange }}
-					categories={data.categories}
-					priorities={data.priorities}
 					sortMode={sortMode}
 					onSortModeChange={setSortMode}
 					onCollapseAll={() => setCollapsed([noFeature ? noGroupKey() : featureId])}
@@ -84,8 +78,6 @@ export function FeatureTaskPage({
 						tasks={data.tasks}
 						groups={feature ? [feature] : []}
 						availableFeatures={data.groups}
-						categories={data.categories}
-						priorities={data.priorities}
 						loading={loading}
 						sortMode={sortMode}
 						reorderingDisabled={hasMore}

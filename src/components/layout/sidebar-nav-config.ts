@@ -2,22 +2,13 @@ import type { LucideIcon } from "lucide-react";
 import {
 	Archive,
 	Bot,
-	Brush,
-	Columns2,
-	EyeOff,
-	FilePlus2,
 	FolderKanban,
 	Home,
 	Image,
-	Layers,
 	ListChecks,
-	MessageSquareText,
-	OctagonX,
 	Presentation,
-	RefreshCw,
 	Settings,
 	Sparkles,
-	SquarePen,
 	SquareTerminal,
 } from "lucide-react";
 
@@ -31,25 +22,6 @@ export type SidebarNavRouteItem = {
 	altKey?: string;
 };
 
-export type SidebarNavActionId =
-	| "openSwitcher"
-	| "newVaultNote"
-	| "newTask"
-	| "refreshPage"
-	| "sweepInvocations"
-	| "sweepAll"
-	| "hideWindow"
-	| "toggleSplit";
-
-export type SidebarNavActionItem = {
-	kind: "action";
-	id: SidebarNavActionId;
-	label: string;
-	icon: LucideIcon;
-	altKey?: string;
-	desktopOnly?: boolean;
-};
-
 export type SidebarNavSelectProjectItem = {
 	kind: "selectProject";
 	label: string;
@@ -57,10 +29,7 @@ export type SidebarNavSelectProjectItem = {
 	altKey: "P";
 };
 
-export type SidebarNavItem =
-	| SidebarNavRouteItem
-	| SidebarNavActionItem
-	| SidebarNavSelectProjectItem;
+export type SidebarNavItem = SidebarNavRouteItem | SidebarNavSelectProjectItem;
 
 export type SidebarNavGroup = {
 	label: string;
@@ -89,63 +58,14 @@ export const sidebarNavGroups: SidebarNavGroup[] = [
 	{
 		label: "Biblioteca",
 		items: [
-			{
-				kind: "action",
-				id: "openSwitcher",
-				label: "Sessões de leitura",
-				icon: Layers,
-				altKey: "`",
-			},
 			{ kind: "route", path: "/skills", label: "Skills", icon: Sparkles, altKey: "7" },
 			{ kind: "route", path: "/vault", label: "Vault", icon: Archive, altKey: "8" },
 			{ kind: "route", path: "/agents", label: "Perfis de agents", icon: Bot, altKey: "0" },
-			{ kind: "route", path: "/prompts", label: "Prompts", icon: MessageSquareText },
-		],
-	},
-	{
-		label: "Ações",
-		items: [
-			{ kind: "action", id: "newTask", label: "Nova tarefa", icon: SquarePen },
-			{ kind: "action", id: "newVaultNote", label: "Nova nota no vault", icon: FilePlus2 },
-			{
-				kind: "action",
-				id: "toggleSplit",
-				label: "Dividir tela",
-				icon: Columns2,
-				desktopOnly: true,
-			},
-			{
-				kind: "action",
-				id: "refreshPage",
-				label: "Atualizar página",
-				icon: RefreshCw,
-			},
-			{
-				kind: "action",
-				id: "sweepInvocations",
-				label: "Fechar invocações",
-				icon: Brush,
-			},
-			{
-				kind: "action",
-				id: "sweepAll",
-				label: "Limpar tudo ativo",
-				icon: OctagonX,
-			},
 		],
 	},
 	{
 		label: "Sistema",
-		items: [
-			{ kind: "route", path: "/configuracoes", label: "Configurações", icon: Settings },
-			{
-				kind: "action",
-				id: "hideWindow",
-				label: "Esconder janela",
-				icon: EyeOff,
-				desktopOnly: true,
-			},
-		],
+		items: [{ kind: "route", path: "/configuracoes", label: "Configurações", icon: Settings }],
 	},
 ];
 

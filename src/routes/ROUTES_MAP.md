@@ -43,14 +43,13 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
 | `src/routes/_app/skills/$slug/index.tsx` | `/_app/skills/$slug/` | `/skills/$slug` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
 | `src/routes/_app/agents/index.tsx` | `/_app/agents/` | `/agents` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/agents/$slug/index.tsx` | `/_app/agents/$slug/` | `/agents/$slug` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
-| `src/routes/_app/prompts/index.tsx` | `/_app/prompts/` | `/prompts` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/terminals/index.tsx` | `/_app/terminals/` | `/terminals` | Redirect legado (replace) para `/shells` |
 | `src/routes/_app/terminals/$paneId/index.tsx` | `/_app/terminals/$paneId/` | `/terminals/$paneId` | Redirect legado (replace) para `/shells?tab=agent:<paneId>` |
 | `src/routes/_app/terminals/history/index.tsx` | `/_app/terminals/history/` | `/terminals/history` | `__root` + `AppShell` + `PageShell` (histórico das conversas que Claude e Codex gravaram em disco; filtros de projeto, CLI e busca no search) |
 | `src/routes/_app/terminals/history/$cli/$sessionId/index.tsx` | `/_app/terminals/history/$cli/$sessionId/` | `/terminals/history/$cli/$sessionId` | `__root` + `AppShell` + `PageShell` (histórico + conversa antiga somente leitura; retomar abre um pane novo) |
 | `src/routes/_app/shells/index.tsx` | `/_app/shells/` | `/shells` | `__root` + `AppShell` sem `PageShell` (workspace único: sidebar com shells + conversas de agent agrupados por projeto, faixa de abas, xterm.js; aba ativa em `?tab=`) |
 | `src/routes/_app/shells/$shellId/index.tsx` | `/_app/shells/$shellId/` | `/shells/$shellId` | Redirect (replace) para `/shells?tab=<id>` |
-| `src/routes/_app/arquivo/index.tsx` | `/_app/arquivo/` | `/arquivo?path=&line=` | `__root` + `AppShell` sem `PageShell` (leitor de arquivo citado em conversa: markdown renderizado ou código com numeração e linha destacada; destino dos links de arquivo quando o cliente não está na máquina do backend) |
+| `src/routes/_app/arquivo/index.tsx` | `/_app/arquivo/` | `/arquivo?path=&line=` | `__root` + `AppShell` sem `PageShell` (leitor de arquivo citado em conversa: markdown renderizado ou código com numeração e linha destacada; destino dos links de arquivo quando o cliente não está na máquina do backend; no celular sem a barra do app, e rolar o conteúdo recolhe o cabeçalho) |
 | `src/routes/_app/executar/index.tsx` | `/_app/executar/` | `/executar` | Redirect para `/shells` |
 | `src/routes/_app/executar/$executionId/index.tsx` | `/_app/executar/$executionId/` | `/executar/$executionId` | Arquivo somente leitura de sessão/run legado; jobs atuais mantêm cancelamento e repetição |
 | `src/routes/_app/radar/index.tsx` | `/_app/radar/` | `/radar` | Redirect legado para `/shells` |

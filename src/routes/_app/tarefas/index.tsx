@@ -1,26 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Inbox, Loader2, Plus, WifiOff } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, Inbox, Loader2, WifiOff } from "lucide-react";
 import { z } from "zod";
 
 import { PageShell } from "@/components/layout/page-shell";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { Drawer } from "@/components/ui/drawer";
 import { EmptyFeedback } from "@/components/ui/empty-feedback";
-import { TASK_COMPLEXITIES } from "@/constants/complexity";
 import { useTaskSortMode } from "@/hooks/use-task-sort-mode";
-import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
 import { useSelectedProjectStore } from "@/stores/selected-project";
+import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
 import {
 	GroupedTaskList,
 	GroupedTaskListByProject,
 	noGroupKey,
 } from "./-components/grouped-task-list";
-import { TaskForm } from "./-components/task-form";
 import { TaskSyncAction } from "./-components/task-sync-dialog";
 import { TaskTriagePanel, type TriageSearch } from "./-components/task-triage-panel";
-import { useCreateTask } from "./-utils/use-create-task";
 import { useTasksData } from "./-utils/use-tasks-data";
 
 function collapseAllKeys(data: {
@@ -37,13 +32,8 @@ function collapseAllKeys(data: {
 const rawSearchSchema = z.object({
 	q: z.string().optional(),
 	projectId: z.string().optional(),
-	taskTypeId: z.string().optional(),
-	priorityId: z.string().optional(),
-	complexity: z.enum(TASK_COMPLEXITIES).optional(),
 	includeCompleted: z.coerce.boolean().optional(),
 	projetoId: z.string().optional(),
-	categoriaId: z.string().optional(),
-	prioridadeId: z.string().optional(),
 });
 
 // Keep the route search output optional. Returning explicit undefined values in an
@@ -51,9 +41,6 @@ const rawSearchSchema = z.object({
 const searchSchema = z.object({
 	q: z.string().optional(),
 	projectId: z.string().optional(),
-	taskTypeId: z.string().optional(),
-	priorityId: z.string().optional(),
-	complexity: z.enum(TASK_COMPLEXITIES).optional(),
 	includeCompleted: z.boolean().optional(),
 });
 
@@ -63,9 +50,6 @@ export const Route = createFileRoute("/_app/tarefas/")({
 		return searchSchema.parse({
 			q: raw.q,
 			projectId: raw.projectId ?? raw.projetoId,
-			taskTypeId: raw.taskTypeId ?? raw.categoriaId,
-			priorityId: raw.priorityId ?? raw.prioridadeId,
-			complexity: raw.complexity,
 			includeCompleted: raw.includeCompleted,
 		});
 	},
@@ -76,18 +60,12 @@ function TarefasPage() {
 	const search = Route.useSearch();
 	const navigate = Route.useNavigate();
 	const { data, loading, isError, refetch, hasMore, loadingMore, loadMore } = useTasksData(search);
-	const { createTask, loading: createLoading } = useCreateTask();
 	const [sortMode, setSortMode] = useTaskSortMode();
-	const [desktopComposerOpen, setDesktopComposerOpen] = useState(false);
-	const [mobileComposerOpen, setMobileComposerOpen] = useState(false);
 	const setCollapsed = useTaskGroupsUiStore((state) => state.setCollapsed);
 	const setSelectedProjectId = useSelectedProjectStore((state) => state.setSelectedProjectId);
 	const selectedProject = data.projects.find((project) => project.id === data.selectedProjectId);
 	const searchValue: TriageSearch = {
 		q: search.q,
-		taskTypeId: search.taskTypeId,
-		priorityId: search.priorityId,
-		complexity: search.complexity,
 		includeCompleted: search.includeCompleted,
 	};
 
@@ -98,8 +76,6 @@ function TarefasPage() {
 	const maintenance = (
 		<TaskSyncAction
 			projectId={data.selectedProjectId ?? null}
-			categories={data.categories}
-			priorities={data.priorities}
 			features={data.groups}
 			triggerClassName="w-full justify-start"
 		/>
@@ -119,8 +95,6 @@ function TarefasPage() {
 					projects={data.projects}
 					groups={data.groups}
 					tasks={data.tasks}
-					categories={data.categories}
-					priorities={data.priorities}
 					search={searchValue}
 					onSearchChange={updateSearch}
 					onProjectChange={(projectId) => {
@@ -131,7 +105,6 @@ function TarefasPage() {
 					onSortModeChange={setSortMode}
 					onCollapseAll={() => setCollapsed(collapseAllKeys(data))}
 					onExpandAll={() => setCollapsed([])}
-					onNewTask={() => setMobileComposerOpen(true)}
 					maintenance={maintenance}
 				/>
 
@@ -146,25 +119,7 @@ function TarefasPage() {
 									{data.tasks.length} tarefas · {sortMode}
 								</Text>
 							</div>
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={() => setDesktopComposerOpen((open) => !open)}
-							>
-								<Plus className="size-4" />
-								Nova tarefa
-							</Button>
 						</header>
-
-						{desktopComposerOpen && (
-							<div className="hidden border-b border-border py-3 md:block">
-								<TaskForm
-									projectId={data.selectedProjectId}
-									onSubmit={createTask}
-									loading={createLoading}
-								/>
-							</div>
-						)}
 
 						<div className="pt-4 md:pt-4">
 							{isError ? (
@@ -180,30 +135,24 @@ function TarefasPage() {
 									tasks={data.tasks}
 									groups={data.groups}
 									projects={data.projects}
-									categories={data.categories}
-									priorities={data.priorities}
 									loading={loading}
 									sortMode={sortMode}
-									reorderingDisabled={hasMore || sortMode !== "categoria"}
+									reorderingDisabled={hasMore || sortMode !== "manual"}
 								/>
 							) : (
 								<GroupedTaskList
 									tasks={data.tasks}
 									groups={data.groups}
-									categories={data.categories}
-									priorities={data.priorities}
 									loading={loading}
 									sortMode={sortMode}
-									reorderingDisabled={hasMore || sortMode !== "categoria"}
+									reorderingDisabled={hasMore || sortMode !== "manual"}
 								/>
 							)}
 							{!loading && !isError && data.tasks.length === 0 && (
 								<EmptyFeedback
 									icon={Inbox}
 									title="Fila vazia"
-									subtitle="Ajuste os filtros ou crie uma tarefa para começar."
-									actionText="Nova tarefa"
-									onAction={() => setMobileComposerOpen(true)}
+									subtitle="Ajuste os filtros ou peça a um agente para criar uma tarefa."
 								/>
 							)}
 							{hasMore && (
@@ -224,20 +173,6 @@ function TarefasPage() {
 					</div>
 				</div>
 			</div>
-
-			<Drawer
-				open={mobileComposerOpen}
-				onClose={() => setMobileComposerOpen(false)}
-				side="bottom"
-				title="Nova tarefa"
-				description={selectedProject?.name ?? "Escolha o projeto"}
-			>
-				<TaskForm
-					projectId={data.selectedProjectId}
-					onSubmit={createTask}
-					loading={createLoading}
-				/>
-			</Drawer>
 		</PageShell>
 	);
 }

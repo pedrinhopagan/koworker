@@ -54,8 +54,8 @@ type DocEditorPaneProps = {
 	onExitReading: () => void;
 	// Repassado ao editor: colar markdown com frontmatter roteia metadados pros controles da página.
 	onPasteFrontmatter?: (frontmatter: Record<string, unknown>, body: string) => void;
-	// Esc fora da leitura "sai pra valer": volta uma rota (a página informa o alvo do pop). O pane cuida
-	// do resto do modelo §5 — salva o que estava pendente e remove a sessão do MRU (salvo se fixada).
+	// Esc fora da leitura "sai pra valer": volta uma rota (a página informa o alvo do pop). O pane salva
+	// o que estava pendente antes de sair.
 	onExit: () => void;
 };
 
@@ -111,11 +111,9 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 
 		// Esc em dois estágios, num único listener (sem dois handlers competindo pelo mesmo Esc):
 		//   1. no modo leitura → sai da leitura e fica na página.
-		//   2. fora da leitura → "saí pra valer": salva o pendente, remove a sessão do MRU (salvo fixada)
-		//      e volta uma rota. Só dispara quando o Esc está livre — foco no editor ou em nada; um campo
-		//      de formulário (renomear, novo arquivo, título) ou um popover trata o próprio Esc.
-		// O Esc que FECHA o overlay do switcher não chega aqui: aquele listener é em capture e faz
-		// stopPropagation enquanto o overlay está aberto.
+		//   2. fora da leitura → "saí pra valer": salva o pendente e volta uma rota. Só dispara quando o
+		//      Esc está livre (foco no editor ou em nada); um campo de formulário (renomear, novo arquivo,
+		//      título) ou um popover trata o próprio Esc.
 		useEffect(() => {
 			async function onKey(event: KeyboardEvent) {
 				if (event.key !== "Escape") return;
@@ -145,16 +143,11 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 					);
 					return;
 				}
-				const store = useDocSessionsStore.getState();
-				const session = store.recents.find((entry) => entry.key === sessionKey);
-				if (!session?.pinned) {
-					store.removeRecent(sessionKey);
-				}
 				onExit();
 			}
 			window.addEventListener("keydown", onKey);
 			return () => window.removeEventListener("keydown", onKey);
-		}, [reading, onExitReading, onExit, flush, sessionKey]);
+		}, [reading, onExitReading, onExit, flush]);
 
 		useImperativeHandle(ref, () => ({
 			flush,

@@ -7,14 +7,12 @@ import type { execution_runs } from "../db/connection";
 import { dbExecutionRuns } from "../db/execution-runs";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
-import { PubSub, type PromptRunEvent } from "../pubsub";
+import { type PromptRunEvent, PubSub } from "../pubsub";
 import {
 	type ExecutionTerminalHandle,
 	openExecutionTerminal,
 	readNewLogBytes,
 } from "./execution-terminal";
-import { finishFlowRunExternally, FLOW_TIMEOUT_MS } from "./flow";
-import { getSystemSettings } from "./system-settings";
 import { PushNotifications } from "./push-notifications";
 import { getActiveRun, HEARTBEAT_STALE_MS, releaseRun, trackRun } from "./run-registry";
 import { applyRunStepPatches, getRunSteps } from "./run-steps";
@@ -337,12 +335,9 @@ async function runInBackground(params: RunProcessParams): Promise<void> {
 	}
 }
 
+// A execução roda headless de qualquer jeito; o kw-terminal só espelha a saída numa tab. Sem ele, a
+// saída continua visível na própria execução.
 async function runViaKwTerminal(params: RunProcessParams): Promise<void> {
-	const settings = await getSystemSettings().catch(() => null);
-	if (settings?.terminalMultiplexer !== "kw-terminal") {
-		return runInBackground(params);
-	}
-
 	const handle = await openExecutionTerminal({
 		runId: params.runId,
 		title: params.title,
@@ -636,7 +631,6 @@ export async function startPromptRun(params: {
 		const task = await createTask({
 			projectId: params.projectId,
 			...(params.createTaskTitle ? { title: params.createTaskTitle } : {}),
-			complexity: "medio",
 			seed: true,
 		}).catch(async (error) => {
 			await finishRun({
@@ -778,11 +772,10 @@ export async function reconcileStaleRuns() {
 	const stale = await dbExecutionRuns.listStale({
 		heartbeatBefore: now - HEARTBEAT_STALE_MS,
 		promptStartedBefore: now - RUN_TIMEOUT_MS,
-		flowStartedBefore: now - FLOW_TIMEOUT_MS,
 	});
 
 	for (const run of stale) {
-		const timeoutMs = run.kind === "flow" ? FLOW_TIMEOUT_MS : RUN_TIMEOUT_MS;
+		const timeoutMs = RUN_TIMEOUT_MS;
 		const overdue = run.started_at < now - timeoutMs;
 		const tracked = getActiveRun(run.id);
 		if (tracked && !overdue) {
@@ -795,13 +788,6 @@ export async function reconcileStaleRuns() {
 		const error = overdue
 			? `A execução excedeu o tempo limite de ${Math.round(timeoutMs / 60_000)} minutos.`
 			: "O executor caiu durante a execução. O agente pode ter continuado a trabalhar no repositório: confira o projeto antes de repetir.";
-
-		if (run.kind === "flow") {
-			await finishFlowRunExternally(run, { status, message: error }).catch((caught) => {
-				console.error("[PromptRun] Falha ao encerrar fluxo sem sinal de vida:", caught);
-			});
-			continue;
-		}
 
 		await finishRun({
 			runId: run.id,
@@ -905,14 +891,6 @@ export async function cancelPromptRun(runId: string, userId: number) {
 
 	// Sem processo neste executor o abort não tem efeito: o run pertencia a um executor que morreu.
 	// Encerrar o registro na hora evita um "Cancelar" que não muda nada na tela.
-	if (run.kind === "flow") {
-		await finishFlowRunExternally(run, {
-			status: "cancelled",
-			message: "O fluxo foi cancelado: o executor que o iniciou não está mais no ar.",
-		});
-
-		return toPromptRunRecord((await dbExecutionRuns.getByIdForUser(runId, userId)) ?? run);
-	}
 
 	await finishRun({
 		runId,

@@ -24,35 +24,21 @@ import { useMemo, useState } from "react";
 import { orpc } from "@/client";
 import { TaskItem } from "@/components/tasks";
 import { Text } from "@/components/typography";
-import { RECENCY_FRESH_WINDOW_MS, TASK_RECENCY_HIGHLIGHT_DEPTH } from "@/constants/tasks";
 import type { TaskSortMode } from "@/constants/tasks";
+import { RECENCY_FRESH_WINDOW_MS, TASK_RECENCY_HIGHLIGHT_DEPTH } from "@/constants/tasks";
 import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { sortTasksByMode } from "@/lib/task-sorting";
 import { cn } from "@/lib/utils";
 import { useTaskGroupsUiStore } from "@/stores/task-groups-ui";
-import type { TaskGroup, TaskWithMeta } from "@/types/tasks";
+import type { Task, TaskGroup } from "@/types/tasks";
 import { TaskGroupHeader } from "./task-groups-controls";
 
 export const NO_GROUP = "__none__";
-// Categoria sentinela dos buckets "achatados" (modos que não clusterizam por categoria).
-const FLAT_CAT = "__all__";
-// Categoria sentinela das tasks sem categoria no modo "categoria" (category_id null).
-const NO_CATEGORY = "__no_cat__";
-
 // Chave de colapso do slot "Sem feature". Em "Todos os projetos" o sentinela NO_GROUP é o mesmo em
 // todos os projetos, então colapsá-lo namespaceia por projeto pra não fechar o "Sem feature" dos
 // demais. Sem projectId (modo single) é o NO_GROUP puro — idêntico ao de hoje.
 export function noGroupKey(projectId?: string) {
 	return projectId ? `${projectId}:${NO_GROUP}` : NO_GROUP;
-}
-
-function bucketKey(groupId: string | null, categoryId: string) {
-	return `${groupId ?? NO_GROUP}::${categoryId}`;
-}
-
-function parseBucketKey(key: string): { groupId: string | null; categoryId: string } {
-	const [group, categoryId] = key.split("::");
-	return { groupId: group === NO_GROUP ? null : group, categoryId };
 }
 
 // Id sortable/droppable de uma seção de grupo. Reaproveita o prefixo "group::" que
@@ -76,7 +62,7 @@ function isTaskGroupsQueryKey(queryKey: QueryKey) {
 	return Array.isArray(queryKey) && Array.isArray(queryKey[0]) && queryKey[0][0] === "taskGroups";
 }
 
-function updateTasksCache(old: unknown, update: (task: TaskWithMeta) => TaskWithMeta): unknown {
+function updateTasksCache(old: unknown, update: (task: Task) => Task): unknown {
 	if (Array.isArray(old)) return old.map(update);
 	if (!old || typeof old !== "object" || !("pages" in old) || !Array.isArray(old.pages)) {
 		return old;
@@ -93,26 +79,12 @@ function updateTasksCache(old: unknown, update: (task: TaskWithMeta) => TaskWith
 	};
 }
 
-// O bucket de uma task depende do modo: por categoria clusteriza (grupo+categoria); nos demais
-// o grupo é um bucket único e a categoria não separa.
-function taskBucketKey(task: TaskWithMeta, mode: TaskSortMode) {
-	const groupId = task.groupId ?? null;
-	return mode === "categoria"
-		? bucketKey(groupId, task.categoryId ?? NO_CATEGORY)
-		: bucketKey(groupId, FLAT_CAT);
-}
-
-function buildBuckets(
-	tasks: TaskWithMeta[],
-	mode: TaskSortMode,
-	categories: { id: string; displayOrder: number }[],
-	priorities: { id: string; level: number }[],
-) {
-	const sorted = sortTasksByMode(tasks, mode, categories, priorities);
+function buildBuckets(tasks: Task[], mode: TaskSortMode) {
+	const sorted = sortTasksByMode(tasks, mode);
 
 	const buckets: Record<string, string[]> = {};
 	for (const task of sorted) {
-		(buckets[taskBucketKey(task, mode)] ??= []).push(task.id);
+		(buckets[task.groupId ?? NO_GROUP] ??= []).push(task.id);
 	}
 	return buckets;
 }
@@ -121,10 +93,10 @@ function buildBuckets(
 // por projeto (a visão "Todos os projetos" não deixa uma task de um projeto roubar o destaque de
 // outro): cada projeto tem seus próprios top-N. Só entram tarefas editadas dentro da janela de
 // frescor — destacar uma parada há meses seria chamar de "recente" o que não é.
-function buildHighlightLevels(tasks: TaskWithMeta[]) {
+function buildHighlightLevels(tasks: Task[]) {
 	const freshFloor = Date.now() - RECENCY_FRESH_WINDOW_MS;
 
-	const byProject = new Map<string, TaskWithMeta[]>();
+	const byProject = new Map<string, Task[]>();
 	for (const task of tasks) {
 		if (task.done || task.lastEditedAt < freshFloor) continue;
 		const projectTasks = byProject.get(task.projectId);
@@ -146,10 +118,8 @@ function buildHighlightLevels(tasks: TaskWithMeta[]) {
 }
 
 type GroupedTaskListProps = {
-	tasks: TaskWithMeta[];
+	tasks: Task[];
 	groups: TaskGroup[];
-	categories: { id: string; displayOrder: number }[];
-	priorities: { id: string; level: number }[];
 	loading: boolean;
 	sortMode: TaskSortMode;
 	reorderingDisabled?: boolean;
@@ -162,8 +132,6 @@ type GroupedTaskListProps = {
 export function GroupedTaskList({
 	tasks,
 	groups,
-	categories,
-	priorities,
 	loading,
 	sortMode,
 	reorderingDisabled = false,
@@ -177,16 +145,9 @@ export function GroupedTaskList({
 	const noGroupOrder = useTaskGroupsUiStore((state) => state.noGroupOrder);
 	const setNoGroupOrder = useTaskGroupsUiStore((state) => state.setNoGroupOrder);
 
-	const categoryOrder = useMemo(
-		() => new Map(categories.map((category) => [category.id, category.displayOrder])),
-		[categories],
-	);
 	const taskMap = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
 
-	const buckets = useMemo(
-		() => buildBuckets(tasks, sortMode, categories, priorities),
-		[tasks, sortMode, categories, priorities],
-	);
+	const buckets = useMemo(() => buildBuckets(tasks, sortMode), [tasks, sortMode]);
 	const highlightLevels = useMemo(() => buildHighlightLevels(tasks), [tasks]);
 
 	const renderableGroups = useMemo(() => {
@@ -199,18 +160,12 @@ export function GroupedTaskList({
 
 		return slots
 			.map(({ id, group }) => {
-				const bucketKeys = Object.keys(buckets)
-					.filter((key) => parseBucketKey(key).groupId === id)
-					.sort(
-						(a, b) =>
-							(categoryOrder.get(parseBucketKey(a).categoryId) ?? 0) -
-							(categoryOrder.get(parseBucketKey(b).categoryId) ?? 0),
-					);
+				const bucketKeys = buckets[id ?? NO_GROUP] ? [id ?? NO_GROUP] : [];
 				const count = bucketKeys.reduce((sum, key) => sum + buckets[key].length, 0);
 				return { id, group, bucketKeys, count };
 			})
 			.filter((slot) => slot.count > 0);
-	}, [groups, noGroupOrder, buckets, categoryOrder]);
+	}, [groups, noGroupOrder, buckets]);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -233,7 +188,6 @@ export function GroupedTaskList({
 					return {
 						...task,
 						groupId: input.groupId ?? undefined,
-						...(input.categoryId ? { categoryId: input.categoryId } : {}),
 						displayOrder: index,
 					};
 				}),
@@ -284,31 +238,22 @@ export function GroupedTaskList({
 		},
 	});
 
-	// Resolve, para um `over.id`, o bucket de destino conforme o modo. Sobre um cabeçalho de
-	// grupo, mantém a categoria da task ativa; sobre uma task, usa o bucket dela.
-	function resolveTargetBucket(overId: string, active: TaskWithMeta): string | null {
+	function resolveTargetBucket(overId: string): string | null {
 		if (overId.startsWith("group::")) {
 			const rawGroup = overId.slice("group::".length);
 			const groupId = rawGroup === NO_GROUP ? null : rawGroup;
-			return sortMode === "categoria"
-				? bucketKey(groupId, active.categoryId ?? NO_CATEGORY)
-				: bucketKey(groupId, FLAT_CAT);
+			return groupId ?? NO_GROUP;
 		}
-		if (overId.includes("::")) return overId;
 
 		const overTask = taskMap.get(overId);
 		if (!overTask) return null;
-		return taskBucketKey(overTask, sortMode);
+		return overTask.groupId ?? NO_GROUP;
 	}
 
 	function persistBucket(targetKey: string, orderedIds: string[]) {
-		const { groupId, categoryId } = parseBucketKey(targetKey);
-		// FLAT_CAT (modos achatados) e NO_CATEGORY (cluster "Sem categoria") preservam a categoria de
-		// cada task — só clusters de categoria real reatribuem.
-		const isSentinel = categoryId === FLAT_CAT || categoryId === NO_CATEGORY;
+		const groupId = targetKey === NO_GROUP ? null : targetKey;
 		reorderMutation.mutate({
 			groupId,
-			categoryId: isSentinel ? undefined : categoryId,
 			orderedIds,
 		});
 	}
@@ -369,8 +314,8 @@ export function GroupedTaskList({
 		const activeTask = taskMap.get(String(active.id));
 		if (!activeTask) return;
 
-		const fromKey = taskBucketKey(activeTask, sortMode);
-		const targetKey = resolveTargetBucket(String(over.id), activeTask);
+		const fromKey = activeTask.groupId ?? NO_GROUP;
+		const targetKey = resolveTargetBucket(String(over.id));
 		if (!targetKey) return;
 
 		if (targetKey === fromKey) {
@@ -497,8 +442,6 @@ interface GroupedTaskListByProjectProps extends GroupedTaskListProps {
 export function GroupedTaskListByProject({
 	tasks,
 	groups,
-	categories,
-	priorities,
 	loading,
 	sortMode,
 	reorderingDisabled,
@@ -564,8 +507,6 @@ export function GroupedTaskListByProject({
 								tasks={tasksByProject.get(project.id) ?? []}
 								groups={groupsByProject.get(project.id) ?? []}
 								availableFeatures={groupsByProject.get(project.id) ?? []}
-								categories={categories}
-								priorities={priorities}
 								loading={false}
 								sortMode={sortMode}
 								reorderingDisabled={reorderingDisabled}
@@ -585,7 +526,7 @@ type GroupSectionProps = {
 	count: number;
 	bucketKeys: string[];
 	buckets: Record<string, string[]>;
-	taskMap: Map<string, TaskWithMeta>;
+	taskMap: Map<string, Task>;
 	highlightLevels: Map<string, number>;
 	features: TaskGroup[];
 	reorderingDisabled: boolean;
@@ -694,7 +635,7 @@ function SortableTaskRow({
 	features,
 	reorderingDisabled,
 }: {
-	task: TaskWithMeta;
+	task: Task;
 	highlight?: number;
 	features: TaskGroup[];
 	reorderingDisabled: boolean;

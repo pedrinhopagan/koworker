@@ -7,7 +7,7 @@ import { type InvokeOption, reflectValue } from "@/constants/invoke";
 import { cn } from "@/lib/utils";
 
 // Peças compartilhadas do prompt-bar: colapso animado, rótulo de grupo, chip de toggle e select
-// compacto — usadas pelas seções do footer, pelo painel de anexos e pelo painel de invocação.
+// compacto, usadas pelas seções do footer e pelos painéis de invocação e conversa.
 
 export function Collapse({ open, children }: { open: boolean; children: React.ReactNode }) {
 	return (

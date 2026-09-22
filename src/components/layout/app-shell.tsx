@@ -10,15 +10,11 @@ import { X } from "lucide-react";
 import { AppContextMenu } from "@/components/layout/app-context-menu";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Divider } from "@/components/layout/divider";
-import { DocSessionSwitcher } from "@/components/doc-session-switcher";
-import { NavActionDialogs } from "@/components/layout/nav-action-dialogs";
 import { PinnedPane } from "@/components/layout/pinned-pane";
 import { GlobalProjectSelectDialog } from "@/components/layout/project-select-dialog";
 import { StatusBar } from "@/components/layout/status-bar";
 import { TabBar } from "@/components/layout/tab-bar";
 import { GlobalPromptBar } from "@/components/prompt-bar/global-prompt-bar";
-import { MobilePromptBar } from "@/components/prompt-bar/mobile-prompt-bar";
-import { MobileExecutionShortcut } from "@/components/layout/mobile-execution-shortcut";
 import { useDivider } from "@/hooks/use-divider";
 import { useIsMobileViewport, usePrimaryColor, useProjectFocus, useUser } from "@/hooks";
 import {
@@ -31,7 +27,6 @@ import {
 	useSplitViewStore,
 } from "@/stores/split-view";
 import { cn } from "@/lib/utils";
-import { useReadingModeStore } from "@/stores/reading-mode";
 
 type AppShellProps = {
 	children: ReactNode;
@@ -182,7 +177,6 @@ export function AppShell({ children }: AppShellProps) {
 	usePrimaryColor();
 	const { accent } = useProjectFocus();
 	const isMobile = useIsMobileViewport();
-	const reading = useReadingModeStore((s) => s.reading);
 
 	const pinnedPath = useSplitViewStore((s) => s.path);
 	const inSession = useRouterState({
@@ -193,6 +187,10 @@ export function AppShell({ children }: AppShellProps) {
 	});
 	const inSessionDetail = useRouterState({
 		select: (state) => !!(state.location.search as { tab?: string }).tab,
+	});
+	// O leitor de arquivo tem voltar próprio; no celular a barra do app só roubaria altura do conteúdo.
+	const inFileViewer = useRouterState({
+		select: (state) => state.location.pathname === "/arquivo",
 	});
 	const compactTerminal = useIsMobileViewport("(max-width: 1023px)") && inSession;
 	const splitActive = !isMobile && !compactTerminal && !!pinnedPath;
@@ -234,7 +232,9 @@ export function AppShell({ children }: AppShellProps) {
 				{!compactTerminal && <AppSidebar />}
 
 				<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-					{!(compactTerminal && inSessionDetail) && <TabBar compact={compactTerminal} />}
+					{!(compactTerminal && inSessionDetail) && !(isMobile && inFileViewer) && (
+						<TabBar compact={compactTerminal} />
+					)}
 
 					<main
 						className={cn(
@@ -247,25 +247,10 @@ export function AppShell({ children }: AppShellProps) {
 
 					{!isMobile && !hidePromptBar && <GlobalPromptBar />}
 
-					{isMobile && !inSession && (
-						<div
-							className={cn(
-								"flex items-stretch gap-2 border-t border-border bg-chrome px-2 py-1.5",
-								reading &&
-									"fixed inset-x-0 bottom-0 z-[60] pb-[calc(0.375rem+env(safe-area-inset-bottom))]",
-							)}
-						>
-							<MobilePromptBar />
-							<MobileExecutionShortcut />
-						</div>
-					)}
-
-					{!compactTerminal && <StatusBar />}
+					{!compactTerminal && !isMobile && <StatusBar />}
 				</div>
 
-				<DocSessionSwitcher />
 				<GlobalProjectSelectDialog />
-				<NavActionDialogs />
 			</div>
 		</AppContextMenu>
 	);

@@ -122,7 +122,7 @@ export function StatusBar() {
 	const cliLabel = cliOptions.find((option) => option.id === cli)?.label ?? cli;
 
 	return (
-		<footer className="flex h-9 items-center justify-between gap-2 border-t border-border/80 bg-chrome px-3 text-xs md:h-8 md:gap-3 md:px-3">
+		<footer className="flex h-9 shrink-0 items-center justify-between gap-2 border-t border-border bg-chrome px-3 text-xs md:h-shell-foot md:gap-3">
 			<div className="min-w-0 flex items-center gap-2 truncate">
 				<div
 					className={cn(

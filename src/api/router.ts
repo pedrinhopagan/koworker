@@ -4,31 +4,27 @@ import { protectedProcedure, publicProcedure } from "./auth/context";
 import { isLocalRequest } from "./auth/device";
 import { Auth } from "./auth/login";
 import { getRadarAgent, getRadarFocus, listRadarAgents } from "./helpers/agent-radar/state";
-import { subscribeAgentRadarTranscript } from "./helpers/agent-radar/transcript";
 import { subscribeAgentTerminalScreen } from "./helpers/agent-radar/terminal-screen";
+import { subscribeAgentRadarTranscript } from "./helpers/agent-radar/transcript";
 import { getPromptRun } from "./helpers/prompt-run";
 import { shellRuntime } from "./helpers/shells/supervisor";
 import { terminalWorkspaceSnapshot } from "./helpers/terminal-workspace";
 import { shouldEmitTerminalWorkspaceSnapshot } from "./helpers/terminal-workspace-revision";
 import { PubSub } from "./pubsub";
+import { agentCategoriesRouter } from "./routers/agent-categories";
 import { agentHistoryRouter } from "./routers/agent-history";
 import { agentRadarRouter } from "./routers/agent-radar";
 import { agentSessionsRouter } from "./routers/agent-sessions";
-import { agentCategoriesRouter } from "./routers/agent-categories";
 import { agentsRouter } from "./routers/agents";
-import { categoriesRouter } from "./routers/categories";
 import { devicesRouter } from "./routers/devices";
-import { flowRouter } from "./routers/flow";
 import { kwTerminalRouter } from "./routers/kw-terminal";
 import { mediaRouter } from "./routers/media";
 import { mostruarioRouter } from "./routers/mostruario";
 import { notificationsRouter } from "./routers/notifications";
 import { pairingRouter } from "./routers/pairing";
-import { prioritiesRouter } from "./routers/priorities";
-import { promptRouter } from "./routers/prompt";
-import { promptHistoryRouter } from "./routers/prompt-history";
 import { projectRoutesRouter } from "./routers/project-routes";
 import { projectsRouter } from "./routers/projects";
+import { promptRouter } from "./routers/prompt";
 import { settingsRouter } from "./routers/settings";
 import { shellsRouter } from "./routers/shells";
 import { skillCategoriesRouter } from "./routers/skill-categories";
@@ -39,13 +35,7 @@ import { taskStorageRouter } from "./routers/task-storage";
 import { tasksRouter } from "./routers/tasks";
 import { terminalRouter, terminalWsRouter } from "./routers/terminal";
 import { vaultRouter } from "./routers/vault";
-import {
-	AgentRadarPaneSchema,
-	EndpointSchemas,
-	FlowTaskSchema,
-	PromptRunIdSchema,
-	ShellIdSchema,
-} from "./schemas";
+import { AgentRadarPaneSchema, EndpointSchemas, PromptRunIdSchema, ShellIdSchema } from "./schemas";
 
 export const router = {
 	auth: {
@@ -86,9 +76,6 @@ export const router = {
 	tasks: tasksRouter,
 	taskGroups: taskGroupsRouter,
 	taskStorage: taskStorageRouter,
-	categories: categoriesRouter,
-	priorities: prioritiesRouter,
-	flow: flowRouter,
 	skills: skillsRouter,
 	skillCategories: skillCategoriesRouter,
 	agents: agentsRouter,
@@ -97,7 +84,6 @@ export const router = {
 	agentRadar: agentRadarRouter,
 	agentSessions: agentSessionsRouter,
 	prompt: promptRouter,
-	promptHistory: promptHistoryRouter,
 	terminal: terminalRouter,
 	kwTerminal: kwTerminalRouter,
 	shells: shellsRouter,
@@ -136,10 +122,6 @@ export const wsRouter = {
 	navigate: protectedProcedure.handler(({ signal }) =>
 		PubSub.subscribe("navigate", "global", signal),
 	),
-
-	flow: protectedProcedure
-		.input(FlowTaskSchema)
-		.handler(({ input, signal }) => PubSub.subscribe("flow", input.taskId, signal)),
 
 	promptRun: protectedProcedure.input(PromptRunIdSchema).handler(async function* ({
 		input,

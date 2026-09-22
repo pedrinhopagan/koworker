@@ -1,37 +1,28 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { LayoutDashboardIcon } from "lucide-react";
-import { useMemo } from "react";
 
 import { orpc } from "@/client";
 import { PageShell } from "@/components/layout/page-shell";
 import { Text } from "@/components/typography";
-import { useSelectedProjectStore } from "@/stores/selected-project";
+import { useProjectFocus } from "@/hooks";
 import { HomeAgentsSummary, HomeRecentActivity } from "./-components/home-agents-summary";
 import { HomeEmptyState } from "./-components/home-empty-state";
 import { HomeMasthead } from "./-components/home-masthead";
-import { HomeProjectShowcase } from "./-components/home-project-showcase";
 
 export const Route = createFileRoute("/_app/")({
 	component: HomePage,
 });
 
 function HomePage() {
-	const selectedProjectId = useSelectedProjectStore((s) => s.selectedProjectId);
-	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
-	const resolvedProjectId = useMemo(() => {
-		if (!selectedProjectId) return null;
-		return (projectsQuery.data ?? []).some((project) => project.id === selectedProjectId)
-			? selectedProjectId
-			: null;
-	}, [projectsQuery.data, selectedProjectId]);
+	const { selectedProjectId, loading: projectsLoading } = useProjectFocus();
 
 	const projectQuery = useQuery({
-		...orpc.projects.getById.queryOptions({ input: { id: resolvedProjectId ?? "" } }),
-		enabled: Boolean(resolvedProjectId),
+		...orpc.projects.getById.queryOptions({ input: { id: selectedProjectId ?? "" } }),
+		enabled: Boolean(selectedProjectId),
 	});
 
-	const loading = Boolean(selectedProjectId) && (projectsQuery.isLoading || projectQuery.isLoading);
+	const loading = projectsLoading || (Boolean(selectedProjectId) && projectQuery.isLoading);
 	const project = projectQuery.data;
 
 	return (
@@ -39,7 +30,7 @@ function HomePage() {
 			title="Briefing operacional"
 			description={
 				project
-					? `${project.name} · o que precisa da sua decisão agora`
+					? "O que precisa da sua decisão agora"
 					: "Escolha o contexto para iniciar o briefing"
 			}
 			icon={LayoutDashboardIcon}
@@ -54,16 +45,9 @@ function HomePage() {
 			{!loading && !project && <HomeEmptyState />}
 
 			{!loading && project && (
-				<div className="space-y-7">
+				<div className="space-y-8">
 					<HomeMasthead project={project} />
-					<div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-						<div className="min-h-80 lg:relative lg:col-span-7">
-							<HomeAgentsSummary />
-						</div>
-						<div className="lg:col-span-5">
-							<HomeProjectShowcase project={project} />
-						</div>
-					</div>
+					<HomeAgentsSummary />
 					<HomeRecentActivity />
 				</div>
 			)}

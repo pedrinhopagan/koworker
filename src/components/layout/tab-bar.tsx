@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { Menu, SquarePen } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import { tv } from "tailwind-variants";
 import { getActiveTabLabel, MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
@@ -7,8 +7,6 @@ import { RoutePathButton } from "@/components/layout/route-path-button";
 import { isTabActive, tabs, topTabs } from "@/components/layout/tab-nav-config";
 import { WindowControls } from "@/components/layout/window-controls";
 import { Button } from "@/components/ui/button";
-import { Tooltip } from "@/components/ui/tooltip";
-import { useNavActionDialogsStore } from "@/hooks/use-nav-action-dialogs";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
 import { isDesktop } from "@/lib/desktop";
@@ -16,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { useSidebarNavStore } from "@/stores/sidebar-nav";
 
 const tabItem = tv({
-	base: "px-4 py-2.5 text-sm transition-colors cursor-pointer shadow-[inset_0_-2px_0_transparent]",
+	base: "flex items-center px-4 text-sm transition-colors cursor-pointer shadow-[inset_0_-2px_0_transparent]",
 	variants: {
 		active: {
 			true: "text-foreground font-medium shadow-[inset_0_-2px_0_var(--project-accent,var(--primary))]",
@@ -30,7 +28,6 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 	const navigate = useNavigate();
 	const currentPath = location.pathname;
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
-	const openActionDialog = useNavActionDialogsStore((s) => s.open);
 	const openProjectDialog = useProjectSelectDialogStore((s) => s.openDialog);
 	const sidebarMode = useSidebarNavStore((s) => s.mode);
 	const { selectedProjectId, selectedProject, accent, loading } = useProjectFocus();
@@ -64,7 +61,7 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 		<>
 			<nav
 				className={cn(
-					"flex h-12 items-center border-b border-border bg-chrome select-none md:h-auto",
+					"flex h-12 items-center border-b border-border bg-chrome select-none md:h-shell-bar",
 					isDesktop() && "desktop-drag-region cursor-grab active:cursor-grabbing",
 				)}
 			>
@@ -115,7 +112,7 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 					</button>
 				)}
 
-				<div className={desktopOnly}>
+				<div className={cn(desktopOnly, "self-stretch")}>
 					{topTabs.map((tab) => (
 						<Link
 							key={tab.path}
@@ -130,30 +127,6 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 
 				<div className={cn(desktopOnly, "flex-1 items-center justify-center")}>
 					<RoutePathButton />
-				</div>
-
-				<Button
-					variant="ghost"
-					size="icon"
-					onClick={() => openActionDialog("newTask")}
-					className={cn(mobileOnly, "size-12 text-muted-foreground hover:text-foreground")}
-					aria-label="Nova tarefa"
-				>
-					<SquarePen className="size-5" />
-				</Button>
-
-				<div className={cn(desktopOnly, "items-center gap-0.5 pr-1 self-stretch")}>
-					<Tooltip label="Nova tarefa">
-						<Button
-							variant="ghost"
-							size="icon-sm"
-							onClick={() => openActionDialog("newTask")}
-							className="text-muted-foreground hover:text-foreground"
-							aria-label="Nova tarefa"
-						>
-							<SquarePen className="size-4" />
-						</Button>
-					</Tooltip>
 				</div>
 
 				<WindowControls />

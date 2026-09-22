@@ -5,13 +5,7 @@ import type { TaskSkill } from "@/types/skills";
 type VaultListOutput = RouterOutputs["vault"]["listEntries"];
 export type VaultEntry = VaultListOutput["entries"][number];
 type VaultGroup = VaultListOutput["groups"][number];
-type Priority = RouterOutputs["priorities"]["list"][number];
-type Category = RouterOutputs["categories"]["list"][number];
 
-// Ordenação das pastas de tarefa (controle inline na linha "Tarefas"). Clusteriza sem sub-headers.
-export type TaskSortMode = "recente" | "prioridade" | "categoria";
-
-const DEFAULT_PRIORITY_COLOR = "#666";
 // Gradiente "mais recente": topo (index 0) na cor cheia do projeto, esmaecendo até a 10ª tarefa.
 const RECENT_GRADIENT_SPAN = 10;
 const RECENT_MIN_ALPHA = 0.25;
@@ -42,12 +36,6 @@ export type TreeNode =
 			taskId: string;
 			color: string;
 			done: boolean;
-			priorityId: string | null;
-			priorityName: string | null;
-			priorityColor: string | null;
-			categoryId: string | null;
-			categoryName: string | null;
-			categoryColor: string | null;
 			lastEditedAt: number;
 			children: TreeNode[];
 	  }
@@ -128,11 +116,8 @@ export function buildVaultTree({
 	groups,
 	agents,
 	skills,
-	priorities,
-	categories,
 	projectColor,
 	hideCompleted,
-	taskSort,
 	keyPrefix = "",
 	includeSkillsAgents = true,
 }: {
@@ -140,71 +125,21 @@ export function buildVaultTree({
 	groups: VaultGroup[];
 	agents: TaskAgent[];
 	skills: TaskSkill[];
-	priorities: Priority[];
-	categories: Category[];
 	projectColor: string | null;
 	hideCompleted: boolean;
-	taskSort: TaskSortMode;
 	keyPrefix?: string;
 	includeSkillsAgents?: boolean;
 }): TreeNode[] {
-	const priorityColor = new Map(priorities.map((priority) => [priority.id, priority.color]));
-	const priorityName = new Map(priorities.map((priority) => [priority.id, priority.name]));
-	const priorityLevel = new Map(priorities.map((priority) => [priority.id, priority.level]));
-	const categoryColor = new Map(categories.map((category) => [category.id, category.color]));
-	const categoryName = new Map(categories.map((category) => [category.id, category.name]));
-	const categoryOrder = new Map(categories.map((category) => [category.id, category.displayOrder]));
-
-	// Cor da pasta de tarefa segue o modo: categoria = cor da categoria; recente = gradiente da cor
-	// do projeto pelo rank (topo mais vivo); demais (prioridade/default) = cor da prioridade.
-	function folderColor(group: VaultGroup, index: number): string {
-		if (taskSort === "categoria") {
-			return (
-				(group.categoryId ? categoryColor.get(group.categoryId) : null) ?? DEFAULT_PRIORITY_COLOR
-			);
-		}
-		if (taskSort === "recente" && projectColor) {
-			return withAlpha(projectColor, recentAlpha(index));
-		}
-		return (
-			(group.priorityId ? priorityColor.get(group.priorityId) : null) ?? DEFAULT_PRIORITY_COLOR
-		);
-	}
-
-	// Recente = mtime desc (default). Prioridade = level asc (Alta primeiro). Categoria = displayOrder
-	// asc. Sempre desempata por lastEditedAt desc — sem grupos-com-cabeçalho, só clusteriza a ordem.
-	function rank(order: Map<string, number>, id: string | undefined): number {
-		return id ? (order.get(id) ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
-	}
-	function compareTaskGroups(a: VaultGroup, b: VaultGroup): number {
-		if (a.kind !== "task" || b.kind !== "task") return 0;
-		if (taskSort === "prioridade") {
-			const diff = rank(priorityLevel, a.priorityId) - rank(priorityLevel, b.priorityId);
-			if (diff !== 0) return diff;
-		}
-		if (taskSort === "categoria") {
-			const diff = rank(categoryOrder, a.categoryId) - rank(categoryOrder, b.categoryId);
-			if (diff !== 0) return diff;
-		}
-		return b.lastEditedAt - a.lastEditedAt;
-	}
-
 	const taskFolders: TreeNode[] = groups
 		.filter((group) => group.kind === "task" && !(hideCompleted && (group.done ?? false)))
-		.sort(compareTaskGroups)
+		.sort((a, b) => b.lastEditedAt - a.lastEditedAt)
 		.map((group, index) => ({
 			kind: "taskFolder",
 			key: `${keyPrefix}task:${group.key}`,
 			label: group.title,
 			taskId: group.key,
-			color: folderColor(group, index),
+			color: projectColor ? withAlpha(projectColor, recentAlpha(index)) : "#666",
 			done: group.done ?? false,
-			priorityId: group.priorityId ?? null,
-			categoryId: group.categoryId ?? null,
-			priorityName: (group.priorityId ? priorityName.get(group.priorityId) : null) ?? null,
-			priorityColor: (group.priorityId ? priorityColor.get(group.priorityId) : null) ?? null,
-			categoryName: (group.categoryId ? categoryName.get(group.categoryId) : null) ?? null,
-			categoryColor: (group.categoryId ? categoryColor.get(group.categoryId) : null) ?? null,
 			lastEditedAt: group.lastEditedAt,
 			children: filesOf(entries, group.key, keyPrefix),
 		}));

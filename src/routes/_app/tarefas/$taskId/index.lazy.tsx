@@ -17,7 +17,6 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
-import { isPreviewDocument } from "@/lib/file-preview";
 import {
 	DocMobileActionsDrawer,
 	DocSheetActionButton,
@@ -26,12 +25,10 @@ import {
 import { DocShareControls } from "@/components/doc-share-controls";
 import { FileContextMenu } from "@/components/file-context-menu";
 import {
-	TASK_SELECT_CONTENT_SELECTOR,
 	TaskEditControls,
-	TaskMetaSelects,
 	TaskTitleInput,
 	taskTitlePlaceholder,
-} from "@/components/tasks/task-meta-controls";
+} from "@/components/tasks/task-edit-controls";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -41,21 +38,21 @@ import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { useRemoveTaskMutation, useUpdateTaskMutation } from "@/hooks/use-task-mutations";
 import { copyToClipboard } from "@/lib/build-prompt";
+import { isPreviewDocument } from "@/lib/file-preview";
 import { joinPath, revealFileInOs } from "@/lib/os-share";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
-import { FlowRunButton } from "./-components/flow-run-button";
+import { FeatureTaskPage } from "../-components/feature-task-page";
+import { canonicalTaskRoute } from "../-utils/task-route-resolution";
 import {
 	markdownHeadings,
 	markdownSummary,
 	markdownTitle,
 	TaskFileCard,
 } from "./-components/task-file-card";
-import { TaskOverviewContextMenu } from "./-components/task-overview-context-menu";
 import { TaskMergeAction } from "./-components/task-merge-action";
+import { TaskOverviewContextMenu } from "./-components/task-overview-context-menu";
 import { useTaskShare } from "./-components/use-task-share";
-import { FeatureTaskPage } from "../-components/feature-task-page";
-import { canonicalTaskRoute } from "../-utils/task-route-resolution";
 
 export const Route = createLazyFileRoute("/_app/tarefas/$taskId/")({
 	component: TaskOverviewRoute,
@@ -141,7 +138,6 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 
 	useClickOutside(headerRef, () => setEditing(false), {
 		enabled: editing,
-		ignoreSelector: TASK_SELECT_CONTENT_SELECTOR,
 	});
 
 	const setDoneMutation = useSetDoneMutation(task?.projectId);
@@ -397,28 +393,14 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 								{task.done ? <RotateCcw className="size-4" /> : <Check className="size-4" />}
 								{task.done ? "Desconcluir" : "Concluir"}
 							</Button>
-							<TaskMetaSelects
-								categoryId={task.categoryId ?? null}
-								priorityId={task.priorityId ?? null}
-								complexity={task.complexity}
-								interactive={editing}
-								onCategoryChange={(categoryId) =>
-									updateMutation.mutate({ id: task.id, categoryId })
-								}
-								onPriorityChange={(priorityId) =>
-									updateMutation.mutate({ id: task.id, priorityId })
-								}
-								onComplexityChange={(complexity) =>
-									updateMutation.mutate({ id: task.id, complexity })
-								}
-							/>
+
 							<TaskEditControls
 								editing={editing}
 								disabled={isMutating}
 								onToggleEdit={() => setEditing((value) => !value)}
 								onDelete={() => removeTaskMutation.mutate({ id: task.id })}
 							/>
-							<FlowRunButton taskId={taskId} />
+
 							{share.folderAbs ? (
 								<DocShareControls
 									onOpenInOs={share.openInOs}
@@ -435,24 +417,6 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 					onClose={() => setMobileActionsOpen(false)}
 					title="Ações da tarefa"
 				>
-					<div className="flex flex-col gap-2 px-5 pb-3">
-						<Text size="xs" tone="muted">
-							Detalhes
-						</Text>
-						<TaskMetaSelects
-							categoryId={task.categoryId ?? null}
-							priorityId={task.priorityId ?? null}
-							complexity={task.complexity}
-							interactive
-							layout="stacked"
-							onCategoryChange={(categoryId) => updateMutation.mutate({ id: task.id, categoryId })}
-							onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
-							onComplexityChange={(complexity) =>
-								updateMutation.mutate({ id: task.id, complexity })
-							}
-						/>
-					</div>
-					<DocSheetDivider />
 					<DocSheetActionButton
 						icon={<PencilLine className="size-[18px]" />}
 						label={editing ? "Concluir edição" : "Editar tarefa"}
@@ -462,11 +426,7 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 						}}
 						disabled={isMutating}
 					/>
-					<FlowRunButton
-						taskId={taskId}
-						layout="stacked"
-						onAction={() => setMobileActionsOpen(false)}
-					/>
+
 					{share.folderAbs ? (
 						<DocShareControls
 							layout="stacked"

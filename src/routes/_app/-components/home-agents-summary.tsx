@@ -1,15 +1,17 @@
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 import { useMutation } from "@tanstack/react-query";
-import { CircleAlert, Radio, SquareTerminal } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ArrowUpRight, CircleAlert, type LucideIcon, Radio, SquareTerminal } from "lucide-react";
+import type { ReactNode } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { Text, Title } from "@/components/typography";
+import { EmptyFeedback } from "@/components/ui/empty-feedback";
 import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { sortRadarAgents } from "@/lib/agent-radar-status";
 import { errorMessage } from "@/lib/orpc-errors";
-import { cn } from "@/lib/utils";
 import { HomeAgentCard } from "./home-agent-card";
-import { HOME_DOT_GRID } from "./home-masthead";
 
 function useAgentActions() {
 	const focus = useMutation({
@@ -32,97 +34,99 @@ function useAgentActions() {
 	};
 }
 
+function needsAttention(agent: RadarAgent) {
+	return agent.status === "blocked" || agent.status === "working";
+}
+
+function SectionHeader({
+	id,
+	icon: Icon,
+	title,
+	count,
+	children,
+}: {
+	id: string;
+	icon: LucideIcon;
+	title: string;
+	count: number;
+	children?: ReactNode;
+}) {
+	return (
+		<div className="mb-3 flex items-center justify-between gap-4">
+			<div className="flex min-w-0 items-center gap-2">
+				<Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+				<Title id={id} as="h2" size="md">
+					{title}
+				</Title>
+				<Text as="span" size="xs" tone="muted" className="font-mono tabular-nums">
+					{count}
+				</Text>
+			</div>
+			{children}
+		</div>
+	);
+}
+
 export function HomeAgentsSummary() {
 	const { agents, loading } = useAgentRadar();
 	const actions = useAgentActions();
-	const sorted = sortRadarAgents(agents);
-	const attention = sorted.filter(
-		(agent) => agent.status === "blocked" || agent.status === "working",
-	);
+	const attention = sortRadarAgents(agents).filter(needsAttention);
 
 	return (
-		<section
-			aria-labelledby="attention-title"
-			className="animate-stagger-fade-in flex min-w-0 flex-col border border-border bg-card shadow-xs lg:absolute lg:inset-0"
-		>
-			<header className="flex shrink-0 items-end justify-between gap-4 border-b border-border px-4 py-4 sm:px-5">
-				<div>
-					<div className="flex items-center gap-2">
-						<CircleAlert className="size-4 text-warning" aria-hidden />
-						<Text size="xs" tone="muted" className="uppercase tracking-[0.16em]">
-							Fila de atenção
-						</Text>
-					</div>
-					<Title
-						id="attention-title"
-						as="h2"
-						className="mt-2 text-xl tracking-[-0.025em] sm:text-2xl"
-					>
-						Precisa de você
-					</Title>
-				</div>
-				<Text size="xs" tone="muted" className="shrink-0 font-mono tabular-nums">
-					{attention.length} na fila
-				</Text>
-			</header>
+		<section aria-labelledby="attention-title">
+			<SectionHeader
+				id="attention-title"
+				icon={CircleAlert}
+				title="Precisa de você"
+				count={attention.length}
+			>
+				<Link
+					to="/shells"
+					className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+				>
+					Abrir sala de agents <ArrowUpRight className="size-3.5" />
+				</Link>
+			</SectionHeader>
 
-			<div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-				{loading && <Text tone="muted">Sincronizando agents...</Text>}
-				{!loading && attention.length === 0 && (
-					<div className="animate-stagger-fade-in relative overflow-hidden border border-dashed border-border bg-background/40 px-5 py-8">
-						<div
-							aria-hidden
-							className={cn(
-								"pointer-events-none absolute inset-0 opacity-60 [mask-image:linear-gradient(to_left,black,transparent_60%)]",
-								HOME_DOT_GRID,
-							)}
-						/>
-						<Radio className="relative size-5 text-muted-foreground" aria-hidden />
-						<Title as="h3" className="relative mt-3 text-base">
-							Nenhuma intervenção agora
-						</Title>
-						<Text size="sm" tone="muted" className="relative mt-1 max-w-md">
-							Não há agents bloqueados ou trabalhando. As sessões recentes continuam registradas
-							abaixo.
-						</Text>
-					</div>
-				)}
-				<div className="grid gap-3">
-					{attention.map((agent, index) => (
-						<HomeAgentCard key={agent.paneId} agent={agent} index={index} {...actions} />
-					))}
-				</div>
+			{loading && <Text tone="muted">Sincronizando agents...</Text>}
+			{!loading && attention.length === 0 && (
+				<EmptyFeedback
+					icon={Radio}
+					title="Nenhuma intervenção agora"
+					subtitle="Nenhum agent está esperando você ou trabalhando."
+					className="border border-dashed border-border"
+				/>
+			)}
+			<div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+				{attention.map((agent, index) => (
+					<HomeAgentCard key={agent.paneId} agent={agent} index={index} {...actions} />
+				))}
 			</div>
 		</section>
 	);
 }
 
 export function HomeRecentActivity() {
-	const { agents, loading } = useAgentRadar();
+	const { agents } = useAgentRadar();
 	const actions = useAgentActions();
-	const recent = [...agents].sort((a, b) => b.changedAt - a.changedAt).slice(0, 6);
+	const others = agents
+		.filter((agent) => !needsAttention(agent))
+		.sort((a, b) => b.changedAt - a.changedAt);
+
+	if (others.length === 0) {
+		return null;
+	}
 
 	return (
-		<section aria-labelledby="activity-title" className="border-t border-border pt-5">
-			<div className="mb-3 flex items-center justify-between gap-4">
-				<div className="flex items-center gap-2">
-					<SquareTerminal className="size-4 text-muted-foreground" aria-hidden />
-					<Title id="activity-title" as="h2" className="text-base">
-						Sessões e atividade
-					</Title>
-				</div>
-				<Text size="xs" tone="muted" className="font-mono tabular-nums">
-					{recent.length} recentes
-				</Text>
-			</div>
-			{loading && <Text tone="muted">Carregando atividade...</Text>}
-			{!loading && recent.length === 0 && (
-				<Text size="sm" tone="muted">
-					Nenhuma sessão aberta neste momento.
-				</Text>
-			)}
-			<div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
-				{recent.map((agent, index) => (
+		<section aria-labelledby="activity-title">
+			<SectionHeader
+				id="activity-title"
+				icon={SquareTerminal}
+				title="Outras sessões"
+				count={others.length}
+			/>
+			<div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+				{others.map((agent, index) => (
 					<HomeAgentCard key={agent.paneId} agent={agent} index={index} compact {...actions} />
 				))}
 			</div>

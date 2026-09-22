@@ -14,19 +14,13 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
-import { orpc, type RouterOutputs } from "@/client";
+import { orpc } from "@/client";
 import { TaskGroupLabel } from "@/components/tasks/task-group-label";
 import { TASK_SORT_OPTIONS } from "@/components/tasks/task-sort-controls";
 import { Text } from "@/components/typography";
-import {
-	COMPLEXITY_COLORS,
-	COMPLEXITY_LABELS,
-	TASK_COMPLEXITIES,
-	type TaskComplexity,
-} from "@/constants/complexity";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -40,7 +34,6 @@ import {
 	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { CustomSelect } from "@/components/ui/custom-select";
 import { Drawer } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -54,13 +47,6 @@ import type { TaskGroup } from "@/types/tasks";
 // Paleta sóbria pros grupos novos; cicla pela quantidade já existente.
 const GROUP_PALETTE = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#a855f7"];
 
-const TASK_TYPE_ALL_ID = "__all_task_type__";
-const PRIORITY_ALL_ID = "__all_priority__";
-const COMPLEXITY_ALL_ID = "__all_complexity__";
-
-type Category = RouterOutputs["categories"]["list"][number];
-type Priority = RouterOutputs["priorities"]["list"][number];
-
 function invalidateGroups(queryClient: ReturnType<typeof useQueryClient>) {
 	queryClient.invalidateQueries({
 		predicate: (q: { queryKey: QueryKey }) =>
@@ -70,182 +56,12 @@ function invalidateGroups(queryClient: ReturnType<typeof useQueryClient>) {
 
 type TaskSearchValue = {
 	q?: string;
-	taskTypeId?: string;
-	priorityId?: string;
-	complexity?: TaskComplexity;
 	includeCompleted?: boolean;
 };
-
-// Select de filtro com contraste: fundo mais escuro (bg-background) que o popover (bg-card) para
-// não se dissolver na superfície.
-function FilterSelect<T extends { id: string; name: string; color: string; level?: number }>({
-	items,
-	value,
-	allId,
-	placeholder,
-	onValueChange,
-}: {
-	items: T[];
-	value: string;
-	allId: string;
-	placeholder: string;
-	onValueChange: (next: string | undefined) => void;
-}) {
-	const selected = items.find((item) => item.id === value && item.id !== allId) ?? null;
-
-	return (
-		<CustomSelect
-			items={items}
-			value={value}
-			onValueChange={(newValue) => onValueChange(newValue === allId ? undefined : newValue)}
-			renderTrigger={() => (
-				<>
-					<span className="flex min-w-0 items-center gap-2 text-foreground">
-						<span
-							className={cn("size-2 shrink-0 rounded-full", !selected && "bg-muted-foreground")}
-							style={selected ? { backgroundColor: selected.color } : undefined}
-						/>
-						<span className="truncate">{selected?.name ?? placeholder}</span>
-					</span>
-					<ChevronDown className="ml-1 size-4 text-muted-foreground" />
-				</>
-			)}
-			renderItem={(item, isSelected) => (
-				<div
-					className={cn("flex w-full items-center gap-2 px-3 py-2", isSelected && "font-medium")}
-				>
-					<span
-						className="size-2 shrink-0 rounded-full"
-						style={{ backgroundColor: item.color ?? "#6b7280" }}
-					/>
-					<span className="truncate">{item.name}</span>
-					{typeof item.level === "number" && item.level > 0 && (
-						<span className="text-muted-foreground text-xs">{item.level}</span>
-					)}
-				</div>
-			)}
-			label={placeholder}
-			triggerClassName="w-full bg-background"
-		/>
-	);
-}
-
-function TaskFiltersPanel({
-	value,
-	categories,
-	priorities,
-	onChange,
-}: {
-	value: TaskSearchValue;
-	categories: Category[];
-	priorities: Priority[];
-	onChange: (next: TaskSearchValue) => void;
-}) {
-	const taskTypeItems = useMemo(
-		() => [
-			{ id: TASK_TYPE_ALL_ID, name: "Todos os tipos", color: "#6b7280" },
-			...categories.map((c) => ({ id: c.id, name: c.name, color: c.color })),
-		],
-		[categories],
-	);
-
-	const priorityItems = useMemo(
-		() => [
-			{ id: PRIORITY_ALL_ID, name: "Todas as prioridades", color: "#6b7280", level: 0 },
-			...priorities.map((p) => ({ id: p.id, name: p.name, color: p.color, level: p.level })),
-		],
-		[priorities],
-	);
-
-	const complexityItems = [
-		{ id: COMPLEXITY_ALL_ID, name: "Todas as complexidades", color: "#6b7280" },
-		...TASK_COMPLEXITIES.map((c) => ({
-			id: c,
-			name: COMPLEXITY_LABELS[c],
-			color: COMPLEXITY_COLORS[c],
-		})),
-	];
-
-	const activeFilters = [value.taskTypeId, value.priorityId, value.complexity].filter(
-		Boolean,
-	).length;
-
-	return (
-		<div className="space-y-3">
-			<div className="flex items-center justify-between">
-				<Text size="sm" className="font-medium">
-					Filtros
-				</Text>
-				{activeFilters > 0 && (
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						className="h-6 px-2 text-muted-foreground"
-						onClick={() =>
-							onChange({
-								...value,
-								taskTypeId: undefined,
-								priorityId: undefined,
-								complexity: undefined,
-							})
-						}
-					>
-						<X className="size-3.5" />
-						Limpar
-					</Button>
-				)}
-			</div>
-
-			<div className="space-y-1">
-				<Text size="xs" className="font-medium">
-					Tipo
-				</Text>
-				<FilterSelect
-					items={taskTypeItems}
-					value={value.taskTypeId ?? TASK_TYPE_ALL_ID}
-					allId={TASK_TYPE_ALL_ID}
-					placeholder="Todos os tipos"
-					onValueChange={(taskTypeId) => onChange({ ...value, taskTypeId })}
-				/>
-			</div>
-
-			<div className="space-y-1">
-				<Text size="xs" className="font-medium">
-					Prioridade
-				</Text>
-				<FilterSelect
-					items={priorityItems}
-					value={value.priorityId ?? PRIORITY_ALL_ID}
-					allId={PRIORITY_ALL_ID}
-					placeholder="Todas as prioridades"
-					onValueChange={(priorityId) => onChange({ ...value, priorityId })}
-				/>
-			</div>
-
-			<div className="space-y-1">
-				<Text size="xs" className="font-medium">
-					Complexidade
-				</Text>
-				<FilterSelect
-					items={complexityItems}
-					value={value.complexity ?? COMPLEXITY_ALL_ID}
-					allId={COMPLEXITY_ALL_ID}
-					placeholder="Todas as complexidades"
-					onValueChange={(complexity) =>
-						onChange({ ...value, complexity: complexity as TaskComplexity | undefined })
-					}
-				/>
-			</div>
-		</div>
-	);
-}
 
 type TaskListControlsProps = {
 	projectId: string | null;
 	search: { value: TaskSearchValue; onChange: (next: TaskSearchValue) => void };
-	categories: Category[];
-	priorities: Priority[];
 	sortMode: TaskSortMode;
 	onSortModeChange: (mode: TaskSortMode) => void;
 	onCollapseAll: () => void;
@@ -256,8 +72,6 @@ type TaskListControlsProps = {
 export function TaskListControls({
 	projectId,
 	search,
-	categories,
-	priorities,
 	sortMode,
 	onSortModeChange,
 	onCollapseAll,
@@ -291,13 +105,7 @@ export function TaskListControls({
 		createMutation.mutate({ projectId, name: trimmed, color });
 	}
 
-	const activeFilters = [
-		search.value.taskTypeId,
-		search.value.priorityId,
-		search.value.complexity,
-	].filter(Boolean).length;
-
-	const mobileControlsActive = activeFilters > 0 || sortMode !== "recente";
+	const mobileControlsActive = sortMode !== "recente";
 
 	function searchInput(className?: string) {
 		return (
@@ -353,54 +161,10 @@ export function TaskListControls({
 		);
 	}
 
-	const chips = (
-		<>
-			{search.value.taskTypeId && (
-				<Button
-					size="sm"
-					variant="secondary"
-					className="h-6 shrink-0 px-2 text-xs"
-					onClick={() => search.onChange({ ...search.value, taskTypeId: undefined })}
-				>
-					{categories.find((item) => item.id === search.value.taskTypeId)?.name}
-					<X className="size-3" />
-				</Button>
-			)}
-			{search.value.priorityId && (
-				<Button
-					size="sm"
-					variant="secondary"
-					className="h-6 shrink-0 px-2 text-xs"
-					onClick={() => search.onChange({ ...search.value, priorityId: undefined })}
-				>
-					{priorities.find((item) => item.id === search.value.priorityId)?.name}
-					<X className="size-3" />
-				</Button>
-			)}
-			{search.value.complexity && (
-				<Button
-					size="sm"
-					variant="secondary"
-					className="h-6 shrink-0 px-2 text-xs"
-					onClick={() => search.onChange({ ...search.value, complexity: undefined })}
-				>
-					{COMPLEXITY_LABELS[search.value.complexity]}
-					<X className="size-3" />
-				</Button>
-			)}
-		</>
-	);
-
 	const sectionLabel = "font-semibold uppercase tracking-[0.12em]";
 
 	const controls = (
 		<div className="space-y-4">
-			<TaskFiltersPanel
-				value={search.value}
-				categories={categories}
-				priorities={priorities}
-				onChange={search.onChange}
-			/>
 			<div className="space-y-2">
 				<Text size="xs" tone="muted" className={sectionLabel}>
 					Ordenação
@@ -476,7 +240,7 @@ export function TaskListControls({
 	const moreLabel = (
 		<>
 			<SlidersHorizontal className="size-4" />
-			Mais {mobileControlsActive && `(${activeFilters + (sortMode === "recente" ? 0 : 1)})`}
+			Mais
 		</>
 	);
 
@@ -496,12 +260,11 @@ export function TaskListControls({
 						{moreLabel}
 					</Button>
 				</div>
-				{activeFilters > 0 && <div className="flex gap-1.5 overflow-x-auto">{chips}</div>}
 			</div>
 
 			<div className="-mx-4 hidden items-center gap-2 border-b border-border bg-card/35 px-4 py-2 md:flex">
 				<div className="min-w-0 max-w-md flex-1">{searchInput()}</div>
-				<div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">{chips}</div>
+				<div className="flex-1" />
 				{completedButton}
 				<Popover>
 					<PopoverTrigger asChild>
@@ -524,7 +287,7 @@ export function TaskListControls({
 				open={mobileSheetOpen}
 				onClose={() => setMobileSheetOpen(false)}
 				side="bottom"
-				title="Filtros e ordenação"
+				title="Opções da lista"
 			>
 				{controls}
 			</Drawer>

@@ -31,6 +31,8 @@ Cor saturada só aparece em ação primária, seleção, status semântico e ass
 
 A sidebar tem marca, projeto em foco, navegação agrupada e controle de recolhimento. A barra superior é chrome de janela e contexto, não uma segunda navegação. Prompt e status fecham o quadro sem competir com a página.
 
+As linhas do shell atravessam a janela sem degrau. A barra de abas e a linha do projeto na sidebar medem `h-shell-bar`; a status bar e o "Recolher" medem `h-shell-foot`. Os dois tokens ficam em `src/index.css` em px, porque o rem de 15 px deixa alturas fracionárias e a borda cai entre dois pixels. Colunas lado a lado dentro da página (lista e detalhe) usam headers da mesma altura, e banner transitório entra acima das duas colunas, nunca dentro de uma só.
+
 ### Página
 
 O `PageShell` possui header estável, com ícone em bloco, eyebrow “Workspace”, título, descrição e uma área de ações. O conteúdo começa depois de um único intervalo vertical e ocupa até `82rem`.

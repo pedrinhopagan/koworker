@@ -1,6 +1,9 @@
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { QrCode, RefreshCw } from "lucide-react";
+import { useState } from "react";
 
 import { orpc } from "@/client";
 import { PageShell } from "@/components/layout/page-shell";
@@ -14,7 +17,8 @@ export const Route = createFileRoute("/_app/parear")({
 
 function PairingPage() {
 	const navigate = useNavigate();
-	const { settings } = useSystemSettings();
+	const { settings, save, saving } = useSystemSettings();
+	const [mobileUrl, setMobileUrl] = useState<string | null>(null);
 	const pairing = useMutation(orpc.pairing.start.mutationOptions());
 
 	return (
@@ -26,14 +30,25 @@ function PairingPage() {
 			contentClassName="min-h-0 flex-1 overflow-y-auto px-4 pb-8"
 		>
 			<div className="mx-auto w-full max-w-md space-y-6">
-				{settings && !settings.mobileBaseUrl && (
-					<div className="space-y-2 border border-accent/40 bg-accent/10 p-4">
-						<Text size="sm">
-							Falta informar por qual endereço o celular alcança este computador.
+				{settings && (
+					<div className="space-y-2">
+						<Label htmlFor="mobile-url">Endereço do celular</Label>
+						<Input
+							id="mobile-url"
+							value={mobileUrl ?? settings.mobileBaseUrl}
+							onChange={(event) => setMobileUrl(event.target.value)}
+							placeholder="https://pc-casa.suatailnet.ts.net"
+						/>
+						<Text size="xs" tone="muted">
+							Endereço HTTPS por onde o celular acessa este computador.
 						</Text>
-
-						<Button variant="outline" size="sm" onClick={() => navigate({ to: "/sistema" })}>
-							Configurar em Sistema
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={saving || mobileUrl === null || mobileUrl.trim() === settings.mobileBaseUrl}
+							onClick={() => save({ mobileBaseUrl: (mobileUrl ?? settings.mobileBaseUrl).trim() })}
+						>
+							Salvar endereço
 						</Button>
 					</div>
 				)}

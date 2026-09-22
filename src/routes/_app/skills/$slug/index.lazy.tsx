@@ -23,14 +23,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
+import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
 import {
 	DocMobileActionsDrawer,
 	DocSheetActionButton,
 	DocSheetDivider,
 } from "@/components/doc-mobile-actions-drawer";
-import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
 import { DocToolbar } from "@/components/doc-toolbar";
-import { TaskTitleInput } from "@/components/tasks/task-meta-controls";
+import { TaskTitleInput } from "@/components/tasks/task-edit-controls";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -39,11 +39,10 @@ import { Dialog } from "@/components/ui/dialog";
 import { Tooltip } from "@/components/ui/tooltip";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
 import { useProjectFocus } from "@/hooks/use-project-focus";
-import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { useSkillCategoriesQuery } from "@/hooks/use-skill-categories";
 import { useSkillQuery } from "@/hooks/use-skills";
-import { LucideIcon } from "@/lib/lucide-icon";
 import { copyToClipboard } from "@/lib/build-prompt";
+import { LucideIcon } from "@/lib/lucide-icon";
 import { errorMessage } from "@/lib/orpc-errors";
 import { openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { cn } from "@/lib/utils";
@@ -56,10 +55,10 @@ import { SkillDocumentFrontmatter } from "../-components/skill-document-frontmat
 import { SkillFilesStrip } from "../-components/skill-files-strip";
 import { SkillHeaderActions } from "../-components/skill-header-actions";
 import { SkillStandardizeDialog } from "../-components/skill-standardize-dialog";
+import { getSkillConflictNature } from "../-utils/skill-page-actions";
 import { useSkillDocumentAutosave } from "../-utils/use-skill-document-autosave";
 import { useSkillMutations } from "../-utils/use-skill-mutations";
 import { useSkillSettingsMutation } from "../-utils/use-skill-settings";
-import { getSkillConflictNature } from "../-utils/skill-page-actions";
 
 export const Route = createLazyFileRoute("/_app/skills/$slug/")({
 	component: SkillPage,
@@ -219,18 +218,6 @@ function SkillEditor({
 	// + corpo, autosave da página); qualquer outro arquivo de texto da pasta abre pelo pane comum.
 	const [activeFile, setActiveFile] = useState("SKILL.md");
 	const queryClient = useQueryClient();
-
-	// Skill é global: a sessão não carrega projeto (não troca o projeto selecionado ao abrir pelo switcher)
-	// e a chave ignora o projeto, então a mesma skill grava uma vez só no MRU. Sem subtitle: o slug já é o
-	// título, repeti-lo embaixo era ruído.
-	const { pinned, togglePin } = useRecordDocSession({
-		key: docSessionKey({ kind: "skill", variantPath: activeVariantPath }),
-		kind: "skill",
-		title: skill.label,
-		icon: skill.icon,
-		iconColor: skill.color,
-		nav: { to: "/skills/$slug", params: { slug: skill.slug } },
-	});
 
 	const settingsMutation = useSkillSettingsMutation();
 	const categoriesQuery = useSkillCategoriesQuery();
@@ -561,9 +548,7 @@ function SkillEditor({
 									flush={flushPending}
 								/>
 								<SkillHeaderActions
-									pinned={pinned}
 									onAppearance={() => setAppearanceOpen(true)}
-									onTogglePin={togglePin}
 									onReading={() => setReading(true)}
 									onCollapse={() => paneRef.current?.collapseAll()}
 									onExpand={() => paneRef.current?.expandAll()}
@@ -622,8 +607,6 @@ function SkillEditor({
 							onExpand={() => paneRef.current?.expandAll()}
 							onCopyPath={() => runAction(copyPath(`${skillDir}/SKILL.md`))}
 							onReading={() => setReading(true)}
-							pinned={pinned}
-							onTogglePin={togglePin}
 							share={{
 								onOpenInOs: () => runAction(openSkillFolder()),
 								onCopyZip: () => runAction(copySkillZip()),

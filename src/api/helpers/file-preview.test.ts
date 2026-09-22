@@ -49,7 +49,9 @@ describe("serveFilePreview", () => {
 		expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
 		expect(response.headers.get("content-security-policy")).toContain("sandbox allow-scripts");
 		expect(response.headers.get("content-security-policy")).not.toContain("allow-same-origin");
-		expect(await response.text()).toContain('href="style.css"');
+		const html = await response.text();
+		expect(html).toContain('href="style.css"');
+		expect(html).toContain("kowork:preview-scroll");
 		const stylesheet = await serveFilePreview(new Request(new URL("style.css", input.url)), [root]);
 		expect(stylesheet.status).toBe(200);
 		expect(await stylesheet.text()).toBe("body { color: red; }");

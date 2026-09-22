@@ -1,23 +1,19 @@
-import { BookOpen, ChevronsDownUp, ChevronsUpDown, ClipboardCopy, Link2, Pin } from "lucide-react";
+import { BookOpen, ChevronsDownUp, ChevronsUpDown, ClipboardCopy, Link2 } from "lucide-react";
 
 import { DocSheetActionButton } from "@/components/doc-mobile-actions-drawer";
 import { DocShareControls, type DocShareHandlers } from "@/components/doc-share-controls";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 
 // Controles do editor markdown que aparecem igual no header de tarefa e de vault. Apenas
-// dispara as ações no DocEditorPane; nenhum estado próprio. O par `pinned`/`onTogglePin` é opcional:
-// quando presente, mostra o botão de fixar a sessão de leitura no switcher (Alt+`). `share`, quando
-// presente, anexa o botão "Abrir no sistema" e o menu "Compartilhar" (a página resolve os caminhos).
+// dispara as ações no DocEditorPane; nenhum estado próprio. `share`, quando presente, anexa o botão
+// "Abrir no sistema" e o menu "Compartilhar" (a página resolve os caminhos).
 export function DocToolbar({
 	onCollapse,
 	onExpand,
 	onCopyContent,
 	onCopyPath,
 	onReading,
-	pinned,
-	onTogglePin,
 	share,
 	layout = "inline",
 	onAction,
@@ -27,8 +23,6 @@ export function DocToolbar({
 	onCopyContent?: () => void;
 	onCopyPath: () => void;
 	onReading: () => void;
-	pinned?: boolean;
-	onTogglePin?: () => void;
 	share?: DocShareHandlers;
 	layout?: "inline" | "stacked";
 	onAction?: () => void;
@@ -41,14 +35,6 @@ export function DocToolbar({
 	if (layout === "stacked") {
 		return (
 			<>
-				{onTogglePin ? (
-					<DocSheetActionButton
-						icon={<Pin className={cn("size-[18px]", pinned && "fill-current")} />}
-						label={pinned ? "Desafixar sessão de leitura" : "Fixar sessão de leitura"}
-						onClick={() => runAction(onTogglePin)}
-						aria-pressed={pinned}
-					/>
-				) : null}
 				<DocSheetActionButton
 					icon={<BookOpen className="size-[18px]" />}
 					label="Modo leitura"
@@ -83,26 +69,6 @@ export function DocToolbar({
 
 	return (
 		<div className="flex shrink-0 items-center gap-1">
-			{onTogglePin ? (
-				<Tooltip label={pinned ? "Desafixar sessão de leitura" : "Fixar sessão de leitura (Alt+`)"}>
-					<Button
-						type="button"
-						variant="ghost"
-						size="icon-sm"
-						onClick={onTogglePin}
-						aria-label={pinned ? "Desafixar sessão de leitura" : "Fixar sessão de leitura"}
-						aria-pressed={pinned}
-						className={cn(
-							"size-12 p-0 md:size-6",
-							pinned
-								? "text-[var(--project-accent,var(--primary))]"
-								: "text-muted-foreground hover:text-foreground",
-						)}
-					>
-						<Pin className={cn("size-4 md:size-3.5", pinned && "fill-current")} />
-					</Button>
-				</Tooltip>
-			) : null}
 			<Tooltip label="Modo leitura">
 				<Button
 					type="button"

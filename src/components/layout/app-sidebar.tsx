@@ -15,7 +15,7 @@ export function AppSidebar() {
 			type="button"
 			onClick={toggleMode}
 			className={cn(
-				"flex h-9 w-full items-center gap-3 border-t border-border px-3 text-xs text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground",
+				"flex h-shell-foot w-full shrink-0 items-center gap-3 border-t border-border px-3 text-xs text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground",
 				compact && "justify-center px-0",
 			)}
 			aria-label={compact ? "Expandir sidebar" : "Recolher sidebar"}

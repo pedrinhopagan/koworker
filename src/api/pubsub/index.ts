@@ -1,22 +1,15 @@
 import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
 
+import type { TerminalCursor } from "@/api/helpers/agent-radar/pane-control";
 import type { AgentRadarTranscriptEnvelope } from "@/api/schemas/agent-radar-transcript";
 import type { RadarAgent, RadarFocus } from "@/api/schemas/terminal-workspace";
 import type { AgentStep } from "@/lib/agent-stream";
-import type { TaskStage } from "@/constants/complexity";
 
 const publisher = new MemoryPublisher<Record<string, object>>();
 
 // Progresso do fluxo autônomo de uma tarefa, publicado por taskId. `stage`/`agent` nomeiam o que
 // está rodando (null na revisão final e no arranque); `message` carrega só o fato que o frontend não
 // deriva sozinho — o motivo da falha (timeout × código) ou a nota de por que parou no usuário.
-export type FlowEvent = {
-	taskId: string;
-	status: "running" | "waiting-user" | "failed" | "completed";
-	stage: TaskStage | null;
-	agent: string | null;
-	message: string | null;
-};
 
 // `output` é a cauda crua do processo e `step` são os passos já interpretados do agente (ferramenta,
 // alvo, desfecho). Os dois viajam pelo mesmo canal: quem só quer saber se terminou lê `status`.
@@ -47,9 +40,10 @@ type PubSubChannels = {
 		rows: number;
 		// Linhas de histórico acima da janela publicada: 0 é o vivo, >0 é o espelho scrollado.
 		offset: number;
+		// Onde a TUI deixou o cursor (1-based), lido do stream do controller; nulo quando escondido.
+		cursor: TerminalCursor | null;
 	};
 	shells: ShellStreamEvent;
-	flow: FlowEvent;
 	promptRun: PromptRunEvent;
 	notification: {
 		title: string;

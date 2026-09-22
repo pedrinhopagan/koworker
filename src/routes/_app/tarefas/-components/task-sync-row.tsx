@@ -6,33 +6,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	COMPLEXITY_COLORS,
-	COMPLEXITY_LABELS,
-	TASK_COMPLEXITIES,
-	type TaskComplexity,
-} from "@/constants/complexity";
 import { cn } from "@/lib/utils";
 
 type DiscoveredTask = RouterOutputs["tasks"]["discoverSync"][number];
-type Category = RouterOutputs["categories"]["list"][number];
-type Priority = RouterOutputs["priorities"]["list"][number];
 type Feature = RouterOutputs["taskGroups"]["list"][number];
 
 export interface TaskSyncDraft extends DiscoveredTask {
 	selected: boolean;
 	groupId: string;
-	categoryId?: string;
-	priorityId?: string;
-	complexity: TaskComplexity;
 	done: boolean;
 }
-
-const complexityItems = TASK_COMPLEXITIES.map((complexity) => ({
-	id: complexity,
-	name: COMPLEXITY_LABELS[complexity],
-	color: COMPLEXITY_COLORS[complexity],
-}));
 
 function ColoredSelect({
 	label,
@@ -83,15 +66,11 @@ function ColoredSelect({
 
 export function TaskSyncRow({
 	draft,
-	categories,
-	priorities,
 	features,
 	disabled,
 	onChange,
 }: {
 	draft: TaskSyncDraft;
-	categories: Category[];
-	priorities: Priority[];
 	features: Feature[];
 	disabled: boolean;
 	onChange: (updates: Partial<TaskSyncDraft>) => void;
@@ -126,34 +105,13 @@ export function TaskSyncRow({
 				</div>
 			</div>
 
-			<div className="mt-4 grid gap-3 pl-7 sm:grid-cols-2 xl:grid-cols-4">
+			<div className="mt-4 grid gap-3 pl-7 ">
 				<ColoredSelect
 					label="Feature"
 					items={features}
 					value={draft.groupId}
 					disabled={disabled || !draft.selected}
 					onValueChange={(groupId) => onChange({ groupId })}
-				/>
-				<ColoredSelect
-					label="Tipo"
-					items={categories}
-					value={draft.categoryId}
-					disabled={disabled || !draft.selected}
-					onValueChange={(categoryId) => onChange({ categoryId })}
-				/>
-				<ColoredSelect
-					label="Prioridade"
-					items={priorities}
-					value={draft.priorityId}
-					disabled={disabled || !draft.selected}
-					onValueChange={(priorityId) => onChange({ priorityId })}
-				/>
-				<ColoredSelect
-					label="Complexidade"
-					items={complexityItems}
-					value={draft.complexity}
-					disabled={disabled || !draft.selected}
-					onValueChange={(complexity) => onChange({ complexity: complexity as TaskComplexity })}
 				/>
 			</div>
 
