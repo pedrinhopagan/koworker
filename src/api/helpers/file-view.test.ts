@@ -15,6 +15,8 @@ beforeAll(async () => {
 	await writeFile(join(root, "bin.dat"), Buffer.from([0x89, 0x50, 0x00, 0x47]));
 	await writeFile(join(root, "grande.txt"), "x".repeat(FILE_VIEW_TEXT_MAX_BYTES + 10));
 	await writeFile(join(root, "img.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+	await writeFile(join(root, "apresentação.HTML"), "x".repeat(FILE_VIEW_TEXT_MAX_BYTES + 10));
+	await writeFile(join(root, "documento.pdf"), Buffer.from([0x25, 0x50, 0x44, 0x46, 0]));
 	await writeFile(join(outside, "segredo.txt"), "fora");
 	await symlink(join(outside, "segredo.txt"), join(root, "atalho.txt"));
 });
@@ -25,6 +27,17 @@ afterAll(async () => {
 });
 
 describe("readViewableFile", () => {
+	test("HTML e PDF devolvem somente metadados, sem truncar ou carregar o conteúdo", async () => {
+		for (const [name, format] of [
+			["apresentação.HTML", "html"],
+			["documento.pdf", "pdf"],
+		]) {
+			const file = await readViewableFile(join(root, name), [root]);
+			expect(file).toMatchObject({ kind: "document", format, name, path: join(root, name) });
+			expect(file).not.toHaveProperty("content");
+			expect(file).not.toHaveProperty("dataUrl");
+		}
+	});
 	test("lê texto dentro de uma raiz permitida", async () => {
 		const file = await readViewableFile(join(root, "notas.md"), [root]);
 		expect(file.kind).toBe("text");

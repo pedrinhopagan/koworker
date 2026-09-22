@@ -9,7 +9,7 @@ import {
 	type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
-import { memo, useState } from "react";
+import { memo, useState, type MouseEvent } from "react";
 
 import { useLinkCwd } from "@/components/link-cwd";
 import { MarkdownView } from "@/components/markdown-view";
@@ -115,15 +115,24 @@ export const TraceRow = memo(function TraceRow({ event }: { event: AgentSessionE
 	const detail = payload.detail;
 	const cited = !!detail && looksLikeFilePath(detail);
 
-	function openDetail() {
+	function openDetail(event: MouseEvent<HTMLButtonElement>) {
+		if (event.button !== 0 && event.button !== 1) {
+			return;
+		}
+		event.preventDefault();
 		if (detail) {
-			void openLinkTarget(detail, cwd, (href) => {
-				if (router) {
-					void router.navigate({ href });
-					return;
-				}
-				window.location.assign(href);
-			});
+			void openLinkTarget(
+				detail,
+				cwd,
+				(href) => {
+					if (router) {
+						void router.navigate({ href });
+						return;
+					}
+					window.location.assign(href);
+				},
+				event.altKey || event.button === 1,
+			);
 		}
 	}
 
@@ -137,6 +146,7 @@ export const TraceRow = memo(function TraceRow({ event }: { event: AgentSessionE
 				<button
 					type="button"
 					onClick={openDetail}
+					onAuxClick={openDetail}
 					data-slot="trace-path"
 					className="mt-0.5 block max-w-full cursor-pointer truncate text-left font-mono text-[11px] leading-5 text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
 				>

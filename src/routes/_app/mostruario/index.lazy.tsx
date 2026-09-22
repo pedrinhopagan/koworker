@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createLazyFileRoute, Link } from "@tanstack/react-router";
+import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Check, Loader2, Presentation, WifiOff } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -39,6 +39,7 @@ type ArtifactRef = {
 };
 
 function MostruarioPage() {
+	const navigate = useNavigate();
 	const { selectedProjectId } = useProjectFocus();
 	const queryClient = useQueryClient();
 	const projectInput = selectedProjectId ? { projectId: selectedProjectId } : {};
@@ -221,7 +222,24 @@ function MostruarioPage() {
 										>
 											<ArtifactCard
 												artifact={artifact}
-												onOpen={() => openMutation.mutate({ id: task.id, name: artifact.name })}
+												onOpen={(event) => {
+													if (event.altKey || !mainRoute) {
+														openMutation.mutate({ id: task.id, name: artifact.name });
+														return;
+													}
+													void navigate({
+														to: "/arquivo",
+														search: {
+															path: joinPath(mainRoute, `${task.folderPath}/${artifact.name}`),
+														},
+													});
+												}}
+												onAuxClick={(event) => {
+													if (event.button === 1) {
+														event.preventDefault();
+														openMutation.mutate({ id: task.id, name: artifact.name });
+													}
+												}}
 											/>
 										</FileContextMenu>
 									))}

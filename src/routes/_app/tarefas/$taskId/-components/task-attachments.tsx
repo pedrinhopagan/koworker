@@ -1,8 +1,10 @@
 import { useMutation } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { FileCode2, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
+import { isPreviewDocument } from "@/lib/file-preview";
 import { docSheetAction } from "@/components/doc-mobile-actions-drawer";
 import { formatBytes } from "@/lib/format-bytes";
 
@@ -13,17 +15,18 @@ type Attachment = {
 	mime: string;
 };
 
-// Artefatos não-texto (.html/.pdf) soltos na pasta da tarefa: uma linha por artefato dentro da
-// seção "Tarefa" do menu de ações, cada uma abrindo o arquivo no app padrão do SO (openArtifact).
 export function TaskAttachments({
 	taskId,
+	folderAbs,
 	attachments,
 	onAction,
 }: {
 	taskId: string;
+	folderAbs: string | null;
 	attachments: Attachment[];
 	onAction?: () => void;
 }) {
+	const navigate = useNavigate();
 	const openMutation = useMutation({
 		...orpc.tasks.openArtifact.mutationOptions(),
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Falha ao abrir"),
@@ -39,9 +42,23 @@ export function TaskAttachments({
 				<button
 					key={attachment.name}
 					type="button"
-					onClick={() => {
-						openMutation.mutate({ id: taskId, name: attachment.name });
+					onClick={(event) => {
+						if (event.altKey || !folderAbs || !isPreviewDocument(attachment.name)) {
+							openMutation.mutate({ id: taskId, name: attachment.name });
+						} else {
+							void navigate({
+								to: "/arquivo",
+								search: { path: `${folderAbs}/${attachment.name}` },
+							});
+						}
 						onAction?.();
+					}}
+					onAuxClick={(event) => {
+						if (event.button === 1) {
+							event.preventDefault();
+							openMutation.mutate({ id: taskId, name: attachment.name });
+							onAction?.();
+						}
 					}}
 					className={docSheetAction()}
 				>

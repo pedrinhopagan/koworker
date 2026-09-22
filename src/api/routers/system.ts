@@ -1,5 +1,3 @@
-import { realpath } from "node:fs/promises";
-
 import { ORPCError } from "@orpc/server";
 
 import { protectedProcedure } from "../auth/context";
@@ -8,12 +6,14 @@ import {
 	browseDirectory,
 	openFileInDefaultApp,
 	openInFileManager,
+	revealInFileManager,
 	shareZip,
 	systemCapabilities,
 } from "../helpers/os-actions";
-import { dbProjects } from "../db/projects";
-import { dbTasks } from "../db/tasks";
 import { readViewableFile } from "../helpers/file-view";
+import { fileViewRoots } from "../helpers/file-view-roots";
+import { createFilePreviewToken } from "../helpers/file-preview-access";
+import { filePreviewUrl } from "@/lib/file-preview";
 import { resolveLinkTarget } from "../helpers/link-target";
 import {
 	acquireRedeployLock,
@@ -88,8 +88,13 @@ export const systemRouter = {
 		.input(BrowseDirectorySchema)
 		.handler(({ input }) => browseDirectory(input.path ?? "")),
 
-	openFolder: protectedProcedure.input(OsPathSchema).handler(({ input }) => {
-		openInFileManager(input.path);
+	openFolder: protectedProcedure.input(OsPathSchema).handler(async ({ input }) => {
+		await openInFileManager(input.path);
+		return { ok: true };
+	}),
+
+	revealFile: protectedProcedure.input(OsPathSchema).handler(async ({ input }) => {
+		await revealInFileManager(input.path);
 		return { ok: true };
 	}),
 
@@ -104,22 +109,18 @@ export const systemRouter = {
 		.input(LinkTargetSchema)
 		.handler(({ input }) => resolveLinkTarget(input)),
 
-	// O PWA fora da máquina não pode abrir o arquivo no app padrão; lê o conteúdo e mostra no app.
-	// Só pasta de projeto cadastrado (e worktree de tarefa): o celular enxerga o que o agent tocou,
-	// não o disco inteiro.
-	readFile: protectedProcedure.input(OsPathSchema).handler(async ({ input }) => {
-		const [projects, tasks] = await Promise.all([dbProjects.getAll(), dbTasks.listLinkTargets()]);
-		const roots = new Set<string>(projects.map((project) => project.main_route));
-		for (const task of tasks) {
-			if (task.worktree_path) {
-				roots.add(task.worktree_path);
-			}
+	readFile: protectedProcedure.input(OsPathSchema).handler(async ({ input, context }) => {
+		const file = await readViewableFile(input.path, await fileViewRoots());
+		if (file.kind !== "document") {
+			return file;
 		}
-
-		return readViewableFile(
-			input.path,
-			await Promise.all([...roots].map((root) => realpath(root).catch(() => root))),
-		);
+		const token = await createFilePreviewToken({
+			directory: file.dir,
+			viewer: context.user.id,
+			device: context.device.id,
+			epoch: context.user.session_epoch ?? 0,
+		});
+		return { ...file, url: filePreviewUrl(file.path, token) };
 	}),
 
 	shareZip: protectedProcedure.input(OsPathSchema).handler(({ input }) => shareZip(input.path)),

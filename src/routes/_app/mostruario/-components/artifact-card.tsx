@@ -1,4 +1,5 @@
 import { ArrowUpRight, FileCode2, FileText } from "lucide-react";
+import type { MouseEventHandler } from "react";
 
 import type { RouterOutputs } from "@/client";
 import { Text, Title } from "@/components/typography";
@@ -10,10 +11,11 @@ type Artifact = RouterOutputs["mostruario"]["list"][number]["artifacts"][number]
 
 type ArtifactCardProps = {
 	artifact: Artifact;
-	onOpen: () => void;
+	onOpen: MouseEventHandler<HTMLButtonElement>;
+	onAuxClick: MouseEventHandler<HTMLButtonElement>;
 };
 
-export function ArtifactCard({ artifact, onOpen }: ArtifactCardProps) {
+export function ArtifactCard({ artifact, onOpen, onAuxClick }: ArtifactCardProps) {
 	const isPdf = artifact.mime === "application/pdf";
 	const title = artifact.metadata?.title ?? artifact.name;
 	const showsFileName = title !== artifact.name;
@@ -24,6 +26,7 @@ export function ArtifactCard({ artifact, onOpen }: ArtifactCardProps) {
 		<button
 			type="button"
 			onClick={onOpen}
+			onAuxClick={onAuxClick}
 			className={cn(
 				"group relative flex flex-col overflow-hidden border border-border bg-card text-left transition-colors hover:border-[var(--project-accent,var(--primary))] hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 				hasContext ? "min-h-64" : "min-h-44",

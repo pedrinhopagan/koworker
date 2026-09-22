@@ -46,11 +46,11 @@ type TreeProps = {
 
 export function Tree(props: TreeProps) {
 	return (
-		<div className="flex flex-col">
+		<nav aria-label="Arquivos do vault" className="vault-branched-menu">
 			{props.nodes.map((node) => (
 				<TreeRow key={node.key} node={node} depth={0} {...props} />
 			))}
-		</div>
+		</nav>
 	);
 }
 
@@ -112,22 +112,23 @@ const TreeRow = memo(function TreeRow({
 			type="button"
 			aria-disabled={inert || undefined}
 			aria-expanded={folder ? open : undefined}
-			aria-selected={node.kind === "fileLeaf" ? selected : undefined}
+			aria-pressed={node.kind === "fileLeaf" ? selected : undefined}
+			data-selected={selected || undefined}
 			title={node.kind === "fileLeaf" ? node.title : undefined}
 			onClick={activate}
-			style={{ paddingLeft: depth * 16 + 8 }}
 			className={cn(
-				"group flex h-12 w-full items-center gap-1.5 pr-2 text-left transition-colors sm:h-8",
+				"group flex h-12 w-full items-center gap-2 rounded-none px-2 text-left transition-colors active:bg-secondary sm:h-9",
 				selected ? "bg-primary/15 hover:bg-primary/20" : "hover:bg-secondary/60",
 				node.kind === "fileLeaf" && draggable.isDragging && "opacity-40",
 				inert && !selected && "cursor-default",
-				"focus:outline-none focus-visible:bg-secondary/60 focus-visible:ring-1 focus-visible:ring-ring",
+				"focus-visible:outline-none focus-visible:bg-secondary/60 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
 			)}
 		>
 			<ChevronRight
 				className={cn(
-					"size-3.5 shrink-0 text-muted-foreground transition-transform",
-					folder ? (open ? "rotate-90" : "") : "invisible",
+					"size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none",
+					folder && open && "rotate-90",
+					!folder && "hidden",
 				)}
 			/>
 			<NodeIcon node={node} open={open} />
@@ -139,6 +140,11 @@ const TreeRow = memo(function TreeRow({
 			>
 				{node.label}
 			</span>
+			{"children" in node && (
+				<span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground/60">
+					{node.children.length}
+				</span>
+			)}
 		</button>
 	);
 
@@ -152,7 +158,7 @@ const TreeRow = memo(function TreeRow({
 					{...draggable.attributes}
 					aria-label={`Arrastar ${node.label}`}
 					title="Arraste para mover o arquivo"
-					className="flex h-12 w-10 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground/50 transition-colors hover:text-foreground sm:h-8 sm:w-7 sm:opacity-0 sm:group-hover/row:opacity-100 sm:focus-visible:opacity-100"
+					className="flex h-12 w-10 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground/60 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring sm:h-9 sm:w-7 sm:opacity-0 sm:group-hover/row:opacity-100 sm:focus-visible:opacity-100"
 				>
 					<GripVertical className="size-4" />
 				</span>
@@ -188,9 +194,9 @@ const TreeRow = memo(function TreeRow({
 	const accessory = props.renderAccessory?.(node);
 
 	const content = (
-		<>
+		<div className="vault-branch-content">
 			{accessory ? (
-				<div className="flex items-center">
+				<div className="flex flex-wrap items-center">
 					<div className="min-w-0 flex-1">{wrapped}</div>
 					{accessory}
 				</div>
@@ -199,39 +205,34 @@ const TreeRow = memo(function TreeRow({
 			)}
 
 			{"children" in node && open && (
-				<>
+				<div className="vault-branch-children">
 					{node.children.map((child) => (
 						<TreeRow key={child.key} node={child} depth={depth + 1} {...props} />
 					))}
 					{node.kind === "feature" && node.placeholder && node.children.length === 0 && (
-						<Text
-							size="xs"
-							tone="muted"
-							className="py-1 font-mono"
-							style={{ paddingLeft: (depth + 1) * 16 + 22 }}
-						>
+						<Text size="xs" tone="muted" className="px-2 py-2 font-mono">
 							{node.placeholder}
 						</Text>
 					)}
-				</>
+				</div>
 			)}
-		</>
+		</div>
 	);
 
 	// Pasta de tarefa: o droppable embrulha cabeçalho + filhos, então o drop pega a pasta inteira
 	// mesmo expandida (e não só a linha do cabeçalho).
-	if (node.kind === "taskFolder") {
-		return (
-			<div
-				ref={droppable.setNodeRef}
-				className={cn(showDropTarget && "rounded-sm bg-primary/10 ring-1 ring-inset ring-primary")}
-			>
-				{content}
-			</div>
-		);
-	}
-
-	return content;
+	return (
+		<div
+			ref={node.kind === "taskFolder" ? droppable.setNodeRef : undefined}
+			className={cn(
+				"vault-branch",
+				depth === 0 && "vault-branch-root",
+				showDropTarget && "bg-primary/10 ring-1 ring-inset ring-primary",
+			)}
+		>
+			{content}
+		</div>
+	);
 });
 
 function MetaRow({ color, label, value }: { color: string | null; label: string; value: string }) {

@@ -742,6 +742,7 @@ function SkillEditor({
 						isSkillFile ? (activeVariant?.content ?? content) : (fileQuery.data?.content ?? "")
 					}
 					folderPath={activeVariant?.dir ?? skill.primaryDir}
+					linkCwd={activeVariant?.dir ?? skill.primaryDir}
 					documentMaxWidth="52rem"
 					externalSave={
 						isSkillFile

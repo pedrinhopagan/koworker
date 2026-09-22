@@ -45,6 +45,7 @@ import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { useRemoveTaskMutation, useUpdateTaskMutation } from "@/hooks/use-task-mutations";
 import { reflowMarkdown } from "@/lib/reflow-markdown";
 import { relativeTimeFrom } from "@/lib/relative-time";
+import { joinPath, revealFileInOs } from "@/lib/os-share";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
@@ -470,7 +471,12 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 					/>
 				</div>
 				<FlowRunButton taskId={taskId} layout="stacked" onAction={onAction} />
-				<TaskAttachments taskId={taskId} attachments={task.attachments} onAction={onAction} />
+				<TaskAttachments
+					taskId={taskId}
+					folderAbs={share.folderAbs}
+					attachments={task.attachments}
+					onAction={onAction}
+				/>
 				{share.folderAbs ? (
 					<DocShareControls
 						layout="stacked"
@@ -637,6 +643,9 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 											key={file.name}
 											file={file}
 											path={`${task.folderPath}/${file.name}`}
+											absolutePath={
+												share.folderAbs ? joinPath(share.folderAbs, file.name) : undefined
+											}
 											isActive={file.name === activeFile}
 											level={task.files.length > 1 ? recencyLevels.get(file.name) : undefined}
 											isRenaming={renamingFile === file.name}
@@ -701,6 +710,7 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 					sessionKey={docSessionKey({ kind: "task", taskId, file: activeFile })}
 					content={editorContent}
 					folderPath={task.folderPath}
+					linkCwd={task.project ? joinPath(task.project.mainRoute, task.folderPath) : undefined}
 					writeFile={(payload) => writeFileMutation.mutateAsync({ id: taskId, ...payload })}
 					emptyState={
 						creatingFile
@@ -734,6 +744,7 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 type SortableFileTabProps = {
 	file: { name: string; createdAt: number; editedAt: number };
 	path: string;
+	absolutePath?: string;
 	isActive: boolean;
 	level: number | undefined;
 	isRenaming: boolean;
@@ -751,6 +762,7 @@ type SortableFileTabProps = {
 function SortableFileTab({
 	file,
 	path,
+	absolutePath,
 	isActive,
 	level,
 	isRenaming,
@@ -801,6 +813,8 @@ function SortableFileTab({
 				<FileContextMenu
 					name={file.name}
 					path={path}
+					absolutePath={absolutePath}
+					onOpenFolder={absolutePath ? () => void revealFileInOs(absolutePath) : undefined}
 					onRename={onStartRename}
 					onDelete={onRequestDelete}
 				>

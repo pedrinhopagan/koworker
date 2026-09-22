@@ -9,9 +9,11 @@ import { EmptyFeedback } from "@/components/ui/empty-feedback";
 import { Text, Title } from "@/components/typography";
 import { Pagination } from "@/components/ui/pagination";
 import { useProjectFocus } from "@/hooks/use-project-focus";
+import { formatBytes } from "@/lib/format-bytes";
+import { formatDateTime, formatDayLabel } from "@/lib/relative-time";
 import { MediaCard } from "./-components/media-card";
 
-const MEDIA_PAGE_SIZE = 12;
+const MEDIA_PAGE_SIZE = 30;
 
 export const Route = createLazyFileRoute("/_app/media/")({
 	component: MediaPage,
@@ -25,6 +27,8 @@ type MediaGroup = {
 	taskId: string | null;
 	taskTitle: string | null;
 	latestMtime: number;
+	oldestMtime: number;
+	totalBytes: number;
 	totalEntries: number;
 	entries: MediaEntry[];
 };
@@ -39,6 +43,8 @@ function groupMedia(entries: MediaEntry[], totals?: Map<string, number>): MediaG
 		if (group) {
 			group.entries.push(entry);
 			group.latestMtime = Math.max(group.latestMtime, entry.mtime);
+			group.oldestMtime = Math.min(group.oldestMtime, entry.mtime);
+			group.totalBytes += entry.size;
 			continue;
 		}
 
@@ -48,12 +54,21 @@ function groupMedia(entries: MediaEntry[], totals?: Map<string, number>): MediaG
 			taskId: entry.taskId,
 			taskTitle: entry.taskTitle,
 			latestMtime: entry.mtime,
+			oldestMtime: entry.mtime,
+			totalBytes: entry.size,
 			totalEntries: totals?.get(key) ?? 1,
 			entries: [entry],
 		});
 	}
 
 	return [...groups.values()].sort((a, b) => b.latestMtime - a.latestMtime);
+}
+
+function formatDayRange(oldest: number, latest: number) {
+	const from = formatDayLabel(oldest);
+	const to = formatDayLabel(latest);
+
+	return from === to ? to : `${from} — ${to}`;
 }
 
 function MediaPage() {
@@ -71,6 +86,16 @@ function MediaPage() {
 	const totalPages = Math.max(1, Math.ceil(entries.length / MEDIA_PAGE_SIZE));
 	const page = Math.min(search.page, totalPages);
 	const totals = new Map(allGroups.map((group) => [group.key, group.entries.length]));
+	const stats = new Map(
+		allGroups.map((group) => [
+			group.key,
+			{
+				bytes: group.totalBytes,
+				oldest: group.oldestMtime,
+				latest: group.latestMtime,
+			},
+		]),
+	);
 	const groups = groupMedia(
 		entries.slice((page - 1) * MEDIA_PAGE_SIZE, page * MEDIA_PAGE_SIZE),
 		totals,
@@ -87,7 +112,7 @@ function MediaPage() {
 			icon={Image}
 			title="Mídia"
 			description="Imagens das tarefas e da pasta .koworker/medias"
-			contentClassName="min-h-0 flex-1 overflow-y-auto px-4 pb-12"
+			contentClassName="min-h-0 flex-1 overflow-y-auto px-4 pb-4"
 		>
 			{mediaQuery.isLoading ? (
 				<div className="flex h-full items-center justify-center">
@@ -116,63 +141,79 @@ function MediaPage() {
 					</div>
 				</div>
 			) : (
-				<div ref={galleryRef} className="mx-auto flex w-full max-w-7xl flex-col gap-10">
-					{groups.map((group, index) => (
-						<section key={group.key} className="flex flex-col gap-4">
-							<header className="flex items-end gap-3 border-b border-border pb-3">
-								<Text
-									as="span"
-									size="xs"
-									tone="muted"
-									className="flex size-7 shrink-0 items-center justify-center border border-border font-mono tabular-nums"
-								>
-									{String(index + 1).padStart(2, "0")}
-								</Text>
-								<div className="min-w-0 flex-1">
-									<Text size="xs" tone="muted" className="uppercase tracking-[0.16em]">
-										{group.taskId ? "Tarefa" : "Mídia avulsa"}
-										{showProject ? ` · ${group.projectName}` : ""}
+				<div ref={galleryRef} className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+					<div className="flex flex-col gap-10">
+						{groups.map((group, index) => (
+							<section key={group.key} className="flex flex-col gap-4">
+								<header className="flex items-end gap-3 border-b border-border pb-3">
+									<Text
+										as="span"
+										size="xs"
+										tone="muted"
+										className="flex size-7 shrink-0 items-center justify-center border border-border font-mono tabular-nums"
+									>
+										{String(index + 1).padStart(2, "0")}
 									</Text>
-									{group.taskId ? (
-										<Link to="/tarefas/$taskId" params={{ taskId: group.taskId }}>
-											<Title
-												as="span"
-												size="sm"
-												className="block truncate font-normal transition-colors hover:text-[var(--project-accent,var(--primary))]"
-											>
-												{group.taskTitle || "Tarefa sem título"}
+									<div className="min-w-0 flex-1">
+										<Text size="xs" tone="muted" className="uppercase tracking-[0.16em]">
+											{group.taskId ? "Tarefa" : "Mídia avulsa"}
+											{showProject ? ` · ${group.projectName}` : ""}
+										</Text>
+										{group.taskId ? (
+											<Link to="/tarefas/$taskId" params={{ taskId: group.taskId }}>
+												<Title
+													as="span"
+													size="sm"
+													className="block truncate font-normal transition-colors hover:text-[var(--project-accent,var(--primary))]"
+												>
+													{group.taskTitle || "Tarefa sem título"}
+												</Title>
+											</Link>
+										) : (
+											<Title as="h2" size="sm" className="font-normal">
+												Imagens do projeto
 											</Title>
-										</Link>
-									) : (
-										<Title as="h2" size="sm" className="font-normal">
-											Imagens do projeto
-										</Title>
-									)}
-								</div>
-								<Text size="xs" tone="muted" className="shrink-0 tabular-nums">
-									{group.entries.length < group.totalEntries
-										? `${group.entries.length} de ${group.totalEntries} imagens`
-										: `${group.totalEntries} ${group.totalEntries === 1 ? "imagem" : "imagens"}`}
-								</Text>
-							</header>
+										)}
+									</div>
+									<div className="shrink-0 text-right">
+										<Text size="xs" tone="muted" className="tabular-nums">
+											{group.entries.length < group.totalEntries
+												? `${group.entries.length} de ${group.totalEntries} imagens`
+												: `${group.totalEntries} ${group.totalEntries === 1 ? "imagem" : "imagens"}`}
+											{` · ${formatBytes(stats.get(group.key)?.bytes ?? group.totalBytes)}`}
+										</Text>
+										<Text
+											size="xs"
+											tone="muted"
+											title={`${formatDateTime(stats.get(group.key)?.oldest ?? group.oldestMtime)} — ${formatDateTime(stats.get(group.key)?.latest ?? group.latestMtime)}`}
+											className="tabular-nums"
+										>
+											{formatDayRange(
+												stats.get(group.key)?.oldest ?? group.oldestMtime,
+												stats.get(group.key)?.latest ?? group.latestMtime,
+											)}
+										</Text>
+									</div>
+								</header>
 
-							<div className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
-								{group.entries.map((entry) => (
-									<MediaCard
-										key={`${entry.projectId}/${entry.taskId || "project"}/${entry.name}`}
-										entry={entry}
-									/>
-								))}
-							</div>
-						</section>
-					))}
+								<div className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
+									{group.entries.map((entry) => (
+										<MediaCard
+											key={`${entry.projectId}/${entry.taskId || "project"}/${entry.name}`}
+											entry={entry}
+										/>
+									))}
+								</div>
+							</section>
+						))}
+					</div>
 
 					<Pagination
 						page={page}
 						totalPages={totalPages}
 						total={entries.length}
 						onPageChange={handlePageChange}
-						className="border border-border bg-background"
+						className="sticky bottom-0 z-10 border border-border bg-background"
 						singularLabel="imagem"
 						pluralLabel="imagens"
 					/>

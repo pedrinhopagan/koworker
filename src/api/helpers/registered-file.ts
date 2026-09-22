@@ -2,6 +2,7 @@ import { isAbsolute, join, relative } from "node:path";
 
 import type { dbProjects } from "../db/projects";
 import type { dbTasks } from "../db/tasks";
+import { isPreviewDocument } from "@/lib/file-preview";
 
 function isInside(path: string, directory: string) {
 	const child = relative(directory, path);
@@ -31,6 +32,13 @@ export function resolveRegisteredFile({
 	const match = matches[0];
 
 	if (match) {
+		if (isPreviewDocument(path)) {
+			return {
+				kind: "file" as const,
+				path,
+				projectId: projects.find((project) => project.main_route === match.task.main_route)?.id,
+			};
+		}
 		const file = relative(match.root, path);
 		const featureId = match.task.group_id || "sem-feature";
 		const taskHref = `/tarefas/${featureId}/${match.task.id}`;

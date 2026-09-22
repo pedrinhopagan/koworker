@@ -21,6 +21,25 @@ function MediaFilePage() {
 
 	const project = projects.find((candidate) => candidate.id === projectId) ?? null;
 
+	const listQuery = useQuery(orpc.media.list.queryOptions({ input: { projectId } }));
+	const siblings = (listQuery.data?.entries ?? []).filter(
+		(entry) => entry.projectId === projectId && (entry.taskId ?? undefined) === taskId,
+	);
+	const currentIndex = siblings.findIndex((entry) => entry.name === fileName);
+
+	function goToSibling(offset: number) {
+		const target = siblings[currentIndex + offset];
+		if (!target) {
+			return;
+		}
+
+		navigate({
+			to: "/media/$fileName",
+			params: { fileName: target.name },
+			search: taskId ? { projectId, taskId } : { projectId },
+		});
+	}
+
 	const readInput = taskId ? { projectId, taskId, name: fileName } : { projectId, name: fileName };
 	const fileQuery = useQuery({
 		...orpc.media.readFile.queryOptions({ input: readInput }),
@@ -78,6 +97,11 @@ function MediaFilePage() {
 			}
 			onDelete={taskId ? undefined : () => deleteMutation.mutate({ projectId, name: fileName })}
 			deleting={deleteMutation.isPending}
+			onPrev={currentIndex > 0 ? () => goToSibling(-1) : undefined}
+			onNext={
+				currentIndex >= 0 && currentIndex < siblings.length - 1 ? () => goToSibling(1) : undefined
+			}
+			position={currentIndex >= 0 ? { index: currentIndex, total: siblings.length } : undefined}
 		/>
 	);
 }

@@ -19,6 +19,14 @@ const IMAGE_TYPES: Record<string, string> = {
 };
 
 export type ViewableFile =
+	| {
+			kind: "document";
+			format: "html" | "pdf";
+			name: string;
+			dir: string;
+			path: string;
+			size: number;
+	  }
 	| { kind: "image"; name: string; dir: string; path: string; size: number; dataUrl: string }
 	| {
 			kind: "text";
@@ -30,7 +38,7 @@ export type ViewableFile =
 			content: string;
 	  };
 
-export async function readViewableFile(path: string, roots: string[]): Promise<ViewableFile> {
+export async function resolveViewableFile(path: string, roots: string[]) {
 	const target = await realpath(path).catch(() => null);
 	if (!target) {
 		throw new ORPCError("NOT_FOUND", { message: "Arquivo não encontrado" });
@@ -44,9 +52,24 @@ export async function readViewableFile(path: string, roots: string[]): Promise<V
 	if (!info.isFile()) {
 		throw new ORPCError("NOT_FOUND", { message: "O caminho citado não é um arquivo" });
 	}
+	return { target, info };
+}
+
+export async function readViewableFile(path: string, roots: string[]): Promise<ViewableFile> {
+	const { target, info } = await resolveViewableFile(path, roots);
 
 	const name = basename(target);
 	const dir = dirname(target);
+	if (/\.(html?|pdf)$/i.test(name)) {
+		return {
+			kind: "document",
+			format: /\.pdf$/i.test(name) ? "pdf" : "html",
+			name,
+			dir,
+			path: target,
+			size: info.size,
+		};
+	}
 	const imageType = IMAGE_TYPES[extname(name).toLowerCase()];
 
 	if (imageType) {

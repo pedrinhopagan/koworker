@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
+import type { MouseEventHandler } from "react";
 
 import { formatBytes } from "@/lib/format-bytes";
 import { relativeTimeFrom } from "@/lib/relative-time";
@@ -132,7 +133,8 @@ type TaskFileCardProps = {
 	hero?: boolean;
 	to?: "/tarefas/$taskId/$file/$canonicalFile";
 	params?: { taskId: string; file: string; canonicalFile: string };
-	onClick?: () => void;
+	onClick?: MouseEventHandler<HTMLButtonElement>;
+	onAuxClick?: MouseEventHandler<HTMLButtonElement>;
 };
 
 export function TaskFileCard({
@@ -147,6 +149,7 @@ export function TaskFileCard({
 	to,
 	params,
 	onClick,
+	onAuxClick,
 }: TaskFileCardProps) {
 	const className = cn(
 		"group flex w-full flex-col gap-2 border border-border text-left transition-colors hover:border-[var(--project-accent,var(--primary))] hover:bg-muted/30 rounded-none",
@@ -208,7 +211,7 @@ export function TaskFileCard({
 	}
 
 	return (
-		<button type="button" onClick={onClick} className={className}>
+		<button type="button" onClick={onClick} onAuxClick={onAuxClick} className={className}>
 			{content}
 		</button>
 	);

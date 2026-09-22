@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { isDesktop } from "@/lib/desktop";
+import { isPreviewDocument } from "@/lib/file-preview";
 import { fileViewerHref, linkLine, opensFilesInApp } from "@/lib/link-paths";
 
 const LINK_PATTERN =
@@ -23,6 +24,7 @@ export async function openLinkTarget(
 	target: string,
 	cwd?: string,
 	navigate: LinkNavigate = assignLocation,
+	external = false,
 ) {
 	if (/^(https?:|mailto:)/i.test(target)) {
 		window.open(target, "_blank", "noopener,noreferrer");
@@ -37,7 +39,10 @@ export async function openLinkTarget(
 	}
 
 	if (result.kind === "file") {
-		if (opensFilesInApp(window.location.hostname, isDesktop())) {
+		if (
+			!external &&
+			(isPreviewDocument(result.path) || opensFilesInApp(window.location.hostname, isDesktop()))
+		) {
 			navigate(fileViewerHref(result.path, linkLine(target)));
 			return;
 		}
@@ -73,8 +78,8 @@ export function registerTerminalLinks(terminal: Terminal, cwd?: string) {
 					},
 					text: raw,
 					decorations: { pointerCursor: true, underline: true },
-					activate(_event: MouseEvent, text: string) {
-						void openLinkTarget(text, cwd);
+					activate(event: MouseEvent, text: string) {
+						void openLinkTarget(text, cwd, assignLocation, event.altKey || event.button === 1);
 					},
 				};
 			});

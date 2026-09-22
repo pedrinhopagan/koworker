@@ -4,6 +4,7 @@ import { basename, dirname, extname, isAbsolute, join } from "node:path";
 
 import { getSystemSettings } from "./system-settings";
 import { spawnEnv } from "./spawn";
+import { runSystemOpen } from "./system-open";
 import { zipDirectory } from "./zip";
 
 const HOME = homedir();
@@ -44,31 +45,36 @@ function resolveInput(raw: string, base: string): string {
 	return isAbsolute(expanded) ? expanded : join(base, expanded);
 }
 
-function openWithSystem(path: string): void {
+async function openWithSystem(path: string): Promise<void> {
 	const target = expandTilde(path);
 	const env = spawnEnv();
-	let failure = "";
-
-	for (const command of systemOpenCommands(target, env)) {
-		const result = Bun.spawnSync(command, {
-			stdin: "ignore",
-			stdout: "ignore",
-			stderr: "pipe",
-			env,
-		});
-
-		if (result.exitCode === 0) {
-			return;
-		}
-
-		failure = result.stderr.toString().trim() || `${command[0]} saiu com código ${result.exitCode}`;
-	}
-
-	throw new Error(failure);
+	await runSystemOpen(systemOpenCommands(target, env), env);
 }
 
-export function openInFileManager(path: string): void {
-	openWithSystem(path);
+export async function openInFileManager(path: string): Promise<void> {
+	await openWithSystem(path);
+}
+
+export async function revealInFileManager(path: string): Promise<void> {
+	const target = expandTilde(path);
+	const env = spawnEnv();
+
+	if (process.platform === "darwin") {
+		await runSystemOpen([["open", "-R", target]], env);
+		return;
+	}
+
+	if (process.platform === "win32") {
+		await runSystemOpen([["explorer", `/select,${target}`]], env);
+		return;
+	}
+
+	const commands = [
+		...(Bun.which("dolphin", { PATH: env.PATH }) ? [["dolphin", "--select", target]] : []),
+		...(Bun.which("nautilus", { PATH: env.PATH }) ? [["nautilus", "--select", target]] : []),
+		...systemOpenCommands(dirname(target), env),
+	];
+	await runSystemOpen(commands, env);
 }
 
 const MIME_BY_EXTENSION: Record<string, string> = {
@@ -124,7 +130,7 @@ async function focusDefaultApp(ext: string): Promise<void> {
 
 export async function openFileInDefaultApp(path: string): Promise<void> {
 	const target = expandTilde(path);
-	openWithSystem(target);
+	await openWithSystem(target);
 
 	await focusDefaultApp(extname(target).toLowerCase());
 }

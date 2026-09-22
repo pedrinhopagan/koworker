@@ -552,6 +552,7 @@ function AgentEditor({
 					sessionKey={docSessionKey({ kind: "agent", variantPath: activeVariantPath })}
 					content={activeVariant?.content ?? content}
 					folderPath={activeVariant?.dir ?? agent.primaryDir}
+					linkCwd={activeVariant?.dir ?? agent.primaryDir}
 					writeFile={({ content }) => persist({ description, content, metadata })}
 					onPasteFrontmatter={applyPastedFrontmatter}
 					reading={reading}

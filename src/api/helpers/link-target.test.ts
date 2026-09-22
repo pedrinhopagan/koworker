@@ -18,6 +18,17 @@ test("resolve projeto e arquivo canônico sem confundir prefixos ou worktrees", 
 	];
 	const resolveLinkTarget = ({ target }: { target: string }) =>
 		resolveRegisteredFile({ path: target, tasks, projects });
+	for (const path of [
+		"/projeto/.koworker/tarefa/apresentação.html",
+		"/worktree/relatório.PDF",
+		"/projeto/página.htm",
+	]) {
+		expect(resolveLinkTarget({ target: path })).toMatchObject({
+			kind: "file",
+			path,
+			projectId: "/projeto",
+		});
+	}
 
 	expect(
 		await resolveLinkTarget({ target: "/projeto/.koworker/tarefa/plano final.md" }),

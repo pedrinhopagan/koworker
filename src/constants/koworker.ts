@@ -6,10 +6,6 @@ export const MEDIAS_DIRNAME = "medias";
 // nunca sejam adotados como tarefa.
 export const RESERVED_KOWORKER_FOLDERS = new Set([MEDIAS_DIRNAME, "tasks", ".backups", ".staging"]);
 
-// Correspondência extensão → MIME dos assets. `IMAGE_MIME_BY_EXT` é a whitelist de `medias/`, que só
-// aceita imagens e as renderiza inline em /media. `DOC_MIME_BY_EXT` é a whitelist de
-// `listTaskArtifacts`: os artefatos robustos (HTML/PDF) vivem na pasta da própria tarefa e são
-// abertos no app padrão do SO, não renderizados inline. O MIME é dado, não controle de fluxo.
 export const IMAGE_MIME_BY_EXT: Record<string, string> = {
 	".png": "image/png",
 	".jpg": "image/jpeg",

@@ -7,7 +7,6 @@ import {
 	FileCode2,
 	FileText,
 	ListChecks,
-	type LucideIcon,
 	Loader2,
 	MoreHorizontal,
 	PencilLine,
@@ -18,6 +17,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { orpc } from "@/client";
+import { isPreviewDocument } from "@/lib/file-preview";
 import {
 	DocMobileActionsDrawer,
 	DocSheetActionButton,
@@ -41,7 +41,7 @@ import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { useRemoveTaskMutation, useUpdateTaskMutation } from "@/hooks/use-task-mutations";
 import { copyToClipboard } from "@/lib/build-prompt";
-import { joinPath } from "@/lib/os-share";
+import { joinPath, revealFileInOs } from "@/lib/os-share";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import { FlowRunButton } from "./-components/flow-run-button";
@@ -109,16 +109,6 @@ function TaskOverviewRoute() {
 			}
 		/>
 	);
-}
-
-function artifactIcon(mime: string): LucideIcon {
-	if (mime === "application/pdf") {
-		return FileText;
-	}
-	if (mime === "text/html") {
-		return FileCode2;
-	}
-	return File;
 }
 
 // Divisor de seção: rótulo em caixa alta seguido de uma linha fina até a borda. Separa o card do
@@ -206,6 +196,12 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 	});
 
 	const share = useTaskShare(task);
+	const revealFile = (name: string) => {
+		if (!share.folderAbs) {
+			return;
+		}
+		void revealFileInOs(joinPath(share.folderAbs, name));
+	};
 
 	if (taskQuery.isLoading) {
 		return (
@@ -282,6 +278,25 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 
 	const indexFile = task.files[0]?.name === "index.md" ? task.files[0] : null;
 	const gridFiles = indexFile ? task.files.slice(1) : task.files;
+	const attachmentSections = [
+		{
+			label: "PDFs",
+			icon: FileText,
+			attachments: task.attachments.filter((attachment) => attachment.mime === "application/pdf"),
+		},
+		{
+			label: "HTML",
+			icon: FileCode2,
+			attachments: task.attachments.filter((attachment) => attachment.mime === "text/html"),
+		},
+		{
+			label: "Artefatos",
+			icon: File,
+			attachments: task.attachments.filter(
+				(attachment) => attachment.mime !== "application/pdf" && attachment.mime !== "text/html",
+			),
+		},
+	].filter((section) => section.attachments.length > 0);
 
 	const lastEditMs = Math.max(
 		0,
@@ -486,7 +501,7 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 										absolutePath={
 											share.folderAbs ? joinPath(share.folderAbs, indexFile.name) : undefined
 										}
-										onOpenFolder={share.openInOs}
+										onOpenFolder={share.folderAbs ? () => revealFile(indexFile.name) : undefined}
 										onRename={() => startRename(indexFile.name)}
 										onDelete={() => setDeletingFile(indexFile.name)}
 									>
@@ -510,7 +525,7 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 								) : null}
 								{gridFiles.length > 0 ? (
 									<div className="flex flex-col gap-3">
-										{indexFile ? <SectionDivider label="Arquivos" /> : null}
+										{indexFile ? <SectionDivider label="Markdown" /> : null}
 										<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 											{gridFiles.map((file) => (
 												<FileContextMenu
@@ -521,7 +536,7 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 													absolutePath={
 														share.folderAbs ? joinPath(share.folderAbs, file.name) : undefined
 													}
-													onOpenFolder={share.openInOs}
+													onOpenFolder={share.folderAbs ? () => revealFile(file.name) : undefined}
 													onRename={() => startRename(file.name)}
 													onDelete={() => setDeletingFile(file.name)}
 												>
@@ -575,11 +590,11 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 							</div>
 						)}
 
-						{task.attachments.length > 0 ? (
-							<div className="flex flex-col gap-3">
-								<SectionDivider label="Artefatos" />
-								<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-									{task.attachments.map((attachment) => (
+						{attachmentSections.map((section) => (
+							<div key={section.label} className="flex flex-col gap-3">
+								<SectionDivider label={section.label} />
+								<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+									{section.attachments.map((attachment) => (
 										<FileContextMenu
 											key={attachment.name}
 											name={attachment.name}
@@ -587,24 +602,41 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 											absolutePath={
 												share.folderAbs ? joinPath(share.folderAbs, attachment.name) : undefined
 											}
-											onOpenFolder={share.openInOs}
+											onOpenFolder={share.folderAbs ? () => revealFile(attachment.name) : undefined}
 											onRename={() => startRename(attachment.name)}
 											onDelete={() => setDeletingFile(attachment.name)}
 										>
 											<TaskFileCard
-												icon={artifactIcon(attachment.mime)}
+												icon={section.icon}
 												name={attachment.name}
 												size={attachment.size}
 												timestamp={attachment.mtime}
-												onClick={() =>
-													openArtifactMutation.mutate({ id: taskId, name: attachment.name })
-												}
+												onClick={(event) => {
+													if (
+														event.altKey ||
+														!share.folderAbs ||
+														!isPreviewDocument(attachment.name)
+													) {
+														openArtifactMutation.mutate({ id: taskId, name: attachment.name });
+														return;
+													}
+													void navigate({
+														to: "/arquivo",
+														search: { path: joinPath(share.folderAbs, attachment.name) },
+													});
+												}}
+												onAuxClick={(event) => {
+													if (event.button === 1) {
+														event.preventDefault();
+														openArtifactMutation.mutate({ id: taskId, name: attachment.name });
+													}
+												}}
 											/>
 										</FileContextMenu>
 									))}
 								</div>
 							</div>
-						) : null}
+						))}
 					</div>
 				</div>
 

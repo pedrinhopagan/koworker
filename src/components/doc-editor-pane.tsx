@@ -15,6 +15,7 @@ import { SaveStatus } from "@/components/ui/save-status";
 import { useDebouncedWrite } from "@/hooks/use-debounced-write";
 import { copyToClipboard } from "@/lib/build-prompt";
 import type { HeadingAnchor } from "@/lib/heading-anchor";
+import { openLinkTarget } from "@/lib/link-navigation";
 import { cn } from "@/lib/utils";
 import { useDocSessionsStore } from "@/stores/doc-sessions";
 import { usePromptBarStore } from "@/stores/prompt-bar";
@@ -38,6 +39,7 @@ type DocEditorPaneProps = {
 	sessionKey: string;
 	content: string;
 	folderPath: string;
+	linkCwd?: string;
 	writeFile?: (payload: { name: string; content: string }) => Promise<unknown>;
 	externalSave?: {
 		schedule: (content: string) => void;
@@ -64,6 +66,7 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 			sessionKey,
 			content,
 			folderPath,
+			linkCwd,
 			writeFile,
 			externalSave,
 			beforeEditor,
@@ -225,6 +228,22 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 							onChange={(next) => schedule({ name: fileName, content: next })}
 							onInlineCodeClick={(text) => void handleInlineCodeCopy(text)}
 							onHeadingMention={(text) => usePromptBarStore.getState().appendMention(text)}
+							onLinkClick={(target, external) => {
+								void flush()
+									.then(() =>
+										openLinkTarget(
+											target,
+											linkCwd,
+											(href) => window.location.assign(href),
+											external,
+										),
+									)
+									.catch((error: unknown) =>
+										toast.error(
+											error instanceof Error ? error.message : "Não foi possível abrir o link",
+										),
+									);
+							}}
 							onPasteFrontmatter={onPasteFrontmatter}
 						/>
 					) : (

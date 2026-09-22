@@ -10,6 +10,7 @@ import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useRecordDocSession } from "@/hooks/use-record-doc-session";
+import { joinPath } from "@/lib/os-share";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
 
@@ -23,6 +24,7 @@ function ProjectDocPage() {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { projects } = useProjectFocus();
+	const project = projects.find((entry) => entry.id === projetoId);
 	const paneRef = useRef<DocEditorPaneHandle>(null);
 	const reading = useReadingModeStore((s) => s.reading);
 	const setReading = useReadingModeStore((s) => s.setReading);
@@ -42,7 +44,7 @@ function ProjectDocPage() {
 					kind: "docs",
 					title: file.name,
 					subtitle: file.dirLabel || undefined,
-					projectName: projects.find((project) => project.id === projetoId)?.name,
+					projectName: project?.name,
 					nav: { to: "/projetos/$projetoId/docs/$", params: { projetoId, _splat: docPath } },
 				}
 			: null,
@@ -122,6 +124,7 @@ function ProjectDocPage() {
 					sessionKey={docSessionKey({ kind: "docs", projectId: projetoId, path: docPath })}
 					content={file.content}
 					folderPath={dir}
+					linkCwd={project ? joinPath(project.mainRoute, dir) : undefined}
 					writeFile={(payload) =>
 						writeMutation.mutateAsync({ id: projetoId, path: docPath, content: payload.content })
 					}

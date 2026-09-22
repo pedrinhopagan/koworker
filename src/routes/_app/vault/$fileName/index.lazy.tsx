@@ -293,6 +293,7 @@ function VaultFilePage() {
 					sessionKey={docSessionKey({ kind: "vault", projectId, fileName })}
 					content={file.content}
 					folderPath=".koworker"
+					linkCwd={selectedProject ? joinPath(selectedProject.mainRoute, ".koworker") : undefined}
 					writeFile={(payload) => writeMutation.mutateAsync({ projectId, ...payload })}
 					reading={reading}
 					onExitReading={() => setReading(false)}

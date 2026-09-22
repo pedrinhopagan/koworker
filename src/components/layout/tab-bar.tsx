@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useNavActionDialogsStore } from "@/hooks/use-nav-action-dialogs";
 import { useProjectFocus } from "@/hooks/use-project-focus";
+import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
 import { isDesktop } from "@/lib/desktop";
 import { cn } from "@/lib/utils";
 import { useSidebarNavStore } from "@/stores/sidebar-nav";
@@ -30,6 +31,7 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 	const currentPath = location.pathname;
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
 	const openActionDialog = useNavActionDialogsStore((s) => s.open);
+	const openProjectDialog = useProjectSelectDialogStore((s) => s.openDialog);
 	const sidebarMode = useSidebarNavStore((s) => s.mode);
 	const { selectedProjectId, selectedProject, accent, loading } = useProjectFocus();
 	const projectLabel =
@@ -94,7 +96,12 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 				</div>
 
 				{sidebarMode === "compact" && !compact && (
-					<div className="hidden min-w-0 items-center gap-2 self-stretch border-r border-border px-4 md:flex">
+					<button
+						type="button"
+						onClick={openProjectDialog}
+						aria-label={`Selecionar projeto: ${projectLabel}`}
+						className="hidden min-w-0 cursor-pointer items-center gap-2 self-stretch border-r border-border px-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring md:flex"
+					>
 						{accent?.color && (
 							<span
 								aria-hidden
@@ -105,7 +112,7 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 						<span className="max-w-44 truncate text-sm font-medium text-foreground">
 							{projectLabel}
 						</span>
-					</div>
+					</button>
 				)}
 
 				<div className={desktopOnly}>

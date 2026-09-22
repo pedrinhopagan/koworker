@@ -1,0 +1,86 @@
+.vault-branched-menu {
+	--vault-row-height: 3rem;
+	--vault-indent: 1.5rem;
+	padding: 0.75rem;
+}
+
+.vault-branch {
+	position: relative;
+	min-width: 0;
+}
+
+.vault-branch-root + .vault-branch-root {
+	margin-top: 0.75rem;
+}
+
+.vault-branch-children {
+	padding-left: var(--vault-indent);
+	animation: vault-branch-enter 200ms ease-out;
+}
+
+.vault-branch-children > .vault-branch::before {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: calc(var(--vault-indent) * -1 + 0.75rem);
+	border-left: 1px solid var(--border);
+	content: "";
+	pointer-events: none;
+}
+
+.vault-branch-children > .vault-branch:last-child::before {
+	bottom: auto;
+	height: calc(var(--vault-row-height) / 2);
+}
+
+.vault-branch-children > .vault-branch::after {
+	position: absolute;
+	top: 0;
+	left: calc(var(--vault-indent) * -1 + 0.75rem);
+	width: 0.75rem;
+	height: calc(var(--vault-row-height) / 2);
+	border-bottom: 1px solid var(--border);
+	border-left: 1px solid var(--border);
+	transform-origin: left top;
+	transition: border-color 150ms ease;
+	content: "";
+	pointer-events: none;
+}
+
+.vault-branch-children > .vault-branch:has([data-selected])::after,
+.vault-branch-children > .vault-branch:focus-within::after {
+	border-color: var(--primary);
+}
+
+@keyframes vault-branch-enter {
+	from {
+		opacity: 0;
+		transform: translateX(-4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+@media (min-width: 640px) {
+	.vault-branched-menu {
+		--vault-row-height: 2.25rem;
+		--vault-indent: 2rem;
+		padding: 1rem;
+	}
+
+	.vault-branch-children > .vault-branch::after {
+		width: 1.25rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.vault-branch-children {
+		animation: none;
+	}
+
+	.vault-branch::after {
+		transition: none;
+	}
+}

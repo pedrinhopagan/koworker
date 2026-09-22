@@ -22,6 +22,7 @@ import {
 	markdownHighlightStyle,
 	resolveCodeLanguage,
 } from "@/lib/markdown-engine";
+import { openLinkTarget } from "@/lib/link-navigation";
 import { extractFrontmatter } from "@/lib/skills/parser";
 import { useThemeStore } from "@/stores/theme";
 
@@ -203,6 +204,7 @@ type MarkdownEditorProps = {
 	onChange: (content: string) => void;
 	onInlineCodeClick?: (text: string) => void;
 	onHeadingMention?: (text: string) => void;
+	onLinkClick?: (target: string, external: boolean) => void;
 	// Tamanho base da fonte; títulos e demais elementos usam `em`, então escalam junto.
 	fontSize?: string;
 	// Largura-limite da prosa: restringe `.cm-line` a uma medida de leitura e centraliza. Tabelas
@@ -228,6 +230,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 			onChange,
 			onInlineCodeClick,
 			onHeadingMention,
+			onLinkClick,
 			fontSize = "1rem",
 			proseMaxWidth,
 			initialAnchor,
@@ -263,11 +266,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 		// o CodeMirror reconfgura e todos os marks aparecem por um frame.
 		const onInlineCodeClickRef = useRef(onInlineCodeClick);
 		const onHeadingMentionRef = useRef(onHeadingMention);
+		const onLinkClickRef = useRef(onLinkClick);
 		const onAnchorChangeRef = useRef(onAnchorChange);
 		const onPasteFrontmatterRef = useRef(onPasteFrontmatter);
 		useEffect(() => {
 			onInlineCodeClickRef.current = onInlineCodeClick;
 			onHeadingMentionRef.current = onHeadingMention;
+			onLinkClickRef.current = onLinkClick;
 			onAnchorChangeRef.current = onAnchorChange;
 			onPasteFrontmatterRef.current = onPasteFrontmatter;
 		});
@@ -316,6 +321,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 			() => ({
 				onInlineCodeClick: (text: string) => onInlineCodeClickRef.current?.(text),
 				onHeadingMention: (text: string) => onHeadingMentionRef.current?.(text),
+				onLinkClick: (target: string, external: boolean) => {
+					if (onLinkClickRef.current) {
+						onLinkClickRef.current(target, external);
+						return;
+					}
+					void openLinkTarget(target);
+				},
 			}),
 			[],
 		);

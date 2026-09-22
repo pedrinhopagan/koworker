@@ -6,11 +6,14 @@ import type { z } from "zod";
 import "./api/arktype";
 import { isAllowedOrigin, rpcHandler, wsRpcHandler } from "./api/app";
 import { resolveSessionDevice } from "./api/auth/context";
+import { resolveApprovedDevice } from "./api/auth/device";
 import { registerWsSession, unregisterWsSession, type WsSessionData } from "./api/auth/ws-sessions";
 import { envVariables } from "./api/config/env";
 import { dbProjects } from "./api/db/projects";
 import { DbUsers } from "./api/db/users";
 import { createGeneratedProjectLogo } from "./api/helpers/generated-project-logo";
+import { serveFilePreview } from "./api/helpers/file-preview";
+import { verifyFilePreviewToken } from "./api/helpers/file-preview-access";
 import { isNotifyAuthorized } from "./api/helpers/notify-auth";
 import { resolveProjectLogo, resolveProjectLogoByName } from "./api/helpers/project-logo";
 import { assertSingleTenantRuntime } from "./api/helpers/terminal-access";
@@ -245,6 +248,26 @@ Bun.serve<WsSessionData>({
 			return response ?? new Response("Not Found", { status: 404 });
 		},
 		"/api/project-logos/*": serveProjectLogo,
+		"/api/file-preview/*": async (request: Request, server: Server<WsSessionData>) => {
+			const token = new URL(request.url).pathname.slice("/api/file-preview/".length).split("/")[0];
+			const access = await verifyFilePreviewToken(token);
+			if (!access) {
+				return new Response("Visualização expirada. Reabra o documento.", { status: 401 });
+			}
+			const [user, device] = await Promise.all([
+				DbUsers.getById(access.viewer),
+				resolveApprovedDevice({
+					deviceId: access.device,
+					userId: access.viewer,
+					userAgent: request.headers.get("user-agent") ?? undefined,
+					ip: server.requestIP(request)?.address,
+				}),
+			]);
+			if (!user || (user.session_epoch ?? 0) !== access.epoch || device?.status !== "approved") {
+				return new Response("Acesso não autorizado", { status: 401 });
+			}
+			return await serveFilePreview(request, [access.directory]);
+		},
 		"/api/tasks/notify": async (request: Request, server: Server<WsSessionData>) => {
 			const body = await readLoopbackBody(request, server, TaskNotifySchema);
 			if ("response" in body) {

@@ -1,5 +1,5 @@
 const PATH_EXTENSIONS =
-	/\.(md|mdx|txt|json|jsonc|ya?ml|toml|ts|tsx|js|jsx|mjs|cjs|css|scss|html|py|rs|go|java|kt|swift|rb|php|sh|fish|zsh|sql|env|lock|xml|svg|png|jpe?g|gif|webp|pdf|csv|log|ini|conf)$/i;
+	/\.(md|mdx|txt|json|jsonc|ya?ml|toml|ts|tsx|js|jsx|mjs|cjs|css|scss|html?|py|rs|go|java|kt|swift|rb|php|sh|fish|zsh|sql|env|lock|xml|svg|png|jpe?g|gif|webp|pdf|csv|log|ini|conf)$/i;
 
 const LOCAL_HOSTS = /^(localhost|127\.0\.0\.1|\[?::1\]?)$/;
 

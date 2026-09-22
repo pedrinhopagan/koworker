@@ -438,11 +438,14 @@ export const MarkdownView = memo(function MarkdownView({
 	}
 
 	function handleClick(event: MouseEvent<HTMLDivElement>) {
+		if (event.button !== 0 && event.button !== 1) {
+			return;
+		}
 		const target = event.target as HTMLElement;
 		const cited = target.closest<HTMLElement>("code[data-path]");
 		if (cited?.dataset.path) {
 			event.preventDefault();
-			void openLinkTarget(cited.dataset.path, cwd, navigate);
+			void openLinkTarget(cited.dataset.path, cwd, navigate, event.altKey || event.button === 1);
 			return;
 		}
 
@@ -455,7 +458,7 @@ export const MarkdownView = memo(function MarkdownView({
 		if (!filesystemLink) return;
 
 		event.preventDefault();
-		void openLinkTarget(raw, cwd, navigate);
+		void openLinkTarget(raw, cwd, navigate, event.altKey || event.button === 1);
 	}
 
 	return (
@@ -463,6 +466,7 @@ export const MarkdownView = memo(function MarkdownView({
 			data-component="markdown-view"
 			className={cn("md-view min-w-0", className)}
 			onClick={handleClick}
+			onAuxClick={handleClick}
 		>
 			{content}
 		</div>

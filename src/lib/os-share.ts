@@ -25,6 +25,15 @@ export async function openFolderInOs(dir: string): Promise<void> {
 	}
 }
 
+export async function revealFileInOs(path: string): Promise<void> {
+	try {
+		await orpc.system.revealFile.call({ path });
+	} catch (error) {
+		console.error("[os-share] revelar arquivo:", error);
+		toast.error("Não foi possível abrir a pasta do arquivo");
+	}
+}
+
 // Compacta a pasta num `.zip`. O backend copia o arquivo pro clipboard (best-effort Linux); quando
 // consegue, é só colar no gerenciador. Senão, revelamos o zip no gerenciador de arquivos.
 export async function shareFolderAsZip(dir: string): Promise<void> {

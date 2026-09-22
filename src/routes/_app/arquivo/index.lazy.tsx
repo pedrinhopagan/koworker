@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { orpc } from "@/client";
 import { CodeFileView } from "@/components/code-file-view";
+import { DocumentPreview } from "@/components/document-preview";
 import { LinkCwdProvider } from "@/components/link-cwd";
 import { MarkdownView } from "@/components/markdown-view";
 import { Text, Title } from "@/components/typography";
@@ -26,6 +27,7 @@ function FileViewerPage() {
 	const query = useQuery({
 		...orpc.system.readFile.queryOptions({ input: { path } }),
 		retry: false,
+		refetchOnWindowFocus: false,
 	});
 	const file = query.data ?? null;
 	const name = file?.name ?? path.replace(/\/+$/, "").split("/").at(-1) ?? path;
@@ -83,6 +85,16 @@ function FileViewerPage() {
 			</header>
 
 			<div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+				{file?.kind === "document" && (
+					<DocumentPreview
+						key={file.path}
+						path={file.path}
+						name={file.name}
+						format={file.format}
+						url={file.url}
+						onReload={() => query.refetch()}
+					/>
+				)}
 				{query.isPending && (
 					<div className="flex min-h-32 items-center justify-center">
 						<Loader2 className="size-5 animate-spin text-muted-foreground" />
