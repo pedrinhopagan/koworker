@@ -1,3 +1,4 @@
+import { agentPromptInput } from "@/lib/agent-prompt-input";
 import { ORPCError } from "@orpc/server";
 
 import type { RadarAgent } from "@/api/schemas/terminal-workspace";
@@ -51,11 +52,16 @@ export const agentRadarRouter = {
 
 	reopenSavedTerminals: protectedProcedure.handler(() => reopenSavedTerminals()),
 
-	// `pane run` escreve e envia em uma ação, inclusive durante o trabalho do agent. A mensagem só
-	// aparece na conversa quando volta pelo transcript: ele é a fonte da verdade.
 	send: protectedProcedure.input(AgentRadarSendSchema).handler(async ({ input }) => {
-		agentOrThrow(input.paneId);
-		await kwTerminalPaneRun(input.paneId, input.text);
+		const agent = agentOrThrow(input.paneId);
+		if (agent.agent === "claude") {
+			await kwTerminalPaneSendInput(input.paneId, agentPromptInput(agent.agent, input.text));
+			await Bun.sleep(100);
+			agentOrThrow(input.paneId);
+			await kwTerminalPaneSendKeys(input.paneId, "Enter");
+		} else {
+			await kwTerminalPaneRun(input.paneId, input.text);
+		}
 
 		return { sent: true };
 	}),

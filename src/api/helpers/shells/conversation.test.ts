@@ -105,7 +105,7 @@ test("chat lê o histórico do shell e envia texto multilinha ao mesmo PTY", asy
 				.catch(() => "")
 		).endsWith("\r"),
 	);
-	expect(await Bun.file(received).text()).toBe("\u001B[200~linha um\nlinha dois\u001B[201~\r");
+	expect(await Bun.file(received).text()).toBe("linha um\u001B[13;2ulinha dois\r");
 }, 10_000);
 
 test("recusa envio para agente ou sessão diferentes sem escrever no terminal", async () => {

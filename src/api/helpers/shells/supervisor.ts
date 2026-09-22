@@ -1,3 +1,4 @@
+import { agentPromptInput } from "@/lib/agent-prompt-input";
 import { Terminal as Screen } from "@xterm/headless";
 
 import { PubSub, type ShellStreamEvent } from "../../pubsub";
@@ -61,7 +62,7 @@ type OpenOptions = {
 };
 
 type ShellRuntimeCommand =
-	| { type: "prompt"; id: string; data: string }
+	| { type: "prompt"; id: string; agent: string; data: string }
 	| ({ type: "open" } & OpenOptions)
 	| { type: "input"; id: string; data: string }
 	| { type: "resize"; id: string; cols: number; rows: number }
@@ -146,7 +147,7 @@ export class ShellRuntime {
 				if (!shell || shell.exited || !shell.screen.modes.bracketedPasteMode) {
 					return false;
 				}
-				return this.write(command.id, `\u001B[200~${command.data}\u001B[201~`);
+				return this.write(command.id, agentPromptInput(command.agent, command.data));
 			}
 			case "input":
 				return this.write(command.id, command.data);

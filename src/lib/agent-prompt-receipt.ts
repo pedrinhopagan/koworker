@@ -1,8 +1,11 @@
 import type { AgentSessionEvent } from "./agent-session";
 
 export function countPromptReceipts(events: AgentSessionEvent[], text: string) {
+	const normalized = text.replaceAll(/\s+/g, " ").trim();
 	return events.filter(
-		(event) => event.payload.kind === "user" && event.payload.text.includes(text),
+		(event) =>
+			event.payload.kind === "user" &&
+			event.payload.text.replaceAll(/\s+/g, " ").trim().includes(normalized),
 	).length;
 }
 

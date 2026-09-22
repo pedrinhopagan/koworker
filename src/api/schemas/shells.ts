@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AgentRadarSendSchema } from "./agent-radar";
 
 import {
 	TERMINAL_GRID_LIMITS,
@@ -47,18 +48,6 @@ export const ShellInputSchema = z.object({
 
 export const ShellSendSchema = ShellIdSchema.extend({
 	agent: z.enum(["claude", "codex"]),
-	text: z
-		.string()
-		.trim()
-		.min(1)
-		.max(20_000)
-		.refine(
-			(text) =>
-				[...text].every((character) => {
-					const code = character.codePointAt(0)!;
-					return code === 9 || code === 10 || (code >= 32 && code !== 127);
-				}),
-			"A mensagem contém caracteres de controle",
-		),
+	text: AgentRadarSendSchema.shape.text,
 	sourcePath: z.string().optional(),
 });

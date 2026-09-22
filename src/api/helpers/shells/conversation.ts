@@ -47,7 +47,9 @@ export async function sendShellPrompt(input: z.infer<typeof ShellSendSchema>) {
 			}
 		}
 
-		if (!shellRuntime.execute({ type: "prompt", id: input.id, data: input.text })) {
+		if (
+			!shellRuntime.execute({ type: "prompt", id: input.id, agent: input.agent, data: input.text })
+		) {
 			throw new ORPCError("CONFLICT", {
 				message:
 					"O terminal ainda não está pronto para receber mensagens. Abra o terminal para conferir.",

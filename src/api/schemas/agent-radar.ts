@@ -9,7 +9,19 @@ export const AgentRadarPaneSchema = z.object({ paneId: z.string().min(1) });
 // alguém digita no celular, não o de um arquivo colado.
 export const AgentRadarSendSchema = z.object({
 	paneId: z.string().min(1),
-	text: z.string().trim().min(1).max(20_000),
+	text: z
+		.string()
+		.trim()
+		.min(1)
+		.max(20_000)
+		.refine(
+			(text) =>
+				[...text].every((character) => {
+					const code = character.codePointAt(0)!;
+					return code === 9 || code === 10 || (code >= 32 && code !== 127);
+				}),
+			"A mensagem contém caracteres de controle",
+		),
 });
 
 // A mensagem que muda de modelo, esforço ou CLI antes de ir: só o que difere da sessão viaja, e a
