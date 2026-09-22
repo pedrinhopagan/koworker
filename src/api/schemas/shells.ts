@@ -7,6 +7,7 @@ import {
 } from "./terminal-workspace";
 
 export const ShellCreateSchema = z.object({
+	command: z.enum(["claude", "codex", "codex-personal"]).optional(),
 	cwd: z.string().trim().min(1).max(1024),
 	label: z.string().trim().max(TERMINAL_LABEL_MAX_LENGTH).optional(),
 	projectId: z.string().uuid().nullable().optional(),
@@ -42,4 +43,22 @@ export const ShellResizeSchema = z.object({
 export const ShellInputSchema = z.object({
 	id: z.string().min(1),
 	data: z.string().max(TERMINAL_INPUT_MAX_LENGTH),
+});
+
+export const ShellSendSchema = ShellIdSchema.extend({
+	agent: z.enum(["claude", "codex"]),
+	text: z
+		.string()
+		.trim()
+		.min(1)
+		.max(20_000)
+		.refine(
+			(text) =>
+				[...text].every((character) => {
+					const code = character.codePointAt(0)!;
+					return code === 9 || code === 10 || (code >= 32 && code !== 127);
+				}),
+			"A mensagem contém caracteres de controle",
+		),
+	sourcePath: z.string().optional(),
 });

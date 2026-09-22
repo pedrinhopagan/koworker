@@ -21,11 +21,7 @@ function transcriptFromPath(agent: string, path: string) {
 		return null;
 	}
 
-	if (
-		agent === "codex" &&
-		path.includes("/.codex/sessions/") &&
-		basename(path).startsWith("rollout-")
-	) {
+	if (agent === "codex" && path.includes("/sessions/") && basename(path).startsWith("rollout-")) {
 		return { cli: "codex" as const, path, sessionId };
 	}
 

@@ -7,6 +7,7 @@ import { NewSessionDialog } from "@/components/agent-radar/new-session-dialog";
 import { EmptyFeedback } from "@/components/ui/empty-feedback";
 import { Button } from "@/components/ui/button";
 import { reconnectRealtime } from "@/client";
+import type { ShellLaunchCommand } from "@/constants/shell-launch";
 import type { InvokeCli } from "@/constants/invoke";
 import { Text } from "@/components/typography";
 import { agentRadarAgentLabel } from "@/constants/agent-radar";
@@ -33,6 +34,7 @@ function ShellsWorkspacePage() {
 	const { tab } = Route.useSearch();
 	const navigate = useNavigate();
 	const [creating, setCreating] = useState(false);
+	const [shellCommand, setShellCommand] = useState<ShellLaunchCommand>("shell");
 	const [conversationCli, setConversationCli] = useState<InvokeCli | null>(null);
 	const isMobile = useIsMobileViewport("(max-width: 1023px)");
 	const { entries, projects, loading, connected, canReopen, reopening, actions } =
@@ -81,6 +83,11 @@ function ShellsWorkspacePage() {
 		const timer = setTimeout(go, MISSING_TAB_GRACE_MS);
 		return () => clearTimeout(timer);
 	}, [clearMove, entries, isMobile, loading, move, navigate, tab]);
+
+	function openSession(command: ShellLaunchCommand) {
+		setShellCommand(command);
+		setCreating(true);
+	}
 
 	function select(key: string) {
 		void navigate({ to: "/shells", search: { tab: key } });
@@ -132,8 +139,9 @@ function ShellsWorkspacePage() {
 								canReopen={canReopen}
 								reopening={reopening}
 								onReopen={actions.reopen}
-								onConversation={setConversationCli}
-								onShell={() => setCreating(true)}
+								onConversation={openSession}
+								onPersonal={() => openSession("codex-personal")}
+								onShell={() => openSession("shell")}
 							/>
 						}
 					>
@@ -171,7 +179,7 @@ function ShellsWorkspacePage() {
 						onAgentModeChange={(mode) => setView({ key: activeKey, mode })}
 						onSelect={select}
 						onBack={backToList}
-						onNew={() => setCreating(true)}
+						onNew={() => openSession("shell")}
 						onOpenConversation={() => setConversationCli("claude")}
 					/>
 
@@ -181,6 +189,7 @@ function ShellsWorkspacePage() {
 								entry={activeEntry}
 								actions={actions}
 								agentMode={view.mode}
+								onModeChange={(mode) => setView({ key: activeKey, mode })}
 							/>
 						)}
 						{!activeEntry && !loading && move && (
@@ -202,7 +211,7 @@ function ShellsWorkspacePage() {
 								<ShellCockpitEmpty
 									entries={entries}
 									onSelect={select}
-									onNewShell={() => setCreating(true)}
+									onNewShell={() => openSession("shell")}
 									onNewConversation={() => setConversationCli("claude")}
 								/>
 							</div>
@@ -211,7 +220,12 @@ function ShellsWorkspacePage() {
 				</ShellWorkspace>
 			)}
 
-			<NewShellDialog open={creating} actions={actions} onClose={() => setCreating(false)} />
+			<NewShellDialog
+				defaultCommand={shellCommand}
+				open={creating}
+				actions={actions}
+				onClose={() => setCreating(false)}
+			/>
 			<NewSessionDialog
 				open={conversationCli !== null}
 				defaultCli={conversationCli ?? "claude"}

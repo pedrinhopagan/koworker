@@ -1,9 +1,17 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, readlink } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 // Mesmos slugs do radar (constants/agent-radar.ts): o item herda o rótulo e o ícone do card de
 // conversa sem tradução extra.
-const AGENT_PROCESS_NAMES = new Set(["claude", "codex", "opencode", "opencode2", "gemini", "pi"]);
+const AGENT_PROCESS_NAMES = new Set([
+	"claude",
+	"codex",
+	"codex-personal",
+	"opencode",
+	"opencode2",
+	"gemini",
+	"pi",
+]);
 
 async function processAgentSlug(pid: number, procRoot: string): Promise<string | null> {
 	const raw = await readFile(join(procRoot, String(pid), "cmdline"), "utf8").catch(() => null);
@@ -14,10 +22,18 @@ async function processAgentSlug(pid: number, procRoot: string): Promise<string |
 	// argv[0] cobre binário nativo; argv[1] cobre `node /usr/local/bin/claude`, em que o nome do
 	// agent é o caminho do script e não o interpretador.
 	const args = raw.split("\0").filter(Boolean);
-	for (const arg of args.slice(0, 2)) {
+	const executable = basename(args[0] ?? "").replace(/\.exe$/, "");
+	const interpreter = ["node", "bun", "bash", "sh", "dash", "zsh", "fish"].includes(executable);
+	for (const arg of args.slice(0, interpreter ? 2 : 1)) {
 		// O opencode é distribuído como binário empacotado e chega com `.exe` no nome mesmo no Linux.
 		const name = basename(arg).replace(/\.exe$/, "");
 		if (AGENT_PROCESS_NAMES.has(name)) {
+			if (
+				(name.startsWith("codex") && args.includes("exec")) ||
+				(name === "claude" && (args.includes("-p") || args.includes("--print")))
+			) {
+				return null;
+			}
 			return name;
 		}
 	}
@@ -65,28 +81,46 @@ async function childrenMap(procRoot: string): Promise<Map<number, number[]>> {
 	return children;
 }
 
-// Agent de AI rodando dentro do shell: caminha a árvore de processos abaixo do líder da sessão e
-// devolve o slug da CLI reconhecida. O próprio processo raiz entra na conta — `exec opencode`
-// substitui o shell em vez de criar filho. Em cadeia aninhada, o match mais fundo (ordem BFS)
-// vence — é quem está de fato na tela.
-export async function detectShellAgent(pid: number, procRoot = "/proc"): Promise<string | null> {
+export async function inspectShellAgent(pid: number, procRoot = "/proc") {
 	const children = await childrenMap(procRoot);
-	const queue = [pid, ...(children.get(pid) ?? [])];
-	let found: string | null = null;
+	const queue = [pid];
+	const visited = new Set<number>();
+	const matches: { agent: string; pid: number }[] = [];
 
 	while (queue.length > 0) {
-		const current = queue.shift();
-		if (current === undefined) {
+		const current = queue.shift()!;
+		if (visited.has(current)) {
 			continue;
 		}
+		visited.add(current);
 
-		const slug = await processAgentSlug(current, procRoot);
-		if (slug) {
-			found = slug;
+		const stat = await readFile(join(procRoot, String(current), "stat"), "utf8").catch(() => null);
+		const fields = stat
+			?.slice(stat.lastIndexOf(")") + 1)
+			.trim()
+			.split(/\s+/);
+		const foreground = Number(fields?.[5]);
+		const group = Number(fields?.[2]);
+		const agent = await processAgentSlug(current, procRoot);
+		if (agent && foreground > 0 && group === foreground) {
+			matches.push({ agent: agent === "codex-personal" ? "codex" : agent, pid: current });
 		}
 
 		queue.push(...(children.get(current) ?? []));
 	}
 
-	return found;
+	const first = matches[0];
+	if (!first) {
+		return null;
+	}
+
+	return {
+		...first,
+		cwd: await readlink(join(procRoot, String(first.pid), "cwd")).catch(() => null),
+		processIds: matches.filter((match) => match.agent === first.agent).map((match) => match.pid),
+	};
+}
+
+export async function detectShellAgent(pid: number, procRoot = "/proc"): Promise<string | null> {
+	return (await inspectShellAgent(pid, procRoot))?.agent ?? null;
 }

@@ -1,5 +1,4 @@
 import type { TerminalWorkspaceEntry } from "@/api/schemas/terminal-workspace";
-import { agentRadarAgentLabel } from "@/constants/agent-radar";
 import { sortRadarAgents } from "@/lib/agent-radar-status";
 
 export type ProjectSummary = { id: string; name: string; color: string };
@@ -85,7 +84,7 @@ export function terminalWorkspaceEntryTitle(entry: TerminalWorkspaceEntry) {
 		return entry.taskTitle ?? entry.title ?? entry.projectName ?? entry.label;
 	}
 
-	return entry.agent ? agentRadarAgentLabel(entry.agent) : entry.label;
+	return entry.label;
 }
 
 export function terminalWorkspaceEntryDescription(entry: TerminalWorkspaceEntry) {

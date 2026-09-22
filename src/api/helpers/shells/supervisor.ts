@@ -61,6 +61,7 @@ type OpenOptions = {
 };
 
 type ShellRuntimeCommand =
+	| { type: "prompt"; id: string; data: string }
 	| ({ type: "open" } & OpenOptions)
 	| { type: "input"; id: string; data: string }
 	| { type: "resize"; id: string; cols: number; rows: number }
@@ -140,6 +141,13 @@ export class ShellRuntime {
 		switch (command.type) {
 			case "open":
 				return this.open(command);
+			case "prompt": {
+				const shell = this.shells.get(command.id);
+				if (!shell || shell.exited || !shell.screen.modes.bracketedPasteMode) {
+					return false;
+				}
+				return this.write(command.id, `\u001B[200~${command.data}\u001B[201~`);
+			}
 			case "input":
 				return this.write(command.id, command.data);
 			case "resize":
@@ -180,7 +188,8 @@ export class ShellRuntime {
 		shellPath,
 		shellArgs,
 	}: OpenOptions): ShellRecord {
-		const id = `shell-${++this.seq}`;
+		this.seq += 1;
+		const id = `shell-${crypto.randomUUID()}`;
 		const ring = new ScrollbackRing(SCROLLBACK_BYTES);
 		// O motor vt100 é a fonte de verdade do lado do servidor: responde às consultas de
 		// capability (DA, kitty keyboard, OSC de cor) que shells e TUIs mandam ao arrancar —

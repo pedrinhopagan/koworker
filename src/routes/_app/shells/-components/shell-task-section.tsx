@@ -81,7 +81,7 @@ export function ShellTaskSection({
 										onClick={() => onSelect(agent.key)}
 										aria-label={`Abrir conversa · ${AGENT_RADAR_STATUS_LABELS[agent.status]}`}
 										className={cn(
-											"flex min-h-9 items-center gap-1.5 border px-2 font-mono text-[10px] font-bold uppercase tracking-wider",
+											"flex min-h-12 lg:min-h-9 items-center gap-1.5 border px-2 font-mono text-[10px] font-bold uppercase tracking-wider",
 											visual.badge,
 										)}
 									>

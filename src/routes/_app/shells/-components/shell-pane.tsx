@@ -18,6 +18,15 @@ export function ShellPane({
 
 	return (
 		<div data-component="shell-pane" className="flex min-h-0 min-w-0 flex-1 flex-col">
+			{status === "live" && !entry.capabilities.converse && (
+				<div
+					role="status"
+					className="shrink-0 border-b border-border px-3 py-2 text-xs text-muted-foreground"
+				>
+					Inicie claude, codex ou codex-personal neste terminal. O chat fica disponível quando o
+					agente for detectado.
+				</div>
+			)}
 			<div className="relative flex min-h-0 flex-1 flex-col">
 				<ShellTerminal
 					shellId={entry.id}

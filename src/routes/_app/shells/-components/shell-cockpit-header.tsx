@@ -103,7 +103,7 @@ export function ShellCockpitHeader({
 		: "inativo";
 	const groups = groupTerminalWorkspaceEntries(entries, projects);
 	const taskId = entry?.taskId ?? null;
-	const isAgent = entry?.kind === "agent";
+	const canConverse = !!entry?.capabilities.converse;
 
 	return (
 		<header className="flex h-12 min-w-0 shrink-0 items-center gap-1 border-b border-border bg-chrome/60 px-1 lg:h-12 lg:gap-2 lg:px-3">
@@ -197,22 +197,18 @@ export function ShellCockpitHeader({
 				{statusLabel}
 			</span>
 
-			{isAgent && (
+			{canConverse && (
 				<Button
-					variant="ghost"
-					size="icon"
-					className="size-12 lg:hidden"
+					variant="outline"
+					className="min-h-12 shrink-0 gap-1.5 px-3"
 					aria-label={agentMode === "conversation" ? "Ver terminal" : "Ver conversa"}
-					aria-pressed={agentMode === "terminal"}
 					onClick={() =>
 						onAgentModeChange(agentMode === "conversation" ? "terminal" : "conversation")
 					}
 				>
-					{agentMode === "conversation" ? (
-						<SquareTerminal className="size-4" />
-					) : (
-						<MessageSquare className="size-4" />
-					)}
+					{agentMode === "conversation" && <SquareTerminal className="size-4" />}
+					{agentMode === "terminal" && <MessageSquare className="size-4" />}
+					{agentMode === "conversation" ? "Terminal" : "Chat"}
 				</Button>
 			)}
 
@@ -243,7 +239,7 @@ export function ShellCockpitHeader({
 					align="end"
 					className="max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto max-lg:[&_[role^=menuitem]]:min-h-12"
 				>
-					{isAgent && (
+					{canConverse && (
 						<>
 							<DropdownMenuLabel>Visualização</DropdownMenuLabel>
 							<DropdownMenuRadioGroup value={agentMode}>

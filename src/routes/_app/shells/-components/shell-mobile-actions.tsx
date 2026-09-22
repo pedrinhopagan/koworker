@@ -10,12 +10,14 @@ export function ShellMobileActions({
 	onReopen,
 	onConversation,
 	onShell,
+	onPersonal,
 }: {
 	canReopen: boolean;
 	reopening: boolean;
 	onReopen: () => void;
 	onConversation: (cli: InvokeCli) => void;
 	onShell: () => void;
+	onPersonal: () => void;
 }) {
 	return (
 		<div
@@ -28,7 +30,7 @@ export function ShellMobileActions({
 					Reabrir terminais
 				</Button>
 			)}
-			<div className="grid grid-cols-3 gap-2">
+			<div className="grid grid-cols-2 gap-2">
 				<Button variant="outline" className="h-12" onClick={() => onConversation("claude")}>
 					<AgentCliIcon agent="claude" className="size-4" />
 					Claude
@@ -36,6 +38,10 @@ export function ShellMobileActions({
 				<Button variant="outline" className="h-12" onClick={() => onConversation("codex")}>
 					<AgentCliIcon agent="codex" className="size-4" />
 					Codex
+				</Button>
+				<Button variant="outline" className="h-12" onClick={onPersonal}>
+					<AgentCliIcon agent="codex" className="size-4" />
+					Codex pessoal
 				</Button>
 				<Button variant="outline" className="h-12" onClick={onShell}>
 					<SquareTerminal className="size-4" />

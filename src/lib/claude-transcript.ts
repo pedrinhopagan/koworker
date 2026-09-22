@@ -66,7 +66,10 @@ const COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/;
 // O que o usuário digitou chega embrulhado: lembrete de sistema que ele nunca viu e, quando é uma
 // skill, a marcação do comando. Na tela do celular tem que aparecer o que ele leria no terminal.
 function userText(raw: string) {
-	const clean = raw.replaceAll(SYSTEM_REMINDER, "").trim();
+	const clean = raw
+		.replaceAll(SYSTEM_REMINDER, "")
+		.replaceAll(/<pasted_content(?:\s[^>]*)?>([\s\S]*?)<\/pasted_content(?:\s[^>]*)?>/g, "$1")
+		.trim();
 	const args = COMMAND_ARGS.exec(clean);
 
 	if (!args) {

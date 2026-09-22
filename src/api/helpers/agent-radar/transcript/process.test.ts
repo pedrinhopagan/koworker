@@ -142,3 +142,26 @@ test("ignora rollouts de subagentes abertos pelo mesmo processo", async () => {
 		{ cli: "codex", path, sessionId: rootId },
 	);
 });
+
+test("resolve Codex com CODEX_HOME personalizado pelo arquivo aberto", async () => {
+	const sessionId = "019fd809-f3d0-7833-b9be-85386e512476";
+	const { root, procRoot, fd } = await environment(9123, "codex", sessionId);
+	await rm(join(fd, "55"));
+	const path = join(
+		root,
+		".codex-personal/sessions/2026/09/22",
+		`rollout-personal-${sessionId}.jsonl`,
+	);
+	await mkdir(dirname(path), { recursive: true });
+	await writeFile(
+		path,
+		`${JSON.stringify({ type: "session_meta", payload: { id: sessionId, source: "cli" } })}\n`,
+	);
+	await symlink(path, join(fd, "55"));
+
+	expect(await resolveProcessTranscript({ agent: "codex", processIds: [9123], procRoot })).toEqual({
+		cli: "codex",
+		path,
+		sessionId,
+	});
+});

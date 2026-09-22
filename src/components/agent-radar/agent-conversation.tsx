@@ -3,6 +3,7 @@ import { ArrowDown, Loader2, SquareTerminal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import type { TerminalWorkspaceEntry } from "@/api/schemas/terminal-workspace";
 import { orpc } from "@/client";
 import { agentCliVisual } from "@/components/agent-radar/agent-cli";
 import { LinkCwdProvider } from "@/components/link-cwd";
@@ -16,6 +17,7 @@ import { agentRadarAgentLabel, agentRadarCli } from "@/constants/agent-radar";
 import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { useAgentRadarTranscript } from "@/hooks/use-agent-radar-transcript";
 import { type ModelTarget, modelTargetDiff, sessionModelId } from "@/lib/model-target";
+import { countPromptReceipts, waitForPromptReceipt } from "@/lib/agent-prompt-receipt";
 import { errorMessage } from "@/lib/orpc-errors";
 import { clearPromptDraft } from "@/lib/prompt-draft";
 import { activePaneMove, usePaneMoves } from "@/stores/pane-moves";
@@ -30,7 +32,15 @@ function handoffActive(phase: string | undefined) {
 	return phase === "compacting" || phase === "starting";
 }
 
-export function AgentConversationView({ paneId }: { paneId: string }) {
+export function AgentConversationView({
+	paneId,
+	shell,
+	onOpenTerminal,
+}: {
+	paneId: string;
+	shell?: Extract<TerminalWorkspaceEntry, { kind: "shell" }>;
+	onOpenTerminal?: () => void;
+}) {
 	const viewport = useRef<HTMLDivElement>(null);
 	const content = useRef<HTMLDivElement>(null);
 	// O grude no fim é decidido a cada quadro de rolagem, então mora numa ref: virar estado a cada
@@ -38,8 +48,25 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 	const anchored = useRef(true);
 	const [pinned, setPinned] = useState(true);
 	const { agents, loading: radarLoading } = useAgentRadar();
-	const agent = agents.find((candidate) => candidate.paneId === paneId) ?? null;
+	const radarAgent = agents.find((candidate) => candidate.paneId === paneId) ?? null;
+	const agent = shell?.agent
+		? {
+				agent: shell.agent,
+				status: shell.status === "working" ? ("working" as const) : ("idle" as const),
+				changedAt: shell.changedAt,
+				activity: null,
+				tabLabel: shell.label,
+				cwd: shell.cwd,
+				projectName: shell.projectName,
+			}
+		: radarAgent;
 	const transcript = useAgentRadarTranscript(paneId);
+	const latestEvents = useRef(transcript.events);
+	latestEvents.current = transcript.events;
+	const receiptController = useRef<AbortController | null>(null);
+	const [confirming, setConfirming] = useState(false);
+	useEffect(() => () => receiptController.current?.abort(), []);
+	const cwd = transcript.source?.cwd ?? agent?.cwd;
 	const cli = agent
 		? agentCliVisual(agent.agent)
 		: { label: "Agent", icon: SquareTerminal, tone: "text-muted-foreground" };
@@ -52,6 +79,7 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 	const catalog = useQuery({
 		...orpc.agentRadar.modelCatalog.queryOptions(),
 		staleTime: CATALOG_STALE_MS,
+		enabled: !shell,
 	});
 	const sessionCli = agentRadarCli(agent?.agent);
 	const session = {
@@ -78,6 +106,7 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 	// pane antigo fechar.
 	const handoff = useQuery({
 		...orpc.agentRadar.switchStatus.queryOptions({ input: { paneId } }),
+		enabled: !shell,
 		refetchInterval: (query) => (handoffActive(query.state.data?.phase) ? HANDOFF_POLL_MS : false),
 	});
 	const switching = handoffActive(handoff.data?.phase);
@@ -104,6 +133,10 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 		}
 	}, [move?.to, paneId]);
 
+	const sendShell = useMutation({
+		...orpc.shells.send.mutationOptions(),
+		onError: (error) => toast.error(errorMessage(error, "Não foi possível enviar ao shell")),
+	});
 	const send = useMutation({
 		...orpc.agentRadar.send.mutationOptions(),
 		onError: (error) => toast.error(errorMessage(error, "Não foi possível responder ao agent")),
@@ -111,11 +144,6 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 	const switchModel = useMutation({
 		...orpc.agentRadar.switchModel.mutationOptions(),
 		onError: (error) => toast.error(errorMessage(error, "Não foi possível trocar o modelo")),
-	});
-	const sendKeys = useMutation({
-		...orpc.agentRadar.sendKeys.mutationOptions(),
-		onError: (error) =>
-			toast.error(errorMessage(error, "Não foi possível controlar o prompt do terminal")),
 	});
 	const syncTranscript = useMutation({
 		...orpc.agentRadar.syncTranscript.mutationOptions(),
@@ -126,34 +154,6 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 		},
 		onError: (error) => toast.error(errorMessage(error, "Não foi possível sincronizar a conversa")),
 	});
-
-	// Responder a pergunta pelo PWA é dirigir o seletor do CLI às cegas: o cursor nasce na primeira
-	// opção, então a opção escolhida vira N descidas e um Enter. Vale só para escolha única — seleção
-	// múltipla e texto livre precisam ser respondidos no terminal.
-	const answerQuestion = useCallback(
-		(questionId: string, input: { answers: string[]; freeText?: string }) => {
-			const event = transcript.events.find(
-				(candidate) =>
-					candidate.payload.kind === "question" && candidate.payload.questionId === questionId,
-			);
-			if (!event || event.payload.kind !== "question") {
-				return;
-			}
-
-			const chosen = input.answers[0];
-			const index = event.payload.options.findIndex((option) => option.label === chosen);
-			if (event.payload.multiSelect || input.freeText || input.answers.length !== 1 || index < 0) {
-				toast.info("Responda esta pergunta diretamente no terminal");
-				return;
-			}
-
-			sendKeys.mutate({
-				paneId,
-				keys: [...Array.from({ length: index }, () => "Down" as const), "Enter" as const],
-			});
-		},
-		[transcript.events, sendKeys, paneId],
-	);
 
 	// Salto seco em vez de rolagem animada: cada bloco novo disparava uma animação que a próxima
 	// cancelava, e o resultado era uma conversa que nunca parava de deslizar sob o dedo.
@@ -203,6 +203,42 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 
 	async function submit(text: string) {
 		stickToEnd();
+		if (shell) {
+			if (shell.agent !== "claude" && shell.agent !== "codex") {
+				return false;
+			}
+			const previousCount = countPromptReceipts(latestEvents.current, text);
+			const controller = new AbortController();
+			receiptController.current = controller;
+			setConfirming(true);
+			try {
+				await sendShell.mutateAsync({
+					id: shell.id,
+					agent: shell.agent,
+					text,
+					...(transcript.source ? { sourcePath: transcript.source.path } : {}),
+				});
+				if (text.startsWith("/")) {
+					return true;
+				}
+				const received = await waitForPromptReceipt({
+					text,
+					previousCount,
+					events: () => latestEvents.current,
+					signal: controller.signal,
+				});
+				if (!received && !controller.signal.aborted) {
+					toast.warning(
+						"O agente ainda não confirmou a mensagem. Seu rascunho foi mantido. Confira o terminal antes de reenviar.",
+					);
+				}
+				return received;
+			} catch {
+				return false;
+			} finally {
+				setConfirming(false);
+			}
+		}
 		if (!diff) {
 			try {
 				await send.mutateAsync({ paneId, text });
@@ -249,10 +285,45 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 				? `Abrindo a sessão ${targetLabel}…`
 				: `Resumindo a conversa para continuar no ${targetLabel}…`;
 	const inTransit = switching || !!move;
+	function composerHint() {
+		if (closed) {
+			return "Esta sessão foi fechada.";
+		}
+		if (inTransit) {
+			return switchingHint;
+		}
+		if (blocked) {
+			return "Responda pelo terminal para continuar.";
+		}
+		return "Conectando à conversa…";
+	}
+	function emptyHint() {
+		if (closed) {
+			return "Esta sessão foi encerrada.";
+		}
+		if (shell) {
+			return "Envie a primeira mensagem. O histórico aparece automaticamente. Se houver login ou uma pergunta pendente, abra o terminal.";
+		}
+		return "Envie a primeira mensagem abaixo. Se a sessão já existia, sincronize o histórico.";
+	}
 
 	return (
 		<div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-muted/10">
 			<PaneStatusStrip agent={agent} closed={closed} model={transcript.model} />
+			{onOpenTerminal &&
+				(blocked || transcript.missing || (shell && transcript.events.length === 0)) && (
+					<div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs">
+						<span className="min-w-0 text-muted-foreground">
+							{blocked
+								? "O agente precisa da sua resposta no terminal."
+								: "Permissões, login e comandos interativos ficam no terminal."}
+						</span>
+						<Button variant="outline" className="min-h-12 shrink-0" onClick={onOpenTerminal}>
+							<SquareTerminal className="size-4" />
+							Abrir terminal
+						</Button>
+					</div>
+				)}
 
 			<div
 				ref={viewport}
@@ -278,16 +349,15 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 						<EmptyFeedback
 							icon={SquareTerminal}
 							title={closed ? "Pane fechado" : "Comece a conversa"}
-							subtitle={
-								closed
-									? "A central encerrou envio e transcript deste pane."
-									: "Envie a primeira mensagem abaixo. Se a sessão já existia, sincronize o histórico."
-							}
-							{...(!closed && {
-								actionText: syncTranscript.isPending ? "Sincronizando..." : "Sincronizar conversa",
-								actionPending: syncTranscript.isPending,
-								onAction: () => syncTranscript.mutate({ paneId }),
-							})}
+							subtitle={emptyHint()}
+							{...(!closed &&
+								!shell && {
+									actionText: syncTranscript.isPending
+										? "Sincronizando..."
+										: "Sincronizar conversa",
+									actionPending: syncTranscript.isPending,
+									onAction: () => syncTranscript.mutate({ paneId }),
+								})}
 						/>
 					)}
 
@@ -298,18 +368,17 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 							<EmptyFeedback
 								icon={SquareTerminal}
 								title="Conversa vazia"
-								subtitle="A primeira fala aparecerá quando o transcript nativo registrá-la."
+								subtitle="Envie uma mensagem para começar. Ela aparecerá aqui quando o agente a registrar."
 							/>
 						)}
 
 					{!closed && (
-						<LinkCwdProvider {...(agent?.cwd ? { cwd: agent.cwd } : {})}>
+						<LinkCwdProvider {...(cwd ? { cwd } : {})}>
 							<SessionTimeline
 								key={paneId}
 								events={transcript.events}
 								busy={!!busy}
 								{...(agent ? { agent: agent.agent } : {})}
-								{...(blocked ? { onAnswer: answerQuestion } : {})}
 							/>
 						</LinkCwdProvider>
 					)}
@@ -345,7 +414,8 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 					{...(agent?.projectName ? { projectName: agent.projectName } : {})}
 					{...(agent ? { cli: agent.agent } : {})}
 					accessory={
-						!closed && (
+						!closed &&
+						!shell && (
 							<ModelPicker
 								catalog={catalog.data}
 								session={session}
@@ -360,10 +430,10 @@ export function AgentConversationView({ paneId }: { paneId: string }) {
 							? "Envie orientações enquanto o agent trabalha, sem interromper a execução."
 							: `Ctrl+Enter envia · / abre o menu do ${cli.label} · cole imagens.`
 					}
-					disabled={closed || inTransit}
-					pending={send.isPending || switchModel.isPending}
+					disabled={closed || inTransit || !agent || !transcript.connected || !!blocked}
+					pending={confirming || send.isPending || sendShell.isPending || switchModel.isPending}
 					disabledHintInline
-					hint={closed ? "Este pane foi fechado." : switchingHint}
+					hint={composerHint()}
 					onSubmit={submit}
 				/>
 			</div>

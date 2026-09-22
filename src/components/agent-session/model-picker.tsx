@@ -223,7 +223,7 @@ export function ModelPicker({
 				data-component="model-picker"
 				data-pending={pending || undefined}
 				disabled={disabled}
-				className="relative flex h-11 min-w-0 max-w-48 items-center gap-1.5 border border-input bg-background px-2.5 text-xs shadow-xs transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:h-10 md:max-w-56"
+				className="relative flex h-12 min-w-0 max-w-48 items-center gap-1.5 border border-input bg-background px-2.5 text-xs shadow-xs transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:h-10 md:max-w-56"
 				{...props}
 			>
 				<CliLogo cli={value.cli} className="size-4 shrink-0" />

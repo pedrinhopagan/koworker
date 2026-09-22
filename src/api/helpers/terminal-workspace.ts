@@ -51,7 +51,10 @@ export function terminalWorkspaceSnapshot(): TerminalWorkspaceSnapshot {
 		createdAt: shell.createdAt,
 		changedAt: shell.createdAt,
 		exitCode: shell.exitCode,
-		capabilities: SHELL_CAPABILITIES,
+		capabilities: {
+			...SHELL_CAPABILITIES,
+			converse: shell.status === "live" && (shell.agent === "claude" || shell.agent === "codex"),
+		},
 	}));
 
 	const agentEntries: TerminalWorkspaceEntry[] = listRadarAgents().map((agent) => ({

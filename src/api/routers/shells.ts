@@ -1,6 +1,9 @@
 import { ORPCError } from "@orpc/server";
 import { stat } from "node:fs/promises";
 
+import { SHELL_LAUNCH_OPTIONS } from "@/constants/shell-launch";
+import { sendShellPrompt } from "../helpers/shells/conversation";
+import { ShellSendSchema } from "../schemas/shells";
 import { protectedProcedure } from "../auth/context";
 import { shellRuntime } from "../helpers/shells/supervisor";
 import {
@@ -28,6 +31,7 @@ async function resolveCwd(cwd: string): Promise<string> {
 }
 
 export const shellsRouter = {
+	send: protectedProcedure.input(ShellSendSchema).handler(({ input }) => sendShellPrompt(input)),
 	create: protectedProcedure.input(ShellCreateSchema).handler(async ({ input }) => {
 		const cwd = await resolveCwd(input.cwd);
 		return shellRuntime.execute({
@@ -35,8 +39,11 @@ export const shellsRouter = {
 			cwd,
 			cols: input.cols,
 			rows: input.rows,
-			label: input.label,
+			label:
+				input.label?.trim() ||
+				SHELL_LAUNCH_OPTIONS.find((option) => option.id === input.command)?.label,
 			projectId: input.projectId ?? null,
+			...(input.command ? { shellArgs: ["-ic", input.command] } : {}),
 		});
 	}),
 

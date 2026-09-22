@@ -240,3 +240,14 @@ describe("translateClaudeTranscriptLine", () => {
 		).toEqual([]);
 	});
 });
+
+test("fala colada no terminal remove apenas o invólucro pasted_content", () => {
+	expect(
+		translateClaudeTranscriptLine({
+			type: "user",
+			message: {
+				content: '<pasted_content id="abc">Linha um\nLinha dois</pasted_content id="abc">',
+			},
+		}),
+	).toEqual([{ type: "append", payload: { kind: "user", text: "Linha um\nLinha dois" } }]);
+});

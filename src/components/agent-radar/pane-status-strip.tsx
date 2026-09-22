@@ -18,7 +18,7 @@ export function PaneStatusStrip({
 	closed,
 	model,
 }: {
-	agent: RadarAgent | null;
+	agent: Pick<RadarAgent, "agent" | "status" | "changedAt" | "activity" | "tabLabel"> | null;
 	closed: boolean;
 	// O modelo que o transcript da sessão reportou por último; nulo enquanto não há resposta gravada.
 	model?: string | null;
@@ -31,7 +31,7 @@ export function PaneStatusStrip({
 			<div className="sticky top-0 z-10 flex items-center gap-2 border border-dashed border-border bg-background/95 px-3 py-2 backdrop-blur">
 				<span className="size-1.5 shrink-0 bg-border" aria-hidden />
 				<Text as="span" size="xs" tone="muted">
-					Pane fechado — envio e transcript foram encerrados.
+					Sessão fechada. O envio foi encerrado.
 				</Text>
 			</div>
 		);

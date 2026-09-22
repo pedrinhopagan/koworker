@@ -2,6 +2,7 @@ import type {
 	AgentRadarTranscriptEnvelope,
 	AgentTranscript,
 } from "@/api/schemas/agent-radar-transcript";
+import { resolveShellTranscript } from "../../shells/conversation";
 import { PubSub } from "../../../pubsub";
 import { getRadarAgent } from "../state";
 import { locateAgentTranscript } from "./locate";
@@ -57,7 +58,9 @@ async function resolve(paneId: string) {
 	try {
 		await syncPaneTranscriptSource(paneId);
 		const agent = getRadarAgent(paneId);
-		const source = agent ? await locateAgentTranscript(agent) : null;
+		const source = agent
+			? await locateAgentTranscript(agent)
+			: await resolveShellTranscript(paneId);
 
 		if (panes.get(paneId) !== entry) {
 			return;
@@ -146,35 +149,41 @@ function release(paneId: string) {
 // A conversa de um pane, ao vivo. Assina antes de abrir o arquivo: um bloco publicado entre a
 // leitura da cauda e a assinatura se perderia e a tela ficaria um turno atrás.
 export async function* subscribeAgentRadarTranscript(paneId: string, signal?: AbortSignal) {
-	const events = PubSub.subscribe("agentRadarTranscript", paneId, signal);
+	const controller = new AbortController();
+	const events = PubSub.subscribe(
+		"agentRadarTranscript",
+		paneId,
+		signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
+	);
 	const known = panes.get(paneId);
 
-	if (known) {
-		known.readers += 1;
-		const model = known.tail?.model();
-		const effort = known.tail?.effort();
-		yield {
-			paneId,
-			reset: true,
-			events: known.tail?.events() ?? [],
-			...(known.tail ? { source: known.tail.source } : { missing: true }),
-			...(model ? { model } : {}),
-			...(effort ? { effort } : {}),
-		};
-	} else {
-		panes.set(paneId, {
-			tail: null,
-			readers: 1,
-			resolving: false,
-			missing: false,
-			timer: setInterval(() => void resolve(paneId), RESOLVE_INTERVAL_MS).unref(),
-		});
-		await resolve(paneId);
-	}
-
 	try {
+		if (known) {
+			known.readers += 1;
+			const model = known.tail?.model();
+			const effort = known.tail?.effort();
+			yield {
+				paneId,
+				reset: true,
+				events: known.tail?.events() ?? [],
+				...(known.tail ? { source: known.tail.source } : { missing: true }),
+				...(model ? { model } : {}),
+				...(effort ? { effort } : {}),
+			};
+		} else {
+			panes.set(paneId, {
+				tail: null,
+				readers: 1,
+				resolving: false,
+				missing: false,
+				timer: setInterval(() => void resolve(paneId), RESOLVE_INTERVAL_MS).unref(),
+			});
+			await resolve(paneId);
+		}
+
 		yield* events;
 	} finally {
+		controller.abort();
 		release(paneId);
 	}
 }

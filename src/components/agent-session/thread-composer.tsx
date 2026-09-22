@@ -144,7 +144,7 @@ function ThreadComposerContent({
 										aria-label="Abrir skills e comandos"
 										onClick={openSlashMenu}
 										disabled={disabled || pending}
-										className="size-10 shrink-0"
+										className="size-12 shrink-0 sm:size-10"
 									>
 										<Command className="size-4" />
 									</Button>
@@ -156,7 +156,7 @@ function ThreadComposerContent({
 										aria-label="Ditar continuação"
 										onClick={() => setDictating(true)}
 										disabled={disabled || pending}
-										className="size-10 shrink-0"
+										className="size-12 shrink-0 sm:size-10"
 									>
 										<Mic className="size-4" />
 									</Button>
@@ -166,7 +166,7 @@ function ThreadComposerContent({
 										data-slot="send"
 										onClick={() => void submit()}
 										disabled={disabled || pending || !draft.text.trim()}
-										className="size-10 shrink-0 p-0"
+										className="size-12 shrink-0 sm:size-10 p-0"
 									>
 										{pending ? (
 											<Loader2 className="size-4 animate-spin" />

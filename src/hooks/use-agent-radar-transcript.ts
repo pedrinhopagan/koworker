@@ -41,6 +41,7 @@ export function useAgentRadarTranscript(paneId: string) {
 	const [effort, setEffort] = useState<string | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [loading, setLoading] = useState(true);
+	const [connected, setConnected] = useState(false);
 	const pending = useRef<TranscriptEnvelope[]>([]);
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -51,6 +52,7 @@ export function useAgentRadarTranscript(paneId: string) {
 		setEffort(null);
 		setMissing(false);
 		setLoading(true);
+		setConnected(false);
 		pending.current = [];
 
 		const controller = new AbortController();
@@ -104,6 +106,7 @@ export function useAgentRadarTranscript(paneId: string) {
 
 		void subscribeWithRetry({
 			label: "Radar Transcript",
+			onConnectionChange: setConnected,
 			signal: controller.signal,
 			subscribe: (signal) => orpcWs.agentRadarTranscript.call({ paneId }, { signal }),
 			onEvent: (envelope) => {
@@ -121,5 +124,5 @@ export function useAgentRadarTranscript(paneId: string) {
 		};
 	}, [paneId]);
 
-	return { events, source, model, effort, missing, loading };
+	return { events, source, model, effort, missing, loading, connected };
 }
