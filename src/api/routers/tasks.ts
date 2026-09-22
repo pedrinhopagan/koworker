@@ -1,19 +1,16 @@
 import { join } from "node:path";
 
-import { type TaskComplexity } from "@/constants/complexity";
 import { RECENCY_IGNORE_OFFSET_MS } from "@/constants/tasks";
 import { protectedProcedure } from "../auth/context";
-import { dbCategories } from "../db/categories";
 import type { tasks } from "../db/connection";
-import { dbPriorities } from "../db/priorities";
 import { dbProjects } from "../db/projects";
 import { dbTaskGroups } from "../db/task-groups";
 import { dbTasks } from "../db/tasks";
 import { listTaskAttachments } from "../helpers/koworker-assets";
 import { openFileInDefaultApp } from "../helpers/os-actions";
+import { createTask } from "../helpers/task-creation";
 import {
 	deleteTaskFile,
-	inferTaskStage,
 	parseTaskFileOrder,
 	readFirstMarkdownContent,
 	readTaskFiles,
@@ -24,7 +21,6 @@ import {
 	shiftTaskFolderEditedAt,
 	writeTaskFile,
 } from "../helpers/task-folder";
-import { createTask } from "../helpers/task-creation";
 import {
 	quarantineTaskStorage,
 	relinkTasks,
@@ -71,11 +67,6 @@ const mapTask = (
 	// O displayTitle veio do início do 1º .md (a task não tem título). A UI usa isso pra
 	// explicar, na edição do nome, que o texto mostrado é só o começo do conteúdo.
 	titleFromContent: display.fromContent,
-	priorityId: row.priority_id ?? undefined,
-	categoryId: row.category_id ?? undefined,
-	// O banco guarda texto livre; a garantia do conjunto vem da boundary zod na escrita. Único
-	// ponto onde a coluna larga vira a união — os consumidores confiam neste tipo.
-	complexity: row.complexity as TaskComplexity,
 	groupId: row.group_id ?? undefined,
 	displayOrder: row.display_order,
 	done: Boolean(row.done),
@@ -237,10 +228,6 @@ export const tasksRouter = {
 			projectId: input.projectId ?? null,
 			includeCompleted: input.includeCompleted,
 			groupId: input.groupId,
-			taskTypeId: input.taskTypeId,
-			priorityId: input.priorityId,
-			priority: input.priority,
-			complexity: input.complexity,
 			q: input.q,
 			limit: input.limit,
 			offset: input.offset,
@@ -263,11 +250,7 @@ export const tasksRouter = {
 		const row = await dbTasks.getById(input.id);
 		if (!row) return null;
 
-		const [category, priority, project] = await Promise.all([
-			row.category_id ? dbCategories.getById(row.category_id) : null,
-			row.priority_id ? dbPriorities.getById(row.priority_id) : null,
-			dbProjects.getById(row.project_id),
-		]);
+		const project = await dbProjects.getById(row.project_id);
 
 		const { files } = project
 			? await readTaskFiles({
@@ -293,22 +276,8 @@ export const tasksRouter = {
 
 		return {
 			...base,
-			// Próximo passo do fluxo da complexidade, inferido dos artefatos em disco. Alimenta o chip
-			// de invocação sugerida e a cabeça do prompt; o agente não relê o banco.
-			nextStage: inferTaskStage({ fileNames, complexity: base.complexity }),
 			files,
 			attachments,
-			category: category
-				? {
-						id: category.id,
-						name: category.name,
-						color: category.color,
-						structureSlug: category.structure_slug ?? null,
-					}
-				: null,
-			priority: priority
-				? { id: priority.id, name: priority.name, color: priority.color, level: priority.level }
-				: null,
 			project: project
 				? {
 						id: project.id,
@@ -354,9 +323,6 @@ export const tasksRouter = {
 			dbTasks.update({
 				id: input.id,
 				title: input.title,
-				priority_id: input.priorityId,
-				category_id: input.categoryId,
-				complexity: input.complexity,
 				done: input.done === undefined ? undefined : input.done ? 1 : 0,
 				completed_at: input.done === undefined ? undefined : input.done ? Date.now() : null,
 				...(input.done ? CLEARED_TASK_WORKTREE_METADATA : {}),
@@ -491,7 +457,6 @@ export const tasksRouter = {
 				targetProjectId,
 				targetGroupId: input.groupId,
 				displayOrder,
-				categoryId: input.categoryId,
 			})),
 		});
 

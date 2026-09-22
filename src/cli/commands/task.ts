@@ -1,25 +1,14 @@
-import { dbCategories } from "@/api/db/categories";
-import { dbPriorities } from "@/api/db/priorities";
 import { dbProjects } from "@/api/db/projects";
 import { dbTasks } from "@/api/db/tasks";
-import { TaskMergeReadySchema, type TaskDbUpdateInput } from "@/api/schemas/tasks";
 import { parseTaskFileOrder, readTaskFiles } from "@/api/helpers/task-folder";
 import { quarantineTaskStorage } from "@/api/helpers/task-storage-coordinator";
 import { CLEARED_TASK_WORKTREE_METADATA } from "@/api/helpers/task-worktree";
-import { COMPLEXITY_LABELS, TASK_COMPLEXITIES } from "@/constants/complexity";
+import { TaskMergeReadySchema, type TaskDbUpdateInput } from "@/api/schemas/tasks";
 import { hasFlag, parseArgs } from "../args";
 import { clearSessionTask, noteSessionTask } from "../kw-terminal";
 import { notifyTasksChanged } from "../notify";
+import { resolveProjectByCwd, resolveTask } from "../resolve";
 import { withCliTaskStorageLock } from "../task-storage";
-import {
-	resolveCategoryId,
-	resolveCategoryIdOrNull,
-	resolveComplexity,
-	resolvePriorityId,
-	resolvePriorityIdOrNull,
-	resolveProjectByCwd,
-	resolveTask,
-} from "../resolve";
 import { runCreate } from "./create";
 import { runTaskFile } from "./task-file";
 
@@ -56,33 +45,22 @@ export function runTask(args: string[]): Promise<void> {
 	if (sub === "file" || sub === "files") {
 		return runTaskFile(rest);
 	}
-	if (sub === "options") {
-		return runTaskOptions();
-	}
 
 	throw new Error(
-		`Subcomando desconhecido: task ${sub ?? ""}. Use: create | list | show | set | done | reopen | merge-ready | merge-completed | rm | file | options`,
+		`Subcomando desconhecido: task ${sub ?? ""}. Use: create | list | show | set | done | reopen | merge-ready | merge-completed | rm | file`,
 	);
 }
 
 async function runTaskList(args: string[]): Promise<void> {
 	const { positionals, flags } = parseArgs(args);
 	const projectId = await resolveProjectFilter(flags);
-	const category = flags.category ?? flags.type;
 	const status = resolveStatusFilter(flags);
 	const positionalQ = positionals.join(" ").trim();
 	const q = flags.q ?? (positionalQ || undefined);
-	const [categoryId, priorityId] = await Promise.all([
-		category ? resolveCategoryId(category) : undefined,
-		flags.priority ? resolvePriorityId(flags.priority) : undefined,
-	]);
 	const rows = await dbTasks.listForCli({
 		projectId,
 		includeCompleted: hasFlag(flags, "all") || hasFlag(flags, "include-done") || status === true,
 		done: status,
-		taskTypeId: categoryId,
-		priorityId,
-		complexity: flags.complexity ? resolveComplexity(flags.complexity) : undefined,
 		q,
 	});
 
@@ -91,15 +69,12 @@ async function runTaskList(args: string[]): Promise<void> {
 		return;
 	}
 
-	console.log("id\tstatus\tcomplexidade\tprioridade\ttipo\tprojeto\tpasta\ttítulo");
+	console.log("id\tstatus\tprojeto\tpasta\ttítulo");
 	for (const row of rows) {
 		console.log(
 			[
 				row.id,
 				formatStatus(row.done),
-				formatComplexity(row.complexity),
-				formatOptional(row.priority_name),
-				formatOptional(row.category_name),
 				row.project_name,
 				row.folder_path,
 				row.title ?? "Sem título",
@@ -135,9 +110,6 @@ async function runTaskShow(args: string[]): Promise<void> {
 	console.log(`id: ${row.id}`);
 	console.log(`título: ${row.title ?? "Sem título"}`);
 	console.log(`status: ${formatStatus(row.done)}`);
-	console.log(`complexidade: ${formatComplexity(row.complexity)}`);
-	console.log(`prioridade: ${formatOptional(details?.priority_name)}`);
-	console.log(`tipo: ${formatOptional(details?.category_name)}`);
 	console.log(`projeto: ${details?.project_name ?? project?.name ?? row.project_id}`);
 	console.log(`pasta: ${row.folder_path}`);
 	console.log(`criada: ${formatInstant(row.created_at)}`);
@@ -176,9 +148,7 @@ async function runTaskSet(args: string[]): Promise<void> {
 	const { positionals, flags } = parseArgs(args);
 	const raw = positionals[0];
 	if (!raw) {
-		throw new Error(
-			"Uso: kw-cli task set <taskId|caminho> [--title ...] [--type <nome|id>] [--priority <nome|id>] [--complexity <simples|medio|complexo|extremo>] [--done|--pending]",
-		);
+		throw new Error("Uso: kw-cli task set <taskId|caminho> [--title ...] [--done|--pending]");
 	}
 
 	const row = await resolveTask(raw);
@@ -187,19 +157,9 @@ async function runTaskSet(args: string[]): Promise<void> {
 	}
 
 	const update: { id: string } & TaskDbUpdateInput = { id: row.id };
-	const category = flags.category ?? flags.type;
 
 	if (flags.title !== undefined) {
 		update.title = flags.title.trim() === "" ? null : flags.title.trim();
-	}
-	if (category !== undefined) {
-		update.category_id = await resolveCategoryIdOrNull(category);
-	}
-	if (flags.priority !== undefined) {
-		update.priority_id = await resolvePriorityIdOrNull(flags.priority);
-	}
-	if (flags.complexity !== undefined) {
-		update.complexity = resolveComplexity(flags.complexity);
 	}
 	if (hasFlag(flags, "done") && hasFlag(flags, "pending")) {
 		throw new Error("Use apenas um status: --done ou --pending.");
@@ -334,28 +294,6 @@ async function runTaskRm(args: string[]): Promise<void> {
 	console.log(`🗑️  Tarefa "${row.title ?? row.folder_path}" removida.`);
 }
 
-async function runTaskOptions(): Promise<void> {
-	const [categories, priorities] = await Promise.all([
-		dbCategories.getAll(),
-		dbPriorities.getAll(),
-	]);
-
-	console.log("complexidades");
-	for (const complexity of TASK_COMPLEXITIES) {
-		console.log(`${complexity}\t${COMPLEXITY_LABELS[complexity]}`);
-	}
-
-	console.log("tipos");
-	for (const category of categories) {
-		console.log(`${category.id}\t${category.name}\t${category.color}`);
-	}
-
-	console.log("prioridades");
-	for (const priority of priorities) {
-		console.log(`${priority.id}\t${priority.name}\t${priority.color}`);
-	}
-}
-
 async function resolveProjectFilter(flags: Record<string, string>): Promise<string | null> {
 	if (hasFlag(flags, "all-projects") && flags.project !== undefined) {
 		throw new Error("Use --all-projects ou --project, não ambos.");
@@ -408,14 +346,7 @@ function formatStatus(value: number | null | undefined): string {
 	return value ? "concluída" : "pendente";
 }
 
-function formatComplexity(value: string | null | undefined): string {
-	if (value && value in COMPLEXITY_LABELS) {
-		return COMPLEXITY_LABELS[value as keyof typeof COMPLEXITY_LABELS];
-	}
-	return value ?? "-";
-}
-
-function formatOptional(value: string | null | undefined): string {
+function formatOptional(value: string | null | undefined) {
 	return value ?? "-";
 }
 

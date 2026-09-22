@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { sql } from "kysely";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -47,7 +48,6 @@ describe("createTaskStorage", () => {
 		const task = await createTaskStorage({
 			projectId,
 			title: "Árvore de decisões",
-			complexity: "medio",
 			seed: true,
 		});
 		if (!task?.storage_key) {
@@ -84,7 +84,6 @@ describe("createTaskStorage", () => {
 		const task = await createTaskStorage({
 			projectId,
 			title: "Storage seguro",
-			complexity: "complexo",
 			groupId,
 			seed: true,
 		});
@@ -102,7 +101,6 @@ describe("createTaskStorage", () => {
 			await createTaskStorage({
 				projectId: otherProjectId,
 				title: "Inválida",
-				complexity: "medio",
 				groupId,
 				seed: true,
 			});
@@ -117,18 +115,21 @@ describe("createTaskStorage", () => {
 		const projectId = "aaaaaaaa-0000-4000-8000-000000000014";
 		const mainRoute = await createProject({ id: projectId, layoutVersion: 1 });
 
+		await sql`CREATE TRIGGER reject_test_task BEFORE INSERT ON tasks WHEN NEW.title = 'Nunca perder' BEGIN SELECT RAISE(ABORT, 'falha de insert'); END`.execute(
+			db,
+		);
 		let error: unknown;
 		try {
 			await createTaskStorage({
 				projectId,
 				title: "Nunca perder",
-				categoryId: "categoria-inexistente",
-				complexity: "medio",
 				seed: true,
 			});
 		} catch (caught) {
 			error = caught;
 		}
+
+		await sql`DROP TRIGGER reject_test_task`.execute(db);
 
 		const quarantineRoot = join(mainRoute, ".koworker", ".backups", "creation-rollbacks");
 		const quarantined = await readdir(quarantineRoot);

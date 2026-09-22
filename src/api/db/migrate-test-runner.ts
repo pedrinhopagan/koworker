@@ -1,4 +1,4 @@
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import Database from "bun:sqlite";
 
@@ -171,7 +171,6 @@ await db
 			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
 			folder_path: ".koworker/adotada",
 			title: "Primeira",
-			complexity: "medio",
 			display_order: 0,
 			done: 0,
 			created_at: 1,
@@ -181,7 +180,6 @@ await db
 			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
 			folder_path: ".koworker/adotada",
 			title: "Segunda",
-			complexity: "medio",
 			display_order: 1,
 			done: 0,
 			created_at: 2,
@@ -235,7 +233,12 @@ const pathIndex = sqlite
 		"SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'tasks_project_folder_path_live_unique_idx'",
 	)
 	.get();
+const tables = sqlite
+	.query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type = 'table'")
+	.all()
+	.map((row) => row.name);
 sqlite.close();
+const backups = (await readdir(root)).filter((name) => name.includes(".bak-"));
 
 console.log(
 	JSON.stringify({
@@ -249,5 +252,7 @@ console.log(
 		second,
 		secondGroups,
 		secondSessions,
+		tables,
+		backups,
 	}),
 );

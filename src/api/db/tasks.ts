@@ -21,23 +21,10 @@ const applyTaskListFilters = (
 		query = query.where("project_id", "=", filters.projectId);
 	}
 
-	if (filters.taskTypeId) {
-		query = query.where("category_id", "=", filters.taskTypeId);
-	}
-
 	if (filters.groupId !== undefined) {
 		query = filters.groupId
 			? query.where("group_id", "=", filters.groupId)
 			: query.where("group_id", "is", null);
-	}
-
-	const priorityId = filters.priorityId ?? filters.priority;
-	if (priorityId) {
-		query = query.where("priority_id", "=", priorityId);
-	}
-
-	if (filters.complexity) {
-		query = query.where("complexity", "=", filters.complexity);
 	}
 
 	if (filters.q) {
@@ -184,8 +171,6 @@ export const dbTasks = {
 		}
 
 		query = applyTaskListFilters(query, input);
-		// Ordem-base estável; o agrupamento final (grupo → categoria → display_order) é
-		// resolvido no frontend, que tem o display_order de grupos e categorias.
 		query = query
 			.orderBy("display_order", "asc")
 			.orderBy("created_at", "desc")
@@ -206,16 +191,11 @@ export const dbTasks = {
 		let query = db
 			.selectFrom("tasks as t")
 			.innerJoin("projects as p", "p.id", "t.project_id")
-			.leftJoin("categories as c", "c.id", "t.category_id")
-			.leftJoin("priorities as pr", "pr.id", "t.priority_id")
 			.select([
 				"t.id as id",
 				"t.project_id as project_id",
 				"t.folder_path as folder_path",
 				"t.title as title",
-				"t.priority_id as priority_id",
-				"t.category_id as category_id",
-				"t.complexity as complexity",
 				"t.file_order as file_order",
 				"t.done as done",
 				"t.completed_at as completed_at",
@@ -223,8 +203,6 @@ export const dbTasks = {
 				"t.updated_at as updated_at",
 				"p.name as project_name",
 				"p.main_route as project_main_route",
-				"c.name as category_name",
-				"pr.name as priority_name",
 			])
 			.where("t.deleted_at", "is", null)
 			.where("p.deleted_at", "is", null);
@@ -235,19 +213,6 @@ export const dbTasks = {
 
 		if (input.projectId) {
 			query = query.where("t.project_id", "=", input.projectId);
-		}
-
-		if (input.taskTypeId) {
-			query = query.where("t.category_id", "=", input.taskTypeId);
-		}
-
-		const priorityId = input.priorityId ?? input.priority;
-		if (priorityId) {
-			query = query.where("t.priority_id", "=", priorityId);
-		}
-
-		if (input.complexity) {
-			query = query.where("t.complexity", "=", input.complexity);
 		}
 
 		if (input.q) {
@@ -296,9 +261,7 @@ export const dbTasks = {
 			.where("deleted_at", "is", null)
 			.execute(),
 
-	// Recoloca um bucket (grupo + categoria): grava a ordem das ids e fixa group_id/category_id.
-	// Uma transação só para a lista chegar consistente quando a task muda de grupo/categoria.
-	reorder: async (input: { groupId: string | null; categoryId?: string; orderedIds: string[] }) => {
+	reorder: async (input: { groupId: string | null; orderedIds: string[] }) => {
 		await db.transaction().execute(async (trx) => {
 			for (const [index, id] of input.orderedIds.entries()) {
 				await trx
@@ -306,8 +269,6 @@ export const dbTasks = {
 					.set({
 						display_order: index,
 						group_id: input.groupId,
-						// Só recategoriza quando o destino é um cluster de categoria.
-						...(input.categoryId ? { category_id: input.categoryId } : {}),
 						updated_at: Date.now(),
 					})
 					.where("id", "=", id)
@@ -348,11 +309,9 @@ export const dbTasks = {
 	getFocusTask: (projectId: string | null) => {
 		let query = db
 			.selectFrom("tasks")
-			.innerJoin("priorities", "priorities.id", "tasks.priority_id")
 			.selectAll("tasks")
 			.where("tasks.deleted_at", "is", null)
 			.where("tasks.done", "=", 0)
-			.orderBy("priorities.level", "asc")
 			.orderBy("tasks.created_at", "asc")
 			.limit(1);
 

@@ -2,13 +2,7 @@ import { createTaskStorage } from "@/api/helpers/task-creation";
 import { parseArgs } from "../args";
 import { noteSessionTask } from "../kw-terminal";
 import { notifyTasksChanged } from "../notify";
-import {
-	resolveCategoryId,
-	resolveComplexity,
-	resolvePriorityId,
-	resolveProjectByCwd,
-	resolveTaskGroupId,
-} from "../resolve";
+import { resolveProjectByCwd, resolveTaskGroupId } from "../resolve";
 
 export async function runCreate(args: string[]): Promise<void> {
 	const { positionals, flags } = parseArgs(args);
@@ -27,21 +21,11 @@ export async function runCreate(args: string[]): Promise<void> {
 		);
 	}
 
-	// Prioridade e categoria são opcionais: sem a flag, a task nasce sem nenhuma delas (null).
-	const category = flags.category ?? flags.type;
-	const [priorityId, categoryId, groupId] = await Promise.all([
-		flags.priority ? resolvePriorityId(flags.priority) : undefined,
-		category ? resolveCategoryId(category) : undefined,
-		resolveTaskGroupId(flags.feature, project.id),
-	]);
-	const complexity = flags.complexity ? resolveComplexity(flags.complexity) : "medio";
+	const groupId = await resolveTaskGroupId(flags.feature, project.id);
 
 	const task = await createTaskStorage({
 		projectId: project.id,
 		title,
-		priorityId,
-		categoryId,
-		complexity,
 		groupId,
 		seed: true,
 	});

@@ -5,7 +5,6 @@ import { normalizePrompt } from "@/api/helpers/agent-history/prompt-text";
 import { allocateStorageKey, normalizeStorageSlug } from "@/api/helpers/task-storage-path";
 import { resolveProjectRouteIcon } from "@/constants/projects";
 import { pickTaskGroupColor } from "@/constants/tasks";
-import { normalizeEntityName } from "./entity-name";
 
 type ColumnInfo = {
 	cid: number;
@@ -14,13 +13,6 @@ type ColumnInfo = {
 	notnull: 0 | 1;
 	dflt_value: string | null;
 	pk: number;
-};
-
-type NamedEntityRow = {
-	id: string;
-	name: string;
-	created_at: number | null;
-	display_order: number | null;
 };
 
 function hasColumn(columns: ColumnInfo[], columnName: string) {
@@ -119,33 +111,105 @@ WHERE id IN (SELECT id FROM ordered);
 `);
 }
 
-function deduplicateNamedEntities(
-	db: Database,
-	params: { table: "categories" | "priorities"; taskForeignKey: "category_id" | "priority_id" },
-) {
-	const rows = db
-		.query<NamedEntityRow, []>(
-			`SELECT id, name, created_at, display_order FROM ${params.table} ORDER BY created_at ASC, display_order ASC, id ASC`,
-		)
-		.all();
-	const canonicalByName = new Map<string, NamedEntityRow>();
+const LEGACY_TASK_COLUMNS = ["priority_id", "category_id", "complexity"];
+const LEGACY_CLASSIFICATION_TABLES = ["categories", "priorities"];
 
-	for (const row of rows) {
-		const normalizedName = normalizeEntityName(row.name);
-		if (!normalizedName) continue;
+function splitTopLevel(body: string) {
+	const parts: string[] = [];
+	let depth = 0;
+	let quoted = false;
+	let start = 0;
 
-		const canonical = canonicalByName.get(normalizedName);
-		if (!canonical) {
-			canonicalByName.set(normalizedName, row);
-			continue;
+	for (let index = 0; index < body.length; index++) {
+		const char = body[index];
+		if (char === "'") quoted = !quoted;
+		if (quoted) continue;
+		if (char === "(") depth++;
+		if (char === ")") depth--;
+		if (char === "," && depth === 0) {
+			parts.push(body.slice(start, index).trim());
+			start = index + 1;
 		}
+	}
+	parts.push(body.slice(start).trim());
 
-		if (canonical.id === row.id) continue;
+	return parts;
+}
 
-		db.query(
-			`UPDATE tasks SET ${params.taskForeignKey} = ? WHERE ${params.taskForeignKey} = ?`,
-		).run(canonical.id, row.id);
-		db.query(`DELETE FROM ${params.table} WHERE id = ?`).run(row.id);
+function namesLegacyTaskColumn(definition: string) {
+	const name = definition.match(/^(?:FOREIGN KEY\s*\(\s*)?"?(\w+)"?/i)?.[1];
+
+	return !!name && LEGACY_TASK_COLUMNS.includes(name);
+}
+
+function backupDatabase(sqlite: Database, dbPath: string, label: string) {
+	const stamp = new Date().toISOString().replaceAll(/\D/g, "").slice(0, 14);
+	const target = `${dbPath}.bak-${label}-${stamp}`;
+	sqlite.query("VACUUM INTO ?").run(target);
+
+	return target;
+}
+
+function countBrokenForeignKeys(sqlite: Database) {
+	return sqlite.query("PRAGMA foreign_key_check").all().length;
+}
+
+function dropLegacyClassification(sqlite: Database, dbPath: string) {
+	const taskColumns = tableInfo(sqlite, "tasks").map((column) => column.name);
+	const legacyTables = LEGACY_CLASSIFICATION_TABLES.filter(
+		(table) => tableInfo(sqlite, table).length > 0,
+	);
+	const legacyColumns = taskColumns.filter((column) => LEGACY_TASK_COLUMNS.includes(column));
+	if (legacyColumns.length === 0 && legacyTables.length === 0) return;
+
+	// Um binário antigo (kw-cli, backend) recria as tabelas vazias no próprio boot: sem coluna em
+	// `tasks` e sem linha nelas, não há o que guardar e o drop dispensa outro backup.
+	const hasLegacyData =
+		legacyColumns.length > 0 ||
+		legacyTables.some((table) => !!sqlite.query(`SELECT 1 FROM ${table} LIMIT 1`).get());
+	const backupPath = hasLegacyData ? backupDatabase(sqlite, dbPath, "classificacao") : null;
+	if (backupPath) console.log(`Backup antes de remover a classificação antiga: ${backupPath}`);
+
+	const createSql = sqlite
+		.query<{ sql: string }, []>(
+			"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tasks'",
+		)
+		.get()?.sql;
+	if (!createSql) throw new Error("Tabela tasks não encontrada para remover a classificação");
+
+	const body = createSql.slice(createSql.indexOf("(") + 1, createSql.lastIndexOf(")"));
+	const definitions = splitTopLevel(body).filter((part) => !namesLegacyTaskColumn(part));
+	const indexes = sqlite
+		.query<{ sql: string }, []>(
+			"SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'tasks' AND sql IS NOT NULL",
+		)
+		.all()
+		.map((row) => row.sql)
+		.filter((sql) => !LEGACY_TASK_COLUMNS.some((column) => sql.includes(column)));
+	const kept = taskColumns
+		.filter((column) => !LEGACY_TASK_COLUMNS.includes(column))
+		.map((column) => `"${column}"`)
+		.join(", ");
+	const brokenBefore = countBrokenForeignKeys(sqlite);
+
+	sqlite.exec("PRAGMA foreign_keys=OFF");
+	try {
+		sqlite.transaction(() => {
+			if (legacyColumns.length > 0) {
+				sqlite.exec(`CREATE TABLE "tasks_new" (${definitions.join(", ")})`);
+				sqlite.exec(`INSERT INTO tasks_new (${kept}) SELECT ${kept} FROM tasks`);
+				sqlite.exec("DROP TABLE tasks");
+				sqlite.exec("ALTER TABLE tasks_new RENAME TO tasks");
+				for (const sql of indexes) sqlite.exec(sql);
+			}
+			for (const table of legacyTables) sqlite.exec(`DROP TABLE ${table}`);
+
+			if (countBrokenForeignKeys(sqlite) > brokenBefore) {
+				throw new Error("Remover a classificação quebraria referências. Nada foi alterado.");
+			}
+		})();
+	} finally {
+		sqlite.exec("PRAGMA foreign_keys=ON");
 	}
 }
 
@@ -178,51 +242,6 @@ export function ensureDbSchema() {
 		if (!hasColumn(cols, "task_layout_version")) {
 			ensureColumn(sqlite, "projects", "task_layout_version INTEGER NOT NULL DEFAULT 1");
 		}
-	}
-
-	// categories
-	{
-		const cols = tableInfo(sqlite, "categories");
-		if (!hasColumn(cols, "display_order")) {
-			ensureColumn(sqlite, "categories", "display_order INTEGER NOT NULL DEFAULT 0");
-			resequenceDisplayOrder(sqlite, "categories");
-		}
-		if (!hasColumn(cols, "structure_slug")) {
-			ensureColumn(sqlite, "categories", "structure_slug TEXT");
-		}
-
-		deduplicateNamedEntities(sqlite, {
-			table: "categories",
-			taskForeignKey: "category_id",
-		});
-		sqlite.exec(
-			"CREATE UNIQUE INDEX IF NOT EXISTS categories_name_unique_idx ON categories (lower(trim(name)))",
-		);
-	}
-
-	// priorities
-	{
-		const cols = tableInfo(sqlite, "priorities");
-		if (!hasColumn(cols, "level")) {
-			ensureColumn(sqlite, "priorities", "level INTEGER NOT NULL DEFAULT 1");
-			sqlite.exec(`
-UPDATE priorities SET level = 3 WHERE lower(name) = 'alta';
-UPDATE priorities SET level = 2 WHERE lower(name) = 'media' OR lower(name) = 'média';
-UPDATE priorities SET level = 1 WHERE lower(name) = 'baixa';
-`);
-		}
-		if (!hasColumn(cols, "display_order")) {
-			ensureColumn(sqlite, "priorities", "display_order INTEGER NOT NULL DEFAULT 0");
-			resequenceDisplayOrder(sqlite, "priorities");
-		}
-
-		deduplicateNamedEntities(sqlite, {
-			table: "priorities",
-			taskForeignKey: "priority_id",
-		});
-		sqlite.exec(
-			"CREATE UNIQUE INDEX IF NOT EXISTS priorities_name_unique_idx ON priorities (lower(trim(name)))",
-		);
 	}
 
 	// project_routes
@@ -305,10 +324,6 @@ INSERT INTO project_routes (
 		if (!hasColumn(cols, "file_order")) {
 			ensureColumn(sqlite, "tasks", "file_order TEXT");
 		}
-		if (!hasColumn(cols, "complexity")) {
-			// Migração: tasks existentes viram "medio" (o DEFAULT preenche as linhas atuais).
-			ensureColumn(sqlite, "tasks", "complexity TEXT NOT NULL DEFAULT 'medio'");
-		}
 		if (!hasColumn(cols, "storage_key")) {
 			ensureColumn(sqlite, "tasks", "storage_key TEXT");
 		}
@@ -327,39 +342,6 @@ INSERT INTO project_routes (
 		}
 	}
 	recolorBlackTaskGroups(sqlite);
-
-	// tasks.priority_id / tasks.category_id: eram NOT NULL (toda task tinha prioridade e categoria).
-	// Agora são opcionais — a task pode existir sem nenhuma das duas. SQLite não solta o NOT NULL via
-	// ALTER, então rebuild da tabela preservando dados e definição (FKs, defaults), derivando o CREATE
-	// do próprio sqlite_master pra não duplicar o schema. Mesmo precedente do NOT NULL do title.
-	// Idempotente: só roda enquanto uma das colunas ainda estiver NOT NULL.
-	{
-		const cols = tableInfo(sqlite, "tasks");
-		const priorityCol = cols.find((c) => c.name === "priority_id");
-		const categoryCol = cols.find((c) => c.name === "category_id");
-		const createSql = sqlite
-			.query<{ sql: string }, []>(
-				"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tasks'",
-			)
-			.get()?.sql;
-
-		if ((priorityCol?.notnull === 1 || categoryCol?.notnull === 1) && createSql) {
-			const newCreateSql = createSql
-				.replace(/CREATE TABLE "?tasks"?/, 'CREATE TABLE "tasks_new"')
-				.replace(/("priority_id"\s+TEXT)\s+NOT NULL/, "$1")
-				.replace(/("category_id"\s+TEXT)\s+NOT NULL/, "$1");
-			const colNames = cols.map((c) => `"${c.name}"`).join(", ");
-
-			sqlite.exec("PRAGMA foreign_keys=OFF");
-			sqlite.transaction(() => {
-				sqlite.exec(newCreateSql);
-				sqlite.exec(`INSERT INTO tasks_new (${colNames}) SELECT ${colNames} FROM tasks`);
-				sqlite.exec("DROP TABLE tasks");
-				sqlite.exec("ALTER TABLE tasks_new RENAME TO tasks");
-			})();
-			sqlite.exec("PRAGMA foreign_keys=ON");
-		}
-	}
 
 	// tasks.title: era NOT NULL (título obrigatório, em sync com o H1 do index.md). Agora é
 	// nullable — a task pode existir sem nome e cai no fallback do primeiro .md. SQLite não
@@ -404,6 +386,8 @@ INSERT INTO project_routes (
 
 		sqlite.exec("DROP TABLE IF EXISTS events");
 	}
+
+	dropLegacyClassification(sqlite, dbPath);
 
 	for (const [name, definition] of [
 		["merge_ready_at", "INTEGER"],

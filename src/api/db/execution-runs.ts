@@ -158,18 +158,6 @@ export const dbExecutionRuns = {
 		return Number(result.numUpdatedRows);
 	},
 
-	getLatestFlowForTask(taskId: string, userId: number) {
-		return db
-			.selectFrom("execution_runs as er")
-			.selectAll("er")
-			.where("er.task_id", "=", taskId)
-			.where("er.user_id", "=", userId)
-			.where("er.kind", "=", "flow")
-			.orderBy("er.started_at", "desc")
-			.limit(1)
-			.executeTakeFirst();
-	},
-
 	// Só quem encontra o run ainda `running` grava o desfecho. O processo pode terminar no mesmo
 	// instante em que o usuário cancela ou em que outro executor reconcilia — sem esta condição o
 	// segundo a chegar sobrescreveria o resultado real.
@@ -220,11 +208,7 @@ export const dbExecutionRuns = {
 	// Runs `running` sem sinal de vida: o executor que os iniciou morreu (crash, kill, deploy) ou o
 	// run passou do teto absoluto. Sem isso o registro fica "em andamento" para sempre, porque o
 	// controle do processo vive na memória do executor.
-	listStale(input: {
-		heartbeatBefore: number;
-		promptStartedBefore: number;
-		flowStartedBefore: number;
-	}) {
+	listStale(input: { heartbeatBefore: number; promptStartedBefore: number }) {
 		return db
 			.selectFrom("execution_runs as er")
 			.selectAll("er")
@@ -234,11 +218,7 @@ export const dbExecutionRuns = {
 				eb.or([
 					eb("er.heartbeat_at", "is", null),
 					eb("er.heartbeat_at", "<", input.heartbeatBefore),
-					eb.and([
-						eb("er.kind", "=", "prompt"),
-						eb("er.started_at", "<", input.promptStartedBefore),
-					]),
-					eb.and([eb("er.kind", "=", "flow"), eb("er.started_at", "<", input.flowStartedBefore)]),
+					eb("er.started_at", "<", input.promptStartedBefore),
 				]),
 			)
 			.execute();

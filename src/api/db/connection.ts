@@ -50,17 +50,10 @@ const tasksSchema = type({
 	// Título editável da task. Nullable: a task pode nascer sem nome e cair no fallback
 	// do primeiro .md (resolveDisplayTitle). O H1 do index.md não é mais o título.
 	"title?": "string",
-	// Prioridade e categoria são opcionais: a task pode nascer sem nenhuma das duas (nullable).
-	// A referência e o onDelete: "restrict" seguem valendo — só não são mais obrigatórias.
-	"priority_id?": type("string").configure({ references: "priorities.id", onDelete: "restrict" }),
-	"category_id?": type("string").configure({ references: "categories.id", onDelete: "restrict" }),
-	// Complexidade da task (conjunto finito em constants/complexity.ts). Texto com default "medio":
-	// tasks existentes migram para "medio", novas nascem "medio" quando não informado.
-	complexity: type("string").configure({ default: "medio" }),
 	// Grupo (opcional) ao qual a task pertence. Nulo = pseudo-grupo "Sem grupo". SET NULL para
 	// que deletar um grupo apenas solte as tasks de volta pro "Sem grupo".
 	"group_id?": type("string").configure({ references: "task_groups.id", onDelete: "set null" }),
-	// Ordem manual da task dentro do bucket (group_id + category_id).
+	// Ordem manual da task dentro do grupo.
 	display_order: type("number.integer").configure({ default: 0 }),
 	// Ordem manual das abas (.md) na rota da task, como array JSON de nomes. Arquivos fora
 	// dessa lista (novos, criados no disco pelo agente) entram à direita por birthtime.
@@ -117,31 +110,9 @@ const taskStorageRunsSchema = type({
 	"completed_at?": "number.integer",
 });
 
-const categoriesSchema = type({
-	id: type("string").configure({ primaryKey: true }),
-	name: "string",
-	color: type("string").configure({ default: "#000000" }),
-	// Estrutura de prompt vinculada (slug em constants/prompt-templates.ts). Nullable: a categoria
-	// pode não sugerir template. O conjunto finito é garantido na boundary zod, não no DSL de tabela.
-	"structure_slug?": "string",
-	display_order: type("number.integer").configure({ default: 0 }),
-	created_at: type("number.integer").configure({ default: "now" }),
-	"updated_at?": "number.integer",
-});
-
 const skillCategoriesSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	name: "string",
-	color: type("string").configure({ default: "#000000" }),
-	display_order: type("number.integer").configure({ default: 0 }),
-	created_at: type("number.integer").configure({ default: "now" }),
-	"updated_at?": "number.integer",
-});
-
-const prioritiesSchema = type({
-	id: type("string").configure({ primaryKey: true }),
-	name: "string",
-	level: type("number.integer").configure({ default: 1 }),
 	color: type("string").configure({ default: "#000000" }),
 	display_order: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
@@ -215,9 +186,9 @@ const agentSourcePathsSchema = type({
 	created_at: type("number.integer").configure({ default: "now" }),
 });
 
-// Configuração de SO chave-valor: pasta base de projetos, template do emulador de terminal e
-// multiplexador. Os valores são strings; o significado tipado e os defaults por plataforma vivem em
-// `helpers/system-settings.ts`, a fronteira que traduz estas linhas para o shape interno.
+// Configuração de SO chave-valor: pasta base de projetos e endereço do celular. Os valores são
+// strings; o significado tipado e os defaults vivem em `helpers/system-settings.ts`, a fronteira que
+// traduz estas linhas para o shape interno.
 const settingsSchema = type({
 	key: type("string").configure({ primaryKey: true }),
 	value: "string",
@@ -226,11 +197,9 @@ const settingsSchema = type({
 
 const prompt_source = type.enumerated("claude", "codex", "copy");
 
-// Uma linha por prompt enviado. `claude`/`codex` são lidos dos transcripts que as CLIs gravam em
-// disco (`prompt_transcripts` guarda até onde cada arquivo foi lido); `copy` é o que saiu da barra
-// pelo clipboard, único rastro de prompt colado fora das CLIs. `norm` é o texto com a grafia de
-// skill unificada (`$kw` → `/kw`) e espaços colapsados: é a chave que junta o mesmo prompt mandado
-// por CLIs diferentes. SEM FK para projects: o histórico sobrevive à exclusão do projeto.
+// Histórico legado de prompts: nada mais grava aqui desde que o histórico passou a morar nas
+// conversas dos agentes. As linhas antigas (`claude`/`codex` lidas dos transcripts, `copy` saído da
+// barra pelo clipboard) ficam preservadas. SEM FK para projects: sobrevive à exclusão do projeto.
 const promptsSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	source: prompt_source,
@@ -422,8 +391,6 @@ const database = new Database({
 	tables: {
 		users: usersSchema,
 		projects: projectsSchema,
-		categories: categoriesSchema,
-		priorities: prioritiesSchema,
 		project_routes: projectRoutesSchema,
 		task_groups: taskGroupsSchema,
 		tasks: tasksSchema,
@@ -462,8 +429,6 @@ export type project_routes = DB["project_routes"];
 export type tasks = DB["tasks"];
 export type task_groups = DB["task_groups"];
 export type task_storage_runs = DB["task_storage_runs"];
-export type categories = DB["categories"];
-export type priorities = DB["priorities"];
 export type skill_categories = DB["skill_categories"];
 export type skill_settings = DB["skill_settings"];
 export type skill_source_paths = DB["skill_source_paths"];
@@ -489,8 +454,6 @@ export {
 	task_storage_status,
 	taskStorageRunsSchema,
 	tasksSchema,
-	categoriesSchema,
-	prioritiesSchema,
 	skillCategoriesSchema,
 	skillSettingsSchema,
 	skillSourcePathsSchema,

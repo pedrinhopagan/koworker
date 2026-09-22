@@ -3,28 +3,26 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { DEFAULT_AGENT_CATEGORIES } from "@/constants/agent-categories";
-import { DEFAULT_CATEGORIES } from "@/constants/categories";
 import { expandTilde } from "../helpers/os-actions";
-import { defaultSystemSettings, setSystemSettings } from "../helpers/system-settings";
+import {
+	defaultSystemSettings,
+	LEGACY_TERMINAL_SETTING_KEYS,
+	setSystemSettings,
+} from "../helpers/system-settings";
 import { dbAgentCategories } from "./agent-categories";
 import { dbAgentSettings } from "./agent-settings";
 import { dbAgentSourcePaths } from "./agent-source-paths";
-import { dbCategories } from "./categories";
 import { db } from "./connection";
-import { normalizeEntityName } from "./entity-name";
 import { dbSettings } from "./settings";
 import { dbSkillSourcePaths } from "./skill-source-paths";
 
-// O multiplexador de terminal `herdr` foi renomeado para `kw-terminal` (o binário externo mudou de
-// nome). Bancos existentes ainda podem ter o valor antigo gravado em `terminal_multiplexer`. UPDATE
-// único no boot; naturalmente idempotente — sem linha "herdr", roda como no-op.
-export async function migrateTerminalMultiplexerRename() {
-	await db
-		.updateTable("settings")
-		.set({ value: "kw-terminal", updated_at: Date.now() })
-		.where("key", "=", "terminal_multiplexer")
-		.where("value", "=", "herdr")
-		.execute();
+// O terminal externo virou só kw-terminal: quem tinha tmux, none ou um template de emulador passa a
+// abrir no kw-terminal, e as preferências antigas saem do banco. Só onde o kw-terminal roda; no
+// Windows não há para onde migrar. Idempotente: sem as linhas, é no-op.
+export async function migrateLegacyTerminalSettings() {
+	if (process.platform === "win32") return;
+
+	await db.deleteFrom("settings").where("key", "in", LEGACY_TERMINAL_SETTING_KEYS).execute();
 }
 
 // Marca que a config de SO já foi semeada uma vez. Sem isso, reescrever os settings a cada boot
@@ -33,7 +31,6 @@ const SEEDED_MARKER = "default_sources_seeded";
 
 // Marca própria das categorias default: separa o ciclo de vida delas do dos roots de SO, para que
 // semear uma não force a outra.
-const CATEGORIES_SEEDED_MARKER = "default_categories_seeded";
 
 const AGENT_CATEGORIES_SEEDED_MARKER = "default_agent_categories_seeded";
 
@@ -82,32 +79,6 @@ export async function ensureDefaultSettings() {
 		{ tool: "codex", path: join(home, ".codex/skills") },
 		{ tool: "agents", path: join(home, ".agents/skills") },
 	]);
-}
-
-// Semeia, uma única vez, as categorias padrão já vinculadas à estrutura de prompt. Cria só as
-// ausentes por nome normalizado — bancos que já têm "feature"/"fix" pré-existentes não ganham
-// duplicata, e categorias criadas pelo usuário nunca são tocadas.
-export async function ensureDefaultCategories() {
-	if (await dbSettings.has(CATEGORIES_SEEDED_MARKER)) {
-		return;
-	}
-
-	const existing = await dbCategories.getAll();
-	const existingNames = new Set(existing.map((row) => normalizeEntityName(row.name)));
-
-	for (const category of DEFAULT_CATEGORIES) {
-		if (existingNames.has(normalizeEntityName(category.name))) {
-			continue;
-		}
-		await dbCategories.create({
-			id: crypto.randomUUID(),
-			name: category.name,
-			color: category.color,
-			structure_slug: category.structureSlug,
-		});
-	}
-
-	await dbSettings.set({ key: CATEGORIES_SEEDED_MARKER, value: "1" });
 }
 
 // Semeia, uma única vez, as categorias de agents e o ícone/cor/categoria de cada perfil conhecido.

@@ -34,10 +34,8 @@ export function pickTaskGroupColor(existingColors: string[]) {
 }
 
 export const TASK_SORT_MODES = [
+	{ mode: "manual", label: "Manual" },
 	{ mode: "recente", label: "Recente" },
-	{ mode: "categoria", label: "Categoria" },
-	{ mode: "prioridade", label: "Prioridade" },
-	{ mode: "complexidade", label: "Complexidade" },
 	{ mode: "alfabetica", label: "A-Z" },
 ] as const;
 
