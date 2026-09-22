@@ -353,6 +353,14 @@ export async function kwTerminalPaneSendInput(paneId: string, data: string) {
 	}
 }
 
+export async function kwTerminalPaneSendText(paneId: string, text: string) {
+	await requestKwTerminal({
+		method: "pane.send_text",
+		input: { pane_id: paneId, text },
+		schema: KwTerminalOkSchema,
+	});
+}
+
 // Paridade com o tmux, cuja CLI sobe o daemon sozinha no primeiro comando: se o servidor kw-terminal
 // não está de pé, lançamos `kw-terminal server` headless e aguardamos o socket responder. O cliente
 // TUI que o usuário abrir depois atacha nesse mesmo servidor.

@@ -24,6 +24,7 @@ import {
 	kwTerminalPaneRun,
 	kwTerminalPaneSendKeys,
 	kwTerminalPaneSendInput,
+	kwTerminalPaneSendText,
 } from "../helpers/terminal/kw-terminal";
 import { revealKwTerminalClient } from "../helpers/terminal/service";
 import { getSystemSettings } from "../helpers/system-settings";
@@ -55,7 +56,7 @@ export const agentRadarRouter = {
 	send: protectedProcedure.input(AgentRadarSendSchema).handler(async ({ input }) => {
 		const agent = agentOrThrow(input.paneId);
 		if (agent.agent === "claude") {
-			await kwTerminalPaneSendInput(input.paneId, agentPromptInput(agent.agent, input.text));
+			await kwTerminalPaneSendText(input.paneId, agentPromptInput(agent.agent, input.text));
 			await Bun.sleep(100);
 			agentOrThrow(input.paneId);
 			await kwTerminalPaneSendKeys(input.paneId, "Enter");
