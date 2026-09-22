@@ -1,3 +1,5 @@
+import { isDesktop } from "@/lib/desktop";
+
 const RECONNECT_MIN_MS = 500;
 const RECONNECT_MAX_MS = 15_000;
 
@@ -6,6 +8,7 @@ export type ResilientWebSocket = Pick<WebSocket, "addEventListener" | "send" | "
 };
 
 export function createResilientWebSocket(url: string): ResilientWebSocket {
+	const requiresInternet = !isDesktop();
 	const events = new EventTarget();
 	const pending: (string | ArrayBufferLike | Blob | ArrayBufferView)[] = [];
 	let socket: WebSocket | null = null;
@@ -13,7 +16,7 @@ export function createResilientWebSocket(url: string): ResilientWebSocket {
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 	function connect() {
-		if (typeof navigator !== "undefined" && navigator.onLine === false) {
+		if (requiresInternet && typeof navigator !== "undefined" && navigator.onLine === false) {
 			return;
 		}
 		if (
@@ -87,7 +90,9 @@ export function createResilientWebSocket(url: string): ResilientWebSocket {
 		});
 	}
 	if (typeof window !== "undefined") {
-		window.addEventListener("offline", disconnect);
+		if (requiresInternet) {
+			window.addEventListener("offline", disconnect);
+		}
 		window.addEventListener("online", forceReconnect);
 		window.addEventListener("focus", connect);
 	}

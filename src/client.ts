@@ -1,5 +1,4 @@
 import { createORPCClient } from "@orpc/client";
-import { RPCLink as FetchLink } from "@orpc/client/fetch";
 import { RPCLink as WsLink } from "@orpc/client/websocket";
 import type { InferRouterInputs, InferRouterOutputs, RouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
@@ -7,6 +6,7 @@ import { getAppEnv } from "@/lib/env";
 import { createResilientWebSocket } from "@/lib/resilient-websocket";
 import { DEFAULT_KOWORK_API_ORIGIN, resolveApiOrigin } from "@/lib/runtime-config";
 import { isDesktop } from "@/lib/desktop";
+import { createHttpLink } from "@/lib/http-link";
 import type { API, WsAPI } from "./server";
 
 const apiOrigin = (() => {
@@ -21,10 +21,7 @@ const apiOrigin = (() => {
 	});
 })();
 
-const httpLink = new FetchLink({
-	url: new URL("/rpc", apiOrigin).href,
-	fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
-});
+const httpLink = createHttpLink(new URL("/rpc", apiOrigin).href);
 
 const wsBase = new URL(apiOrigin);
 wsBase.protocol = wsBase.protocol.replace("http", "ws");

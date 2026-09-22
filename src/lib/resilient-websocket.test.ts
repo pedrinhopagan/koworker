@@ -30,6 +30,37 @@ async function waitFor(check: () => boolean, timeoutMs = 10_000) {
 	return check();
 }
 
+test("desktop conecta ao websocket local mesmo com navegador offline", async () => {
+	const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+	const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+	const browser = Object.assign(new EventTarget(), { kowork: {} });
+	Object.defineProperty(globalThis, "window", { configurable: true, value: browser });
+	Object.defineProperty(globalThis, "navigator", { configurable: true, value: { onLine: false } });
+	const server = serve(0);
+	const socket = createResilientWebSocket(`ws://localhost:${server.port}/ws`);
+
+	try {
+		expect(await waitFor(() => socket.readyState === WebSocket.OPEN)).toBe(true);
+		browser.dispatchEvent(new Event("offline"));
+		expect(socket.readyState).toBe(WebSocket.OPEN);
+		socket.send("desktop sem internet");
+		expect(await waitFor(() => received.includes("desktop sem internet"))).toBe(true);
+	} finally {
+		server.stop(true);
+		for (const [key, descriptor] of [
+			["window", originalWindow],
+			["navigator", originalNavigator],
+		] as const) {
+			if (descriptor) {
+				Object.defineProperty(globalThis, key, descriptor);
+			} else {
+				Reflect.deleteProperty(globalThis, key);
+			}
+		}
+		opened = 0;
+	}
+});
+
 test("reconecta e entrega o que foi enviado enquanto estava fora do ar", async () => {
 	const server = serve(0);
 	const port = server.port;
