@@ -1,8 +1,20 @@
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, realpath, rename, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
-import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell, Tray } from "electron";
+import {
+	app,
+	BrowserWindow,
+	ClipboardItem,
+	clipboard,
+	dialog,
+	ipcMain,
+	Menu,
+	session,
+	shell,
+	Tray,
+} from "electron";
 
 import { BackendProcess } from "./backend";
 import { DESKTOP_CHANNELS } from "./channels";
@@ -139,6 +151,18 @@ function registerIpc() {
 			: await dialog.showOpenDialog(options);
 
 		return result.canceled ? null : (result.filePaths[0] ?? null);
+	});
+	ipcMain.handle(DESKTOP_CHANNELS.copyFile, async (event, path: string) => {
+		if (event.sender !== mainWindow?.webContents || typeof path !== "string") {
+			throw new Error("Arquivo inválido");
+		}
+
+		const target = await realpath(path);
+		if (!(await stat(target)).isFile()) {
+			throw new Error("O caminho não é um arquivo");
+		}
+
+		await clipboard.write([new ClipboardItem({ "text/uri-list": pathToFileURL(target).href })]);
 	});
 	ipcMain.handle(DESKTOP_CHANNELS.openDevtools, () => {
 		if (!mainWindow) {

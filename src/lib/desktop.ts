@@ -7,6 +7,7 @@ export type KoworkDesktopBridge = {
 	isMaximized: () => Promise<boolean>;
 	onMaximizedChange: (listener: (maximized: boolean) => void) => () => void;
 	pickProjectFolder: (startIn?: string) => Promise<string | null>;
+	copyFile: (path: string) => Promise<void>;
 	openDevtools: () => Promise<boolean>;
 	getVersion: () => Promise<string>;
 };
@@ -55,4 +56,12 @@ export async function getDesktopVersion(): Promise<string | null> {
 
 export async function pickProjectFolder(startIn?: string): Promise<string | null> {
 	return (await window.kowork?.pickProjectFolder(startIn)) ?? null;
+}
+
+export async function copyFileToClipboard(path: string): Promise<void> {
+	if (!window.kowork?.copyFile) {
+		throw new Error("Copiar arquivos está disponível no app para computador");
+	}
+
+	await window.kowork.copyFile(path);
 }

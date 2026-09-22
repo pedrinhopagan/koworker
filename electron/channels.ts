@@ -7,6 +7,7 @@ export const DESKTOP_CHANNELS = {
 	isMaximized: "desktop:is-maximized",
 	maximizedChanged: "desktop:maximized-changed",
 	pickProjectFolder: "desktop:pick-project-folder",
+	copyFile: "desktop:copy-file",
 	openDevtools: "desktop:open-devtools",
 	getVersion: "desktop:get-version",
 } as const;

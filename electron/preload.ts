@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("kowork", {
 	},
 	pickProjectFolder: (startIn?: string) =>
 		ipcRenderer.invoke(DESKTOP_CHANNELS.pickProjectFolder, startIn),
+	copyFile: (path: string) => ipcRenderer.invoke(DESKTOP_CHANNELS.copyFile, path),
 	openDevtools: () => ipcRenderer.invoke(DESKTOP_CHANNELS.openDevtools),
 	getVersion: () => ipcRenderer.invoke(DESKTOP_CHANNELS.getVersion),
 });
