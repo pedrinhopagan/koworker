@@ -3,6 +3,7 @@ import { ORPCError } from "@orpc/server";
 import { protectedProcedure, publicProcedure } from "./auth/context";
 import { isLocalRequest } from "./auth/device";
 import { Auth } from "./auth/login";
+import { loadModelCatalog, watchModelCatalog } from "./helpers/agent-radar/model-catalog";
 import { getRadarAgent, getRadarFocus, listRadarAgents } from "./helpers/agent-radar/state";
 import { subscribeAgentTerminalScreen } from "./helpers/agent-radar/terminal-screen";
 import { subscribeAgentRadarTranscript } from "./helpers/agent-radar/transcript";
@@ -159,6 +160,16 @@ export const wsRouter = {
 		const events = PubSub.subscribe("agentRadar", "global", signal);
 
 		yield { agents: listRadarAgents(), focus: getRadarFocus() };
+
+		yield* events;
+	}),
+
+	// O catálogo de modelos dos CLIs: abre com o atual e reenvia quando o cache de um deles muda.
+	modelCatalog: protectedProcedure.handler(async function* ({ signal }) {
+		watchModelCatalog();
+		const events = PubSub.subscribe("modelCatalog", "global", signal);
+
+		yield await loadModelCatalog();
 
 		yield* events;
 	}),

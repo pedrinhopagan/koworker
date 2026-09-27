@@ -1,6 +1,7 @@
 import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
 
 import type { TerminalCursor } from "@/api/helpers/agent-radar/pane-control";
+import type { ModelCatalog } from "@/api/schemas/agent-radar";
 import type { AgentRadarTranscriptEnvelope } from "@/api/schemas/agent-radar-transcript";
 import type { RadarAgent, RadarFocus } from "@/api/schemas/terminal-workspace";
 import type { AgentStep } from "@/lib/agent-stream";
@@ -32,6 +33,8 @@ type PubSubChannels = {
 	terminalWorkspace: { revision: number; source: "shell" | "agent" };
 	// A conversa que o CLI de um pane está gravando no disco, publicada por `paneId`.
 	agentRadarTranscript: AgentRadarTranscriptEnvelope;
+	// O catálogo de modelos dos CLIs, republicado quando o cache em disco de algum deles muda.
+	modelCatalog: ModelCatalog;
 	agentTerminalScreen: {
 		paneId: string;
 		ansi: string;

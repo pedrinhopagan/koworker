@@ -261,18 +261,23 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 
 - Canais do PubSub (`src/api/pubsub/index.ts`): `tasks`, `flow`, `promptRun`, `agentSession`,
   `agentRadar`, `agentRadarTranscript`, `agentTerminalScreen`, `shells`, `terminalWorkspace`,
-  `notification`, `navigate` e `terminal`
+  `modelCatalog`, `notification`, `navigate` e `terminal`
 - `wsRouter` expõe `auth.me`, `notifications`, `tasks`, `navigate`, `flow`, `promptRun`,
-  `agentSession`, `agentRadar`, `agentRadarTranscript`, `agentTerminal`, `terminalWorkspace` e
-  `terminal`
+  `agentSession`, `agentRadar`, `agentRadarTranscript`, `agentTerminal`, `terminalWorkspace`,
+  `modelCatalog` e `terminal`
+- `modelCatalog` abre com o catálogo de modelos e esforços dos CLIs e reenvia quando o cache que o
+  próprio CLI grava muda (`~/.claude/cache/model-catalog/*-cc.json`, `~/.codex/models_cache.json`).
+  A troca de modelo numa conversa vai ao CLI vivo pelo `/model` (e `/effort`), sempre só na sessão;
+  o valor em vigor vem da tela do CLI, relida quando o transcript avisa de um `/model` ou `/effort`
 - `terminalWorkspace` abre com snapshot versionado do catálogo unificado de shells e agents; revisões
   monotônicas conciliam metadata concorrente e reconexão sem polling da listagem
 - `shells` entrega por `shellId` os bytes do PTY em base64, o título publicado pelo CLI e o desfecho;
   o replay do scrollback não passa pelo canal — o stream abre com ele
 - `agentSession` entrega os blocos da conversa (por `seq`), o `busy` do agente e a mudança de
   `status` da sessão; a assinatura começa com o histórico inteiro para a reconexão não perder nada
-- `agentRadarTranscript` é por `paneId` e entrega a conversa que o CLI aberto no kw-terminal grava em
-  disco (`~/.claude/projects`, `~/.codex/sessions`), nos mesmos blocos de `agentSession`. Lote com
+- `agentRadarTranscript` é por `paneId` e entrega a conversa que o CLI aberto no kw-terminal ou num
+  shell embutido grava em disco (`~/.claude/projects`, `~/.codex/sessions`, `~/.pi/agent/sessions`),
+  nos mesmos blocos de `agentSession`, mais a fila de mensagens do Claude em `queued`. Lote com
   `reset` é a conversa inteira de novo: o arquivo virou outro e os `seq` recomeçaram
 - Uma assinatura de `agentRadarTranscript` por vez, só para a conversa que está na tela: a lista
   lateral usa `agentRadar.transcriptPreviews`, que lê a cauda de cada transcript e devolve só a

@@ -58,20 +58,31 @@ export const AgentRadarTerminalScrollSchema = AgentRadarPaneSchema.extend({
 });
 
 // "history": o wheel virou offset na janela da ponte. "forward": o pane não tem histórico de
-// terminal (TUI em alt screen) e o cliente encaminha o gesto como setas pro agent.
+// terminal (TUI em alt screen) e o gesto foi como roda do mouse pro programa, pelo controller.
 export const AgentRadarTerminalScrollResultSchema = z.object({
 	ok: z.boolean(),
 	mode: z.enum(["history", "forward"]).optional(),
 });
 
 // O catálogo que o seletor de modelo mostra: por CLI, os modelos que ela aceita e os níveis de
-// esforço de cada um. `defaultEffort` é o que o CLI usa quando nada é dito.
+// esforço de cada um. `defaultEffort` é o que o CLI usa quando nada é dito; `legacy` são as versões
+// anteriores que o `/model` lista depois das principais.
 export type CliModelOption = {
 	id: string;
 	label: string;
 	hint: string;
 	efforts: string[];
 	defaultEffort: string | null;
+	legacy: boolean;
 };
 
 export type ModelCatalog = Record<"claude" | "codex", CliModelOption[]>;
+
+export const AgentModelConfigureSchema = z
+	.object({
+		paneId: z.string().min(1),
+		cli: z.enum(["claude", "codex"]),
+		model: KwTerminalModelSchema.optional(),
+		effort: KwTerminalEffortSchema.optional(),
+	})
+	.refine((input) => !!input.model || !!input.effort, "Escolha um modelo ou esforço");

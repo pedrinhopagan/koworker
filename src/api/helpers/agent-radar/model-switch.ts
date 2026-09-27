@@ -13,8 +13,8 @@ import {
 	handoffQuestion,
 	handoffSummary,
 } from "./model-handoff";
+import { configurePaneModel } from "./model-configure";
 import { getRadarAgent } from "./state";
-import { openPaneTranscriptEffort, openPaneTranscriptModel } from "./transcript";
 import { locateAgentTranscript } from "./transcript/locate";
 import { syncPaneTranscriptSource } from "./transcript/sync";
 import { openTranscriptTail } from "./transcript/tail";
@@ -31,7 +31,7 @@ export type ModelSwitchInput = {
 
 // `moved`: a mesma conversa reabriu em outro pane, já com a mensagem entregue. `handoff`: a
 // compactação começou e o desfecho chega por `handoffStatus`.
-export type ModelSwitchResult = { kind: "moved"; paneId: string } | { kind: "handoff" };
+export type ModelSwitchResult = { kind: "moved" | "updated"; paneId: string } | { kind: "handoff" };
 
 export type HandoffJob = {
 	phase: "compacting" | "starting" | "done" | "failed";
@@ -144,40 +144,6 @@ async function startConversation(
 	});
 	await deliverPrompt(result.paneId, input.text);
 	await kwTerminalPaneClose(agent.paneId);
-
-	return { kind: "moved", paneId: result.paneId };
-}
-
-// A mesma conversa reabre em outro pane com as flags novas: fecha o atual (dois processos na
-// mesma sessão brigam pelo arquivo) e retoma pelo id. O que não mudou vem do transcript aberto,
-// para a retomada não cair no padrão da config quando só o esforço (ou só o modelo) foi trocado.
-async function reopen(agent: RadarAgent, input: ModelSwitchInput): Promise<ModelSwitchResult> {
-	if (!agent.sessionId) {
-		throw new ORPCError("PRECONDITION_FAILED", {
-			message: "O CLI ainda não informou o id desta conversa; tente de novo em instantes",
-		});
-	}
-
-	const model = input.model ?? openPaneTranscriptModel(agent.paneId);
-	const effort = input.effort ?? openPaneTranscriptEffort(agent.paneId);
-	const project = await projectFor(agent);
-	if (!(await kwTerminalPaneClose(agent.paneId))) {
-		throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Falha ao fechar o pane atual" });
-	}
-
-	const result = await Terminal.resumeSessionById({
-		...project,
-		cwd: agent.cwd,
-		cli: input.cli,
-		sessionId: agent.sessionId,
-		options: {
-			...(model ? { model } : {}),
-			...(effort ? { effort } : {}),
-			fullAccess: true,
-			tab: continuationTab(agent),
-		},
-	});
-	await deliverPrompt(result.paneId, input.text);
 
 	return { kind: "moved", paneId: result.paneId };
 }
@@ -302,18 +268,27 @@ export async function switchPaneModel(input: ModelSwitchInput): Promise<ModelSwi
 	if (running && (running.phase === "compacting" || running.phase === "starting")) {
 		throw new ORPCError("CONFLICT", { message: "Esta conversa já está sendo migrada" });
 	}
+	if (agentRadarCli(agent.agent) === input.cli) {
+		if (input.model || input.effort) {
+			await configurePaneModel({
+				paneId: input.paneId,
+				cli: input.cli,
+				...(input.model ? { model: input.model } : {}),
+				...(input.effort ? { effort: input.effort } : {}),
+			});
+		}
+		await kwTerminalPaneRun(input.paneId, input.text);
+		return { kind: "updated", paneId: input.paneId };
+	}
+
 	if (agent.status === "working") {
 		throw new ORPCError("CONFLICT", {
-			message: "Aguarde o agent terminar o turno para trocar de modelo",
+			message: "Aguarde o agent terminar o turno para migrar de CLI",
 		});
 	}
 
 	if (!agent.sessionId && !agent.sessionPath) {
 		return startConversation(agent, input);
-	}
-
-	if (agentRadarCli(agent.agent) === input.cli) {
-		return reopen(agent, input);
 	}
 
 	startHandoff(agent, input);

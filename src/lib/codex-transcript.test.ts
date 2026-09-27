@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
+import { createTranscriptMirror } from "./agent-transcript";
 import {
+	codexTranscriptEffort,
 	codexTranscriptModel,
 	createCodexTranscriptTranslator,
 	translateCodexTranscriptLine,
@@ -314,5 +316,273 @@ describe("createCodexTranscriptTranslator", () => {
 				payload: { type: "user_message", message: "Depois do reset" },
 			}),
 		).toEqual([{ type: "append", payload: { kind: "user", text: "Depois do reset" } }]);
+	});
+});
+
+const ASYNC_TITLE = "Em “copiar o arquivo”, você quer o conteúdo ou o arquivo como anexo?";
+
+function asyncQuestionLines(callId: string, questions: { title: string; options: string[] }[]) {
+	return [
+		{
+			type: "response_item",
+			payload: {
+				type: "function_call",
+				name: "request_user_input_async",
+				call_id: callId,
+				arguments: JSON.stringify({ questions }),
+			},
+		},
+		{
+			type: "event_msg",
+			payload: {
+				type: "item_completed",
+				item: {
+					type: "AgentMessage",
+					id: callId,
+					content: [{ type: "Text", text: questions.map((entry) => entry.title).join("\n") }],
+					phase: "final_answer",
+					delivery: "async",
+					questions,
+				},
+			},
+		},
+		{
+			type: "response_item",
+			payload: { type: "function_call_output", call_id: callId, output: '{"accepted":true}' },
+		},
+	];
+}
+
+function userItem(text: string) {
+	return {
+		type: "event_msg",
+		payload: {
+			type: "item_completed",
+			item: { type: "UserMessage", content: [{ type: "text", text }] },
+		},
+	};
+}
+
+describe("desfecho do turno", () => {
+	test("turno interrompido vira cancelado com a duração", () => {
+		expect(
+			translateCodexTranscriptLine({
+				type: "event_msg",
+				payload: { type: "turn_aborted", turn_id: "t1", reason: "interrupted", duration_ms: 8272 },
+			}),
+		).toEqual([{ type: "result", status: "cancelled", durationMs: 8272 }]);
+	});
+
+	test("task_complete carrega a duração quando existe", () => {
+		expect(
+			translateCodexTranscriptLine({
+				type: "event_msg",
+				payload: { type: "task_complete", turn_id: "t1", duration_ms: 138945 },
+			}),
+		).toEqual([{ type: "result", status: "done", durationMs: 138945 }]);
+	});
+});
+
+describe("pergunta assíncrona", () => {
+	test("a chamada e o aceite não viram passo, e a mensagem vira pergunta", () => {
+		const { translate } = createCodexTranscriptTranslator();
+		const [call, message, output] = asyncQuestionLines("call_a", [
+			{ title: ASYNC_TITLE, options: ["Conteúdo para colar", "Arquivo como anexo"] },
+		]);
+
+		expect(translate(call)).toEqual([]);
+		expect(translate(message)).toEqual([
+			{
+				type: "append",
+				payload: {
+					kind: "question",
+					questionId: "call_a",
+					question: ASYNC_TITLE,
+					options: [{ label: "Conteúdo para colar" }, { label: "Arquivo como anexo" }],
+					multiSelect: false,
+					async: true,
+				},
+			},
+		]);
+		expect(translate(output)).toEqual([]);
+	});
+
+	test("várias perguntas ganham #n e a resposta citada responde cada uma", () => {
+		const { translate } = createCodexTranscriptTranslator();
+		const lines = asyncQuestionLines("call_b", [
+			{ title: "Primeira?", options: ["A", "B"] },
+			{ title: "Segunda?", options: ["C"] },
+		]);
+		const patches = lines.flatMap(translate);
+
+		expect(
+			patches.map(
+				(patch) =>
+					patch.type === "append" && patch.payload.kind === "question" && patch.payload.questionId,
+			),
+		).toEqual(["call_b#0", "call_b#1"]);
+		expect(translate(userItem("> Primeira?\n\nB\n\n> Segunda?\n\nC"))).toEqual([
+			{ type: "answer", toolUseId: "call_b", questionId: "call_b#0", text: "B" },
+			{ type: "answer", toolUseId: "call_b", questionId: "call_b#1", text: "C" },
+		]);
+		expect(translate(userItem("> Primeira?\n\nB"))).toEqual([
+			{ type: "append", payload: { kind: "user", text: "> Primeira?\n\nB" } },
+		]);
+	});
+
+	test("texto que não é resposta sobra como fala do usuário", () => {
+		const { translate } = createCodexTranscriptTranslator();
+		asyncQuestionLines("call_c", [{ title: "Qual?", options: ["X"] }]).forEach(translate);
+
+		expect(translate(userItem("> Outra citação\n\n> Qual?\n\nX"))).toEqual([
+			{ type: "answer", toolUseId: "call_c", questionId: "call_c", text: "X" },
+			{ type: "append", payload: { kind: "user", text: "> Outra citação" } },
+		]);
+	});
+
+	test("o reset esquece a pergunta pendente", () => {
+		const translator = createCodexTranscriptTranslator();
+		asyncQuestionLines("call_d", [{ title: "Qual?", options: ["X"] }]).forEach(
+			translator.translate,
+		);
+		translator.reset();
+
+		expect(translator.translate(userItem("> Qual?\n\nX"))).toEqual([
+			{ type: "append", payload: { kind: "user", text: "> Qual?\n\nX" } },
+		]);
+	});
+
+	test("no espelho, a pergunta fica respondida e nenhum bloco user extra aparece", () => {
+		const { translate } = createCodexTranscriptTranslator();
+		const mirror = createTranscriptMirror("s1");
+		const lines = [
+			...asyncQuestionLines("call_e", [
+				{ title: ASYNC_TITLE, options: ["Conteúdo para colar", "Arquivo como anexo"] },
+			]),
+			{
+				type: "response_item",
+				payload: {
+					type: "message",
+					role: "user",
+					content: [{ type: "input_text", text: `> ${ASYNC_TITLE}\n\nArquivo como anexo` }],
+				},
+			},
+			userItem(`> ${ASYNC_TITLE}\n\nArquivo como anexo`),
+		];
+		for (const line of lines) {
+			mirror.apply(translate(line));
+		}
+
+		const events = mirror.list();
+		expect(events).toHaveLength(1);
+		expect(events[0]?.payload).toMatchObject({
+			kind: "question",
+			questionId: "call_e",
+			async: true,
+			answers: ["Arquivo como anexo"],
+		});
+	});
+});
+
+describe("pergunta bloqueante", () => {
+	const call = {
+		type: "response_item",
+		payload: {
+			type: "function_call",
+			name: "request_user_input",
+			call_id: "call_p",
+			arguments: JSON.stringify({
+				questions: [
+					{
+						header: "Agrupamento",
+						id: "grouping",
+						question: "Como agrupar?",
+						options: [{ label: "Ordenar só", description: "Mantém o grupo" }, "Subgrupos"],
+					},
+					{ id: "mixed", title: "E a venda mista?" },
+				],
+			}),
+		},
+	};
+
+	test("a chamada vira uma pergunta por item, e a saída responde pelo id", () => {
+		const { translate } = createCodexTranscriptTranslator();
+
+		expect(translate(call)).toEqual([
+			{
+				type: "append",
+				payload: {
+					kind: "question",
+					questionId: "call_p#0",
+					question: "Como agrupar?",
+					options: [{ label: "Ordenar só", description: "Mantém o grupo" }, { label: "Subgrupos" }],
+					multiSelect: false,
+				},
+			},
+			{
+				type: "append",
+				payload: {
+					kind: "question",
+					questionId: "call_p#1",
+					question: "E a venda mista?",
+					options: [],
+					multiSelect: false,
+				},
+			},
+		]);
+
+		expect(
+			translate({
+				type: "response_item",
+				payload: {
+					type: "function_call_output",
+					call_id: "call_p",
+					output: JSON.stringify({
+						answers: {
+							mixed: { answers: ["Ficar no grupo pai"] },
+							grouping: { answers: ["Ordenar só", "Subgrupos"] },
+						},
+					}),
+				},
+			}),
+		).toEqual([
+			{ type: "answer", toolUseId: "call_p", questionId: "call_p#1", text: "Ficar no grupo pai" },
+			{
+				type: "answer",
+				toolUseId: "call_p",
+				questionId: "call_p#0",
+				text: "Ordenar só, Subgrupos",
+			},
+		]);
+	});
+
+	test("saída que não parseia não vira nada", () => {
+		const { translate } = createCodexTranscriptTranslator();
+		translate(call);
+
+		expect(
+			translate({
+				type: "response_item",
+				payload: { type: "function_call_output", call_id: "call_p", output: "cancelado" },
+			}),
+		).toEqual([]);
+	});
+});
+
+describe("modelo e esforço", () => {
+	test("thread_settings_applied informa modelo e esforço", () => {
+		const line = {
+			type: "event_msg",
+			payload: {
+				type: "thread_settings_applied",
+				thread_settings: { model: "gpt-5.6-sol", reasoning_effort: "low" },
+			},
+		};
+
+		expect(codexTranscriptModel(line)).toBe("gpt-5.6-sol");
+		expect(codexTranscriptEffort(line)).toBe("low");
+		expect(codexTranscriptEffort({ type: "turn_context", payload: { effort: "high" } })).toBe(
+			"high",
+		);
 	});
 });

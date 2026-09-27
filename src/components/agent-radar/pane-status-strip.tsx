@@ -6,7 +6,6 @@ import { Text } from "@/components/typography";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";
 import { AGENT_RADAR_STATUS_LABELS } from "@/constants/agent-radar";
 import { AGENT_RADAR_VISUALS } from "@/lib/agent-radar-status";
-import { modelDisplayLabel } from "@/lib/model-label";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import { formatElapsedSeconds, useElapsedSeconds } from "@/hooks/use-elapsed-seconds";
@@ -17,11 +16,13 @@ export function PaneStatusStrip({
 	agent,
 	closed,
 	model,
+	effort,
 }: {
 	agent: Pick<RadarAgent, "agent" | "status" | "changedAt" | "activity" | "tabLabel"> | null;
 	closed: boolean;
-	// O modelo que o transcript da sessão reportou por último; nulo enquanto não há resposta gravada.
+	// Modelo e esforço em vigor no CLI, já com os nomes que o seletor mostra.
 	model?: string | null;
+	effort?: string | null;
 }) {
 	const working = agent?.status === "working";
 	const workingFor = useElapsedSeconds(agent && working ? agent.changedAt : null, working);
@@ -59,7 +60,8 @@ export function PaneStatusStrip({
 					tone="muted"
 					className="hidden shrink-0 font-mono text-[11px] sm:inline"
 				>
-					{modelDisplayLabel(model)}
+					{model}
+					{effort && ` · ${effort}`}
 				</Text>
 			)}
 
