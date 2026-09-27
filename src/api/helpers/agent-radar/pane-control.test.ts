@@ -82,6 +82,21 @@ describe("PaneTerminalControls", () => {
 		expect(spawned[0]!.writes).toHaveLength(0);
 	});
 
+	test("roda vira terminal.scroll no meio do grid, uma por linha, nunca seta", () => {
+		const { controls, spawned } = harness();
+		expect(controls.wheel("p1", 3)).toBe(false);
+		controls.resize("p1", 80, 24);
+		expect(controls.wheel("p1", 2)).toBe(true);
+		expect(controls.wheel("p1", -1)).toBe(true);
+		const commands = spawned[0]!.writes.map((line) => JSON.parse(line));
+		expect(commands).toEqual([
+			{ type: "terminal.scroll", direction: "up", lines: 1, column: 40, row: 12 },
+			{ type: "terminal.scroll", direction: "up", lines: 1, column: 40, row: 12 },
+			{ type: "terminal.scroll", direction: "down", lines: 1, column: 40, row: 12 },
+		]);
+		expect(spawned[0]!.writes.join("")).not.toMatch(/terminal\.input|\\u001b\[[AB]/i);
+	});
+
 	test("grid devolve o pedido vivo e null após release", () => {
 		const { controls } = harness();
 		expect(controls.grid("w1:p1")).toBeNull();

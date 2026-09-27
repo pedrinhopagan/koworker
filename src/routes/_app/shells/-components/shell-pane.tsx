@@ -23,15 +23,14 @@ export function ShellPane({
 					role="status"
 					className="shrink-0 border-b border-border px-3 py-2 text-xs text-muted-foreground max-lg:hidden"
 				>
-					Inicie claude, codex ou codex-personal neste terminal. O chat fica disponível quando o
-					agente for detectado.
+					Inicie claude, codex ou pi neste terminal. O chat fica disponível quando o agente for
+					detectado.
 				</div>
 			)}
 			<div className="relative flex min-h-0 flex-1 flex-col">
 				<ShellTerminal
 					shellId={entry.id}
 					cwd={entry.cwd}
-					agent={entry.agent}
 					className="flex min-h-0 w-full flex-1 flex-col"
 					disabled={status !== "live"}
 					onStatus={(next) => setLiveStatus(next)}

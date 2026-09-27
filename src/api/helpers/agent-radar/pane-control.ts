@@ -10,6 +10,7 @@ import { spawnEnv } from "@/api/helpers/spawn";
 const RELEASE_GRACE_MS = 50;
 const MAX_COLS = 500;
 const MAX_ROWS = 500;
+const MAX_WHEEL_REPORTS = 20;
 // O daemon fecha todo frame posicionando o cursor e dizendo se ele aparece (`ESC[r;cH` e
 // `ESC[?25h`/`l`), então a cauda do frame basta para saber onde o caret da TUI está.
 const FRAME_TAIL_B64 = 128;
@@ -171,6 +172,28 @@ export class PaneTerminalControls {
 		const cursor = this.controls.get(paneId)?.cursor;
 
 		return cursor?.visible ? { row: cursor.row, col: cursor.col } : null;
+	}
+
+	wheel(paneId: string, lines: number): boolean {
+		const control = this.controls.get(paneId);
+		if (!control || !lines) {
+			return false;
+		}
+
+		const command = {
+			type: "terminal.scroll",
+			direction: lines > 0 ? "up" : "down",
+			lines: 1,
+			column: Math.floor(control.cols / 2),
+			row: Math.floor(control.rows / 2),
+		};
+		for (let report = 0; report < Math.min(Math.abs(lines), MAX_WHEEL_REPORTS); report++) {
+			if (!this.send(control, command)) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	release(paneId: string): void {

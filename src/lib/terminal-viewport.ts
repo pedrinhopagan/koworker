@@ -28,6 +28,7 @@ export function mountTerminalViewport(input: {
 		themeObserver.observe(themeRoot, { attributes: true, attributeFilter: ["class", "style"] });
 	}
 	const disposeTouch = attachTerminalTouchScroll(input.host, terminal, input.scroll);
+	terminal.textarea?.setAttribute("autocomplete", "off");
 	if (!window.matchMedia("(pointer: coarse)").matches) {
 		terminal.focus();
 	}
@@ -45,14 +46,37 @@ export function mountTerminalViewport(input: {
 
 export function attachTerminalTouchScroll(
 	host: HTMLElement,
-	terminal: Pick<Terminal, "rows" | "buffer" | "scrollLines">,
-	scroll = (lines: number) => {
-		if (terminal.buffer.active.type === "normal") {
-			terminal.scrollLines(lines);
-		}
-	},
+	terminal: Pick<Terminal, "rows" | "buffer" | "scrollLines" | "modes">,
+	scroll?: (lines: number) => void,
 ) {
+	const scrollBy =
+		scroll ??
+		((lines: number) => {
+			if (terminal.buffer.active.type === "normal") {
+				terminal.scrollLines(lines);
+				return;
+			}
+
+			if (terminal.modes.mouseTrackingMode === "none") {
+				return;
+			}
+
+			const screen = host.querySelector(".xterm-screen");
+			for (let line = 0; line < Math.abs(lines); line++) {
+				screen?.dispatchEvent(
+					new WheelEvent("wheel", {
+						deltaY: Math.sign(lines),
+						deltaMode: WheelEvent.DOM_DELTA_LINE,
+						clientX: lastX,
+						clientY: lastY,
+						bubbles: true,
+						cancelable: true,
+					}),
+				);
+			}
+		});
 	let startY = 0;
+	let lastX = 0;
 	let lastY = 0;
 	let remainder = 0;
 	let dragging = false;
@@ -71,7 +95,7 @@ export function attachTerminalTouchScroll(
 		const lines = Math.trunc(remainder / lineHeight);
 		if (lines) {
 			remainder -= lines * lineHeight;
-			scroll(lines);
+			scrollBy(lines);
 		}
 	}
 
@@ -89,6 +113,7 @@ export function attachTerminalTouchScroll(
 		}
 		active = true;
 		startY = lastY = event.touches[0].clientY;
+		lastX = event.touches[0].clientX;
 		lastTime = performance.now();
 		remainder = velocity = 0;
 	}

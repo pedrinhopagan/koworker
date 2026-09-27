@@ -49,7 +49,7 @@ function ShellsWorkspacePage() {
 	if (view.key !== activeKey) {
 		setView({ key: activeKey, mode: "conversation" });
 	}
-	// Sem transcript não há conversa para mostrar: o terminal, com o composer embaixo, é o chat.
+	// Sem transcript não há conversa para mostrar: o terminal é o chat.
 	const mode = activeEntry?.capabilities.converse ? view.mode : "terminal";
 
 	// Conversa em trânsito (modelo trocado, CLI trocada): a aba atual fica de pé enquanto o pane
@@ -141,9 +141,7 @@ function ShellsWorkspacePage() {
 								canReopen={canReopen}
 								reopening={reopening}
 								onReopen={actions.reopen}
-								onConversation={openSession}
-								onPersonal={() => openSession("codex-personal")}
-								onShell={() => openSession("shell")}
+								onLaunch={openSession}
 							/>
 						}
 					>

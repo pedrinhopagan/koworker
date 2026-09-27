@@ -34,18 +34,21 @@ test("história menor que o grid devolve tudo sem offset", () => {
 });
 
 test("wheel no vivo com histórico vira scroll da ponte", () => {
-	expect(decideWheel({ offset: 0, maxOffset: 30 }, 3)).toBe("history");
+	expect(decideWheel({ offset: 0, maxOffset: 30 }, 3, "pi")).toBe("history");
 });
 
-test("wheel pra baixo no vivo vai pro agent", () => {
-	expect(decideWheel({ offset: 0, maxOffset: 30 }, -3)).toBe("forward");
+test("sem histórico, a roda vai crua pro TUI que liga mouse", () => {
+	expect(decideWheel({ offset: 0, maxOffset: 0 }, 5, "claude")).toBe("forward");
+	expect(decideWheel({ offset: 0, maxOffset: 0 }, -5, "codex")).toBe("forward");
+	expect(decideWheel({ offset: 0, maxOffset: 30 }, -3, "opencode")).toBe("forward");
 });
 
-test("wheel pra cima sem histórico vai pro agent", () => {
-	expect(decideWheel({ offset: 0, maxOffset: 0 }, 5)).toBe("forward");
+test("sem histórico e sem mouse reporting, o gesto não vai ao pane", () => {
+	expect(decideWheel({ offset: 0, maxOffset: 0 }, 5, "pi")).toBe("none");
+	expect(decideWheel({ offset: 0, maxOffset: 30 }, -3, "pi")).toBe("none");
 });
 
 test("scrollado, qualquer direção continua na ponte", () => {
-	expect(decideWheel({ offset: 10, maxOffset: 30 }, 5)).toBe("history");
-	expect(decideWheel({ offset: 10, maxOffset: 0 }, -5)).toBe("history");
+	expect(decideWheel({ offset: 10, maxOffset: 30 }, 5, "claude")).toBe("history");
+	expect(decideWheel({ offset: 10, maxOffset: 0 }, -5, "claude")).toBe("history");
 });

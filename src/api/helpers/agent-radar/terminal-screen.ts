@@ -23,6 +23,11 @@ const MAX_SCROLL_LINES = 2000;
 // para decidir se existe histórico de terminal (TUI em alt screen não tem nada) e por quanto tempo
 // o resultado vale — saída nova do agent cria histórico que a sonda antiga não viu.
 const WHEEL_PROBE_TTL_MS = 4000;
+// O daemon roteia `terminal.scroll` pelo modo do pane: com mouse reporting vira evento de roda cru
+// pro programa, em alt screen sem mouse vira seta (alternate scroll). O modo não sai pela API, então
+// só vai pelo daemon quem liga SGR mouse no alt screen (capturado: `?1049h` + `?1000h`/`?1006h`).
+// ponytail: lista por agent; trocar pelo modo do pane quando o daemon expuser `wheel_routing`.
+const MOUSE_WHEEL_AGENTS = new Set(["claude", "codex", "opencode", "opencode2"]);
 
 type ScreenReader = {
 	readers: number;
@@ -185,21 +190,22 @@ export function hasScreenReaders(paneId: string): boolean {
 }
 
 // O wheel do espelho tem dois destinos. Com histórico de terminal disponível, vira delta de linhas
-// na ponte (offset). Sem — pane de TUI em alt screen não tem scrollback no daemon — o gesto é
-// encaminhado ao agent como seta: é o transcript dele que existe "em cima", não linhas de terminal.
+// na ponte (offset). Sem, porque TUI em alt screen não tem scrollback no daemon, o gesto é a roda do
+// mouse do próprio TUI (`forward`). Nunca seta: ↑/↓ navega o histórico de prompt em vez de rolar.
 export function decideWheel(
 	state: { offset: number; maxOffset: number },
 	delta: number,
-): "history" | "forward" {
-	if (state.offset > 0) {
+	agent: string,
+): "history" | "forward" | "none" {
+	if (state.offset > 0 || (delta > 0 && state.maxOffset > 0)) {
 		return "history";
 	}
 
-	if (delta < 0) {
-		return "forward";
+	if (!MOUSE_WHEEL_AGENTS.has(agent)) {
+		return "none";
 	}
 
-	return state.maxOffset > 0 ? "history" : "forward";
+	return "forward";
 }
 
 // Rola o histórico do pane pela ponte ou reporta que o gesto pertence ao TUI. Só vale com a visão
@@ -207,6 +213,7 @@ export function decideWheel(
 export async function scrollAgentTerminalScreen(
 	paneId: string,
 	delta: number,
+	agent: string,
 ): Promise<"history" | "forward" | "inactive"> {
 	const reader = readers.get(paneId);
 	if (!reader || reader.stopped) {
@@ -227,7 +234,12 @@ export async function scrollAgentTerminalScreen(
 		}
 	}
 
-	if (decideWheel(reader, delta) === "forward") {
+	const target = decideWheel(reader, delta, agent);
+	if (target === "forward") {
+		paneTerminalControls.wheel(paneId, delta);
+	}
+
+	if (target !== "history") {
 		return "forward";
 	}
 

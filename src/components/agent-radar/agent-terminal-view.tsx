@@ -1,16 +1,10 @@
-import { useMutation } from "@tanstack/react-query";
 import type { Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
-import {
-	TerminalComposer,
-	TerminalConnectionStatus,
-	TerminalToolbar,
-} from "@/components/terminal-toolbar";
+import { TerminalConnectionStatus, TerminalToolbar } from "@/components/terminal-toolbar";
 import { errorMessage } from "@/lib/orpc-errors";
 import { History } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { orpc } from "@/client";
 import { useAgentRadar } from "@/hooks/use-agent-radar";
 import { TERMINAL_FONT_FAMILY, TERMINAL_FONT_SIZE } from "@/lib/terminal-look";
 import {
@@ -25,7 +19,6 @@ import { useSplitViewStore } from "@/stores/split-view";
 import { createAgentTerminalAdapter } from "./agent-terminal-adapter";
 
 const SCROLL_TO_LIVE = -5000;
-const TUI_WHEEL_ARROW_CAP = 6;
 const SCREEN_INIT = "\u001B[?25l\u001B[?7l";
 
 export function buildScreenPatch(previous: string[], lines: string[], rows: number) {
@@ -49,10 +42,6 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 	const { agents } = useAgentRadar();
 	const agent = agents.find((candidate) => candidate.paneId === paneId);
 	const cwd = agent?.cwd;
-	const send = useMutation({
-		...orpc.agentRadar.send.mutationOptions(),
-		onError: (error) => toast.error(errorMessage(error, "Não foi possível enviar ao terminal")),
-	});
 	const frameRef = useRef<HTMLDivElement>(null);
 	const hostRef = useRef<HTMLDivElement>(null);
 	const [terminalInstance, setTerminalInstance] = useState<Terminal | null>(null);
@@ -183,11 +172,7 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 			const lines = Math.max(-5000, Math.min(5000, wheelPending));
 			wheelPending = 0;
 			try {
-				const result = await adapter.scroll(-lines);
-				if (!disposed && result.ok && result.mode === "forward") {
-					const arrow = lines < 0 ? "\u001B[A" : "\u001B[B";
-					await send(arrow.repeat(Math.min(Math.abs(lines), TUI_WHEEL_ARROW_CAP)));
-				}
+				await adapter.scroll(-lines);
 			} catch (error) {
 				if (!disposed) {
 					toast.error(errorMessage(error, "Não foi possível rolar o terminal"), {
@@ -331,21 +316,6 @@ export function AgentTerminalView({ paneId }: { paneId: string }) {
 				terminal={terminalInstance}
 				disabled={!connected}
 				onScrollToEnd={() => scrollToLiveRef.current()}
-			/>
-			<TerminalComposer
-				draftKey={`kowork-radar-draft-${paneId}`}
-				cli={agent?.agent}
-				projectName={agent?.projectName}
-				disabled={!connected || !agent}
-				onSend={async (text) => {
-					scrollToLiveRef.current();
-					try {
-						await send.mutateAsync({ paneId, text });
-						return true;
-					} catch {
-						return false;
-					}
-				}}
 			/>
 		</div>
 	);

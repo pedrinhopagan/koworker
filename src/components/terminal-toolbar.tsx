@@ -7,13 +7,9 @@ import {
 	ArrowUp,
 	ClipboardCopy,
 	ClipboardPaste,
-	Keyboard,
-	KeyboardOff,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { ThreadComposer } from "@/components/agent-session/thread-composer";
 import { Button } from "@/components/ui/button";
 import { reconnectRealtime } from "@/client";
 
@@ -55,42 +51,6 @@ export function TerminalToolbar({
 	disabled: boolean;
 	onScrollToEnd: () => void;
 }) {
-	const [typing, setTyping] = useState(false);
-	useEffect(() => {
-		const textarea = terminal?.textarea;
-		if (!textarea) {
-			return;
-		}
-		// No toque a tela é para ler e a escrita mora no composer: tocar no terminal não sobe o
-		// teclado. Digitar direto (vim, prompt de senha) é o botão de teclado, até o foco sair.
-		const touch = window.matchMedia("(pointer: coarse)").matches;
-		if (touch) {
-			textarea.inputMode = "none";
-		}
-		const blur = () => {
-			setTyping(false);
-			if (touch) {
-				textarea.inputMode = "none";
-			}
-		};
-		textarea.addEventListener("blur", blur);
-		return () => textarea.removeEventListener("blur", blur);
-	}, [terminal]);
-
-	function toggleKeyboard() {
-		if (!terminal?.textarea) {
-			return;
-		}
-		if (typing) {
-			terminal.blur();
-			return;
-		}
-		terminal.textarea.inputMode = "text";
-		terminal.blur();
-		terminal.focus();
-		setTyping(true);
-	}
-
 	async function copy() {
 		if (!terminal) {
 			return;
@@ -124,17 +84,6 @@ export function TerminalToolbar({
 			data-component="terminal-toolbar"
 			className="flex shrink-0 items-center border-t border-border bg-chrome lg:hidden [@media(pointer:coarse)]:flex"
 		>
-			<Button
-				variant="ghost"
-				className="h-12 w-12 px-0"
-				aria-label={typing ? "Parar de digitar no terminal" : "Digitar direto no terminal"}
-				disabled={disabled || !terminal}
-				onPointerDown={(event) => event.preventDefault()}
-				onClick={toggleKeyboard}
-			>
-				{typing && <KeyboardOff className="size-4" />}
-				{!typing && <Keyboard className="size-4" />}
-			</Button>
 			<div className="flex min-w-0 flex-1 overflow-x-auto overscroll-x-contain touch-pan-x">
 				{TERMINAL_KEYS.map((key) => (
 					<Button
@@ -154,6 +103,7 @@ export function TerminalToolbar({
 					variant="ghost"
 					className="size-12"
 					aria-label="Copiar seleção ou tela"
+					onPointerDown={(event) => event.preventDefault()}
 					onClick={() => void copy()}
 				>
 					<ClipboardCopy />
@@ -162,6 +112,7 @@ export function TerminalToolbar({
 					variant="ghost"
 					className="size-12"
 					aria-label="Colar no terminal"
+					onPointerDown={(event) => event.preventDefault()}
 					disabled={disabled || !terminal}
 					onClick={() => void paste()}
 				>
@@ -171,59 +122,12 @@ export function TerminalToolbar({
 					variant="ghost"
 					className="size-12"
 					aria-label="Ir para o fim do terminal"
+					onPointerDown={(event) => event.preventDefault()}
 					onClick={onScrollToEnd}
 				>
 					<ArrowDownToLine />
 				</Button>
 			</div>
-		</div>
-	);
-}
-
-// A escrita do terminal no celular: o mesmo composer da conversa (rascunho, ditado, colar,
-// multilinha), e o texto vai ao terminal seguido de Enter. É o que faz qualquer shell virar chat,
-// mesmo quando não existe transcript para mostrar.
-export function TerminalComposer({
-	draftKey,
-	cli,
-	projectName,
-	disabled,
-	onSend,
-}: {
-	draftKey: string;
-	cli?: string | null;
-	projectName?: string | null;
-	disabled: boolean;
-	onSend: (text: string) => Promise<boolean>;
-}) {
-	const [pending, setPending] = useState(false);
-
-	async function submit(text: string) {
-		setPending(true);
-		try {
-			return await onSend(text);
-		} finally {
-			setPending(false);
-		}
-	}
-
-	return (
-		<div
-			data-component="terminal-composer"
-			className="shrink-0 bg-background px-2 lg:hidden [@media(pointer:coarse)]:block"
-		>
-			<ThreadComposer
-				draftKey={draftKey}
-				{...(cli ? { cli } : {})}
-				{...(projectName ? { projectName } : {})}
-				disabled={disabled}
-				pending={pending}
-				hint="Conectando ao terminal…"
-				disabledHintInline
-				placeholder="Escreva para o terminal…"
-				helperText="Vai como texto seguido de Enter."
-				onSubmit={submit}
-			/>
 		</div>
 	);
 }

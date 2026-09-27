@@ -179,14 +179,16 @@ seletor de sessão, a alternância Conversa/Terminal, o atalho da tarefa vincula
 aba que deixou de existir devolve à lista em vez de pular para a primeira sessão. No desktop a
 seleção automática e a sidebar continuam iguais.
 
-No toque todo terminal é um chat. A visão Terminal (espelho do agent e shell embutido) tem, abaixo
-da faixa de teclas, o mesmo composer da conversa (`TerminalComposer`, com rascunho compartilhado
-com a visão Conversa, ditado, colar e multilinha): no agent o texto vai por `agentRadar.send`, no
-shell por `paste` do xterm, que respeita o bracketed paste do programa, seguido de Enter. Tocar na
-tela não sobe o teclado (`inputmode="none"` no textarea do xterm); digitar direto, para vim ou
-prompt de senha, é o botão de teclado da faixa, até o foco sair. A visão Conversa só existe onde o
-app lê o transcript (`converse` = claude, codex, opencode); os demais agents abrem direto no
-terminal, e o composer dele é o chat. A faixa de status da conversa some abaixo de 1024px, porque o
+No toque a visão Terminal (espelho do agent e shell embutido) é um terminal de verdade: tocar na
+tela sobe o teclado do sistema e o que se digita vai direto ao PTY pelo textarea do xterm
+(`autocomplete`, `autocorrect`, `autocapitalize` e `spellcheck` desligados). Abaixo dela fica a
+faixa de teclas que o teclado do celular não tem (Esc, Tab, Ctrl+C/D/L, setas, Shift+Tab, copiar,
+colar, ir para o fim); os botões não roubam o foco, e com o teclado aberto a navegação inferior do
+app some para a faixa encostar nele. A altura segue o `visualViewport` do root e o fit refaz o grid.
+Arrastar o dedo rola e não abre o teclado (`attachTerminalTouchScroll`): no buffer normal é o
+scrollback do xterm, no alternativo com mouse reporting é a roda do mouse entregue à TUI. A visão Conversa só existe onde o
+app lê o transcript (`converse` = claude, codex, pi, opencode); os demais agents abrem direto no
+terminal. A faixa de status da conversa some abaixo de 1024px, porque o
 header já mostra projeto, modelo e estado.
 
 Citação de arquivo na conversa — link markdown, `código` com cara de caminho (`src/a.ts:12`,
@@ -257,14 +259,16 @@ customizado (`attachCustomWheelEventHandler`) devolve `false` e manda o delta em
 terminando `offset` linhas antes do fim — o wheel rola o histórico real do pane, com clamp no topo;
 qualquer tecla devolve o espelho ao vivo, e um chip "histórico do pane" marca a janela rolada. Sem
 histórico — pane de TUI em alt screen não tem scrollback no daemon (`max_offset_from_bottom` 0) —
-a ponte responde `mode: "forward"` e o cliente encaminha o gesto como setas ↑/↓ **deliberadas** ao
-agent via `agentTerminal.input`: num TUI sem mouse reporting, o transcript dele é o único conteúdo
-que existe "em cima", e rolar o mouse passa a percorrê-lo como num terminal de verdade. A decisão
-vive numa sonda com TTL (`decideWheel` + leitura curta de `recent` no primeiro wheel pra cima), e
-cada frame carrega no máximo 6 setas para um flick não voar pelo transcript inteiro. No shell
-embutido a guarda é outra: em alt screen o handler só bloqueia a conversão em setas — TUI com mouse
-reporting continua recebendo o wheel (o caminho de mouse do xterm roda antes do handler), e no
-buffer normal o scroll local é o scrollback de 10k linhas do próprio xterm.
+a ponte responde `mode: "forward"` e manda a roda ao programa pelo controller do pane
+(`terminal.scroll`, um por linha, no meio do grid). O daemon roteia pelo modo do pane: com mouse
+reporting vira evento de roda SGR cru, em alt screen sem mouse viraria seta (alternate scroll). Como
+a API não expõe o modo, só vão pelo daemon os agents que ligam SGR mouse no alt screen (claude,
+codex, opencode); os outros ficam parados, porque seta navegaria o histórico de prompt. A decisão
+vive numa sonda com TTL (`decideWheel` + leitura curta de `recent` no primeiro wheel pra
+cima). No shell embutido o handler só bloqueia a conversão em setas do alt screen sem mouse
+reporting; claude e codex ligam alt screen com SGR mouse (`?1049h` + `?1000h`/`?1006h`) e recebem a
+roda pelo caminho de mouse do xterm, que consulta o mesmo handler; pi fica no buffer normal, onde o
+scroll local é o scrollback de 10k linhas do próprio xterm.
 
 O teclado é o outro lado do espelho. `pane.send_input` **digita texto e só texto**: todo byte de
 controle é descartado no caminho, e era por isso que backspace, enter, seta e ctrl+c não chegavam ao
@@ -291,23 +295,47 @@ de uma frase só sobram as skills. `Tab` e clique completam e devolvem o cursor;
 despacha quando a barra está na primeira coluna, e uma linha única começando com `/` também vai com
 `Enter` seco. Comando é texto comum no `agentRadar.send`: quem o interpreta é a CLI do outro lado.
 
-Texto enviado pelo app usa `agent send` seguido de `Enter`, mas só aparece quando o transcript nativo
-o devolver. `working` bloqueia envio e oferece interrupção explícita por `C-c`. Em `blocked`, o campo
-continua aceitando respostas e o controle do prompt envia somente as teclas de navegação, confirmação
-e cancelamento admitidas pelo schema; permissões e perguntas nativas podem ser respondidas pelo PWA
-mesmo quando o transcript não contém o texto do seletor da CLI.
+Texto enviado pelo app vai ao PTY (bracketed paste, ou Shift+Enter por linha no claude) seguido de
+`Enter`, e só vira fala na conversa quando o transcript nativo o registra. Até lá a mensagem fica no
+fim da conversa como bolha tracejada (`OutgoingPrompts`, estado em `stores/pending-prompts.ts` e regra
+em `lib/agent-prompt-receipt.ts`): "Enviando…", "Aguardando o agente" enquanto ele trabalha (a
+mensagem entra na fila de steering de Codex e Pi, ou na fila do Claude) e, com o agente parado e nada
+registrado depois de 15s, um alerta para conferir o terminal. A fila do Claude é lida do próprio
+arquivo (`queue-operation` enqueue/dequeue/remove) e viaja em `queued` no envelope de
+`agentRadarTranscript`, então mensagens enfileiradas direto no terminal também aparecem; a absorvida
+no meio do turno chega como `attachment` `queued_command` e vira fala do usuário. Editar a fila é no
+terminal: ↑ no Claude, Alt+↑ no Codex e no Pi.
 
-A pergunta estruturada do claude (`AskUserQuestion`) vira bloco `question` na conversa, com as opções
-completas, porque o `tool_use` dela já está no transcript antes da resposta; a resposta chega pelo
-`tool_result` do mesmo id e fecha o bloco com o que foi escolhido. Com o pane em `blocked`, clicar
-numa opção de escolha única dirige o seletor do CLI às cegas (N `Down` + `Enter`, cursor na primeira
-opção); seleção múltipla e texto livre ficam nos controles manuais. O menu de permissão nunca é
-gravado no arquivo, então ele não tem bloco — por isso sessões nascidas do PWA sobem em bypass por
-padrão (`--dangerously-skip-permissions` no claude, `--dangerously-bypass-approvals-and-sandbox` no
-codex), com os modos restritivos ainda disponíveis nas opções avançadas.
+O composer só trava quando o agente espera resposta de verdade: `awaitingInput` do radar (status
+`blocked` cru do daemon, porque `done` também é normalizado para `blocked`), o status `blocked` do
+shell embutido (marcadores de diálogo de permissão, seletor ou confirmação no fim da tela do PTY) ou
+uma pergunta bloqueante ainda sem resposta no transcript. Texto seguido de `Enter` num diálogo desses
+aprovaria a opção padrão.
+
+A pergunta estruturada vira bloco `question` com as opções completas: `AskUserQuestion` no claude,
+`request_user_input` no codex (resposta pelo `function_call_output`) e `request_user_input_async`, a
+pergunta assíncrona do codex, que o TUI abre com Alt+↑ enquanto o agente segue trabalhando. A
+assíncrona é respondida pelo próprio chat, que envia `> <pergunta>\n\n<resposta>`, o mesmo formato que
+o TUI grava; as bloqueantes mostram as opções e pedem a resposta no terminal. Pergunta recusada fecha
+como "encerrada sem resposta". O menu de permissão nunca é gravado no arquivo, então ele não tem
+bloco — por isso sessões nascidas do PWA sobem em bypass por padrão
+(`--dangerously-skip-permissions` no claude, `--dangerously-bypass-approvals-and-sandbox` no codex),
+com os modos restritivos ainda disponíveis nas opções avançadas.
+
+Outros marcos do transcript viram blocos próprios em vez de fala crua: `<task-notification>` de
+tarefa em segundo plano, saída de comando local (`/model`, `!comando`), erro da API, turno
+interrompido (`[Request interrupted by user]`, `turn_aborted`, `stopReason: aborted`) e o fim do turno
+com duração (`turn_duration`, `task_complete`, `stopReason: stop`).
+
+O Pi grava em `~/.pi/agent/sessions/--<cwd>--/<timestamp>_<id>.jsonl` só depois da primeira resposta
+do modelo. No kw-terminal a extensão `herdr-agent-state` reporta o caminho; no shell embutido a sessão
+sai da linha de comando (`--session`, `--session-id`) ou, sem ela, do arquivo da pasta do projeto
+gravado por último desde que o processo começou. Dois Pi na mesma pasta em shells embutidos podem
+trocar de conversa entre si.
 
 O modelo e o esforço em uso na sessão saem do próprio transcript (`message.model` e `effort` das
-linhas `assistant` no claude, `turn_context.payload.model`/`effort` no codex) e viajam no envelope de
+linhas `assistant` no claude, `turn_context`/`thread_settings_applied` no codex, `model_change`/
+`thinking_level_change` no pi) e viajam no envelope de
 `agentRadarTranscript` e no `transcriptPreviews`: a faixa do pane e o cartão da lista mostram o
 modelo real, não o que o spawn pediu — um `/model` no meio da conversa aparece na próxima resposta.
 
