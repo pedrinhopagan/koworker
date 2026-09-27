@@ -27,6 +27,7 @@ export async function syncPaneTranscriptSource(paneId: string) {
 		? await resolveProcessTranscript({
 				agent: agent.agent,
 				processIds: processInfo.foreground_processes.map((process) => process.pid),
+				sessionId: reported.sessionId,
 			})
 		: null;
 

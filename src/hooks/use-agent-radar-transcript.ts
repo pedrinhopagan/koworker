@@ -10,7 +10,7 @@ import { subscribeWithRetry } from "@/lib/realtime-subscription";
 
 type TranscriptEnvelope = Pick<
 	AgentRadarTranscriptEnvelope,
-	"events" | "missing" | "model" | "effort" | "reset" | "source"
+	"events" | "missing" | "model" | "effort" | "reset" | "source" | "queued"
 >;
 
 // Um agente em rajada escreve vários blocos por segundo. Aplicar lote a lote punha a conversa inteira
@@ -39,6 +39,7 @@ export function useAgentRadarTranscript(paneId: string) {
 	const [source, setSource] = useState<AgentTranscript | null>(null);
 	const [model, setModel] = useState<string | null>(null);
 	const [effort, setEffort] = useState<string | null>(null);
+	const [queued, setQueued] = useState<string[]>([]);
 	const [missing, setMissing] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [connected, setConnected] = useState(false);
@@ -50,6 +51,7 @@ export function useAgentRadarTranscript(paneId: string) {
 		setSource(null);
 		setModel(null);
 		setEffort(null);
+		setQueued([]);
 		setMissing(false);
 		setLoading(true);
 		setConnected(false);
@@ -95,6 +97,10 @@ export function useAgentRadarTranscript(paneId: string) {
 			if (nextEffort !== undefined) {
 				setEffort(nextEffort);
 			}
+			const nextQueued = batch.findLast((envelope) => envelope.reset || envelope.queued);
+			if (nextQueued) {
+				setQueued(nextQueued.queued ?? []);
+			}
 
 			setEvents((current) =>
 				batch.reduce(
@@ -124,5 +130,5 @@ export function useAgentRadarTranscript(paneId: string) {
 		};
 	}, [paneId]);
 
-	return { events, source, model, effort, missing, loading, connected };
+	return { events, source, model, effort, queued, missing, loading, connected };
 }

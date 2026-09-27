@@ -311,6 +311,7 @@ async function syncRadar(current: number) {
 					? await resolveProcessTranscript({
 							agent: pane.agent,
 							processIds: processInfo.foreground_processes.map((process) => process.pid),
+							sessionId: session.sessionId,
 						})
 					: null;
 
@@ -340,6 +341,7 @@ async function syncRadar(current: number) {
 				tabLabel: tabLabels.get(pane.tab_id) ?? pane.tab_id,
 				agent: pane.agent,
 				status,
+				awaitingInput: pane.agent_status === "blocked",
 				activity: pane.activity ?? null,
 				title: pane.title ?? null,
 				cwd: pane.cwd,
@@ -381,6 +383,7 @@ async function handleStatusEvent(event: KwTerminalEvent, current: number) {
 	const next = {
 		...known,
 		status,
+		awaitingInput: event.data.agent_status === "blocked",
 		agent: event.data.agent ?? known.agent,
 		// Campo ausente é "o daemon não disse", não "virou vazio": zerar aqui apagava a atividade
 		// que o cartão já mostrava a cada transição que vinha sem os campos opcionais.

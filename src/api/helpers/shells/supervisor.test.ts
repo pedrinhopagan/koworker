@@ -121,6 +121,37 @@ describe("status do agent", () => {
 		expect(shellAgentStatus({ agentActiveAt: 1_000, now: 2_000 })).toBe("working");
 		expect(shellAgentStatus({ agentActiveAt: 1_000, now: 61_000 })).toBe("idle");
 	});
+
+	test("diálogo de permissão ou pergunta na tela vira espera do usuário, mesmo com saída recente", () => {
+		expect(
+			shellAgentStatus({
+				agentActiveAt: 1_000,
+				now: 2_000,
+				screenLines: ["Do you want to proceed?", "❯ 1. Yes", "  2. No", "Esc to cancel"],
+			}),
+		).toBe("blocked");
+		expect(
+			shellAgentStatus({
+				agentActiveAt: 1_000,
+				now: 61_000,
+				screenLines: ["Enter to select · ↑/↓ to navigate · Esc to cancel"],
+			}),
+		).toBe("blocked");
+		expect(
+			shellAgentStatus({
+				agentActiveAt: 1_000,
+				now: 61_000,
+				screenLines: ["Press enter to confirm or esc to cancel"],
+			}),
+		).toBe("blocked");
+		expect(
+			shellAgentStatus({
+				agentActiveAt: 1_000,
+				now: 61_000,
+				screenLines: ["❯ ", "? for shortcuts", "esc to interrupt"],
+			}),
+		).toBe("idle");
+	});
 });
 
 test("CLI de agent rodando no shell é detectada e vira identidade do item", async () => {

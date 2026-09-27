@@ -17,6 +17,11 @@ import {
 	codexTranscriptModel,
 	createCodexTranscriptTranslator,
 } from "@/lib/codex-transcript";
+import {
+	piTranscriptEffort,
+	piTranscriptModel,
+	translatePiTranscriptLine,
+} from "@/lib/pi-transcript";
 import { openOpencode2Tail } from "./opencode2-tail";
 import { openOpencodeTail } from "./opencode-tail";
 
@@ -33,6 +38,7 @@ export type TranscriptTail = {
 	events: () => AgentSessionEvent[];
 	model: () => string | null;
 	effort: () => string | null;
+	queued: () => string[];
 	close: () => void;
 };
 
@@ -44,11 +50,13 @@ type TailInput = {
 		reset: boolean,
 		model: string | null,
 		effort?: string | null,
+		queued?: string[],
 	) => void;
 	onError: (error: unknown) => void;
 };
 
-type FileSource = Extract<AgentTranscript, { cli: "claude" | "codex" }>;
+type FileSource = Extract<AgentTranscript, { cli: "claude" | "codex" | "pi" }>;
+type FileCli = FileSource["cli"];
 
 // Ponto único de abertura para o resto do radar: quem quer a conversa de um pane não precisa saber
 // se ela vive num arquivo que cresce (claude, codex) ou num banco que muda no lugar (opencode).
@@ -71,21 +79,24 @@ type TranscriptTranslator = {
 	reset?: () => void;
 };
 
-function createTranslators(): Record<"claude" | "codex", TranscriptTranslator> {
+function createTranslators(): Record<FileCli, TranscriptTranslator> {
 	return {
 		claude: { translate: translateClaudeTranscriptLine },
 		codex: createCodexTranscriptTranslator(),
+		pi: { translate: translatePiTranscriptLine },
 	};
 }
 
-const MODEL_EXTRACTORS: Record<"claude" | "codex", (raw: unknown) => string | null> = {
+const MODEL_EXTRACTORS: Record<FileCli, (raw: unknown) => string | null> = {
 	claude: claudeTranscriptModel,
 	codex: codexTranscriptModel,
+	pi: piTranscriptModel,
 };
 
-const EFFORT_EXTRACTORS: Record<"claude" | "codex", (raw: unknown) => string | null> = {
+const EFFORT_EXTRACTORS: Record<FileCli, (raw: unknown) => string | null> = {
 	claude: claudeTranscriptEffort,
 	codex: codexTranscriptEffort,
+	pi: piTranscriptEffort,
 };
 
 async function readTranscript(input: {
@@ -171,8 +182,10 @@ async function openFileTranscriptTail(
 			pulling = true;
 			void pull()
 				.then(({ events, reset }) => {
-					if (!closed && (events.length > 0 || reset)) {
-						input.onEvents(events, reset, model, effort);
+					const queued = mirror.queued();
+					if (!closed && (events.length > 0 || reset || queued.join("\0") !== lastQueued)) {
+						lastQueued = queued.join("\0");
+						input.onEvents(events, reset, model, effort, queued);
 					}
 				})
 				.catch(input.onError)
@@ -188,7 +201,8 @@ async function openFileTranscriptTail(
 	}
 
 	const first = await pull();
-	input.onEvents(first.events, true, model, effort);
+	let lastQueued = mirror.queued().join("\0");
+	input.onEvents(first.events, true, model, effort, mirror.queued());
 
 	const watcher: FSWatcher = watch(input.source.path, { persistent: false }, () => schedule());
 	watcher.on("error", input.onError);
@@ -204,6 +218,7 @@ async function openFileTranscriptTail(
 		events: () => mirror.list(),
 		model: () => model,
 		effort: () => effort,
+		queued: () => mirror.queued(),
 		close() {
 			closed = true;
 			pending = false;

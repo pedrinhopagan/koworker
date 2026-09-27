@@ -4,6 +4,7 @@ import type { z } from "zod";
 import type { ShellSendSchema } from "@/api/schemas/shells";
 import { resolveProcessTranscript } from "../agent-radar/transcript/process";
 import { inspectShellAgent } from "./agent-detect";
+import { withTerminalInteraction } from "../terminal/interaction";
 import { shellRuntime } from "./supervisor";
 
 export async function resolveShellTranscript(id: string) {
@@ -13,7 +14,7 @@ export async function resolveShellTranscript(id: string) {
 	}
 
 	const process = await inspectShellAgent(shell.pid);
-	if (!process || (process.agent !== "claude" && process.agent !== "codex")) {
+	if (!process || !["claude", "codex", "pi"].includes(process.agent)) {
 		return null;
 	}
 
@@ -21,15 +22,8 @@ export async function resolveShellTranscript(id: string) {
 	return source ? { ...source, ...(process.cwd ? { cwd: process.cwd } : {}) } : null;
 }
 
-const sending = new Set<string>();
-
 export async function sendShellPrompt(input: z.infer<typeof ShellSendSchema>) {
-	if (sending.has(input.id)) {
-		throw new ORPCError("CONFLICT", { message: "Uma mensagem já está sendo enviada neste shell" });
-	}
-
-	sending.add(input.id);
-	try {
+	return await withTerminalInteraction(input.id, async () => {
 		const shell = shellRuntime.snapshot(input.id);
 		const process = shell?.status === "live" ? await inspectShellAgent(shell.pid) : null;
 		if (!shell || !process || process.agent !== input.agent) {
@@ -69,7 +63,5 @@ export async function sendShellPrompt(input: z.infer<typeof ShellSendSchema>) {
 		}
 
 		return { ok: true };
-	} finally {
-		sending.delete(input.id);
-	}
+	});
 }

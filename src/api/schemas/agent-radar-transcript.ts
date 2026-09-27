@@ -1,7 +1,7 @@
 import type { AgentSessionEvent } from "@/lib/agent-session";
 
 export type AgentTranscript = { cwd?: string } & (
-	| { cli: "claude" | "codex"; path: string; sessionId?: string }
+	| { cli: "claude" | "codex" | "pi"; path: string; sessionId?: string }
 	| { cli: "opencode"; path: string; sessionId: string }
 	| { cli: "opencode2"; path: string; sessionId: string }
 );
@@ -14,4 +14,5 @@ export type AgentRadarTranscriptEnvelope = {
 	missing?: boolean;
 	model?: string;
 	effort?: string;
+	queued?: string[];
 };

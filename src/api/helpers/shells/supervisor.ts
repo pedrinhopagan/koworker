@@ -17,14 +17,50 @@ const FLUSH_MS = 8;
 const AGENT_SWEEP_MS = 3_000;
 const AGENT_ACTIVE_MS = 12_000;
 const INPUT_ECHO_MS = 400;
+const BLOCKER_LINES = 15;
+const BLOCKER_MARKERS = [
+	["esc to cancel", "enter to confirm"],
+	["esc to cancel", "enter to select"],
+	["press enter to confirm or esc to cancel"],
+	["enter to submit answer"],
+	["enter to submit all"],
+	["allow command?"],
+	["do you want to proceed?"],
+];
 
 const SHELL = process.env.SHELL ?? "/bin/bash";
 
 // O daemon do kw-terminal não enxerga estes PTYs, então o status é mais grosso que o do radar:
 // um TUI trabalhando redesenha quadro sem parar (spinner, tool calls) e parado no prompt fica
 // quieta — saída recente, descontado o eco do teclado, é o sinal de trabalho.
-export function shellAgentStatus(input: { agentActiveAt: number; now: number }): ShellAgentStatus {
+export function shellAgentStatus(input: {
+	agentActiveAt: number;
+	now: number;
+	screenLines?: string[];
+}): ShellAgentStatus {
+	const screen = input.screenLines?.join("\n").toLowerCase() ?? "";
+	if (BLOCKER_MARKERS.some((markers) => markers.every((marker) => screen.includes(marker)))) {
+		return "blocked";
+	}
+
 	return input.now - input.agentActiveAt <= AGENT_ACTIVE_MS ? "working" : "idle";
+}
+
+function bottomScreenLines(screen: Screen) {
+	const buffer = screen.buffer.active;
+	const lines: string[] = [];
+	for (
+		let row = buffer.baseY + screen.rows - 1;
+		row >= buffer.baseY && lines.length < BLOCKER_LINES;
+		row--
+	) {
+		const text = buffer.getLine(row)?.translateToString(true).trim();
+		if (text) {
+			lines.unshift(text);
+		}
+	}
+
+	return lines;
 }
 
 type Shell = {
@@ -45,6 +81,7 @@ type Shell = {
 	agent: string | null;
 	agentActiveAt: number;
 	publishedAgentStatus: ShellAgentStatus | null;
+	agentStatusAt: number;
 	lastInputAt: number;
 	pending: Buffer[];
 	flushTimer: ReturnType<typeof setTimeout> | null;
@@ -174,6 +211,19 @@ export class ShellRuntime {
 			.map((shell) => this.record(shell));
 	}
 
+	readScreen(id: string) {
+		const shell = this.shells.get(id);
+		if (!shell || shell.exited) {
+			return null;
+		}
+
+		const buffer = shell.screen.buffer.active;
+		return Array.from(
+			{ length: shell.rows },
+			(_, row) => buffer.getLine(buffer.baseY + row)?.translateToString(true) ?? "",
+		).join("\n");
+	}
+
 	attach(id: string) {
 		const shell = this.shells.get(id);
 
@@ -287,6 +337,7 @@ export class ShellRuntime {
 			agent: null,
 			agentActiveAt: 0,
 			publishedAgentStatus: null,
+			agentStatusAt: this.dependencies.now(),
 			lastInputAt: 0,
 			pending: [],
 			flushTimer: null,
@@ -391,10 +442,17 @@ export class ShellRuntime {
 			exitCode: shell.exitCode,
 			pid: shell.pid,
 			agent,
-			agentStatus: agent
-				? shellAgentStatus({ agentActiveAt: shell.agentActiveAt, now: this.dependencies.now() })
-				: null,
+			agentStatus: agent ? this.agentStatus(shell) : null,
+			agentStatusAt: shell.agentStatusAt,
 		};
+	}
+
+	private agentStatus(shell: Shell) {
+		return shellAgentStatus({
+			agentActiveAt: shell.agentActiveAt,
+			now: this.dependencies.now(),
+			screenLines: bottomScreenLines(shell.screen),
+		});
 	}
 
 	// Detecção periódica de agent CLI: a árvore de processos de cada shell vivo é relida e o slug
@@ -442,11 +500,10 @@ export class ShellRuntime {
 				const previousAgent = shell.agent;
 				const previousStatus = shell.publishedAgentStatus;
 				shell.agent = await this.dependencies.scanAgent(shell.pid, this.procRoot);
-				shell.publishedAgentStatus = shell.agent
-					? shellAgentStatus({ agentActiveAt: shell.agentActiveAt, now: this.dependencies.now() })
-					: null;
+				shell.publishedAgentStatus = shell.agent ? this.agentStatus(shell) : null;
 
 				if (previousAgent !== shell.agent || previousStatus !== shell.publishedAgentStatus) {
+					shell.agentStatusAt = this.dependencies.now();
 					this.dependencies.publishCatalog();
 				}
 			}
@@ -488,8 +545,13 @@ export class ShellRuntime {
 		// como atividade, senão digitar no prompt do TUI acendia "Trabalhando".
 		if (this.dependencies.now() - shell.lastInputAt >= INPUT_ECHO_MS) {
 			shell.agentActiveAt = this.dependencies.now();
-			if (shell.agent && shell.publishedAgentStatus !== "working") {
+			if (
+				shell.agent &&
+				shell.publishedAgentStatus !== "working" &&
+				shell.publishedAgentStatus !== "blocked"
+			) {
 				shell.publishedAgentStatus = "working";
+				shell.agentStatusAt = this.dependencies.now();
 				this.dependencies.publishCatalog();
 			}
 		}

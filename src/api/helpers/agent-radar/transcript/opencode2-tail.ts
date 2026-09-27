@@ -77,6 +77,7 @@ export function openOpencode2Tail(input: {
 		events: () => mirror.list(),
 		model: () => translator.model(),
 		effort: () => null,
+		queued: () => [],
 		close() {
 			closed = true;
 			clearInterval(timer);

@@ -9,12 +9,14 @@ import {
 	hasScreenReaders,
 	scrollAgentTerminalScreen,
 } from "../helpers/agent-radar/terminal-screen";
+import {
+	configurePaneModel,
+	getTerminalModelConfiguration,
+} from "../helpers/agent-radar/model-configure";
 import { loadModelCatalog } from "../helpers/agent-radar/model-catalog";
 import { handoffStatus, switchPaneModel } from "../helpers/agent-radar/model-switch";
 import { getRadarAgent } from "../helpers/agent-radar/state";
-import { refreshAgentRadarTranscript } from "../helpers/agent-radar/transcript";
 import { agentRadarTranscriptPreviews } from "../helpers/agent-radar/transcript/preview";
-import { syncPaneTranscriptSource } from "../helpers/agent-radar/transcript/sync";
 import { openKwDiff } from "../helpers/kw-diff";
 import {
 	ensureKwTerminalServer,
@@ -26,8 +28,10 @@ import {
 	kwTerminalPaneSendInput,
 	kwTerminalPaneSendText,
 } from "../helpers/terminal/kw-terminal";
+import { withTerminalInteraction } from "../helpers/terminal/interaction";
 import { revealKwTerminalClient } from "../helpers/terminal/service";
 import {
+	AgentModelConfigureSchema,
 	AgentRadarInterruptSchema,
 	AgentRadarPaneSchema,
 	AgentRadarSendSchema,
@@ -48,30 +52,35 @@ function agentOrThrow(paneId: string): RadarAgent {
 }
 
 export const agentRadarRouter = {
+	configureModel: protectedProcedure
+		.input(AgentModelConfigureSchema)
+		.handler(({ input }) => configurePaneModel(input)),
+	modelConfiguration: protectedProcedure
+		.input(AgentRadarPaneSchema)
+		.handler(({ input }) => getTerminalModelConfiguration(input.paneId)),
 	savedTerminals: protectedProcedure.handler(() => getSavedTerminals()),
 
 	reopenSavedTerminals: protectedProcedure.handler(() => reopenSavedTerminals()),
 
-	send: protectedProcedure.input(AgentRadarSendSchema).handler(async ({ input }) => {
-		const agent = agentOrThrow(input.paneId);
-		if (agent.agent === "claude") {
-			await kwTerminalPaneSendText(input.paneId, agentPromptInput(agent.agent, input.text));
-			await Bun.sleep(100);
-			agentOrThrow(input.paneId);
-			await kwTerminalPaneSendKeys(input.paneId, "Enter");
-		} else {
-			await kwTerminalPaneRun(input.paneId, input.text);
-		}
+	send: protectedProcedure.input(AgentRadarSendSchema).handler(({ input }) =>
+		withTerminalInteraction(input.paneId, async () => {
+			const agent = agentOrThrow(input.paneId);
+			if (agent.agent === "claude") {
+				await kwTerminalPaneSendText(input.paneId, agentPromptInput(agent.agent, input.text));
+				await Bun.sleep(100);
+				agentOrThrow(input.paneId);
+				await kwTerminalPaneSendKeys(input.paneId, "Enter");
+			} else {
+				await kwTerminalPaneRun(input.paneId, input.text);
+			}
 
-		return { sent: true };
-	}),
+			return { sent: true };
+		}),
+	),
 
 	// O que cada CLI aceita em `/model` (claude) e `-m` (codex), com os níveis de esforço por modelo.
 	modelCatalog: protectedProcedure.handler(() => loadModelCatalog()),
 
-	// Mensagem que vai com modelo, esforço ou CLI diferentes da sessão. Claude troca por texto no
-	// mesmo pane; codex reabre a thread com as flags; CLI diferente compacta e continua em sessão nova,
-	// acompanhada por `switchStatus`.
 	switchModel: protectedProcedure
 		.input(AgentRadarSwitchModelSchema)
 		.handler(({ input }) => switchPaneModel(input)),
@@ -122,12 +131,12 @@ export const agentRadarRouter = {
 	terminalScroll: protectedProcedure
 		.input(AgentRadarTerminalScrollSchema)
 		.handler(async ({ input }) => {
-			agentOrThrow(input.paneId);
+			const agent = agentOrThrow(input.paneId);
 			if (!hasScreenReaders(input.paneId)) {
 				return { ok: false };
 			}
 
-			const mode = await scrollAgentTerminalScreen(input.paneId, input.delta);
+			const mode = await scrollAgentTerminalScreen(input.paneId, input.delta, agent.agent);
 			if (mode === "inactive") {
 				return { ok: false };
 			}
@@ -139,14 +148,6 @@ export const agentRadarRouter = {
 	// cada cartão assinando a conversa inteira baixava o histórico completo de cada agent para
 	// escrever uma linha de texto.
 	transcriptPreviews: protectedProcedure.handler(() => agentRadarTranscriptPreviews()),
-
-	syncTranscript: protectedProcedure.input(AgentRadarPaneSchema).handler(async ({ input }) => {
-		agentOrThrow(input.paneId);
-		await syncPaneTranscriptSource(input.paneId);
-		const source = await refreshAgentRadarTranscript(input.paneId);
-
-		return { found: !!source };
-	}),
 
 	// Levar o agent pra tela do terminal: `agent focus` aceita pane id e já move workspace, tab e pane
 	// no daemon; a janela do cliente TUI vem depois, pra o foco não ficar só no estado interno.

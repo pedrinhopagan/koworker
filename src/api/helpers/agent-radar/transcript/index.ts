@@ -33,7 +33,7 @@ async function openTail(paneId: string, source: AgentTranscript) {
 	return await openTranscriptTail({
 		sessionId: paneId,
 		source,
-		onEvents: (events, reset, model, effort) =>
+		onEvents: (events, reset, model, effort, queued) =>
 			void publish({
 				paneId,
 				events,
@@ -41,6 +41,7 @@ async function openTail(paneId: string, source: AgentTranscript) {
 				source,
 				...(model ? { model } : {}),
 				...(effort ? { effort } : {}),
+				...(queued ? { queued } : {}),
 			}),
 		onError: (error) => console.error(`[Radar] Falha ao ler a conversa do pane ${paneId}:`, error),
 	});
@@ -110,12 +111,6 @@ async function resolve(paneId: string) {
 	}
 }
 
-export async function refreshAgentRadarTranscript(paneId: string) {
-	await resolve(paneId);
-
-	return panes.get(paneId)?.tail?.source ?? null;
-}
-
 // A conversa que já está aberta em memória por causa de um leitor, ou nada. É o que deixa o preview
 // da lista sair sem tocar o disco quando alguém está com o pane na tela.
 export function openPaneTranscriptEvents(paneId: string) {
@@ -158,18 +153,24 @@ export async function* subscribeAgentRadarTranscript(paneId: string, signal?: Ab
 	const known = panes.get(paneId);
 
 	try {
+		// Sem arquivo aberto e sem `missing` publicado, a primeira resolução ainda está no ar e vai
+		// publicar o resultado: anunciar `missing` agora pintava "Comece a conversa" numa reconexão
+		// cuja conversa chegava logo depois.
 		if (known) {
 			known.readers += 1;
 			const model = known.tail?.model();
 			const effort = known.tail?.effort();
-			yield {
-				paneId,
-				reset: true,
-				events: known.tail?.events() ?? [],
-				...(known.tail ? { source: known.tail.source } : { missing: true }),
-				...(model ? { model } : {}),
-				...(effort ? { effort } : {}),
-			};
+			if (known.tail || known.missing) {
+				yield {
+					paneId,
+					reset: true,
+					events: known.tail?.events() ?? [],
+					queued: known.tail?.queued() ?? [],
+					...(known.tail ? { source: known.tail.source } : { missing: true }),
+					...(model ? { model } : {}),
+					...(effort ? { effort } : {}),
+				};
+			}
 		} else {
 			panes.set(paneId, {
 				tail: null,
