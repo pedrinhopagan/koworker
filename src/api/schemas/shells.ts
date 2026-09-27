@@ -8,7 +8,7 @@ import {
 } from "./terminal-workspace";
 
 export const ShellCreateSchema = z.object({
-	command: z.enum(["claude", "codex", "codex-personal"]).optional(),
+	command: z.enum(["claude", "codex", "codex-personal", "pi"]).optional(),
 	cwd: z.string().trim().min(1).max(1024),
 	label: z.string().trim().max(TERMINAL_LABEL_MAX_LENGTH).optional(),
 	projectId: z.string().uuid().nullable().optional(),
@@ -47,7 +47,7 @@ export const ShellInputSchema = z.object({
 });
 
 export const ShellSendSchema = ShellIdSchema.extend({
-	agent: z.enum(["claude", "codex"]),
+	agent: z.enum(["claude", "codex", "pi"]),
 	text: AgentRadarSendSchema.shape.text,
 	sourcePath: z.string().optional(),
 });

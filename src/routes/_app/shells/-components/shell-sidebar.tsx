@@ -15,7 +15,10 @@ import type {
 } from "../-utils/use-terminal-workspace";
 import { groupTerminalWorkspaceEntries, terminalWorkspaceEntryTitle } from "./shell-groups";
 import { ShellSessionItem } from "./shell-session-item";
-import { ShellTaskSection } from "./shell-task-section";
+
+function isOpenAgentEntry(entry: TerminalWorkspaceEntry) {
+	return entry.kind === "agent" || (!!entry.agent && entry.status !== "exited");
+}
 
 export function ShellSidebar({
 	entries,
@@ -42,10 +45,11 @@ export function ShellSidebar({
 	const mode = useShellSidebarStore((state) => state.mode);
 	const toggleMode = useShellSidebarStore((state) => state.toggleMode);
 	const collapsed = !mobile && mode === "compact";
-	const agents = entries.filter((entry) => entry.kind === "agent");
+	const agents = entries.filter(isOpenAgentEntry);
+	const conversationAgents = entries.filter((entry) => entry.kind === "agent");
 	const previews = useAgentRadarPreviews(
-		!collapsed && agents.length > 0,
-		agents.map((entry) => entry.id),
+		!collapsed && conversationAgents.length > 0,
+		conversationAgents.map((entry) => entry.id),
 	);
 	const filtered = useMemo(() => {
 		const needle = query.trim().toLocaleLowerCase();
@@ -72,10 +76,20 @@ export function ShellSidebar({
 			data-mobile={mobile || undefined}
 			className={cn(
 				"flex h-full min-h-0 w-[300px] shrink-0 flex-col border-r border-border bg-chrome/75 transition-[width] duration-150",
-				mobile && "w-full border-r-0 bg-background",
+				mobile && "h-auto w-full flex-1 shrink border-r-0 bg-background",
 				collapsed && "w-0 overflow-hidden border-r-0",
 			)}
 		>
+			{mobile && (
+				<div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
+					<Title as="h1" size="md">
+						Agents abertos
+					</Title>
+					<Text as="span" size="xs" tone="muted" className="font-mono tabular-nums">
+						{agents.length.toString().padStart(2, "0")}
+					</Text>
+				</div>
+			)}
 			{!mobile && (
 				<div className="flex h-12 shrink-0 items-center gap-2 border-b border-border pr-1.5 pl-3">
 					<SquareTerminal className="size-4 text-primary" />
@@ -114,17 +128,21 @@ export function ShellSidebar({
 				</div>
 			</div>
 
-			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
+			<div
+				className={cn(
+					"min-h-0 flex-1 overflow-y-auto overscroll-contain",
+					mobile ? "py-3" : "py-2",
+				)}
+			>
 				{loading && entries.length === 0 && (
 					<div className="flex min-h-24 items-center justify-center">
 						<Loader2 className="size-4 animate-spin text-muted-foreground" />
 					</div>
 				)}
-				{mobile && !query && <ShellTaskSection entries={entries} onSelect={onSelect} />}
 				{groups.map((group) => {
 					const project = group.projectId ? (projectById.get(group.projectId) ?? null) : null;
 					return (
-						<section key={group.id} className="mb-3 last:mb-0">
+						<section key={group.id} className={cn("mb-3 last:mb-0", mobile && "mb-4")}>
 							<div className="mb-1 flex min-w-0 items-center gap-2 px-3 py-1">
 								{project ? (
 									<ProjectLogo project={project} className="size-4 [&>img]:p-0.5" />

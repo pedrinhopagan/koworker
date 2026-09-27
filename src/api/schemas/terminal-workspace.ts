@@ -12,7 +12,7 @@ export const TERMINAL_GRID_LIMITS = {
 export const TERMINAL_LABEL_MAX_LENGTH = 60;
 export const TERMINAL_INPUT_MAX_LENGTH = 8192;
 
-export const ShellAgentStatusSchema = z.enum(["working", "idle"]);
+export const ShellAgentStatusSchema = z.enum(["working", "idle", "blocked"]);
 export type ShellAgentStatus = z.infer<typeof ShellAgentStatusSchema>;
 
 export const ShellRecordSchema = z.object({
@@ -29,6 +29,7 @@ export const ShellRecordSchema = z.object({
 	pid: z.number().int(),
 	agent: z.string().nullable(),
 	agentStatus: ShellAgentStatusSchema.nullable(),
+	agentStatusAt: z.number().int(),
 });
 export type ShellRecord = z.infer<typeof ShellRecordSchema>;
 
@@ -47,6 +48,7 @@ export const RadarAgentSchema = z.object({
 	tabLabel: z.string(),
 	agent: z.string(),
 	status: z.enum(AGENT_RADAR_STATUSES),
+	awaitingInput: z.boolean().optional(),
 	activity: z.string().nullable(),
 	title: z.string().nullable(),
 	cwd: z.string(),
@@ -90,7 +92,7 @@ const TerminalWorkspaceEntryBaseSchema = z.object({
 export const TerminalWorkspaceEntrySchema = z.discriminatedUnion("kind", [
 	TerminalWorkspaceEntryBaseSchema.extend({
 		kind: z.literal("shell"),
-		status: z.enum(["live", "exited", "working", "idle"]),
+		status: z.enum(["live", "exited", "working", "idle", "blocked"]),
 		statusFidelity: z.literal("activity"),
 		title: z.string().nullable(),
 		activity: z.null(),

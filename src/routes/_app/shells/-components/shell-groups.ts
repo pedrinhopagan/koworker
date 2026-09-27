@@ -1,4 +1,5 @@
 import type { TerminalWorkspaceEntry } from "@/api/schemas/terminal-workspace";
+import type { AgentRadarStatus } from "@/constants/agent-radar";
 import { sortRadarAgents } from "@/lib/agent-radar-status";
 
 export type ProjectSummary = { id: string; name: string; color: string };
@@ -11,49 +12,6 @@ export type ShellGroup = {
 	color: string | null;
 	entries: TerminalWorkspaceEntry[];
 };
-
-export type ShellTaskGroup = {
-	taskId: string;
-	taskTitle: string | null;
-	projectId: string | null;
-	projectName: string | null;
-	agents: Extract<TerminalWorkspaceEntry, { kind: "agent" }>[];
-};
-
-// As tarefas que têm agent aberto agora, cada uma com seus agents ordenados pela mesma régua da
-// lista; a tarefa cujo agent mais cobra atenção sobe.
-export function groupTerminalWorkspaceTasks(entries: TerminalWorkspaceEntry[]): ShellTaskGroup[] {
-	const groups = new Map<string, ShellTaskGroup>();
-
-	for (const entry of entries) {
-		if (entry.kind !== "agent" || !entry.taskId) {
-			continue;
-		}
-
-		const group = groups.get(entry.taskId) ?? {
-			taskId: entry.taskId,
-			taskTitle: entry.taskTitle,
-			projectId: entry.projectId,
-			projectName: entry.projectName,
-			agents: [],
-		};
-		group.agents.push(entry);
-		groups.set(entry.taskId, group);
-	}
-
-	const ranked = [...groups.values()].map((group) => {
-		const agents = sortRadarAgents(group.agents);
-		const lead = agents[0];
-
-		return {
-			status: lead?.status ?? "unknown",
-			changedAt: lead?.changedAt ?? 0,
-			group: { ...group, taskTitle: group.taskTitle ?? lead?.taskTitle ?? null, agents },
-		};
-	});
-
-	return sortRadarAgents(ranked).map((item) => item.group);
-}
 
 export function agentTabKey(paneId: string) {
 	return `agent:${paneId}`;
@@ -105,13 +63,22 @@ export function terminalWorkspaceEntryDescription(entry: TerminalWorkspaceEntry)
 	return title;
 }
 
-export function terminalWorkspaceStatusText(entry: TerminalWorkspaceEntry) {
+export function terminalWorkspaceRadarStatus(
+	entry: TerminalWorkspaceEntry,
+): AgentRadarStatus | null {
 	if (entry.kind === "agent") {
 		return entry.status;
 	}
 
-	if (entry.status === "working" || entry.status === "idle") {
-		return entry.status;
+	return entry.status === "working" || entry.status === "idle" || entry.status === "blocked"
+		? entry.status
+		: null;
+}
+
+export function terminalWorkspaceStatusText(entry: TerminalWorkspaceEntry) {
+	const status = terminalWorkspaceRadarStatus(entry);
+	if (status) {
+		return status;
 	}
 
 	return entry.status === "live" ? "ativo" : `encerrado (${entry.exitCode ?? "?"})`;

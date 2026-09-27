@@ -5,11 +5,7 @@ import type { TerminalWorkspaceEntry } from "@/api/schemas/terminal-workspace";
 import { AgentCliIcon } from "@/components/agent-radar/agent-cli";
 import { Text } from "@/components/typography";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";
-import {
-	AGENT_RADAR_STATUS_LABELS,
-	agentRadarAgentLabel,
-	type AgentRadarStatus,
-} from "@/constants/agent-radar";
+import { AGENT_RADAR_STATUS_LABELS, agentRadarAgentLabel } from "@/constants/agent-radar";
 import { AGENT_RADAR_VISUALS } from "@/lib/agent-radar-status";
 import { modelDisplayLabel } from "@/lib/model-label";
 import { relativeTimeFrom } from "@/lib/relative-time";
@@ -19,15 +15,11 @@ import { ShellEntryContextMenu } from "./shell-entry-context-menu";
 import {
 	terminalWorkspaceEntryDescription,
 	terminalWorkspaceEntryTitle,
+	terminalWorkspaceRadarStatus,
 	terminalWorkspaceStatusText,
 } from "./shell-groups";
 
 export type SessionPreview = { text: string | null; model: string | null } | null;
-
-function radarStatus(entry: TerminalWorkspaceEntry): AgentRadarStatus | null {
-	if (entry.kind === "agent") return entry.status;
-	return entry.status === "working" || entry.status === "idle" ? entry.status : null;
-}
 
 export const ShellSessionItem = memo(function ShellSessionItem({
 	entry,
@@ -43,7 +35,7 @@ export const ShellSessionItem = memo(function ShellSessionItem({
 	onSelect: (key: string) => void;
 }) {
 	const title = terminalWorkspaceEntryTitle(entry);
-	const status = radarStatus(entry);
+	const status = terminalWorkspaceRadarStatus(entry);
 	const visual = status ? AGENT_RADAR_VISUALS[status] : null;
 	const statusLabel = status
 		? AGENT_RADAR_STATUS_LABELS[status]

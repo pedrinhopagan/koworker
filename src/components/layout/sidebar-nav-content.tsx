@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { tv } from "tailwind-variants";
 
-import { SidebarAgentPulse } from "@/components/layout/sidebar-agent-pulse";
+import { AgentWaitingBadge, AgentWorkingPulse } from "@/components/layout/agent-nav-indicators";
 import {
 	formatSidebarShortcut,
 	isSidebarRouteActive,
@@ -39,37 +39,6 @@ const sidebarItem = tv({
 });
 
 type SidebarLayout = "compact" | "expanded" | "drawer";
-
-// Carimbo de contagem do item da sidebar: sobre o ícone quando a barra está estreita ou expandida, e
-// ao fim da linha no drawer, onde há largura sobrando.
-function SidebarCountBadge({ count, layout }: { count: number; layout: SidebarLayout }) {
-	if (count <= 0) {
-		return null;
-	}
-
-	if (layout === "drawer") {
-		return (
-			<span
-				className={cn(
-					"ml-auto min-w-5 rounded bg-warning/20 px-1.5 text-center text-xs font-semibold text-warning",
-				)}
-			>
-				{count}
-			</span>
-		);
-	}
-
-	return (
-		<span
-			className={cn(
-				"absolute z-10 min-w-3 rounded-[3px] bg-warning/35 px-0.5 text-center font-semibold text-[8px] leading-[11px] text-warning",
-				layout === "compact" ? "-top-1.5 -right-1.5" : "-top-2 -right-2",
-			)}
-		>
-			{count}
-		</span>
-	);
-}
 
 export function SidebarNavContent({
 	variant,
@@ -194,17 +163,17 @@ export function SidebarNavContent({
 			<>
 				<span className={cn("relative inline-flex", layout === "compact" && "justify-center")}>
 					<Icon size={iconSize} className={waiting > 0 ? "text-warning" : undefined} />
-					{layout !== "drawer" && <SidebarCountBadge count={waiting} layout={layout} />}
-					{layout === "compact" && <SidebarAgentPulse layout={layout} count={working} />}
+					{layout !== "drawer" && <AgentWaitingBadge count={waiting} layout={layout} />}
+					{layout === "compact" && <AgentWorkingPulse layout={layout} count={working} />}
 				</span>
 				{layout !== "compact" && (
 					<span className="flex min-w-0 items-center gap-2">
 						<span className="truncate text-sm">{item.label}</span>
-						<SidebarAgentPulse layout={layout} count={working} />
+						<AgentWorkingPulse layout={layout} count={working} />
 					</span>
 				)}
 				{layout === "drawer" && waiting > 0 ? (
-					<SidebarCountBadge count={waiting} layout={layout} />
+					<AgentWaitingBadge count={waiting} layout={layout} />
 				) : layout === "drawer" && item.altKey ? (
 					<span className="ml-auto text-xs text-muted-foreground">Alt+{item.altKey}</span>
 				) : null}

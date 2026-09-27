@@ -35,7 +35,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";
-import { AGENT_RADAR_STATUS_LABELS, type AgentRadarStatus } from "@/constants/agent-radar";
+import { AGENT_RADAR_STATUS_LABELS } from "@/constants/agent-radar";
 import { useAgentRadarPreviews } from "@/hooks/use-agent-radar-previews";
 import { useRadarAgentNav } from "@/hooks/use-radar-agent-nav";
 import { AGENT_RADAR_VISUALS } from "@/lib/agent-radar-status";
@@ -49,14 +49,9 @@ import type {
 import {
 	groupTerminalWorkspaceEntries,
 	terminalWorkspaceEntryTitle,
+	terminalWorkspaceRadarStatus,
 	terminalWorkspaceStatusText,
 } from "./shell-groups";
-
-function radarStatus(entry: TerminalWorkspaceEntry | null): AgentRadarStatus | null {
-	if (!entry) return null;
-	if (entry.kind === "agent") return entry.status;
-	return entry.status === "working" || entry.status === "idle" ? entry.status : null;
-}
 
 export function ShellCockpitHeader({
 	entry,
@@ -93,7 +88,7 @@ export function ShellCockpitHeader({
 		entry?.kind === "agent" ? [entry.id] : [],
 	);
 	const preview = entry?.kind === "agent" ? previews.get(entry.id) : null;
-	const status = radarStatus(entry);
+	const status = entry ? terminalWorkspaceRadarStatus(entry) : null;
 	const visual = status ? AGENT_RADAR_VISUALS[status] : null;
 	const title = entry ? terminalWorkspaceEntryTitle(entry) : "Nenhuma sessão selecionada";
 	const statusLabel = entry

@@ -8,6 +8,8 @@ import { transcriptCli } from "./agent-radar/transcript/locate";
 import { shellRuntime } from "./shells/supervisor";
 import { getTerminalWorkspaceRevision } from "./terminal-workspace-events";
 
+const SHELL_CONVERSE_AGENTS = new Set(["claude", "codex", "pi"]);
+
 const SHELL_CAPABILITIES = {
 	rename: true,
 	close: true,
@@ -50,11 +52,11 @@ export function terminalWorkspaceSnapshot(): TerminalWorkspaceSnapshot {
 		title: shell.title,
 		activity: null,
 		createdAt: shell.createdAt,
-		changedAt: shell.createdAt,
+		changedAt: shell.agentStatusAt,
 		exitCode: shell.exitCode,
 		capabilities: {
 			...SHELL_CAPABILITIES,
-			converse: shell.status === "live" && (shell.agent === "claude" || shell.agent === "codex"),
+			converse: shell.status === "live" && SHELL_CONVERSE_AGENTS.has(shell.agent ?? ""),
 		},
 	}));
 

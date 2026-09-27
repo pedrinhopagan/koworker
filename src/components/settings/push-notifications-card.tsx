@@ -28,14 +28,14 @@ export function PushNotificationsCard() {
 	const subscribed = !!push.subscription;
 
 	return (
-		<div className="flex flex-col gap-4 border border-border bg-card p-4 sm:flex-row sm:items-center">
+		<div className="flex flex-col gap-4 border border-border bg-card p-4 shadow-xs sm:p-5">
 			<div className="flex min-w-0 flex-1 items-start gap-3">
-				<Icon icon={subscribed ? BellRing : Bell} size="sm" className="mt-0.5" />
-				<div className="space-y-1">
+				<Icon icon={subscribed ? BellRing : Bell} size="sm" className="mt-0.5 shrink-0" />
+				<div className="min-w-0 space-y-1">
 					<Title as="h3" size="sm" className="text-sm font-semibold">
 						Alertas de execução
 					</Title>
-					<Text size="sm" tone="muted">
+					<Text size="sm" tone="muted" className="break-words">
 						{notificationDescription({
 							supported: push.supported,
 							serverReady: push.serverReady,
@@ -44,9 +44,15 @@ export function PushNotificationsCard() {
 					</Text>
 				</div>
 			</div>
-			<div className="flex shrink-0 flex-wrap gap-2">
+			<div className="flex flex-wrap gap-2 pl-11 sm:pl-11">
 				{subscribed && (
-					<Button type="button" variant="outline" disabled={push.busy} onClick={push.test}>
+					<Button
+						type="button"
+						variant="outline"
+						disabled={push.busy}
+						onClick={push.test}
+						className="h-11 sm:h-9"
+					>
 						{push.testing && <Loader2 className="size-4 animate-spin" />}
 						Testar
 					</Button>
@@ -56,6 +62,7 @@ export function PushNotificationsCard() {
 					variant={subscribed ? "outline" : "default"}
 					disabled={push.busy || (!subscribed && !push.available)}
 					onClick={() => void (subscribed ? push.unsubscribe() : push.subscribe())}
+					className="h-11 sm:h-9"
 				>
 					{push.busy ? (
 						<Loader2 className="size-4 animate-spin" />

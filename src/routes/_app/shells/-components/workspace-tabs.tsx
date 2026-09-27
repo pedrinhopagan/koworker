@@ -3,19 +3,10 @@ import { X } from "lucide-react";
 import type { TerminalWorkspaceEntry } from "@/api/schemas/terminal-workspace";
 import { AgentCliIcon } from "@/components/agent-radar/agent-cli";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";
-import type { AgentRadarStatus } from "@/constants/agent-radar";
 import { AGENT_RADAR_VISUALS } from "@/lib/agent-radar-status";
 import { cn } from "@/lib/utils";
 import type { TerminalWorkspaceActions } from "../-utils/use-terminal-workspace";
-import { terminalWorkspaceEntryTitle } from "./shell-groups";
-
-function radarStatus(entry: TerminalWorkspaceEntry): AgentRadarStatus | null {
-	if (entry.kind === "agent") {
-		return entry.status;
-	}
-
-	return entry.status === "working" || entry.status === "idle" ? entry.status : null;
-}
+import { terminalWorkspaceEntryTitle, terminalWorkspaceRadarStatus } from "./shell-groups";
 
 export function WorkspaceTabs({
 	entries,
@@ -39,7 +30,7 @@ export function WorkspaceTabs({
 		>
 			{entries.map((entry) => {
 				const selected = entry.key === activeKey;
-				const status = radarStatus(entry);
+				const status = terminalWorkspaceRadarStatus(entry);
 				const title = terminalWorkspaceEntryTitle(entry);
 
 				return (

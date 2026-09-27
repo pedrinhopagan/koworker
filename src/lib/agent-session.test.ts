@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+	type AgentEventPayload,
 	type AgentSessionEvent,
+	blockingQuestion,
+	lastTurnEnded,
 	mergeAgentSessionEvents,
 	parseAgentEventPayload,
 	pendingInteraction,
@@ -107,4 +110,41 @@ describe("pendingInteraction", () => {
 
 		expect(pending?.kind).toBe("question");
 	});
+});
+
+test("pergunta pendente só trava enquanto o turno dela não terminou nem veio fala nova", () => {
+	const at = (seq: number, payload: AgentEventPayload) => ({
+		id: String(seq),
+		sessionId: "s",
+		seq,
+		at: seq,
+		payload,
+	});
+	const question = at(0, {
+		kind: "question",
+		questionId: "q",
+		question: "Qual caminho?",
+		options: [{ label: "A" }],
+		multiSelect: false,
+	});
+
+	expect(blockingQuestion([question])?.questionId).toBe("q");
+	expect(blockingQuestion([question, at(1, { kind: "user", text: "segue" })])).toBeNull();
+	expect(
+		blockingQuestion([
+			{ ...question, payload: { ...question.payload, async: true } } as typeof question,
+		]),
+	).toBeNull();
+	expect(
+		lastTurnEnded([
+			at(0, { kind: "result", status: "done" }),
+			at(1, { kind: "notice", label: "x", tone: "info" }),
+		]),
+	).toBe(true);
+	expect(
+		lastTurnEnded([
+			at(0, { kind: "result", status: "done" }),
+			at(1, { kind: "user", text: "de novo" }),
+		]),
+	).toBe(false);
 });

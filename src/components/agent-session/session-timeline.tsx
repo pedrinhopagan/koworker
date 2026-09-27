@@ -6,6 +6,7 @@ import { MarkdownView } from "@/components/markdown-view";
 import { Text } from "@/components/typography";
 import type { AgentSessionEvent } from "@/lib/agent-session";
 import { toTimelineGroups, type TimelineGroup, type TrailStep } from "@/lib/agent-timeline";
+import { formatElapsedSeconds } from "@/hooks/use-elapsed-seconds";
 import { cn } from "@/lib/utils";
 import { AgentAnswer } from "./agent-answer";
 import { SessionPermission } from "./session-permission";
@@ -20,6 +21,14 @@ function ResultRow({ event }: { event: AgentSessionEvent }) {
 
 	const failed = event.payload.status !== "done";
 	const seconds = event.payload.durationMs ? Math.round(event.payload.durationMs / 1000) : null;
+	const label =
+		event.payload.status === "done"
+			? "Turno concluído"
+			: event.payload.status === "cancelled"
+				? "Turno interrompido"
+				: event.payload.status === "timeout"
+					? "Turno expirou"
+					: "Turno falhou";
 
 	return (
 		<div className="flex flex-wrap items-center gap-2 border-t border-dashed border-border pt-2">
@@ -29,8 +38,8 @@ function ResultRow({ event }: { event: AgentSessionEvent }) {
 				<CircleCheck className="size-3.5 shrink-0 text-muted-foreground" />
 			)}
 			<Text as="span" size="xs" tone="muted">
-				{failed ? "Turno interrompido" : "Turno concluído"}
-				{seconds === null ? "" : ` · ${seconds}s`}
+				{label}
+				{seconds === null ? "" : ` · ${formatElapsedSeconds(seconds)}`}
 				{event.payload.costUsd ? ` · US$ ${event.payload.costUsd.toFixed(3)}` : ""}
 			</Text>
 			{event.payload.error && (
@@ -46,6 +55,7 @@ type GroupProps = {
 	group: TimelineGroup;
 	agent?: string;
 	pending?: boolean;
+	asyncAnswersOnly?: boolean;
 	onDecide?: (requestId: string, decision: "allow" | "deny", reason?: string) => void;
 	onAnswer?: (questionId: string, input: { answers: string[]; freeText?: string }) => void;
 };
@@ -80,6 +90,7 @@ function sameGroup(left: GroupProps, right: GroupProps) {
 	if (
 		left.agent !== right.agent ||
 		left.pending !== right.pending ||
+		left.asyncAnswersOnly !== right.asyncAnswersOnly ||
 		left.onDecide !== right.onDecide ||
 		left.onAnswer !== right.onAnswer ||
 		left.group.kind !== right.group.kind ||
@@ -129,6 +140,7 @@ const TimelineGroupView = memo(function TimelineGroupView({
 	group,
 	agent,
 	pending,
+	asyncAnswersOnly,
 	onDecide,
 	onAnswer,
 }: GroupProps) {
@@ -191,11 +203,13 @@ const TimelineGroupView = memo(function TimelineGroupView({
 	}
 
 	if (payload.kind === "question") {
+		const readOnly = !onAnswer || (!!asyncAnswersOnly && !payload.async);
+
 		return (
 			<SessionQuestion
 				payload={payload}
-				pending={!!pending || !onAnswer}
-				readOnly={!onAnswer}
+				pending={!!pending || readOnly}
+				readOnly={readOnly}
 				onAnswer={(input) => onAnswer?.(payload.questionId, input)}
 			/>
 		);
@@ -232,11 +246,13 @@ export function SessionTimeline({
 	busy,
 	agent,
 	pending,
+	asyncAnswersOnly,
 	onDecide,
 	onAnswer,
 }: {
 	events: AgentSessionEvent[];
 	busy: boolean;
+	asyncAnswersOnly?: boolean;
 	// Slug da CLI que responde nesta conversa. Sem ele o bloco cai no rótulo genérico "Agente".
 	agent?: string;
 	pending?: boolean;
@@ -283,6 +299,7 @@ export function SessionTimeline({
 					group={group}
 					{...(agent ? { agent } : {})}
 					{...(pending === undefined ? {} : { pending })}
+					{...(asyncAnswersOnly ? { asyncAnswersOnly } : {})}
 					{...(onDecide ? { onDecide } : {})}
 					{...(onAnswer ? { onAnswer } : {})}
 				/>

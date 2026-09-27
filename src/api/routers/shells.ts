@@ -34,16 +34,15 @@ export const shellsRouter = {
 	send: protectedProcedure.input(ShellSendSchema).handler(({ input }) => sendShellPrompt(input)),
 	create: protectedProcedure.input(ShellCreateSchema).handler(async ({ input }) => {
 		const cwd = await resolveCwd(input.cwd);
+		const option = SHELL_LAUNCH_OPTIONS.find((candidate) => candidate.id === input.command);
 		return shellRuntime.execute({
 			type: "open",
 			cwd,
 			cols: input.cols,
 			rows: input.rows,
-			label:
-				input.label?.trim() ||
-				SHELL_LAUNCH_OPTIONS.find((option) => option.id === input.command)?.label,
+			label: input.label?.trim() || option?.label,
 			projectId: input.projectId ?? null,
-			...(input.command ? { shellArgs: ["-ic", input.command] } : {}),
+			...(option && "command" in option ? { shellArgs: ["-ic", option.command] } : {}),
 		});
 	}),
 

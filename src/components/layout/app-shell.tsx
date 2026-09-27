@@ -10,6 +10,7 @@ import { X } from "lucide-react";
 import { AppContextMenu } from "@/components/layout/app-context-menu";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Divider } from "@/components/layout/divider";
+import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { PinnedPane } from "@/components/layout/pinned-pane";
 import { GlobalProjectSelectDialog } from "@/components/layout/project-select-dialog";
 import { StatusBar } from "@/components/layout/status-bar";
@@ -248,6 +249,8 @@ export function AppShell({ children }: AppShellProps) {
 					{!isMobile && !hidePromptBar && <GlobalPromptBar />}
 
 					{!compactTerminal && !isMobile && <StatusBar />}
+
+					{isMobile && <MobileBottomNav />}
 				</div>
 
 				<GlobalProjectSelectDialog />
