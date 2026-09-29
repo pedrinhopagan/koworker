@@ -28,7 +28,12 @@ const CLAUDE_FALLBACK = [
 ];
 
 const CODEX_EFFORTS = ["low", "medium", "high", "xhigh", "max"];
+const CODEX_SOL_6_1 = {
+	...fallbackOption("gpt-6.1-sol", "GPT-6.1-Sol", [...CODEX_EFFORTS, "ultra"]),
+	defaultEffort: "low",
+};
 const CODEX_FALLBACK = [
+	CODEX_SOL_6_1,
 	fallbackOption("gpt-6-astra", "GPT-6-Astra", CODEX_EFFORTS),
 	fallbackOption("gpt-6-sol", "GPT-6-Sol", CODEX_EFFORTS),
 	fallbackOption("gpt-6-luna", "GPT-6-Luna", CODEX_EFFORTS),
@@ -151,10 +156,14 @@ export async function loadModelCatalog(): Promise<ModelCatalog> {
 		readJson(await newestClaudeCatalog()),
 		readJson(join(CODEX_DIR, CODEX_MODELS_CACHE)),
 	]);
+	const codexModels = codexModelsFromCache(codex) ?? CODEX_FALLBACK;
+	if (!codexModels.some((model) => model.id === CODEX_SOL_6_1.id)) {
+		codexModels.unshift(CODEX_SOL_6_1);
+	}
 
 	return {
 		claude: claudeModelsFromCache(claude) ?? CLAUDE_FALLBACK,
-		codex: codexModelsFromCache(codex) ?? CODEX_FALLBACK,
+		codex: codexModels,
 	};
 }
 
