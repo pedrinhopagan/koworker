@@ -15,7 +15,7 @@ import {
 	X,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { TaskGroupLabel } from "@/components/tasks/task-group-label";

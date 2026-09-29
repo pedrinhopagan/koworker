@@ -1,5 +1,5 @@
 import { useRouterState } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { Tooltip } from "@/components/ui/tooltip";
 import { copyToClipboard } from "@/lib/build-prompt";

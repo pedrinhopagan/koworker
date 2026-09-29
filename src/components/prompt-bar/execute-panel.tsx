@@ -1,6 +1,6 @@
 import { ChevronRight, Copy, Cpu, Gauge, Loader2, ShieldCheck, Zap } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { GroupLabel, MiniSelect } from "@/components/prompt-bar/controls";
 import { usePromptExecution } from "@/components/prompt-bar/use-prompt-execution";

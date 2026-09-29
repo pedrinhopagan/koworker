@@ -34,6 +34,7 @@ const projectRoutesSchema = type({
 	route: "string",
 	"icon?": "string",
 	"command?": "string",
+	background: type("number.integer").configure({ default: 0 }),
 	display_order: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",

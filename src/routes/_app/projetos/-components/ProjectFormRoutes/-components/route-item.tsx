@@ -2,9 +2,11 @@ import { useState } from "react";
 
 import { CliLogo } from "@/components/icons/cli-logos";
 import { FolderPathInput } from "@/components/settings/folder-path-input";
-import { DeleteConfirmButton } from "@/components/ui/delete-confirm-button";
+import { HoldButton } from "@/components/ui/hold-button";
 import { IconSelector } from "@/components/ui/icon-selector";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Text } from "@/components/typography";
 import { DragHandle, type SortableItemRenderProps } from "@/components/ui/sortable-list";
 import { resolveProjectRouteCli } from "@/constants/projects";
 import { cn } from "@/lib/utils";
@@ -19,6 +21,7 @@ type RouteItemProps = {
 		route?: string;
 		icon?: string;
 		command?: string;
+		background?: boolean;
 	}) => void;
 	onDelete: (id: string) => void;
 	isDeleting: boolean;
@@ -85,11 +88,10 @@ export function RouteItem({ item, props, onUpdate, onDelete, isDeleting }: Route
 					className="h-9 flex-1"
 				/>
 
-				<DeleteConfirmButton
-					onDelete={() => onDelete(item.id)}
+				<HoldButton
+					onConfirm={() => onDelete(item.id)}
 					disabled={isDeleting}
 					title="Remover rota"
-					confirmTitle="Confirmar remoção da rota"
 				/>
 			</div>
 
@@ -107,6 +109,30 @@ export function RouteItem({ item, props, onUpdate, onDelete, isDeleting }: Route
 				placeholder="Comando (opcional)"
 				className="h-9"
 			/>
+
+			{!cli && localCommand.trim() && (
+				<BackgroundToggle
+					checked={item.background ?? false}
+					onChange={(background) => onUpdate({ id: item.id, background })}
+				/>
+			)}
 		</div>
+	);
+}
+
+export function BackgroundToggle({
+	checked,
+	onChange,
+}: {
+	checked: boolean;
+	onChange: (checked: boolean) => void;
+}) {
+	return (
+		<label className="flex cursor-pointer items-center justify-between gap-3 px-1">
+			<Text as="span" size="xs" tone="muted">
+				Rodar em background no painel
+			</Text>
+			<Switch checked={checked} onCheckedChange={onChange} />
+		</label>
 	);
 }

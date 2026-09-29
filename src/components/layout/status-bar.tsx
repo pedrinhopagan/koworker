@@ -10,7 +10,7 @@ import {
 	SquareTerminal,
 } from "lucide-react";
 import { type ComponentType, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { InvokeCliSelect } from "@/components/invoke-cli-select";
 import {

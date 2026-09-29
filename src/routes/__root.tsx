@@ -2,13 +2,14 @@ import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 
 import { ErrorBoundary } from "@/components/error-boundary";
-import { Toaster } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toast";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import { useThemeStore } from "@/stores/theme";
 
 interface RouterContext {
 	queryClient: QueryClient;
 	nested?: boolean;
+	routeProjectId?: string;
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({

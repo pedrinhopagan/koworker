@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { CircleHelp, CircleStop, Loader2, Mic, Play, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { Button } from "@/components/ui/button";

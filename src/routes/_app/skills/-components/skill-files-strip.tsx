@@ -76,21 +76,21 @@ export function SkillFilesStrip({
 	}
 
 	return (
-		<section data-component="skill-files-strip" className="border-b border-border pb-4">
+		<section data-component="skill-files-strip" className="min-w-0 border-b border-border pb-2">
 			<div className="flex items-center justify-between py-2">
 				<Text size="xs" tone="muted" className="font-medium uppercase tracking-wide">
 					Arquivos · {files.length}
 				</Text>
 			</div>
-			<div className="flex flex-col gap-3">
+			<div className="flex max-h-32 flex-col gap-2 overflow-y-auto overscroll-contain p-1">
 				{groupByDirectory(files).map(([directory, entries]) => (
 					<div key={directory || "."} className="flex flex-col gap-1.5">
 						{directory && (
-							<Text size="xs" tone="muted" className="font-mono">
+							<Text size="xs" tone="muted" className="break-all font-mono">
 								{directory}/
 							</Text>
 						)}
-						<div className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
+						<div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,11rem),1fr))] gap-1">
 							{entries.map((file) => {
 								const actions = {
 									path: file.path,

@@ -1,11 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertCircle, ArrowDown, Check, Loader2, SquareTerminal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import type { TerminalWorkspaceEntry } from "@/api/schemas/terminal-workspace";
 import { orpc } from "@/client";
-import { agentCliVisual } from "@/components/agent-radar/agent-cli";
 import { LinkCwdProvider } from "@/components/link-cwd";
 import { PaneStatusStrip } from "@/components/agent-radar/pane-status-strip";
 import { ModelPicker } from "@/components/agent-session/model-picker";
@@ -29,6 +28,7 @@ import { activePaneMove, usePaneMoves } from "@/stores/pane-moves";
 import { NO_PENDING_PROMPTS, usePendingPrompts } from "@/stores/pending-prompts";
 
 const HANDOFF_POLL_MS = 1_500;
+const ANSWER_TOP_OFFSET_PX = 44;
 // Pane recém-aberto pode chegar à tela antes de o radar anunciá-lo: "fechado" só depois desse
 // respiro, senão a conversa nova abre com um aviso de pane morto por um instante.
 const CLOSED_SETTLE_MS = 2_500;
@@ -87,9 +87,6 @@ export function AgentConversationView({
 	const latestEvents = useRef(transcript.events);
 	latestEvents.current = transcript.events;
 	const cwd = transcript.source?.cwd ?? agent?.cwd;
-	const cli = agent
-		? agentCliVisual(agent.agent)
-		: { label: "Agent", icon: SquareTerminal, tone: "text-muted-foreground" };
 	const busy = agent?.status === "working";
 	const question = blockingQuestion(transcript.events);
 	const blocked = !!agent?.awaitingInput || !!question;
@@ -200,6 +197,24 @@ export function AgentConversationView({
 		setPinned(true);
 		scrollToEnd();
 	}, [scrollToEnd]);
+
+	const revealAnswer = useCallback((element: HTMLElement) => {
+		anchored.current = false;
+		setPinned(false);
+		requestAnimationFrame(() => {
+			const node = viewport.current;
+			if (!node || !node.contains(element)) {
+				return;
+			}
+
+			const top =
+				node.scrollTop +
+				element.getBoundingClientRect().top -
+				node.getBoundingClientRect().top -
+				ANSWER_TOP_OFFSET_PX;
+			node.scrollTop = top;
+		});
+	}, []);
 
 	// Um observador só, montado uma vez: o conteúdo cresce e a conversa acompanha enquanto o leitor
 	// estiver no fim. Refazer isso a cada bloco custava mais do que o próprio bloco.
@@ -401,71 +416,79 @@ export function AgentConversationView({
 					</div>
 				)}
 
-			<div
-				ref={viewport}
-				data-component="conversation-viewport"
-				onScroll={(event) => {
-					const node = event.currentTarget;
-					const atEnd = node.scrollHeight - node.scrollTop - node.clientHeight < 24;
-					if (atEnd !== anchored.current) {
-						anchored.current = atEnd;
-						setPinned(atEnd);
-					}
-				}}
-				className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 sm:px-4"
-			>
-				<div ref={content} className="mx-auto w-full max-w-3xl space-y-5 pb-4 pt-5">
-					{transcript.loading && !closed && (
-						<div className="flex min-h-32 items-center justify-center">
-							<Loader2 className="size-5 animate-spin text-muted-foreground" />
-						</div>
-					)}
+			<div className="relative min-h-0 flex-1">
+				<div
+					ref={viewport}
+					data-component="conversation-viewport"
+					onScroll={(event) => {
+						const node = event.currentTarget;
+						const atEnd = node.scrollHeight - node.scrollTop - node.clientHeight < 24;
+						if (atEnd !== anchored.current) {
+							anchored.current = atEnd;
+							setPinned(atEnd);
+						}
+					}}
+					className="h-full overflow-y-auto overscroll-contain px-3 sm:px-4"
+				>
+					<div ref={content} className="mx-auto w-full max-w-3xl space-y-5 pb-4 pt-5">
+						{transcript.loading && !closed && (
+							<div className="flex min-h-32 items-center justify-center">
+								<Loader2 className="size-5 animate-spin text-muted-foreground" />
+							</div>
+						)}
 
-					{((!transcript.loading && transcript.missing) || closed) && (
-						<EmptyFeedback
-							icon={SquareTerminal}
-							title={closed ? "Pane fechado" : "Comece a conversa"}
-							subtitle={emptyHint()}
-						/>
-					)}
-
-					{!closed &&
-						!transcript.loading &&
-						!transcript.missing &&
-						transcript.events.length === 0 && (
+						{((!transcript.loading && transcript.missing) || closed) && (
 							<EmptyFeedback
 								icon={SquareTerminal}
-								title="Conversa vazia"
-								subtitle="Envie uma mensagem para começar. Ela aparecerá aqui quando o agente a registrar."
+								title={closed ? "Pane fechado" : "Comece a conversa"}
+								subtitle={emptyHint()}
 							/>
 						)}
 
-					{!closed && (
-						<LinkCwdProvider {...(cwd ? { cwd } : {})}>
-							<SessionTimeline
-								key={paneId}
-								events={transcript.events}
-								busy={!!busy}
-								asyncAnswersOnly
-								pending={answering}
-								onAnswer={onAnswer}
-								{...(agent ? { agent: agent.agent } : {})}
-							/>
-						</LinkCwdProvider>
-					)}
+						{!closed &&
+							!transcript.loading &&
+							!transcript.missing &&
+							transcript.events.length === 0 && (
+								<EmptyFeedback
+									icon={SquareTerminal}
+									title="Conversa vazia"
+									subtitle="Envie uma mensagem para começar. Ela aparecerá aqui quando o agente a registrar."
+								/>
+							)}
 
-					{!closed && (
-						<OutgoingPrompts
-							items={outgoing.items}
-							queueHint={queueHint(agent?.agent)}
-							onDismiss={(id) => removePending(paneId, [id])}
-							{...(onOpenTerminal ? { onOpenTerminal } : {})}
-						/>
-					)}
+						{!closed && (
+							<LinkCwdProvider {...(cwd ? { cwd } : {})}>
+								<SessionTimeline
+									key={paneId}
+									events={transcript.events}
+									busy={!!busy}
+									asyncAnswersOnly
+									pending={answering}
+									onAnswer={onAnswer}
+									onExpandAnswer={revealAnswer}
+									{...(agent ? { agent: agent.agent } : {})}
+								/>
+							</LinkCwdProvider>
+						)}
+
+						{!closed && (
+							<OutgoingPrompts
+								items={outgoing.items}
+								queueHint={queueHint(agent?.agent)}
+								onDismiss={(id) => removePending(paneId, [id])}
+								{...(onOpenTerminal ? { onOpenTerminal } : {})}
+							/>
+						)}
+					</div>
+				</div>
+				<div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-10 h-8">
+					<div className="absolute inset-0 backdrop-blur-[1px] [mask-image:linear-gradient(to_bottom,black_30%,transparent)]" />
+					<div className="absolute inset-0 backdrop-blur-[3px] [mask-image:linear-gradient(to_bottom,black,transparent_60%)]" />
+					<div className="absolute inset-0 bg-linear-to-b from-background/70 to-transparent" />
 				</div>
 			</div>
 
-			<div className="relative shrink-0 px-2 sm:px-4">
+			<div className="relative shrink-0">
 				{!pinned && (
 					<Button
 						variant="outline"
@@ -510,6 +533,7 @@ export function AgentConversationView({
 
 				<ThreadComposer
 					draftKey={`kowork-radar-draft-${paneId}`}
+					edgeToEdge
 					{...(agent?.projectName ? { projectName: agent.projectName } : {})}
 					{...(agent ? { cli: agent.agent } : {})}
 					accessory={
@@ -529,7 +553,7 @@ export function AgentConversationView({
 					helperText={
 						busy
 							? "O agente está trabalhando: a mensagem entra na fila e é entregue no próximo intervalo, sem interromper."
-							: `Ctrl+Enter envia · / abre o menu do ${cli.label} · cole imagens.`
+							: ""
 					}
 					disabled={closed || inTransit || !agent || !transcript.connected || blocked}
 					pending={send.isPending || sendShell.isPending || switchModel.isPending}

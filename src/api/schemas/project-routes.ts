@@ -10,6 +10,7 @@ export const ProjectRouteCreateSchema = z.object({
 	route: z.string().min(1),
 	icon: z.string().optional(),
 	command: z.string().optional(),
+	background: z.boolean().optional(),
 });
 
 export const ProjectRouteUpdateSchema = z.object({
@@ -18,6 +19,7 @@ export const ProjectRouteUpdateSchema = z.object({
 	route: z.string().optional(),
 	icon: z.string().optional(),
 	command: z.string().optional(),
+	background: z.boolean().optional(),
 });
 
 export const ProjectRouteReorderSchema = z.object({
@@ -34,6 +36,7 @@ export const ProjectRouteDbCreateSchema = z.object({
 	route: z.string().min(1),
 	icon: z.string().optional(),
 	command: z.string().optional(),
+	background: z.number().int().optional(),
 	display_order: z.number().int().optional(),
 	created_at: z.number().int().optional(),
 	updated_at: z.number().int().optional(),
@@ -55,6 +58,7 @@ export const ProjectRouteSchema = z.object({
 	route: z.string(),
 	icon: z.string().optional(),
 	command: z.string().optional(),
+	background: z.boolean(),
 	displayOrder: z.number().int(),
 	createdAt: z.number().int(),
 	updatedAt: z.number().int().optional(),

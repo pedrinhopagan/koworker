@@ -52,6 +52,11 @@ describe("serveFilePreview", () => {
 		const html = await response.text();
 		expect(html).toContain('href="style.css"');
 		expect(html).toContain("kowork:preview-scroll");
+		expect(html).toContain("kowork:preview-copy");
+		expect(html.indexOf("kowork:preview-copy")).toBeLessThan(
+			html.indexOf('document.body.dataset.ready = "yes"'),
+		);
+		expect(response.headers.get("content-security-policy")).toContain("allow-forms allow-modals");
 		const stylesheet = await serveFilePreview(new Request(new URL("style.css", input.url)), [root]);
 		expect(stylesheet.status).toBe(200);
 		expect(await stylesheet.text()).toBe("body { color: red; }");

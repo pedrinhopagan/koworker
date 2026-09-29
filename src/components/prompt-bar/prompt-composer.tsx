@@ -5,7 +5,7 @@ import {
 	type LucideIcon as LucideIconType,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { CliLogo } from "@/components/icons/cli-logos";
 import { Collapse, GroupLabel, ToggleBox } from "@/components/prompt-bar/controls";

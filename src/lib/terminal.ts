@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc, type RouterInputs, type RouterOutputs } from "@/client";
 import type { WorkingCli } from "@/constants/invoke";

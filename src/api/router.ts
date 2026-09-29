@@ -23,6 +23,7 @@ import { mediaRouter } from "./routers/media";
 import { mostruarioRouter } from "./routers/mostruario";
 import { notificationsRouter } from "./routers/notifications";
 import { pairingRouter } from "./routers/pairing";
+import { projectActionsRouter } from "./routers/project-actions";
 import { projectRoutesRouter } from "./routers/project-routes";
 import { projectsRouter } from "./routers/projects";
 import { promptRouter } from "./routers/prompt";
@@ -74,6 +75,7 @@ export const router = {
 	devices: devicesRouter,
 	projects: projectsRouter,
 	projectRoutes: projectRoutesRouter,
+	projectActions: projectActionsRouter,
 	tasks: tasksRouter,
 	taskGroups: taskGroupsRouter,
 	taskStorage: taskStorageRouter,

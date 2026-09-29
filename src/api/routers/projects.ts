@@ -20,6 +20,7 @@ const mapProjectRoute = (row: project_routes) => ({
 	route: row.route,
 	icon: row.icon ?? undefined,
 	command: row.command ?? undefined,
+	background: row.background === 1,
 	displayOrder: row.display_order,
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,

@@ -2,13 +2,29 @@ import { basename, extname } from "node:path";
 
 import { ORPCError } from "@orpc/server";
 
-import { PREVIEW_SCROLL_MESSAGE } from "@/lib/file-preview";
+import {
+	PREVIEW_COPY_MESSAGE,
+	PREVIEW_COPY_RESULT_MESSAGE,
+	PREVIEW_SCROLL_MESSAGE,
+} from "@/lib/file-preview";
 import { resolveViewableFile } from "./file-view";
 
 // O documento roda numa origem isolada, então a página não enxerga a rolagem dele. O HTML avisa o
 // app só a direção e a posição de quem rolou, para o celular recolher o cabeçalho e dar a tela ao
 // conteúdo. `capture` pega também quem rola num contêiner interno, não só a janela.
 const PREVIEW_SCROLL_BRIDGE = `<script>(()=>{const last=new WeakMap();addEventListener("scroll",(event)=>{const target=event.target===document?document.scrollingElement:event.target;if(!target)return;const top=target.scrollTop;const delta=top-(last.get(target)??top);last.set(target,top);if(delta)parent.postMessage({type:"${PREVIEW_SCROLL_MESSAGE}",delta,top},"*")},{capture:true,passive:true})})()</script>`;
+const PREVIEW_CLIPBOARD_BRIDGE = `<script>(()=>{let nextId=0;const pending=new Map();addEventListener("message",(event)=>{if(event.source!==parent||event.data?.type!=="${PREVIEW_COPY_RESULT_MESSAGE}")return;const done=pending.get(event.data.id);if(!done)return;pending.delete(event.data.id);if(event.data.ok)done.resolve();else done.reject(new Error("Não foi possível copiar"))});const clipboard=Object.create(navigator.clipboard??null);clipboard.writeText=(text)=>new Promise((resolve,reject)=>{const id=++nextId;pending.set(id,{resolve,reject});parent.postMessage({type:"${PREVIEW_COPY_MESSAGE}",id,text:String(text)},"*")});Object.defineProperty(navigator,"clipboard",{configurable:true,value:clipboard})})()</script>`;
+
+function withPreviewBridges(html: string) {
+	const head = /<head(?:\s[^>]*)?>/i.exec(html);
+	if (head) {
+		const end = head.index + head[0].length;
+		return html.slice(0, end) + PREVIEW_CLIPBOARD_BRIDGE + html.slice(end) + PREVIEW_SCROLL_BRIDGE;
+	}
+	const doctype = /^\s*<!doctype[^>]*>/i.exec(html);
+	const end = doctype?.[0].length ?? 0;
+	return html.slice(0, end) + PREVIEW_CLIPBOARD_BRIDGE + html.slice(end) + PREVIEW_SCROLL_BRIDGE;
+}
 
 export async function serveFilePreview(request: Request, roots: string[]) {
 	if (request.method !== "GET" && request.method !== "HEAD") {
@@ -35,7 +51,8 @@ export async function serveFilePreview(request: Request, roots: string[]) {
 			"Referrer-Policy": "no-referrer",
 			"Accept-Ranges": "bytes",
 			"Access-Control-Allow-Origin": "*",
-			"Content-Security-Policy": "frame-ancestors 'self'; sandbox allow-scripts allow-downloads",
+			"Content-Security-Policy":
+				"frame-ancestors 'self'; sandbox allow-scripts allow-forms allow-modals allow-downloads",
 		});
 		if (extension === ".pdf") {
 			headers.set("Content-Type", "application/pdf");
@@ -54,7 +71,7 @@ export async function serveFilePreview(request: Request, roots: string[]) {
 		}
 
 		if (headers.get("Content-Type") === "text/html; charset=utf-8") {
-			const html = request.method === "HEAD" ? null : (await file.text()) + PREVIEW_SCROLL_BRIDGE;
+			const html = request.method === "HEAD" ? null : withPreviewBridges(await file.text());
 			headers.delete("Content-Length");
 			headers.delete("Accept-Ranges");
 			return new Response(html, { headers });

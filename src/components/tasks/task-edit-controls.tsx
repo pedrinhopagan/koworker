@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { DeleteConfirmButton } from "@/components/ui/delete-confirm-button";
+import { HoldButton } from "@/components/ui/hold-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { PencilLine } from "lucide-react";
@@ -81,13 +81,12 @@ export function TaskEditControls({
 					<PencilLine className="size-4 md:size-3" />
 				</Button>
 			</Tooltip>
-			<DeleteConfirmButton
+			<HoldButton
 				className="pointer-events-auto"
-				onDelete={onDelete}
+				onConfirm={onDelete}
 				disabled={disabled}
 				sizeVariant="xs"
 				title="Excluir tarefa"
-				confirmTitle="Clique de novo para excluir"
 			/>
 		</>
 	);

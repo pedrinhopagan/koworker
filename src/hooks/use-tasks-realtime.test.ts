@@ -31,10 +31,20 @@ describe("shouldInvalidateTaskEventQuery", () => {
 		});
 		const aggregate = orpc.tasks.metrics.queryOptions({ input: { projectId: null } });
 		const otherProject = orpc.tasks.focus.queryOptions({ input: { projectId: "project-2" } });
+		const recentTasks = orpc.tasks.recent.queryOptions({ input: { projectId: "project-1" } });
+		const otherRecentTasks = orpc.tasks.recent.queryOptions({ input: { projectId: "project-2" } });
 		const affectedTask = orpc.tasks.getFull.queryOptions({ input: { id: "task-1" } });
 		const otherTask = orpc.tasks.getFull.queryOptions({ input: { id: "task-2" } });
 
-		for (const query of [affectedProject, aggregate, otherProject, affectedTask, otherTask]) {
+		for (const query of [
+			affectedProject,
+			aggregate,
+			otherProject,
+			recentTasks,
+			otherRecentTasks,
+			affectedTask,
+			otherTask,
+		]) {
 			registerQuery(queryClient, query.queryKey);
 		}
 
@@ -43,6 +53,8 @@ describe("shouldInvalidateTaskEventQuery", () => {
 		expect(matches).toContain(hashKey(affectedProject.queryKey));
 		expect(matches).toContain(hashKey(aggregate.queryKey));
 		expect(matches).toContain(hashKey(affectedTask.queryKey));
+		expect(matches).toContain(hashKey(recentTasks.queryKey));
+		expect(matches).not.toContain(hashKey(otherRecentTasks.queryKey));
 		expect(matches).not.toContain(hashKey(otherProject.queryKey));
 		expect(matches).not.toContain(hashKey(otherTask.queryKey));
 	});

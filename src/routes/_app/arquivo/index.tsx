@@ -2,7 +2,6 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 
 import { orpc } from "@/client";
-import { useSelectedProjectStore } from "@/stores/selected-project";
 
 const searchSchema = z.object({
 	path: z.string().min(1),
@@ -22,12 +21,10 @@ export const Route = createFileRoute("/_app/arquivo/")({
 			return;
 		}
 
-		if (target.projectId) {
-			useSelectedProjectStore.getState().setSelectedProjectId(target.projectId);
-		}
-
 		if (target.kind === "internal" && target.fileHref) {
 			throw redirect({ href: target.fileHref, replace: true });
 		}
+
+		return { routeProjectId: target.projectId ?? undefined };
 	},
 });

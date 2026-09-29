@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import type { ProjectCreateInput } from "@/api/schemas/projects";
 import { orpc } from "@/client";

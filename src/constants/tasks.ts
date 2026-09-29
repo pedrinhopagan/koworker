@@ -1,5 +1,7 @@
 export const RECENCY_HIGHLIGHT_DEPTH = 3;
 
+export const HOME_RECENT_TASK_LIMIT = 5;
+
 export const TASK_RECENCY_HIGHLIGHT_DEPTH = 5;
 
 export const TASK_GROUP_COLORS = [

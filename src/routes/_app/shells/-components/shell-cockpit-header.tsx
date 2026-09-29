@@ -35,6 +35,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";
+import { RubberSegment, type RubberSegmentOption } from "@/components/ui/rubber-segment";
 import { AGENT_RADAR_STATUS_LABELS } from "@/constants/agent-radar";
 import { useAgentRadarPreviews } from "@/hooks/use-agent-radar-previews";
 import { useRadarAgentNav } from "@/hooks/use-radar-agent-nav";
@@ -52,6 +53,11 @@ import {
 	terminalWorkspaceRadarStatus,
 	terminalWorkspaceStatusText,
 } from "./shell-groups";
+
+const AGENT_MODE_OPTIONS: RubberSegmentOption<AgentPaneMode>[] = [
+	{ value: "conversation", label: "Conversa", icon: MessageSquare },
+	{ value: "terminal", label: "Terminal", icon: SquareTerminal },
+];
 
 export function ShellCockpitHeader({
 	entry,
@@ -193,18 +199,13 @@ export function ShellCockpitHeader({
 			</span>
 
 			{canConverse && (
-				<Button
-					variant="outline"
-					className="min-h-12 shrink-0 gap-1.5 px-3"
-					aria-label={agentMode === "conversation" ? "Ver terminal" : "Ver conversa"}
-					onClick={() =>
-						onAgentModeChange(agentMode === "conversation" ? "terminal" : "conversation")
-					}
-				>
-					{agentMode === "conversation" && <SquareTerminal className="size-4" />}
-					{agentMode === "terminal" && <MessageSquare className="size-4" />}
-					{agentMode === "conversation" ? "Terminal" : "Chat"}
-				</Button>
+				<RubberSegment
+					ariaLabel="Visualização do agente"
+					options={AGENT_MODE_OPTIONS}
+					value={agentMode}
+					onValueChange={onAgentModeChange}
+					itemClassName="min-h-11 lg:min-h-8"
+				/>
 			)}
 
 			{taskId && (

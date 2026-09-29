@@ -66,10 +66,12 @@ export const AgentAnswer = memo(function AgentAnswer({
 	runId,
 	output,
 	meta = {},
+	onExpand,
 }: {
 	runId: string;
 	output: string;
 	meta?: AgentAnswerMeta;
+	onExpand?: () => void;
 }) {
 	const [reading, setReading] = useState(false);
 	const [expanded, setExpanded] = useState(false);
@@ -106,7 +108,10 @@ export const AgentAnswer = memo(function AgentAnswer({
 						variant="outline"
 						size="sm"
 						className="max-sm:min-h-12"
-						onClick={() => setExpanded(true)}
+						onClick={() => {
+							setExpanded(true);
+							onExpand?.();
+						}}
 					>
 						Ver resposta inteira
 					</Button>

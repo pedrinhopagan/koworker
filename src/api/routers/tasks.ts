@@ -9,12 +9,11 @@ import { dbTasks } from "../db/tasks";
 import { listTaskAttachments } from "../helpers/koworker-assets";
 import { openFileInDefaultApp } from "../helpers/os-actions";
 import { createTask } from "../helpers/task-creation";
+import { getRecentTasks, mapTask, mapTasks, mapTaskWithDisplay } from "../helpers/task-display";
 import {
 	deleteTaskFile,
 	parseTaskFileOrder,
-	readFirstMarkdownContent,
 	readTaskFiles,
-	readTaskFolderMeta,
 	renameTaskFile,
 	resolveDisplayTitle,
 	setTaskFileEditedAt,
@@ -39,6 +38,7 @@ import {
 	TaskIdSchema,
 	TaskIgnoreRecencySchema,
 	TaskListByProjectSchema,
+	TaskRecentSchema,
 	TaskMetricsSchema,
 	TaskMoveToFeatureSchema,
 	TaskMoveToProjectSchema,
@@ -53,130 +53,6 @@ import {
 	TaskUpdateSchema,
 	TaskWriteFileSchema,
 } from "../schemas";
-
-const mapTask = (
-	row: tasks,
-	display: { title: string; fromContent: boolean },
-	meta: { fileNames?: string[]; artifactNames?: string[]; lastEditedAt?: number } = {},
-) => ({
-	id: row.id,
-	projectId: row.project_id,
-	folderPath: row.folder_path,
-	title: row.title ?? undefined,
-	displayTitle: display.title,
-	// O displayTitle veio do início do 1º .md (a task não tem título). A UI usa isso pra
-	// explicar, na edição do nome, que o texto mostrado é só o começo do conteúdo.
-	titleFromContent: display.fromContent,
-	groupId: row.group_id ?? undefined,
-	displayOrder: row.display_order,
-	done: Boolean(row.done),
-	completedAt: row.completed_at ?? undefined,
-	createdAt: row.created_at,
-	updatedAt: row.updated_at ?? undefined,
-	deletedAt: row.deleted_at ?? undefined,
-	// Última edição em disco dos .md da task; base do destaque de recência na lista. Sem .md,
-	// cai no created_at (não no updated_at: mexer em metadados não é "editar o arquivo").
-	lastEditedAt: meta.lastEditedAt ?? row.created_at,
-	fileNames: meta.fileNames ?? [],
-	artifactNames: meta.artifactNames ?? [],
-	worktree: mapWorktree(row),
-});
-
-function mapWorktree(row: tasks) {
-	if (!row.merge_ready_at) {
-		return null;
-	}
-	if (
-		!row.worktree_branch ||
-		!row.merge_target_branch ||
-		!row.worktree_path ||
-		!row.worktree_pr_url
-	) {
-		throw new Error("Metadados de worktree incompletos");
-	}
-
-	return {
-		readyAt: row.merge_ready_at,
-		branch: row.worktree_branch,
-		targetBranch: row.merge_target_branch,
-		path: row.worktree_path,
-		prUrl: row.worktree_pr_url,
-	};
-}
-
-// Resolve o displayTitle e os nomes dos .md de uma única row.
-async function mapTaskWithDisplay(row: tasks) {
-	const project = await dbProjects.getById(row.project_id);
-	const meta = project
-		? await readTaskFolderMeta({
-				projectRoute: project.main_route,
-				folderPath: row.folder_path,
-			})
-		: { fileNames: [] };
-
-	const title = row.title?.trim();
-	if (title) return mapTask(row, { title, fromContent: false }, meta);
-
-	const firstContent = project
-		? await readFirstMarkdownContent({
-				projectRoute: project.main_route,
-				folderPath: row.folder_path,
-			})
-		: undefined;
-	return mapTask(row, resolveDisplayTitle({ firstContent }), meta);
-}
-
-// Resolve o displayTitle de várias rows de uma vez: carrega os projetos das tasks sem título
-// uma vez e lê o 1º .md de cada. Rows com título não tocam o disco.
-export async function mapTasks(rows: tasks[]) {
-	if (rows.length === 0) return [];
-	const projectIds = [...new Set(rows.map((row) => row.project_id))];
-	const projects = new Map(
-		(await dbProjects.listRootsByIds(projectIds)).map((project) => [project.id, project] as const),
-	);
-
-	const metaByTask = new Map(
-		await Promise.all(
-			rows.map(async (row) => {
-				const project = projects.get(row.project_id);
-				const meta = project
-					? await readTaskFolderMeta({
-							projectRoute: project.main_route,
-							folderPath: row.folder_path,
-						})
-					: { fileNames: [] };
-				return [row.id, meta] as const;
-			}),
-		),
-	);
-
-	const untitled = rows.filter((row) => !row.title?.trim());
-	const firstContentByTask = new Map(
-		await Promise.all(
-			untitled.map(async (row) => {
-				const project = projects.get(row.project_id);
-				const content = project
-					? await readFirstMarkdownContent({
-							projectRoute: project.main_route,
-							folderPath: row.folder_path,
-						})
-					: undefined;
-				return [row.id, content] as const;
-			}),
-		),
-	);
-
-	return rows.map((row) => {
-		const meta = metaByTask.get(row.id) ?? { fileNames: [] };
-		const title = row.title?.trim();
-		if (title) return mapTask(row, { title, fromContent: false }, meta);
-		return mapTask(
-			row,
-			resolveDisplayTitle({ firstContent: firstContentByTask.get(row.id) }),
-			meta,
-		);
-	});
-}
 
 async function publishTaskEvent(
 	taskId: string,
@@ -222,6 +98,8 @@ export const tasksRouter = {
 		if (!row) return null;
 		return mapTaskWithDisplay(row);
 	}),
+
+	recent: protectedProcedure.input(TaskRecentSchema).handler(({ input }) => getRecentTasks(input)),
 
 	getAll: protectedProcedure.input(TaskGetAllSchema).handler(async ({ input }) => {
 		const rows = await dbTasks.getAll({

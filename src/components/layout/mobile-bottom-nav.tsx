@@ -7,7 +7,7 @@ import { sidebarNavGroups, type SidebarNavRouteItem } from "@/components/layout/
 import { isTabActive } from "@/components/layout/tab-nav-config";
 import { useAgentRadarAttention } from "@/hooks/use-agent-radar";
 
-const mobileRouteOrder = ["/", "/projetos", "/shells", "/tarefas"];
+const mobileRouteOrder = ["/", "/projetos", "/tarefas", "/shells", "/painel"];
 const mobileRoutes = sidebarNavGroups
 	.flatMap((group) => group.items)
 	.filter(
@@ -35,7 +35,7 @@ export function MobileBottomNav() {
 		<>
 			<nav
 				aria-label="Navegação principal"
-				className="mobile-bottom-nav grid h-16 shrink-0 grid-cols-5 border-t border-border bg-chrome"
+				className="mobile-bottom-nav grid h-16 shrink-0 grid-cols-6 border-t border-border bg-chrome"
 			>
 				{mobileRoutes.map((item, index) => {
 					const Icon = item.icon;

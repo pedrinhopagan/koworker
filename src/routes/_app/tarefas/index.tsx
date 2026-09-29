@@ -54,6 +54,7 @@ export const Route = createFileRoute("/_app/tarefas/")({
 		});
 	},
 	component: TarefasPage,
+	beforeLoad: ({ search }) => ({ routeProjectId: search.projectId }),
 });
 
 function TarefasPage() {

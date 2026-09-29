@@ -11,7 +11,7 @@ import {
 	X,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { GroupLabel, MiniSelect, ToggleBox } from "@/components/prompt-bar/controls";
 import { type Selection, useInvocation } from "@/components/prompt-bar/use-invocation";

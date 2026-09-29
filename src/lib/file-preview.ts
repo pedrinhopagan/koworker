@@ -7,3 +7,5 @@ export function filePreviewUrl(path: string, token: string) {
 }
 
 export const PREVIEW_SCROLL_MESSAGE = "kowork:preview-scroll";
+export const PREVIEW_COPY_MESSAGE = "kowork:preview-copy";
+export const PREVIEW_COPY_RESULT_MESSAGE = "kowork:preview-copy-result";

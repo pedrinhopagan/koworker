@@ -5,6 +5,7 @@ export type ProjectRouteItem = {
 	route: string;
 	icon?: string;
 	command?: string;
+	background?: boolean;
 	displayOrder: number;
 };
 
@@ -14,6 +15,7 @@ export type CreateRouteInput = {
 	route: string;
 	icon?: string;
 	command?: string;
+	background?: boolean;
 };
 
 export type UpdateRouteInput = {
@@ -22,6 +24,7 @@ export type UpdateRouteInput = {
 	route?: string;
 	icon?: string;
 	command?: string;
+	background?: boolean;
 };
 
 export type DeleteRouteInput = {

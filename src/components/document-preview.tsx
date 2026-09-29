@@ -1,7 +1,12 @@
 import { Loader2 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { PREVIEW_SCROLL_MESSAGE } from "@/lib/file-preview";
+import {
+	PREVIEW_COPY_MESSAGE,
+	PREVIEW_COPY_RESULT_MESSAGE,
+	PREVIEW_SCROLL_MESSAGE,
+} from "@/lib/file-preview";
+import { copyToClipboard } from "@/lib/build-prompt";
 import { cn } from "@/lib/utils";
 
 // Cabeçalho que sai de cena enquanto o conteúdo rola: a altura anima até zero em vez de sumir de
@@ -41,9 +46,30 @@ export function DocumentPreview({
 	// O HTML roda em origem isolada; quem conta a rolagem é o script que o preview injeta nele.
 	useEffect(() => {
 		function receive(event: MessageEvent) {
-			const data = event.data as { type?: unknown; delta?: unknown; top?: unknown } | null;
+			const data = event.data as {
+				type?: unknown;
+				delta?: unknown;
+				top?: unknown;
+				id?: unknown;
+				text?: unknown;
+			} | null;
+			if (event.source !== frame.current?.contentWindow) {
+				return;
+			}
 			if (
-				event.source === frame.current?.contentWindow &&
+				data?.type === PREVIEW_COPY_MESSAGE &&
+				typeof data.id === "number" &&
+				typeof data.text === "string"
+			) {
+				void copyToClipboard(data.text).then((ok) => {
+					frame.current?.contentWindow?.postMessage(
+						{ type: PREVIEW_COPY_RESULT_MESSAGE, id: data.id, ok },
+						"*",
+					);
+				});
+				return;
+			}
+			if (
 				data?.type === PREVIEW_SCROLL_MESSAGE &&
 				typeof data.delta === "number" &&
 				typeof data.top === "number"
@@ -74,7 +100,9 @@ export function DocumentPreview({
 				key={revision}
 				title={name}
 				src={`${url}?v=${revision}`}
-				sandbox={format === "html" ? "allow-scripts allow-downloads" : undefined}
+				sandbox={
+					format === "html" ? "allow-scripts allow-forms allow-modals allow-downloads" : undefined
+				}
 				referrerPolicy="no-referrer"
 				className="min-h-0 w-full flex-1 border-0 bg-background"
 				onLoad={() => setLoading(false)}

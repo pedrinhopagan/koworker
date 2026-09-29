@@ -12,6 +12,7 @@ import { ProjectHeaderActions } from "../-components/project-header-actions";
 import { useUpdateProject } from "../-utils/use-update-project";
 
 export const Route = createFileRoute("/_app/projetos/$projetoId/")({
+	beforeLoad: ({ params }) => ({ routeProjectId: params.projetoId }),
 	component: EditarProjetoPage,
 });
 

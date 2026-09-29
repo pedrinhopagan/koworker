@@ -15,6 +15,9 @@ export const TaskListByProjectSchema = z
 	})
 	.merge(TaskListFiltersSchema);
 
+export const TaskRecentSchema = TaskListByProjectSchema.pick({ projectId: true });
+export type TaskRecentInput = z.infer<typeof TaskRecentSchema>;
+
 // Centralized listing endpoint.
 export const TaskGetAllSchema = z
 	.object({

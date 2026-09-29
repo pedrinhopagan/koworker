@@ -1,4 +1,4 @@
-import { SnakeLoader } from "@/components/ui/snake-loader";
+import { LatticeLoader } from "@/components/ui/lattice-loader";
 import { cn } from "@/lib/utils";
 
 type AgentNavLayout = "compact" | "expanded" | "drawer";
@@ -37,9 +37,9 @@ export function AgentWorkingPulse({ layout, count }: { layout: AgentNavLayout; c
 
 	if (layout === "compact") {
 		return (
-			<SnakeLoader label={label} className="absolute -right-1.5 -bottom-1.5 z-10 text-primary" />
+			<LatticeLoader label={label} className="absolute -right-1.5 -bottom-1.5 z-10 text-primary" />
 		);
 	}
 
-	return <SnakeLoader label={label} className="text-primary" />;
+	return <LatticeLoader label={label} className="text-primary" />;
 }

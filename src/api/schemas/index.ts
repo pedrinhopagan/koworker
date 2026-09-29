@@ -28,6 +28,7 @@ export {
 } from "./assets";
 export { AuthLoginSchema } from "./auth";
 export { PushSubscriptionSchema, PushUnsubscribeSchema } from "./notifications";
+export { ProjectActionRunSchema, ProjectActionsListSchema } from "./project-actions";
 export {
 	ProjectRouteCreateSchema,
 	ProjectRouteIdSchema,
@@ -92,6 +93,7 @@ export {
 	TaskIdSchema,
 	TaskIgnoreRecencySchema,
 	TaskListByProjectSchema,
+	TaskRecentSchema,
 	TaskMergeReadySchema,
 	TaskMetricsSchema,
 	TaskMoveToFeatureSchema,

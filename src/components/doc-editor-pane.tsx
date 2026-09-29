@@ -7,7 +7,7 @@ import {
 	useMemo,
 	useRef,
 } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { MarkdownEditor, type MarkdownEditorHandle } from "@/components/markdown-doc";
 import { Text } from "@/components/typography";

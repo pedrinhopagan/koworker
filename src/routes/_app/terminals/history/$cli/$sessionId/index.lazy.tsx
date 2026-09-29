@@ -10,7 +10,7 @@ import {
 	PlayCircle,
 	SquareTerminal,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { agentCliVisual } from "@/components/agent-radar/agent-cli";

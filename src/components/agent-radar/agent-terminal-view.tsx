@@ -1,5 +1,5 @@
 import type { Terminal } from "@xterm/xterm";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { TerminalConnectionStatus, TerminalToolbar } from "@/components/terminal-toolbar";
 import { errorMessage } from "@/lib/orpc-errors";
 import { History } from "lucide-react";

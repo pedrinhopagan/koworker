@@ -26,3 +26,39 @@ test("histórico cresce em lotes e eventos novos não removem o começo que est�
 		await cleanup();
 	}
 });
+
+test("linha de pensamento mostra os passos com busy e colapsa em 'Pensou por' ao terminar", async () => {
+	const events: AgentSessionEvent[] = [
+		{ id: "u", sessionId: "s", seq: 0, at: Date.now(), payload: { kind: "user", text: "vai" } },
+		{
+			id: "t",
+			sessionId: "s",
+			seq: 1,
+			at: Date.now(),
+			payload: {
+				kind: "tool_use",
+				name: "Read",
+				label: "Leitura",
+				detail: "a.ts",
+				status: "running",
+			},
+		},
+	];
+	const view = render(<SessionTimeline events={events} busy={false} />);
+	try {
+		expect(document.querySelector("[data-component='thought-line']")).toBeNull();
+		view.rerender(<SessionTimeline events={events} busy />);
+		const line = get("thought-line");
+		expect(line.dataset.working).toBe("true");
+		expect(line.textContent).toContain("Trabalhando");
+		expect(line.textContent).toContain("Leitura");
+		view.rerender(<SessionTimeline events={events} busy={false} />);
+		expect(get("thought-line").dataset.working).toBeUndefined();
+		expect(get("thought-line").textContent).toContain("Pensou por");
+		expect(get("thought-line").querySelector("button")?.getAttribute("aria-expanded")).toBe(
+			"false",
+		);
+	} finally {
+		await cleanup();
+	}
+});

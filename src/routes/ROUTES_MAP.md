@@ -38,6 +38,8 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
 | `src/routes/_app/projetos/index.tsx` | `/_app/projetos/` | `/projetos` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/projetos/novo/index.tsx` | `/_app/projetos/novo/` | `/projetos/novo` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/projetos/$projetoId/index.tsx` | `/_app/projetos/$projetoId/` | `/projetos/$projetoId` | `__root` + `AppShell` + `PageShell` |
+| `src/routes/_app/painel/index.tsx` | `/_app/painel/` | `/painel` | Redirect para o painel do projeto selecionado (sem projeto: `/projetos`) |
+| `src/routes/_app/painel/$projetoId.tsx` | `/_app/painel/$projetoId` | `/painel/$projetoId` | `__root` + `AppShell` + `PageShell` (painel de controle: agentes, rotas cadastradas, docker, git e scripts do `package.json`; ação em background mostra o resultado num chip e a saída na coluna Atividade; trocar de projeto no seletor troca o painel) |
 | `src/routes/_app/sistema.tsx` | `/_app/sistema` | `/sistema` | `__root` + `AppShell` + `PageShell` (subpágina de `/configuracoes`) |
 | `src/routes/_app/skills/index.tsx` | `/_app/skills/` | `/skills` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/skills/$slug/index.tsx` | `/_app/skills/$slug/` | `/skills/$slug` | `__root` + `AppShell` (header próprio, sem `PageShell`) |

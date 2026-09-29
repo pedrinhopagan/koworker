@@ -2,14 +2,14 @@ import {
 	type LinkProps,
 	type RegisteredRouter,
 	useNavigate,
-	useParams,
 	useRouterState,
 } from "@tanstack/react-router";
 
 import { ProjectPickerDialog } from "@/components/projects/project-picker-dialog";
 import { useProjectFocus } from "@/hooks";
 import { useProjectSelectDialog } from "@/hooks/use-project-select-dialog";
-import { ALL_PROJECTS_ID, DISABLED_PATHS, REDIRECT_ON_SELECT_PATHS } from "@/lib/project-focus";
+import { toast } from "@/components/ui/toast";
+import { ALL_PROJECTS_ID, DISABLED_PATHS } from "@/lib/project-focus";
 
 type ProjectSelectDialogProps = {
 	open: boolean;
@@ -24,7 +24,6 @@ export function GlobalProjectSelectDialog() {
 export function ProjectSelectDialog({ open, onClose }: ProjectSelectDialogProps) {
 	const routerState = useRouterState();
 	const navigate = useNavigate();
-	const params = useParams({ strict: false });
 	const { projects, selectedProjectId, loading, setSelectedProjectId } = useProjectFocus();
 
 	const currentMatch = routerState.matches.at(-1);
@@ -33,51 +32,38 @@ export function ProjectSelectDialog({ open, onClose }: ProjectSelectDialogProps)
 		"",
 	) as LinkProps<RegisteredRouter>["to"];
 	const disableChangeFocus = DISABLED_PATHS.has(currentRoutePath);
-	const redirectOnSelect = REDIRECT_ON_SELECT_PATHS.get(currentRoutePath);
 	const focusedProjectValue = selectedProjectId === undefined ? ALL_PROJECTS_ID : selectedProjectId;
-	const currentValue =
-		currentRoutePath === "/projetos/$projetoId" ? params.projetoId : focusedProjectValue;
 
-	function handleSelect(id: string) {
+	async function handleSelect(id: string) {
 		if (disableChangeFocus) {
 			return;
 		}
 
+		onClose();
+
+		if (id === focusedProjectValue) {
+			return;
+		}
+
+		const projectId = id === ALL_PROJECTS_ID ? undefined : id;
+
 		if (currentRoutePath === "/tarefas") {
-			const projectId = id === ALL_PROJECTS_ID ? undefined : id;
-			setSelectedProjectId(projectId);
-			navigate({
+			await navigate({
 				to: "/tarefas",
 				search: (previous) => ({ ...previous, projectId }),
 				replace: true,
 			});
-			onClose();
-			return;
+		} else if (currentRoutePath === "/projetos") {
+			await navigate({
+				to: "/projetos",
+				search: (previous) => ({ ...previous, projetoId: projectId }),
+				replace: true,
+			});
+		} else if (currentRoutePath?.includes("$") || currentRoutePath === "/arquivo") {
+			await navigate({ to: "/", search: {} });
 		}
 
-		if (id === ALL_PROJECTS_ID) {
-			setSelectedProjectId(undefined);
-
-			if (currentRoutePath === "/projetos/$projetoId") {
-				navigate({ to: "/projetos" });
-				onClose();
-				return;
-			}
-		} else {
-			setSelectedProjectId(id);
-
-			if (currentRoutePath === "/projetos/$projetoId") {
-				navigate({ to: "/projetos/$projetoId", params: { projetoId: id } });
-				onClose();
-				return;
-			}
-		}
-
-		if (redirectOnSelect) {
-			navigate({ to: redirectOnSelect });
-		}
-
-		onClose();
+		setSelectedProjectId(projectId);
 	}
 
 	return (
@@ -90,8 +76,10 @@ export function ProjectSelectDialog({ open, onClose }: ProjectSelectDialogProps)
 				color: project.color,
 				displayPath: project.displayPath,
 			}))}
-			value={currentValue ?? undefined}
-			onSelect={handleSelect}
+			value={focusedProjectValue ?? undefined}
+			onSelect={(id) => {
+				void handleSelect(id).catch(() => toast.error("Não foi possível trocar o projeto"));
+			}}
 			loading={loading}
 			disabled={disableChangeFocus}
 			allOption={{

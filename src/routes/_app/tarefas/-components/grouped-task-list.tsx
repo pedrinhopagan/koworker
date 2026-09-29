@@ -25,6 +25,7 @@ import { orpc } from "@/client";
 import { TaskItem } from "@/components/tasks";
 import { Text } from "@/components/typography";
 import type { TaskSortMode } from "@/constants/tasks";
+import { useIsMobileViewport } from "@/hooks/use-is-mobile-viewport";
 import { RECENCY_FRESH_WINDOW_MS, TASK_RECENCY_HIGHLIGHT_DEPTH } from "@/constants/tasks";
 import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { sortTasksByMode } from "@/lib/task-sorting";
@@ -645,6 +646,7 @@ function SortableTaskRow({
 		data: { task },
 		disabled: reorderingDisabled,
 	});
+	const isMobile = useIsMobileViewport();
 
 	const style: React.CSSProperties = {
 		transform: CSS.Transform.toString(transform),
@@ -665,7 +667,13 @@ function SortableTaskRow({
 				<GripVertical className="size-4" />
 			</button>
 			<div className="min-w-0 flex-1">
-				<TaskItem task={task} variant="default" highlight={highlight} features={features} />
+				<TaskItem
+					task={task}
+					variant="default"
+					highlight={highlight}
+					features={features}
+					swipeable={isMobile}
+				/>
 			</div>
 		</div>
 	);

@@ -24,7 +24,7 @@ import {
 	X,
 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { PageShell } from "@/components/layout/page-shell";

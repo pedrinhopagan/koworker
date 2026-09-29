@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Target } from "lucide-react";
 import { memo, useEffect, useMemo, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 import { orpc } from "@/client";

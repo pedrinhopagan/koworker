@@ -16,7 +16,8 @@ const dateFmt = new Intl.DateTimeFormat("pt-BR", {
 const numberFmt = new Intl.NumberFormat("pt-BR");
 
 export function HomeMasthead({ project }: { project: HomeProject }) {
-	const { agents } = useAgentRadar();
+	const { agents: allAgents } = useAgentRadar();
+	const agents = allAgents.filter((agent) => agent.projectId === project.id);
 	const blocked = agents.filter((agent) => agent.status === "blocked").length;
 	const working = agents.filter((agent) => agent.status === "working").length;
 	const { total, pending, done, progress } = project.tasksSummary;
@@ -37,7 +38,7 @@ export function HomeMasthead({ project }: { project: HomeProject }) {
 					</Text>
 					<Title
 						as="h1"
-						className="mt-3 truncate text-4xl leading-[0.95] tracking-[-0.045em] sm:text-6xl"
+						className="mt-3 break-words text-4xl leading-tight tracking-[-0.045em] sm:text-6xl"
 					>
 						{project.name}
 					</Title>
@@ -57,7 +58,7 @@ export function HomeMasthead({ project }: { project: HomeProject }) {
 						value={working}
 						activeClassName="text-primary"
 					/>
-					<Ledger label="Agents" value={agents.length} />
+					<Ledger label="Agentes" value={agents.length} />
 				</dl>
 			</div>
 

@@ -1,13 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Clock, FileStack, FileText, MoreVertical } from "lucide-react";
+import {
+	CircleCheck,
+	CircleDot,
+	Clock,
+	FileStack,
+	FileText,
+	MoreVertical,
+	Trash2,
+} from "lucide-react";
 import { memo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { tv, type VariantProps } from "tailwind-variants";
 
 import { orpc } from "@/client";
 import { Title } from "@/components/typography";
-import { Checkbox } from "@/components/ui/checkbox";
+import { SpringCheck, SpringStrike } from "@/components/ui/spring-check";
+import { SwipeRow } from "@/components/ui/swipe-row";
 import { Tooltip } from "@/components/ui/tooltip";
 import { recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
@@ -60,6 +69,7 @@ type TaskItemProps = {
 	// vínculo em vez de concluir direto — o incentivo a classificar. A lista de Tarefas passa isto;
 	// listas genéricas não, mantendo a conclusão imediata.
 	features?: TaskGroup[];
+	swipeable?: boolean;
 };
 
 type TaskActionSurfaceProps = {
@@ -196,16 +206,27 @@ function TaskActionSurface({
 	);
 }
 
-function TaskItemImpl({ task, variant = "default", highlight, features }: TaskItemProps) {
+function TaskItemImpl({
+	task,
+	variant = "default",
+	highlight,
+	features,
+	swipeable,
+}: TaskItemProps) {
 	const canonical = canonicalTaskRoute(task);
 	const isDone = task.done;
 	const [editing, setEditing] = useState(false);
 	const [linkingFeature, setLinkingFeature] = useState(false);
 	const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+	const [deleteArmed, setDeleteArmed] = useState(false);
 	const cardRef = useRef<HTMLDivElement>(null);
 
 	useClickOutside(cardRef, () => setEditing(false), {
 		enabled: editing,
+	});
+
+	useClickOutside(cardRef, () => setDeleteArmed(false), {
+		enabled: deleteArmed,
 	});
 
 	const setDoneMutation = useSetDoneMutation(task.projectId);
@@ -273,7 +294,7 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 		</div>
 	);
 
-	return (
+	const row = (
 		<TaskContextMenu
 			target={menuTarget}
 			content={
@@ -318,10 +339,10 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 				)}
 
 				<div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-3">
-					<Checkbox
+					<SpringCheck
 						className="pointer-events-auto"
 						checked={isDone}
-						onCheckedChange={(checked) => handleToggleDone(checked === true)}
+						onCheckedChange={handleToggleDone}
 						disabled={isMutating}
 						aria-label={isDone ? "Marcar como não concluída" : "Marcar como concluída"}
 					/>
@@ -347,11 +368,12 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 							as="span"
 							size="sm"
 							className={cn(
-								"block truncate text-base font-normal tracking-wide",
-								isDone && "text-muted-foreground line-through",
+								"relative block truncate text-base font-normal tracking-wide transition-colors duration-200",
+								isDone && "text-muted-foreground",
 							)}
 						>
 							{task.displayTitle}
+							<SpringStrike active={isDone} />
 						</Title>
 					)}
 				</div>
@@ -405,6 +427,23 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 					/>
 				)}
 
+				{deleteArmed && (
+					<button
+						type="button"
+						onClick={(event) => {
+							event.preventDefault();
+							event.stopPropagation();
+							setDeleteArmed(false);
+							removeTaskMutation.mutate({ id: task.id });
+						}}
+						disabled={isMutating}
+						className="absolute inset-0 z-20 flex items-center justify-center gap-2 bg-destructive text-sm font-medium text-white"
+					>
+						<Trash2 className="size-4" />
+						Toque de novo para excluir
+					</button>
+				)}
+
 				{linkingFeature && features && (
 					<CompleteTaskFeatureDialog
 						open
@@ -417,6 +456,28 @@ function TaskItemImpl({ task, variant = "default", highlight, features }: TaskIt
 				)}
 			</div>
 		</TaskContextMenu>
+	);
+
+	if (!swipeable) return row;
+
+	return (
+		<SwipeRow
+			disabled={isMutating || editing || deleteArmed}
+			right={{
+				label: isDone ? "Reabrir" : "Concluir",
+				icon: isDone ? <CircleDot className="size-4" /> : <CircleCheck className="size-4" />,
+				className: "bg-primary text-primary-foreground",
+				onCommit: () => handleToggleDone(!isDone),
+			}}
+			left={{
+				label: "Apagar",
+				icon: <Trash2 className="size-4" />,
+				className: "bg-destructive text-white",
+				onCommit: () => setDeleteArmed(true),
+			}}
+		>
+			{row}
+		</SwipeRow>
 	);
 }
 

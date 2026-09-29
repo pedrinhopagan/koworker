@@ -1,9 +1,10 @@
-import { Bot, ChevronUp, CircleCheck, CircleDot, Loader2, TriangleAlert } from "lucide-react";
-import { memo, useMemo, useState } from "react";
+import { Bot, ChevronUp, CircleDot } from "lucide-react";
+import { memo, useMemo, useRef, useState } from "react";
 
 import { agentCliVisual } from "@/components/agent-radar/agent-cli";
 import { MarkdownView } from "@/components/markdown-view";
 import { Text } from "@/components/typography";
+import { StatusMark } from "@/components/ui/status-mark";
 import type { AgentSessionEvent } from "@/lib/agent-session";
 import { toTimelineGroups, type TimelineGroup, type TrailStep } from "@/lib/agent-timeline";
 import { formatElapsedSeconds } from "@/hooks/use-elapsed-seconds";
@@ -13,13 +14,13 @@ import { SessionPermission } from "./session-permission";
 import { SessionQuestion } from "./session-question";
 import { SessionTrace } from "./session-trace";
 import { SessionUserMessage } from "./session-user-message";
+import { ThoughtLine } from "./thought-line";
 
 function ResultRow({ event }: { event: AgentSessionEvent }) {
 	if (event.payload.kind !== "result") {
 		return null;
 	}
 
-	const failed = event.payload.status !== "done";
 	const seconds = event.payload.durationMs ? Math.round(event.payload.durationMs / 1000) : null;
 	const label =
 		event.payload.status === "done"
@@ -32,11 +33,7 @@ function ResultRow({ event }: { event: AgentSessionEvent }) {
 
 	return (
 		<div className="flex flex-wrap items-center gap-2 border-t border-dashed border-border pt-2">
-			{failed ? (
-				<TriangleAlert className="size-3.5 shrink-0 text-destructive" />
-			) : (
-				<CircleCheck className="size-3.5 shrink-0 text-muted-foreground" />
-			)}
+			<StatusMark status={event.payload.status} />
 			<Text as="span" size="xs" tone="muted">
 				{label}
 				{seconds === null ? "" : ` · ${formatElapsedSeconds(seconds)}`}
@@ -58,6 +55,7 @@ type GroupProps = {
 	asyncAnswersOnly?: boolean;
 	onDecide?: (requestId: string, decision: "allow" | "deny", reason?: string) => void;
 	onAnswer?: (questionId: string, input: { answers: string[]; freeText?: string }) => void;
+	onExpandAnswer?: (element: HTMLElement) => void;
 };
 
 // O espelho da conversa preserva a identidade de cada evento entre lotes, então comparar por
@@ -93,6 +91,7 @@ function sameGroup(left: GroupProps, right: GroupProps) {
 		left.asyncAnswersOnly !== right.asyncAnswersOnly ||
 		left.onDecide !== right.onDecide ||
 		left.onAnswer !== right.onAnswer ||
+		left.onExpandAnswer !== right.onExpandAnswer ||
 		left.group.kind !== right.group.kind ||
 		left.group.key !== right.group.key
 	) {
@@ -143,7 +142,9 @@ const TimelineGroupView = memo(function TimelineGroupView({
 	asyncAnswersOnly,
 	onDecide,
 	onAnswer,
+	onExpandAnswer,
 }: GroupProps) {
+	const answerSection = useRef<HTMLElement>(null);
 	if (group.kind === "trail") {
 		return <SessionTrace steps={group.steps} total={group.total} />;
 	}
@@ -161,7 +162,10 @@ const TimelineGroupView = memo(function TimelineGroupView({
 
 	if (payload.kind === "assistant") {
 		return (
-			<section className="min-w-0 rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm md:p-4">
+			<section
+				ref={answerSection}
+				className="min-w-0 rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm md:p-4"
+			>
 				<header className="mb-2 flex items-center gap-2">
 					<span
 						className={cn(
@@ -181,6 +185,11 @@ const TimelineGroupView = memo(function TimelineGroupView({
 				<AgentAnswer
 					runId={group.event.id}
 					output={payload.text}
+					onExpand={() => {
+						if (answerSection.current) {
+							onExpandAnswer?.(answerSection.current);
+						}
+					}}
 					meta={{
 						...(agent ? { agent } : {}),
 						at: group.event.at,
@@ -249,6 +258,7 @@ export function SessionTimeline({
 	asyncAnswersOnly,
 	onDecide,
 	onAnswer,
+	onExpandAnswer,
 }: {
 	events: AgentSessionEvent[];
 	busy: boolean;
@@ -260,6 +270,7 @@ export function SessionTimeline({
 	// visível, mas quem responde é quem está na frente do CLI.
 	onDecide?: (requestId: string, decision: "allow" | "deny", reason?: string) => void;
 	onAnswer?: (questionId: string, input: { answers: string[]; freeText?: string }) => void;
+	onExpandAnswer?: (element: HTMLElement) => void;
 }) {
 	const groups = useMemo(() => toTimelineGroups(events), [events]);
 	const [firstVisibleKey, setFirstVisibleKey] = useState<string | null>(null);
@@ -302,22 +313,17 @@ export function SessionTimeline({
 					{...(asyncAnswersOnly ? { asyncAnswersOnly } : {})}
 					{...(onDecide ? { onDecide } : {})}
 					{...(onAnswer ? { onAnswer } : {})}
+					{...(onExpandAnswer ? { onExpandAnswer } : {})}
 				/>
 			))}
 
-			{busy && (
-				<div
-					className={cn(
-						"flex items-center gap-2 rounded-lg bg-primary/8 px-3 py-2.5",
-						"text-primary",
-					)}
-				>
-					<Loader2 className="size-3.5 animate-spin" />
-					<Text size="xs" tone="muted">
-						O agente está trabalhando…
-					</Text>
-				</div>
-			)}
+			<ThoughtLine events={events} working={busy} />
+
+			<div aria-hidden className="pointer-events-none sticky bottom-0 z-10 h-8">
+				<div className="absolute inset-0 backdrop-blur-[1px] [mask-image:linear-gradient(to_top,black_30%,transparent)]" />
+				<div className="absolute inset-0 backdrop-blur-[3px] [mask-image:linear-gradient(to_top,black,transparent_60%)]" />
+				<div className="absolute inset-0 bg-linear-to-t from-background/70 to-transparent" />
+			</div>
 		</div>
 	);
 }

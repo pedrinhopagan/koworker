@@ -9,7 +9,7 @@ import {
 	X,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import type { TerminalWorkspaceEntry } from "@/api/schemas/terminal-workspace";
 import { AgentNavMenuItems } from "@/components/agent-radar/agent-nav-menu-items";

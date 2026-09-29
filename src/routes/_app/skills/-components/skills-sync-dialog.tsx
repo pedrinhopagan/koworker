@@ -9,7 +9,7 @@ import {
 	RefreshCw,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc, type RouterOutputs } from "@/client";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";

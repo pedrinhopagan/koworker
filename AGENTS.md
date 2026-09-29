@@ -97,6 +97,7 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 ### project_routes
 - `id` (uuid), `project_id` (FK projects.id, cascade)
 - `name`, `route`, `icon?`, `command?`
+- `background` (0/1, default 0): no painel do projeto o clique roda o comando sem terminal e mostra o resultado
 - `display_order` (default 0), `created_at`, `updated_at?`
 
 ### task_groups (as "features" da UI e da CLI)

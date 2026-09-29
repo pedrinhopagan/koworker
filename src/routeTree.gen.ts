@@ -24,11 +24,13 @@ import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
 import { Route as AppShellsIndexRouteImport } from './routes/_app/shells/index'
 import { Route as AppRadarIndexRouteImport } from './routes/_app/radar/index'
 import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/index'
+import { Route as AppPainelIndexRouteImport } from './routes/_app/painel/index'
 import { Route as AppMostruarioIndexRouteImport } from './routes/_app/mostruario/index'
 import { Route as AppMediaIndexRouteImport } from './routes/_app/media/index'
 import { Route as AppExecutarIndexRouteImport } from './routes/_app/executar/index'
 import { Route as AppArquivoIndexRouteImport } from './routes/_app/arquivo/index'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents/index'
+import { Route as AppPainelProjetoIdRouteImport } from './routes/_app/painel/$projetoId'
 import { Route as AppVaultFileNameIndexRouteImport } from './routes/_app/vault/$fileName/index'
 import { Route as AppTerminalsHistoryIndexRouteImport } from './routes/_app/terminals/history/index'
 import { Route as AppTerminalsPaneIdIndexRouteImport } from './routes/_app/terminals/$paneId/index'
@@ -126,6 +128,11 @@ const AppProjetosIndexRoute = AppProjetosIndexRouteImport.update({
   path: '/projetos/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppPainelIndexRoute = AppPainelIndexRouteImport.update({
+  id: '/painel/',
+  path: '/painel/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppMostruarioIndexRoute = AppMostruarioIndexRouteImport.update({
   id: '/mostruario/',
   path: '/mostruario/',
@@ -155,6 +162,11 @@ const AppArquivoIndexRoute = AppArquivoIndexRouteImport.update({
 const AppAgentsIndexRoute = AppAgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPainelProjetoIdRoute = AppPainelProjetoIdRouteImport.update({
+  id: '/painel/$projetoId',
+  path: '/painel/$projetoId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppVaultFileNameIndexRoute = AppVaultFileNameIndexRouteImport.update({
@@ -282,11 +294,13 @@ export interface FileRoutesByFullPath {
   '/dispositivos': typeof AppDispositivosRoute
   '/parear': typeof AppParearRoute
   '/parear/$token': typeof ParearTokenRoute
+  '/painel/$projetoId': typeof AppPainelProjetoIdRoute
   '/agents/': typeof AppAgentsIndexRoute
   '/arquivo/': typeof AppArquivoIndexRoute
   '/executar/': typeof AppExecutarIndexRoute
   '/media/': typeof AppMediaIndexRoute
   '/mostruario/': typeof AppMostruarioIndexRoute
+  '/painel/': typeof AppPainelIndexRoute
   '/projetos/': typeof AppProjetosIndexRoute
   '/radar/': typeof AppRadarIndexRoute
   '/shells/': typeof AppShellsIndexRoute
@@ -319,11 +333,13 @@ export interface FileRoutesByTo {
   '/parear': typeof AppParearRoute
   '/parear/$token': typeof ParearTokenRoute
   '/': typeof AppIndexRoute
+  '/painel/$projetoId': typeof AppPainelProjetoIdRoute
   '/agents': typeof AppAgentsIndexRoute
   '/arquivo': typeof AppArquivoIndexRoute
   '/executar': typeof AppExecutarIndexRoute
   '/media': typeof AppMediaIndexRoute
   '/mostruario': typeof AppMostruarioIndexRoute
+  '/painel': typeof AppPainelIndexRoute
   '/projetos': typeof AppProjetosIndexRoute
   '/radar': typeof AppRadarIndexRoute
   '/shells': typeof AppShellsIndexRoute
@@ -358,11 +374,13 @@ export interface FileRoutesById {
   '/_app/parear': typeof AppParearRoute
   '/parear/$token': typeof ParearTokenRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/painel/$projetoId': typeof AppPainelProjetoIdRoute
   '/_app/agents/': typeof AppAgentsIndexRoute
   '/_app/arquivo/': typeof AppArquivoIndexRoute
   '/_app/executar/': typeof AppExecutarIndexRoute
   '/_app/media/': typeof AppMediaIndexRoute
   '/_app/mostruario/': typeof AppMostruarioIndexRoute
+  '/_app/painel/': typeof AppPainelIndexRoute
   '/_app/projetos/': typeof AppProjetosIndexRoute
   '/_app/radar/': typeof AppRadarIndexRoute
   '/_app/shells/': typeof AppShellsIndexRoute
@@ -397,11 +415,13 @@ export interface FileRouteTypes {
     | '/dispositivos'
     | '/parear'
     | '/parear/$token'
+    | '/painel/$projetoId'
     | '/agents/'
     | '/arquivo/'
     | '/executar/'
     | '/media/'
     | '/mostruario/'
+    | '/painel/'
     | '/projetos/'
     | '/radar/'
     | '/shells/'
@@ -434,11 +454,13 @@ export interface FileRouteTypes {
     | '/parear'
     | '/parear/$token'
     | '/'
+    | '/painel/$projetoId'
     | '/agents'
     | '/arquivo'
     | '/executar'
     | '/media'
     | '/mostruario'
+    | '/painel'
     | '/projetos'
     | '/radar'
     | '/shells'
@@ -472,11 +494,13 @@ export interface FileRouteTypes {
     | '/_app/parear'
     | '/parear/$token'
     | '/_app/'
+    | '/_app/painel/$projetoId'
     | '/_app/agents/'
     | '/_app/arquivo/'
     | '/_app/executar/'
     | '/_app/media/'
     | '/_app/mostruario/'
+    | '/_app/painel/'
     | '/_app/projetos/'
     | '/_app/radar/'
     | '/_app/shells/'
@@ -616,6 +640,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjetosIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/painel/': {
+      id: '/_app/painel/'
+      path: '/painel'
+      fullPath: '/painel/'
+      preLoaderRoute: typeof AppPainelIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/mostruario/': {
       id: '/_app/mostruario/'
       path: '/mostruario'
@@ -649,6 +680,13 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/agents/'
       preLoaderRoute: typeof AppAgentsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/painel/$projetoId': {
+      id: '/_app/painel/$projetoId'
+      path: '/painel/$projetoId'
+      fullPath: '/painel/$projetoId'
+      preLoaderRoute: typeof AppPainelProjetoIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/vault/$fileName/': {
@@ -771,11 +809,13 @@ interface AppRouteChildren {
   AppDispositivosRoute: typeof AppDispositivosRoute
   AppParearRoute: typeof AppParearRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppPainelProjetoIdRoute: typeof AppPainelProjetoIdRoute
   AppAgentsIndexRoute: typeof AppAgentsIndexRoute
   AppArquivoIndexRoute: typeof AppArquivoIndexRoute
   AppExecutarIndexRoute: typeof AppExecutarIndexRoute
   AppMediaIndexRoute: typeof AppMediaIndexRoute
   AppMostruarioIndexRoute: typeof AppMostruarioIndexRoute
+  AppPainelIndexRoute: typeof AppPainelIndexRoute
   AppProjetosIndexRoute: typeof AppProjetosIndexRoute
   AppRadarIndexRoute: typeof AppRadarIndexRoute
   AppShellsIndexRoute: typeof AppShellsIndexRoute
@@ -806,11 +846,13 @@ const AppRouteChildren: AppRouteChildren = {
   AppDispositivosRoute: AppDispositivosRoute,
   AppParearRoute: AppParearRoute,
   AppIndexRoute: AppIndexRoute,
+  AppPainelProjetoIdRoute: AppPainelProjetoIdRoute,
   AppAgentsIndexRoute: AppAgentsIndexRoute,
   AppArquivoIndexRoute: AppArquivoIndexRoute,
   AppExecutarIndexRoute: AppExecutarIndexRoute,
   AppMediaIndexRoute: AppMediaIndexRoute,
   AppMostruarioIndexRoute: AppMostruarioIndexRoute,
+  AppPainelIndexRoute: AppPainelIndexRoute,
   AppProjetosIndexRoute: AppProjetosIndexRoute,
   AppRadarIndexRoute: AppRadarIndexRoute,
   AppShellsIndexRoute: AppShellsIndexRoute,

@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams, useSearch } from "@tanstack/react-router";
+import { useParams, useRouterState, useSearch } from "@tanstack/react-router";
 
 import { orpc } from "@/client";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useSkillQuery } from "@/hooks/use-skills";
 import { NO_FEATURE_ROUTE_ID } from "@/routes/_app/tarefas/-utils/task-route-resolution";
 
-type RouteKind = "task" | "feature" | "vault" | "docs" | "skill" | "none";
+type RouteKind = "task" | "feature" | "vault" | "docs" | "skill" | "file" | "none";
 
 export type RouteDocTarget = {
 	kind: RouteKind;
@@ -18,7 +18,13 @@ export type RouteDocTarget = {
 
 export function useRouteDocTarget(): RouteDocTarget {
 	const params = useParams({ strict: false });
-	const search: { projectId?: string } = useSearch({ strict: false });
+	const search: { projectId?: string; path?: string } = useSearch({ strict: false });
+	const pathname = useRouterState({ select: (state) => state.location.pathname });
+	const filePath = pathname === "/arquivo" || pathname === "/arquivo/" ? search.path : undefined;
+	const fileQuery = useQuery({
+		...orpc.system.readFile.queryOptions({ input: { path: filePath ?? "" } }),
+		enabled: !!filePath,
+	});
 
 	// Rotas que carregam o projeto na URL (`/projetos/$projetoId`, `/tarefas?projectId=`) mandam mais
 	// que o último projeto do store: é esse o projeto que a tela está mostrando.
@@ -77,6 +83,14 @@ export function useRouteDocTarget(): RouteDocTarget {
 	});
 
 	const task = canonicalFile ? secondTaskQuery.data : (secondTaskQuery.data ?? firstTaskQuery.data);
+	if (filePath) {
+		return {
+			kind: "file",
+			path: fileQuery.data?.path ?? null,
+			projectName: explicitProject?.name,
+			projectId: explicitProject?.id,
+		};
+	}
 	if (task) {
 		const activeFile = canonicalFile || (firstTaskQuery.data ? secondTaskSegment : undefined);
 		return {

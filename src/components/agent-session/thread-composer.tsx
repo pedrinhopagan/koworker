@@ -6,6 +6,7 @@ import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { resolveImagePlaceholders } from "@/lib/build-prompt";
 import { clearPromptDraft, readPromptDraft, writePromptDraft } from "@/lib/prompt-draft";
+import { cn } from "@/lib/utils";
 import { AudioRecorder } from "./audio-recorder";
 
 export function ThreadComposer(props: ComponentProps<typeof ThreadComposerContent>) {
@@ -21,6 +22,7 @@ function ThreadComposerContent({
 	pending,
 	hint,
 	disabledHintInline = false,
+	edgeToEdge = false,
 	placeholder = "Responda ao agente nesta mesma sessão…",
 	helperText = "Ctrl+Enter envia · / insere uma skill · cole imagens. O agente mantém o contexto desta conversa.",
 	onSubmit,
@@ -35,6 +37,7 @@ function ThreadComposerContent({
 	pending: boolean;
 	hint: string;
 	disabledHintInline?: boolean;
+	edgeToEdge?: boolean;
 	placeholder?: string;
 	helperText?: string;
 	onSubmit: (
@@ -88,7 +91,12 @@ function ThreadComposerContent({
 			data-component="thread-composer"
 			className="z-20 shrink-0 border-t border-border bg-background py-2"
 		>
-			<div className="mx-auto w-full max-w-3xl border border-border bg-card p-2 shadow-sm">
+			<div
+				className={cn(
+					"mx-auto w-full border border-border bg-card p-2 shadow-sm",
+					!edgeToEdge && "max-w-3xl",
+				)}
+			>
 				{dictating ? (
 					<div className="pb-1">
 						<AudioRecorder
@@ -179,7 +187,7 @@ function ThreadComposerContent({
 						/>
 					</div>
 				)}
-				{(!disabled || !disabledHintInline) && (
+				{helperText && (!disabled || !disabledHintInline) && (
 					<Text size="xs" tone="muted" className="mt-1.5 hidden sm:block">
 						{disabled ? hint : helperText}
 					</Text>

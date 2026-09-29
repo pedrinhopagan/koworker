@@ -11,7 +11,7 @@ import {
 	Share2,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { CodeFileView } from "@/components/code-file-view";

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Bot, Command, Plus, SquareTerminal } from "lucide-react";
+import { Bot, Command, Gauge, Plus, SquareTerminal } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { Text, Title } from "@/components/typography";
@@ -68,11 +68,18 @@ export function ProjectLaunchpad({ project, onReorder }: ProjectLaunchpadProps) 
 						{shortcutCount} {shortcutCount === 1 ? "ação disponível" : "ações disponíveis"}
 					</Text>
 				</div>
-				<Button variant="outline" size="sm" asChild>
-					<Link to="/projetos/$projetoId" params={{ projetoId: project.id }}>
-						<Plus className="size-3.5" /> Adicionar
-					</Link>
-				</Button>
+				<div className="flex items-center gap-2">
+					<Button variant="outline" size="sm" asChild>
+						<Link to="/projetos/$projetoId" params={{ projetoId: project.id }}>
+							<Plus className="size-3.5" /> Adicionar
+						</Link>
+					</Button>
+					<Button size="sm" asChild>
+						<Link to="/painel/$projetoId" params={{ projetoId: project.id }}>
+							<Gauge className="size-3.5" /> Painel
+						</Link>
+					</Button>
+				</div>
 			</div>
 
 			<div className="mt-4 space-y-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-2 lg:[scrollbar-gutter:stable]">

@@ -13,6 +13,7 @@ type RoutesListProps = {
 		route?: string;
 		icon?: string;
 		command?: string;
+		background?: boolean;
 	}) => void;
 	onDelete: (id: string) => void;
 	onReorder: (orderedIds: string[]) => void;

@@ -253,6 +253,9 @@ export function ensureDbSchema() {
 		if (!hasColumn(cols, "command")) {
 			ensureColumn(sqlite, "project_routes", "command TEXT");
 		}
+		if (!hasColumn(cols, "background")) {
+			ensureColumn(sqlite, "project_routes", "background INTEGER NOT NULL DEFAULT 0");
+		}
 		if (!hasColumn(cols, "display_order")) {
 			ensureColumn(sqlite, "project_routes", "display_order INTEGER NOT NULL DEFAULT 0");
 			// Resequenciar por projeto
