@@ -1,4 +1,6 @@
 import { useRouterState } from "@tanstack/react-router";
+import { Copy } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 
 import { Tooltip } from "@/components/ui/tooltip";
@@ -25,16 +27,16 @@ export function RoutePathButton({ className }: { className?: string }) {
 
 	return (
 		<Tooltip label="Copiar padrão da rota">
-			<button
+			<Button
+				variant="ghost-muted"
+				size="icon-sm"
 				type="button"
 				onClick={() => void handleCopy()}
-				className={cn(
-					"max-w-72 truncate font-mono text-xs text-muted-foreground/70 transition-colors hover:text-foreground",
-					className,
-				)}
+				aria-label="Copiar padrão da rota"
+				className={cn("border-0 shadow-none", className)}
 			>
-				{displayPath}
-			</button>
+				<Copy className="size-4" />
+			</Button>
 		</Tooltip>
 	);
 }

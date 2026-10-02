@@ -8,8 +8,9 @@ A atribuição está em `third-party/T3-CODE-LICENSE`.
 ## Paleta e tipografia
 
 O tema claro usa canvas zinc quase branco, cards brancos e navegação zinc-50.
-O tema escuro usa canvas neutral-950, superfícies discretamente elevadas e sidebar preta.
+O tema escuro usa canvas neutral-950, superfícies discretamente elevadas e sidebar na superfície `card`.
 As bordas separam superfícies; a seleção usa um fundo neutro.
+No tema escuro, bordas usam branco a 12% e campos usam branco a 16%.
 
 O azul do T3 é a cor primária nos dois temas.
 As cores dos projetos continuam identificando projetos e seus conteúdos.
@@ -38,7 +39,11 @@ A sidebar reúne projeto em foco e páginas agrupadas.
 A seleção possui fundo neutro e texto destacado.
 A sidebar mantém o modo compacto escolhido pelo usuário.
 
-O topo mostra projeto e página atual, voltar, busca de páginas e troca de tema.
+O topo mostra breadcrumbs clicáveis, voltar, seleção de projeto, cópia da rota, busca e troca de tema.
+Nas tarefas, a hierarquia é Koworker, Tarefas, nome da feature e nome da tarefa.
+O nome da tarefa trunca quando falta espaço. Os links preservam o projeto.
+A cópia do padrão da rota usa apenas um ícone com tooltip.
+Os ícones do topo e os controles do seletor de modelo não possuem moldura.
 A busca abre com Ctrl+K ou Cmd+K e aceita setas, Enter e Escape.
 Ctrl+B ou Cmd+B recolhe a sidebar. Os atalhos Alt+0 a Alt+9 continuam disponíveis.
 Alt+P abre o seletor de projetos.

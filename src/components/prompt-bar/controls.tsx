@@ -105,6 +105,7 @@ export function MiniSelect({
 				value={value}
 				onValueChange={(next) => onChange(next)}
 				size="sm"
+				variant="ghost"
 				fitContent
 				ariaLabel={ariaLabel}
 				triggerClassName="gap-1.5 px-2"

@@ -1,12 +1,14 @@
-import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
-import { ArrowLeft, ChevronRight, Menu, Search } from "lucide-react";
+import { useNavigate, useRouter } from "@tanstack/react-router";
+import { ArrowLeft, FolderKanban, Menu, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { getActiveTabLabel, MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
+import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { NavigationDialog } from "@/components/layout/navigation-dialog";
 import { RoutePathButton } from "@/components/layout/route-path-button";
 import { tabs } from "@/components/layout/tab-nav-config";
+import { WorkspaceBreadcrumbs } from "@/components/layout/workspace-breadcrumbs";
 import { WindowControls } from "@/components/layout/window-controls";
+import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -16,14 +18,13 @@ import { cn } from "@/lib/utils";
 import { useSidebarNavStore } from "@/stores/sidebar-nav";
 
 export function TabBar({ compact = false }: { compact?: boolean }) {
-	const location = useLocation();
 	const navigate = useNavigate();
 	const router = useRouter();
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
 	const [navigationOpen, setNavigationOpen] = useState(false);
+	const openProjectDialog = useProjectSelectDialogStore((state) => state.openDialog);
 	const toggleSidebar = useSidebarNavStore((state) => state.toggleMode);
 	const { selectedProject, loading } = useProjectFocus();
-	const pageLabel = getActiveTabLabel(location.pathname);
 	const projectLabel = selectedProject?.name ?? (loading ? "Carregando..." : "Todos os projetos");
 
 	useEffect(() => {
@@ -64,7 +65,7 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 			<header
 				data-component="workspace-header"
 				className={cn(
-					"flex h-shell-bar shrink-0 items-center gap-2 border-b border-border bg-background px-3 select-none sm:px-4",
+					"flex h-shell-bar shrink-0 items-center gap-2 border-b border-border bg-background px-3 select-none sm:px-4 [&_button]:border-0 [&_button]:shadow-none",
 					isDesktop() && "desktop-drag-region",
 				)}
 			>
@@ -90,16 +91,21 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 						<ArrowLeft className="size-4" />
 					</Button>
 				</Tooltip>
-				<div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
-					<span className="hidden max-w-48 truncate text-muted-foreground lg:block">
-						{projectLabel}
-					</span>
-					<ChevronRight className="hidden size-3.5 shrink-0 text-muted-foreground/60 lg:block" />
-					<span className="truncate font-medium">{pageLabel}</span>
-				</div>
-				<div className="hidden items-center gap-3 xl:flex">
+				<WorkspaceBreadcrumbs />
+				<div className="hidden sm:block">
 					<RoutePathButton />
 				</div>
+				<Tooltip label={`Selecionar projeto: ${projectLabel}`}>
+					<Button
+						variant="ghost-muted"
+						size="icon-sm"
+						onClick={openProjectDialog}
+						className="hidden sm:inline-flex"
+						aria-label={`Selecionar projeto: ${projectLabel}`}
+					>
+						<FolderKanban className="size-4" />
+					</Button>
+				</Tooltip>
 				<Tooltip label="Navegar (Ctrl+K)">
 					<Button
 						variant="ghost-muted"

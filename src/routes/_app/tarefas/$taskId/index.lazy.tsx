@@ -32,7 +32,6 @@ import {
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
@@ -330,13 +329,13 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 								to="/tarefas/$taskId"
 								params={{ taskId: canonical.featureId }}
 								search={{ projectId: task.projectId }}
-								className="flex size-8 shrink-0 items-center justify-center border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+								className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 								aria-label="Voltar para tarefas"
 							>
 								<ArrowLeft className="size-4" />
 							</Link>
 							<span className="hidden sm:block">
-								<Icon icon={ListChecks} color="var(--project-accent, var(--primary))" size="md" />
+								<ListChecks className="size-5 text-muted-foreground" />
 							</span>
 							<div className="min-w-0 flex-1">
 								{editing ? (

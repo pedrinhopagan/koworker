@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 
 type PageShellProps = {
@@ -23,7 +22,7 @@ export function PageShell({
 	title,
 	description,
 	actions,
-	icon,
+	icon: Icon,
 	children,
 	variant,
 	header,
@@ -42,7 +41,7 @@ export function PageShell({
 						<div className="flex min-w-0 items-center gap-3">
 							{onBack && (
 								<Button
-									variant="outline"
+									variant="ghost-muted"
 									size="icon-sm"
 									onClick={onBack}
 									aria-label="Voltar"
@@ -51,7 +50,7 @@ export function PageShell({
 									<ArrowLeft className="size-4" />
 								</Button>
 							)}
-							{icon && <Icon icon={icon} color="var(--project-accent, var(--primary))" size="md" />}
+							{Icon && <Icon className="size-5 shrink-0 text-muted-foreground" />}
 							<div className="min-w-0">
 								<Title size="lg" className="truncate">
 									{title}

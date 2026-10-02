@@ -81,10 +81,10 @@
 	--warning-foreground: var(--color-amber-950);
 	--success: var(--color-emerald-400);
 	--success-foreground: var(--color-emerald-950);
-	--border: rgb(255 255 255 / 6%);
-	--input: rgb(255 255 255 / 8%);
+	--border: rgb(255 255 255 / 12%);
+	--input: rgb(255 255 255 / 16%);
 	--ring: var(--primary);
-	--sidebar: #000;
+	--sidebar: var(--card);
 	--sidebar-foreground: #f1f3f7;
 	--sidebar-muted-foreground: var(--color-neutral-400);
 	--sidebar-row-hover: rgb(255 255 255 / 8%);

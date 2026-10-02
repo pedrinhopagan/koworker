@@ -48,7 +48,7 @@ const STATUS_TEXT: Record<ModelApplyStatus, string> = {
 };
 
 const CHIP =
-	"relative inline-flex h-12 min-w-0 shrink-0 cursor-pointer touch-manipulation select-none items-center gap-1.5 px-2.5 text-xs font-medium text-muted-foreground transition-[background-color,color,transform] duration-150 [-webkit-tap-highlight-color:transparent] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 data-[open]:bg-muted data-[open]:text-foreground motion-reduce:active:scale-100 sm:h-10";
+	"relative inline-flex h-12 min-w-0 shrink-0 cursor-pointer touch-manipulation select-none items-center gap-1.5 rounded-md border-0 bg-transparent px-2.5 text-xs font-medium text-muted-foreground shadow-none transition-[background-color,color,transform] duration-150 [-webkit-tap-highlight-color:transparent] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 data-[open]:bg-muted data-[open]:text-foreground motion-reduce:active:scale-100 sm:h-10";
 
 // Os toques no seletor não tiram o foco do campo: no celular isso fecharia o teclado a cada escolha.
 function keepFocus(event: { preventDefault: () => void }) {
