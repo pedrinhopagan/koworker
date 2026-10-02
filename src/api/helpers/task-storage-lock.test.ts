@@ -53,7 +53,6 @@ beforeAll(async () => {
 			storage_key: "dddddddd",
 			storage_slug: "antiga",
 			title: "antiga",
-			complexity: "medio",
 			display_order: 0,
 			done: 0,
 			created_at: 1,

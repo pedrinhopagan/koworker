@@ -14,9 +14,7 @@ import { Route as DispositivoRouteImport } from './routes/dispositivo'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as ParearTokenRouteImport } from './routes/parear.$token'
-import { Route as AppSistemaRouteImport } from './routes/_app/sistema'
 import { Route as AppParearRouteImport } from './routes/_app/parear'
-import { Route as AppFontesRouteImport } from './routes/_app/fontes'
 import { Route as AppDispositivosRouteImport } from './routes/_app/dispositivos'
 import { Route as AppConfiguracoesRouteImport } from './routes/_app/configuracoes'
 import { Route as AppVaultIndexRouteImport } from './routes/_app/vault/index'
@@ -25,12 +23,14 @@ import { Route as AppTarefasIndexRouteImport } from './routes/_app/tarefas/index
 import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
 import { Route as AppShellsIndexRouteImport } from './routes/_app/shells/index'
 import { Route as AppRadarIndexRouteImport } from './routes/_app/radar/index'
-import { Route as AppPromptsIndexRouteImport } from './routes/_app/prompts/index'
 import { Route as AppProjetosIndexRouteImport } from './routes/_app/projetos/index'
+import { Route as AppPainelIndexRouteImport } from './routes/_app/painel/index'
 import { Route as AppMostruarioIndexRouteImport } from './routes/_app/mostruario/index'
 import { Route as AppMediaIndexRouteImport } from './routes/_app/media/index'
 import { Route as AppExecutarIndexRouteImport } from './routes/_app/executar/index'
+import { Route as AppArquivoIndexRouteImport } from './routes/_app/arquivo/index'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents/index'
+import { Route as AppPainelProjetoIdRouteImport } from './routes/_app/painel/$projetoId'
 import { Route as AppVaultFileNameIndexRouteImport } from './routes/_app/vault/$fileName/index'
 import { Route as AppTerminalsHistoryIndexRouteImport } from './routes/_app/terminals/history/index'
 import { Route as AppTerminalsPaneIdIndexRouteImport } from './routes/_app/terminals/$paneId/index'
@@ -72,21 +72,11 @@ const ParearTokenRoute = ParearTokenRouteImport.update({
   path: '/parear/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppSistemaRoute = AppSistemaRouteImport.update({
-  id: '/sistema',
-  path: '/sistema',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppParearRoute = AppParearRouteImport.update({
   id: '/parear',
   path: '/parear',
   getParentRoute: () => AppRoute,
 } as any)
-const AppFontesRoute = AppFontesRouteImport.update({
-  id: '/fontes',
-  path: '/fontes',
-  getParentRoute: () => AppRoute,
-} as any).lazy(() => import('./routes/_app/fontes.lazy').then((d) => d.Route))
 const AppDispositivosRoute = AppDispositivosRouteImport.update({
   id: '/dispositivos',
   path: '/dispositivos',
@@ -110,9 +100,7 @@ const AppTerminalsIndexRoute = AppTerminalsIndexRouteImport.update({
   id: '/terminals/',
   path: '/terminals/',
   getParentRoute: () => AppRoute,
-} as any).lazy(() =>
-  import('./routes/_app/terminals/index.lazy').then((d) => d.Route),
-)
+} as any)
 const AppTarefasIndexRoute = AppTarefasIndexRouteImport.update({
   id: '/tarefas/',
   path: '/tarefas/',
@@ -135,14 +123,14 @@ const AppRadarIndexRoute = AppRadarIndexRouteImport.update({
   path: '/radar/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppPromptsIndexRoute = AppPromptsIndexRouteImport.update({
-  id: '/prompts/',
-  path: '/prompts/',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppProjetosIndexRoute = AppProjetosIndexRouteImport.update({
   id: '/projetos/',
   path: '/projetos/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPainelIndexRoute = AppPainelIndexRouteImport.update({
+  id: '/painel/',
+  path: '/painel/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMostruarioIndexRoute = AppMostruarioIndexRouteImport.update({
@@ -164,9 +152,21 @@ const AppExecutarIndexRoute = AppExecutarIndexRouteImport.update({
   path: '/executar/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppArquivoIndexRoute = AppArquivoIndexRouteImport.update({
+  id: '/arquivo/',
+  path: '/arquivo/',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/arquivo/index.lazy').then((d) => d.Route),
+)
 const AppAgentsIndexRoute = AppAgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPainelProjetoIdRoute = AppPainelProjetoIdRouteImport.update({
+  id: '/painel/$projetoId',
+  path: '/painel/$projetoId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppVaultFileNameIndexRoute = AppVaultFileNameIndexRouteImport.update({
@@ -188,9 +188,7 @@ const AppTerminalsPaneIdIndexRoute = AppTerminalsPaneIdIndexRouteImport.update({
   id: '/terminals/$paneId/',
   path: '/terminals/$paneId/',
   getParentRoute: () => AppRoute,
-} as any).lazy(() =>
-  import('./routes/_app/terminals/$paneId/index.lazy').then((d) => d.Route),
-)
+} as any)
 const AppTarefasTaskIdIndexRoute = AppTarefasTaskIdIndexRouteImport.update({
   id: '/tarefas/$taskId/',
   path: '/tarefas/$taskId/',
@@ -294,16 +292,16 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
   '/dispositivos': typeof AppDispositivosRoute
-  '/fontes': typeof AppFontesRoute
   '/parear': typeof AppParearRoute
-  '/sistema': typeof AppSistemaRoute
   '/parear/$token': typeof ParearTokenRoute
+  '/painel/$projetoId': typeof AppPainelProjetoIdRoute
   '/agents/': typeof AppAgentsIndexRoute
+  '/arquivo/': typeof AppArquivoIndexRoute
   '/executar/': typeof AppExecutarIndexRoute
   '/media/': typeof AppMediaIndexRoute
   '/mostruario/': typeof AppMostruarioIndexRoute
+  '/painel/': typeof AppPainelIndexRoute
   '/projetos/': typeof AppProjetosIndexRoute
-  '/prompts/': typeof AppPromptsIndexRoute
   '/radar/': typeof AppRadarIndexRoute
   '/shells/': typeof AppShellsIndexRoute
   '/skills/': typeof AppSkillsIndexRoute
@@ -332,17 +330,17 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
   '/dispositivos': typeof AppDispositivosRoute
-  '/fontes': typeof AppFontesRoute
   '/parear': typeof AppParearRoute
-  '/sistema': typeof AppSistemaRoute
   '/parear/$token': typeof ParearTokenRoute
   '/': typeof AppIndexRoute
+  '/painel/$projetoId': typeof AppPainelProjetoIdRoute
   '/agents': typeof AppAgentsIndexRoute
+  '/arquivo': typeof AppArquivoIndexRoute
   '/executar': typeof AppExecutarIndexRoute
   '/media': typeof AppMediaIndexRoute
   '/mostruario': typeof AppMostruarioIndexRoute
+  '/painel': typeof AppPainelIndexRoute
   '/projetos': typeof AppProjetosIndexRoute
-  '/prompts': typeof AppPromptsIndexRoute
   '/radar': typeof AppRadarIndexRoute
   '/shells': typeof AppShellsIndexRoute
   '/skills': typeof AppSkillsIndexRoute
@@ -373,17 +371,17 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_app/configuracoes': typeof AppConfiguracoesRoute
   '/_app/dispositivos': typeof AppDispositivosRoute
-  '/_app/fontes': typeof AppFontesRoute
   '/_app/parear': typeof AppParearRoute
-  '/_app/sistema': typeof AppSistemaRoute
   '/parear/$token': typeof ParearTokenRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/painel/$projetoId': typeof AppPainelProjetoIdRoute
   '/_app/agents/': typeof AppAgentsIndexRoute
+  '/_app/arquivo/': typeof AppArquivoIndexRoute
   '/_app/executar/': typeof AppExecutarIndexRoute
   '/_app/media/': typeof AppMediaIndexRoute
   '/_app/mostruario/': typeof AppMostruarioIndexRoute
+  '/_app/painel/': typeof AppPainelIndexRoute
   '/_app/projetos/': typeof AppProjetosIndexRoute
-  '/_app/prompts/': typeof AppPromptsIndexRoute
   '/_app/radar/': typeof AppRadarIndexRoute
   '/_app/shells/': typeof AppShellsIndexRoute
   '/_app/skills/': typeof AppSkillsIndexRoute
@@ -415,16 +413,16 @@ export interface FileRouteTypes {
     | '/login'
     | '/configuracoes'
     | '/dispositivos'
-    | '/fontes'
     | '/parear'
-    | '/sistema'
     | '/parear/$token'
+    | '/painel/$projetoId'
     | '/agents/'
+    | '/arquivo/'
     | '/executar/'
     | '/media/'
     | '/mostruario/'
+    | '/painel/'
     | '/projetos/'
-    | '/prompts/'
     | '/radar/'
     | '/shells/'
     | '/skills/'
@@ -453,17 +451,17 @@ export interface FileRouteTypes {
     | '/login'
     | '/configuracoes'
     | '/dispositivos'
-    | '/fontes'
     | '/parear'
-    | '/sistema'
     | '/parear/$token'
     | '/'
+    | '/painel/$projetoId'
     | '/agents'
+    | '/arquivo'
     | '/executar'
     | '/media'
     | '/mostruario'
+    | '/painel'
     | '/projetos'
-    | '/prompts'
     | '/radar'
     | '/shells'
     | '/skills'
@@ -493,17 +491,17 @@ export interface FileRouteTypes {
     | '/login'
     | '/_app/configuracoes'
     | '/_app/dispositivos'
-    | '/_app/fontes'
     | '/_app/parear'
-    | '/_app/sistema'
     | '/parear/$token'
     | '/_app/'
+    | '/_app/painel/$projetoId'
     | '/_app/agents/'
+    | '/_app/arquivo/'
     | '/_app/executar/'
     | '/_app/media/'
     | '/_app/mostruario/'
+    | '/_app/painel/'
     | '/_app/projetos/'
-    | '/_app/prompts/'
     | '/_app/radar/'
     | '/_app/shells/'
     | '/_app/skills/'
@@ -572,25 +570,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ParearTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app/sistema': {
-      id: '/_app/sistema'
-      path: '/sistema'
-      fullPath: '/sistema'
-      preLoaderRoute: typeof AppSistemaRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/parear': {
       id: '/_app/parear'
       path: '/parear'
       fullPath: '/parear'
       preLoaderRoute: typeof AppParearRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/fontes': {
-      id: '/_app/fontes'
-      path: '/fontes'
-      fullPath: '/fontes'
-      preLoaderRoute: typeof AppFontesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dispositivos': {
@@ -649,18 +633,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRadarIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/prompts/': {
-      id: '/_app/prompts/'
-      path: '/prompts'
-      fullPath: '/prompts/'
-      preLoaderRoute: typeof AppPromptsIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/projetos/': {
       id: '/_app/projetos/'
       path: '/projetos'
       fullPath: '/projetos/'
       preLoaderRoute: typeof AppProjetosIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/painel/': {
+      id: '/_app/painel/'
+      path: '/painel'
+      fullPath: '/painel/'
+      preLoaderRoute: typeof AppPainelIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/mostruario/': {
@@ -684,11 +668,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppExecutarIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/arquivo/': {
+      id: '/_app/arquivo/'
+      path: '/arquivo'
+      fullPath: '/arquivo/'
+      preLoaderRoute: typeof AppArquivoIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/agents/': {
       id: '/_app/agents/'
       path: '/agents'
       fullPath: '/agents/'
       preLoaderRoute: typeof AppAgentsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/painel/$projetoId': {
+      id: '/_app/painel/$projetoId'
+      path: '/painel/$projetoId'
+      fullPath: '/painel/$projetoId'
+      preLoaderRoute: typeof AppPainelProjetoIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/vault/$fileName/': {
@@ -809,16 +807,16 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppConfiguracoesRoute: typeof AppConfiguracoesRoute
   AppDispositivosRoute: typeof AppDispositivosRoute
-  AppFontesRoute: typeof AppFontesRoute
   AppParearRoute: typeof AppParearRoute
-  AppSistemaRoute: typeof AppSistemaRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppPainelProjetoIdRoute: typeof AppPainelProjetoIdRoute
   AppAgentsIndexRoute: typeof AppAgentsIndexRoute
+  AppArquivoIndexRoute: typeof AppArquivoIndexRoute
   AppExecutarIndexRoute: typeof AppExecutarIndexRoute
   AppMediaIndexRoute: typeof AppMediaIndexRoute
   AppMostruarioIndexRoute: typeof AppMostruarioIndexRoute
+  AppPainelIndexRoute: typeof AppPainelIndexRoute
   AppProjetosIndexRoute: typeof AppProjetosIndexRoute
-  AppPromptsIndexRoute: typeof AppPromptsIndexRoute
   AppRadarIndexRoute: typeof AppRadarIndexRoute
   AppShellsIndexRoute: typeof AppShellsIndexRoute
   AppSkillsIndexRoute: typeof AppSkillsIndexRoute
@@ -846,16 +844,16 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppConfiguracoesRoute: AppConfiguracoesRoute,
   AppDispositivosRoute: AppDispositivosRoute,
-  AppFontesRoute: AppFontesRoute,
   AppParearRoute: AppParearRoute,
-  AppSistemaRoute: AppSistemaRoute,
   AppIndexRoute: AppIndexRoute,
+  AppPainelProjetoIdRoute: AppPainelProjetoIdRoute,
   AppAgentsIndexRoute: AppAgentsIndexRoute,
+  AppArquivoIndexRoute: AppArquivoIndexRoute,
   AppExecutarIndexRoute: AppExecutarIndexRoute,
   AppMediaIndexRoute: AppMediaIndexRoute,
   AppMostruarioIndexRoute: AppMostruarioIndexRoute,
+  AppPainelIndexRoute: AppPainelIndexRoute,
   AppProjetosIndexRoute: AppProjetosIndexRoute,
-  AppPromptsIndexRoute: AppPromptsIndexRoute,
   AppRadarIndexRoute: AppRadarIndexRoute,
   AppShellsIndexRoute: AppShellsIndexRoute,
   AppSkillsIndexRoute: AppSkillsIndexRoute,

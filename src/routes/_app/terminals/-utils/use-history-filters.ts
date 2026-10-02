@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 
-import type { HistoryCli } from "@/api/helpers/agent-history/paths";
+import type { HistoryCli } from "@/api/schemas/agent-history";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { ALL_PROJECTS, type HistorySearchParams } from "./history-search";
 import type { HistoryFiltersValue } from "../-components/history-filters";

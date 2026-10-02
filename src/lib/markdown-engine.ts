@@ -115,6 +115,12 @@ export function resolveCodeLanguage(info: string) {
 	return LanguageDescription.matchLanguageName(languages, name, true);
 }
 
+// A linguagem de um arquivo pelo nome (`a.ts`, `Dockerfile`), no mesmo nome canônico que
+// `loadedCodeLanguage` aceita — é o que o leitor de arquivo citado usa para colorir o código.
+export function codeLanguageForFile(fileName: string) {
+	return LanguageDescription.matchFilename(languages, fileName)?.name ?? null;
+}
+
 // O parser da leitura estática. É a mesma receita que o `markdownLanguage` do editor monta —
 // CommonMark + GFM + a grifa `==` do app —, só que sem o embrulho de linguagem do CodeMirror, que
 // fora de um editor não teria o que fazer.

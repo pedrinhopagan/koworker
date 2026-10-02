@@ -5,6 +5,7 @@ export type AgentSettingsInput = {
 	label?: string;
 	icon?: string;
 	color?: string;
+	categoryId?: string | null;
 };
 
 export const dbAgentSettings = {
@@ -12,11 +13,12 @@ export const dbAgentSettings = {
 	remove: (slug: string) =>
 		db.deleteFrom("agent_settings").where("slug", "=", slug).executeTakeFirst(),
 
-	upsert: ({ slug, label, icon, color }: AgentSettingsInput) => {
+	upsert: ({ slug, label, icon, color, categoryId }: AgentSettingsInput) => {
 		const values = {
 			...(label !== undefined && { label }),
 			...(icon !== undefined && { icon }),
 			...(color !== undefined && { color }),
+			...(categoryId !== undefined && { category_id: categoryId }),
 		};
 
 		return db

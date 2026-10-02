@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ImageOff, X } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -86,7 +86,7 @@ export function PromptInputBackdrop({
 			ref={scrollRef}
 			aria-hidden
 			className={cn(
-				"pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-none border border-transparent bg-card text-transparent",
+				"pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-lg border border-transparent bg-card text-transparent",
 				className,
 			)}
 		>
@@ -161,7 +161,7 @@ function PromptImageChip({
 	const url = useObjectUrl(fileQuery.data);
 
 	return (
-		<span className="flex h-8 items-center gap-1.5 border border-border bg-card pl-1 pr-1">
+		<span className="flex h-8 items-center gap-1.5 rounded-xl border border-border bg-card pl-1 pr-1">
 			<Tooltip label={image.name}>
 				<Link
 					to="/media/$fileName"

@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { FormProvider, type SubmitHandler, useForm } from "react-hook-form";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { orpc, reconnectRealtime } from "@/client";
 import { errorMessage } from "@/lib/orpc-errors";
 import { loginSchema } from "@/lib/schemas";

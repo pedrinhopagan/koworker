@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Check, ImageOff, Loader2, MessageSquarePlus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc, type RouterOutputs } from "@/client";
 import { Text } from "@/components/typography";
@@ -10,6 +10,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useObjectUrl } from "@/hooks/use-object-url";
 import { imagePlaceholder } from "@/lib/build-prompt";
 import { formatBytes } from "@/lib/format-bytes";
+import { formatDateTime, relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 
@@ -129,9 +130,19 @@ export function MediaCard({ entry }: { entry: MediaEntry }) {
 					<Text size="xs" className="truncate font-medium">
 						{entry.name}
 					</Text>
-					<Text size="xs" tone="muted" className="tabular-nums">
-						{formatBytes(entry.size)}
-					</Text>
+					<div className="flex items-baseline justify-between gap-2">
+						<Text size="xs" tone="muted" className="tabular-nums">
+							{formatBytes(entry.size)}
+						</Text>
+						<Text
+							size="xs"
+							tone="muted"
+							title={formatDateTime(entry.mtime)}
+							className="truncate tabular-nums"
+						>
+							{relativeTimeFrom(entry.mtime)}
+						</Text>
+					</div>
 				</div>
 			</Link>
 

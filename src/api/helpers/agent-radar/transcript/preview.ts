@@ -1,13 +1,15 @@
 import { Database } from "bun:sqlite";
 
+import type { AgentTranscript } from "@/api/schemas/agent-radar-transcript";
 import { recentTranscriptText } from "@/lib/agent-timeline";
 import { createTranscriptMirror, createTranscriptParser } from "@/lib/agent-transcript";
 import { claudeTranscriptModel, translateClaudeTranscriptLine } from "@/lib/claude-transcript";
+import { piTranscriptModel, translatePiTranscriptLine } from "@/lib/pi-transcript";
 import { codexTranscriptModel, translateCodexTranscriptLine } from "@/lib/codex-transcript";
 import { createOpencodeTranscriptTranslator } from "@/lib/opencode-transcript";
 import { listRadarAgents } from "../state";
 import { openPaneTranscriptEvents, openPaneTranscriptModel } from "./index";
-import { locateAgentTranscript, type AgentTranscript } from "./locate";
+import { locateAgentTranscript } from "./locate";
 
 // A última fala de cada conversa, que é tudo o que a lista de agents mostra. Ler a cauda basta: a
 // frase mais recente está no fim do arquivo, e reler um pedaço do fim é barato perto de manter uma
@@ -42,8 +44,17 @@ async function readPreview(source: AgentTranscript, size: number): Promise<Previ
 
 	const mirror = createTranscriptMirror("preview");
 	const translate =
-		source.cli === "claude" ? translateClaudeTranscriptLine : translateCodexTranscriptLine;
-	const extractModel = source.cli === "claude" ? claudeTranscriptModel : codexTranscriptModel;
+		source.cli === "claude"
+			? translateClaudeTranscriptLine
+			: source.cli === "pi"
+				? translatePiTranscriptLine
+				: translateCodexTranscriptLine;
+	const extractModel =
+		source.cli === "claude"
+			? claudeTranscriptModel
+			: source.cli === "pi"
+				? piTranscriptModel
+				: codexTranscriptModel;
 	let model: string | null = null;
 	const parser = createTranscriptParser((line) => {
 		model = extractModel(line) ?? model;

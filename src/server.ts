@@ -1,23 +1,28 @@
+import type { Server } from "bun";
 import { stat } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
-import type { Server } from "bun";
 import type { z } from "zod";
 
 import "./api/arktype";
 import { isAllowedOrigin, rpcHandler, wsRpcHandler } from "./api/app";
 import { resolveSessionDevice } from "./api/auth/context";
+import { resolveApprovedDevice } from "./api/auth/device";
 import { registerWsSession, unregisterWsSession, type WsSessionData } from "./api/auth/ws-sessions";
 import { envVariables } from "./api/config/env";
 import { dbProjects } from "./api/db/projects";
 import { DbUsers } from "./api/db/users";
+import { serveFilePreview } from "./api/helpers/file-preview";
+import { verifyFilePreviewToken } from "./api/helpers/file-preview-access";
+import { createGeneratedProjectLogo } from "./api/helpers/generated-project-logo";
 import { isNotifyAuthorized } from "./api/helpers/notify-auth";
-import { resolveProjectLogo } from "./api/helpers/project-logo";
+import { resolveProjectLogo, resolveProjectLogoByName } from "./api/helpers/project-logo";
+import { assertSingleTenantRuntime } from "./api/helpers/terminal-access";
 import { PubSub } from "./api/pubsub";
 import { TaskNotifySchema } from "./api/schemas";
 import { KwTerminalNavigateSchema } from "./api/schemas/kw-terminal";
 import homepage from "./index.html";
-import { staticCacheHeader } from "./lib/static-cache";
 import { DEFAULT_KOWORK_PORT } from "./lib/runtime-config";
+import { staticCacheHeader } from "./lib/static-cache";
 
 const isProduction = envVariables.NODE_ENV === "production";
 // hot-deploy grava KOWORK_DIST_DIR no ambiente; string vazia já vira undefined em env.ts
@@ -139,14 +144,14 @@ async function serveProjectLogo(request: Request, server: Server<WsSessionData>)
 		return new Response("Not Found", { status: 404 });
 	}
 
-	const logoPath = await resolveProjectLogo(project.main_route);
-	if (!logoPath) {
-		return new Response("Not Found", { status: 404 });
-	}
+	const logoPath =
+		resolveProjectLogoByName(project.name) ?? (await resolveProjectLogo(project.main_route));
+	const logo = logoPath ? Bun.file(logoPath) : createGeneratedProjectLogo(project.name);
 
-	return new Response(Bun.file(logoPath), {
+	return new Response(logo, {
 		headers: {
 			"Cache-Control": "private, max-age=300",
+			...(logoPath ? {} : { "Content-Type": "image/svg+xml; charset=utf-8" }),
 			"X-Content-Type-Options": "nosniff",
 		},
 	});
@@ -155,17 +160,18 @@ async function serveProjectLogo(request: Request, server: Server<WsSessionData>)
 const port = Number(envVariables.KOWORK_PORT) || DEFAULT_KOWORK_PORT;
 
 await DbUsers.ensureDefaultUser();
+assertSingleTenantRuntime(await DbUsers.listIds());
 
 // Keep local DB schema compatible with current code (idempotent).
 const { ensureDbSchema } = await import("./api/db/migrate");
 ensureDbSchema();
 
 // Semeia settings de SO e roots default de agents/skills por plataforma (primeira execução).
-const { ensureDefaultSettings, ensureDefaultCategories, migrateTerminalMultiplexerRename } =
+const { ensureDefaultSettings, ensureDefaultAgentCategories, migrateLegacyTerminalSettings } =
 	await import("./api/db/seed-defaults");
-await migrateTerminalMultiplexerRename();
+await migrateLegacyTerminalSettings();
 await ensureDefaultSettings();
-await ensureDefaultCategories();
+await ensureDefaultAgentCategories();
 
 const { purgeOrphanStorageLocks } = await import("./api/helpers/task-storage-coordinator");
 await purgeOrphanStorageLocks().catch((error) => {
@@ -232,6 +238,26 @@ Bun.serve<WsSessionData>({
 			return response ?? new Response("Not Found", { status: 404 });
 		},
 		"/api/project-logos/*": serveProjectLogo,
+		"/api/file-preview/*": async (request: Request, server: Server<WsSessionData>) => {
+			const token = new URL(request.url).pathname.slice("/api/file-preview/".length).split("/")[0];
+			const access = await verifyFilePreviewToken(token);
+			if (!access) {
+				return new Response("Visualização expirada. Reabra o documento.", { status: 401 });
+			}
+			const [user, device] = await Promise.all([
+				DbUsers.getById(access.viewer),
+				resolveApprovedDevice({
+					deviceId: access.device,
+					userId: access.viewer,
+					userAgent: request.headers.get("user-agent") ?? undefined,
+					ip: server.requestIP(request)?.address,
+				}),
+			]);
+			if (!user || (user.session_epoch ?? 0) !== access.epoch || device?.status !== "approved") {
+				return new Response("Acesso não autorizado", { status: 401 });
+			}
+			return await serveFilePreview(request, [access.directory]);
+		},
 		"/api/tasks/notify": async (request: Request, server: Server<WsSessionData>) => {
 			const body = await readLoopbackBody(request, server, TaskNotifySchema);
 			if ("response" in body) {

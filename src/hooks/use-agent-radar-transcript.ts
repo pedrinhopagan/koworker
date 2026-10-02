@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { AgentRadarTranscriptEnvelope } from "@/api/helpers/agent-radar/transcript";
-import type { AgentTranscript } from "@/api/helpers/agent-radar/transcript/locate";
+import type {
+	AgentRadarTranscriptEnvelope,
+	AgentTranscript,
+} from "@/api/schemas/agent-radar-transcript";
 import { orpcWs } from "@/client";
 import { mergeAgentSessionEvents, type AgentSessionEvent } from "@/lib/agent-session";
 import { subscribeWithRetry } from "@/lib/realtime-subscription";
 
 type TranscriptEnvelope = Pick<
 	AgentRadarTranscriptEnvelope,
-	"events" | "missing" | "model" | "reset" | "source"
+	"events" | "missing" | "model" | "effort" | "reset" | "source" | "queued"
 >;
 
 // Um agente em rajada escreve vários blocos por segundo. Aplicar lote a lote punha a conversa inteira
@@ -36,8 +38,11 @@ export function useAgentRadarTranscript(paneId: string) {
 	const [events, setEvents] = useState<AgentSessionEvent[]>([]);
 	const [source, setSource] = useState<AgentTranscript | null>(null);
 	const [model, setModel] = useState<string | null>(null);
+	const [effort, setEffort] = useState<string | null>(null);
+	const [queued, setQueued] = useState<string[]>([]);
 	const [missing, setMissing] = useState(false);
 	const [loading, setLoading] = useState(true);
+	const [connected, setConnected] = useState(false);
 	const pending = useRef<TranscriptEnvelope[]>([]);
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -45,8 +50,11 @@ export function useAgentRadarTranscript(paneId: string) {
 		setEvents([]);
 		setSource(null);
 		setModel(null);
+		setEffort(null);
+		setQueued([]);
 		setMissing(false);
 		setLoading(true);
+		setConnected(false);
 		pending.current = [];
 
 		const controller = new AbortController();
@@ -73,15 +81,25 @@ export function useAgentRadarTranscript(paneId: string) {
 			// O `reset` recomeça a conversa em outro arquivo: o modelo da sessão anterior não vale mais
 			// até o transcript novo reportar o dele.
 			let nextModel: string | null | undefined;
+			let nextEffort: string | null | undefined;
 			for (const envelope of batch) {
 				if (envelope.reset) {
 					nextModel = envelope.model ?? null;
-				} else if (envelope.model) {
-					nextModel = envelope.model;
+					nextEffort = envelope.effort ?? null;
+				} else {
+					nextModel = envelope.model ?? nextModel;
+					nextEffort = envelope.effort ?? nextEffort;
 				}
 			}
 			if (nextModel !== undefined) {
 				setModel(nextModel);
+			}
+			if (nextEffort !== undefined) {
+				setEffort(nextEffort);
+			}
+			const nextQueued = batch.findLast((envelope) => envelope.reset || envelope.queued);
+			if (nextQueued) {
+				setQueued(nextQueued.queued ?? []);
 			}
 
 			setEvents((current) =>
@@ -94,6 +112,7 @@ export function useAgentRadarTranscript(paneId: string) {
 
 		void subscribeWithRetry({
 			label: "Radar Transcript",
+			onConnectionChange: setConnected,
 			signal: controller.signal,
 			subscribe: (signal) => orpcWs.agentRadarTranscript.call({ paneId }, { signal }),
 			onEvent: (envelope) => {
@@ -111,5 +130,5 @@ export function useAgentRadarTranscript(paneId: string) {
 		};
 	}, [paneId]);
 
-	return { events, source, model, missing, loading };
+	return { events, source, model, effort, queued, missing, loading, connected };
 }

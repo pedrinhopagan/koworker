@@ -1,13 +1,67 @@
+import { agentPromptInput } from "@/lib/agent-prompt-input";
 import { Terminal as Screen } from "@xterm/headless";
 
 import { PubSub, type ShellStreamEvent } from "../../pubsub";
+import {
+	TERMINAL_GRID_LIMITS,
+	type ShellAgentStatus,
+	type ShellRecord,
+} from "../../schemas/terminal-workspace";
+import { publishTerminalWorkspaceChange } from "../terminal-workspace-events";
+import { detectShellAgent } from "./agent-detect";
 import { ScrollbackRing } from "./scrollback-ring";
 
 const SCROLLBACK_BYTES = 1_000_000;
 const SCREEN_SCROLLBACK_LINES = 10_000;
 const FLUSH_MS = 8;
+const AGENT_SWEEP_MS = 3_000;
+const AGENT_ACTIVE_MS = 12_000;
+const INPUT_ECHO_MS = 400;
+const BLOCKER_LINES = 15;
+const BLOCKER_MARKERS = [
+	["esc to cancel", "enter to confirm"],
+	["esc to cancel", "enter to select"],
+	["press enter to confirm or esc to cancel"],
+	["enter to submit answer"],
+	["enter to submit all"],
+	["allow command?"],
+	["do you want to proceed?"],
+];
 
 const SHELL = process.env.SHELL ?? "/bin/bash";
+
+// O daemon do kw-terminal não enxerga estes PTYs, então o status é mais grosso que o do radar:
+// um TUI trabalhando redesenha quadro sem parar (spinner, tool calls) e parado no prompt fica
+// quieta — saída recente, descontado o eco do teclado, é o sinal de trabalho.
+export function shellAgentStatus(input: {
+	agentActiveAt: number;
+	now: number;
+	screenLines?: string[];
+}): ShellAgentStatus {
+	const screen = input.screenLines?.join("\n").toLowerCase() ?? "";
+	if (BLOCKER_MARKERS.some((markers) => markers.every((marker) => screen.includes(marker)))) {
+		return "blocked";
+	}
+
+	return input.now - input.agentActiveAt <= AGENT_ACTIVE_MS ? "working" : "idle";
+}
+
+function bottomScreenLines(screen: Screen) {
+	const buffer = screen.buffer.active;
+	const lines: string[] = [];
+	for (
+		let row = buffer.baseY + screen.rows - 1;
+		row >= buffer.baseY && lines.length < BLOCKER_LINES;
+		row--
+	) {
+		const text = buffer.getLine(row)?.translateToString(true).trim();
+		if (text) {
+			lines.unshift(text);
+		}
+	}
+
+	return lines;
+}
 
 type Shell = {
 	id: string;
@@ -24,21 +78,13 @@ type Shell = {
 	title: string | null;
 	exited: boolean;
 	exitCode: number | null;
+	agent: string | null;
+	agentActiveAt: number;
+	publishedAgentStatus: ShellAgentStatus | null;
+	agentStatusAt: number;
+	lastInputAt: number;
 	pending: Buffer[];
 	flushTimer: ReturnType<typeof setTimeout> | null;
-};
-
-export type ShellRecord = {
-	id: string;
-	label: string;
-	cwd: string;
-	projectId: string | null;
-	cols: number;
-	rows: number;
-	createdAt: number;
-	title: string | null;
-	status: "live" | "exited";
-	exitCode: number | null;
 };
 
 type OpenOptions = {
@@ -52,22 +98,155 @@ type OpenOptions = {
 	shellArgs?: string[];
 };
 
-function publish(id: string, event: ShellStreamEvent): void {
+type ShellRuntimeCommand =
+	| { type: "prompt"; id: string; agent: string; data: string }
+	| ({ type: "open" } & OpenOptions)
+	| { type: "input"; id: string; data: string }
+	| { type: "resize"; id: string; cols: number; rows: number }
+	| { type: "rename"; id: string; label: string }
+	| { type: "close"; id: string };
+
+type RuntimeProcess = { pid: number; exited: Promise<number> };
+type ScreenOptions = ConstructorParameters<typeof Screen>[0];
+type TerminalOptions = ConstructorParameters<typeof Bun.Terminal>[0];
+
+type ShellRuntimeDependencies = {
+	now: () => number;
+	publishStream: (id: string, event: ShellStreamEvent) => void;
+	publishCatalog: () => void;
+	scanAgent: (pid: number, procRoot: string) => Promise<string | null>;
+	createScreen: (options: ScreenOptions) => Screen;
+	createTerminal: (options: TerminalOptions) => Bun.Terminal;
+	spawnProcess: (input: {
+		terminal: Bun.Terminal;
+		cwd: string;
+		shellPath: string;
+		shellArgs: string[];
+	}) => RuntimeProcess;
+};
+
+function publishStream(id: string, event: ShellStreamEvent): void {
 	PubSub.publish("shells", id, event).catch(() => {});
+	if (event.type !== "data") {
+		publishTerminalWorkspaceChange("shell").catch(() => {});
+	}
 }
 
-export class ShellSupervisor {
+function publishCatalog() {
+	publishTerminalWorkspaceChange("shell").catch(() => {});
+}
+
+const DEFAULT_DEPENDENCIES: ShellRuntimeDependencies = {
+	now: () => Date.now(),
+	publishStream,
+	publishCatalog,
+	scanAgent: detectShellAgent,
+	createScreen: (options) => new Screen(options),
+	createTerminal: (options) => new Bun.Terminal(options),
+	spawnProcess: ({ terminal, cwd, shellPath, shellArgs }) =>
+		Bun.spawn(["setsid", "-c", shellPath, ...shellArgs], {
+			terminal,
+			cwd,
+			env: { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor" },
+		}),
+};
+
+export class ShellRuntime {
 	private readonly shells = new Map<string, Shell>();
+	private readonly agentSweepMs: number;
+	private readonly procRoot: string;
+	private readonly dependencies: ShellRuntimeDependencies;
+	private agentTimer: ReturnType<typeof setInterval> | null = null;
+	private sweeping = false;
 	private seq = 0;
 
-	open({ cwd, cols, rows, label, projectId, shellPath, shellArgs }: OpenOptions): ShellRecord {
-		const id = `shell-${++this.seq}`;
+	constructor(
+		options: {
+			agentSweepMs?: number;
+			procRoot?: string;
+			dependencies?: Partial<ShellRuntimeDependencies>;
+		} = {},
+	) {
+		this.agentSweepMs = options.agentSweepMs ?? AGENT_SWEEP_MS;
+		this.procRoot = options.procRoot ?? "/proc";
+		this.dependencies = { ...DEFAULT_DEPENDENCIES, ...options.dependencies };
+	}
+
+	execute(command: { type: "open" } & OpenOptions): ShellRecord;
+	execute(command: { type: "rename"; id: string; label: string }): ShellRecord | null;
+	execute(command: Exclude<ShellRuntimeCommand, { type: "open" } | { type: "rename" }>): boolean;
+	execute(command: ShellRuntimeCommand): ShellRecord | boolean | null {
+		switch (command.type) {
+			case "open":
+				return this.open(command);
+			case "prompt": {
+				const shell = this.shells.get(command.id);
+				if (!shell || shell.exited || !shell.screen.modes.bracketedPasteMode) {
+					return false;
+				}
+				return this.write(command.id, agentPromptInput(command.agent, command.data));
+			}
+			case "input":
+				return this.write(command.id, command.data);
+			case "resize":
+				return this.resize(command.id, command.cols, command.rows);
+			case "rename":
+				return this.rename(command.id, command.label);
+			case "close":
+				return this.close(command.id);
+		}
+	}
+
+	snapshot(): ShellRecord[];
+	snapshot(id: string): ShellRecord | null;
+	snapshot(id?: string) {
+		if (id) {
+			const shell = this.shells.get(id);
+
+			return shell ? this.record(shell) : null;
+		}
+
+		return [...this.shells.values()]
+			.sort((left, right) => right.createdAt - left.createdAt)
+			.map((shell) => this.record(shell));
+	}
+
+	readScreen(id: string) {
+		const shell = this.shells.get(id);
+		if (!shell || shell.exited) {
+			return null;
+		}
+
+		const buffer = shell.screen.buffer.active;
+		return Array.from(
+			{ length: shell.rows },
+			(_, row) => buffer.getLine(buffer.baseY + row)?.translateToString(true) ?? "",
+		).join("\n");
+	}
+
+	attach(id: string) {
+		const shell = this.shells.get(id);
+
+		return shell ? { replayBase64: shell.ring.readBase64() } : null;
+	}
+
+	private open({
+		cwd,
+		cols,
+		rows,
+		label,
+		projectId,
+		shellPath,
+		shellArgs,
+	}: OpenOptions): ShellRecord {
+		this.seq += 1;
+		const id = `shell-${crypto.randomUUID()}`;
 		const ring = new ScrollbackRing(SCROLLBACK_BYTES);
 		// O motor vt100 é a fonte de verdade do lado do servidor: responde às consultas de
 		// capability (DA, kitty keyboard, OSC de cor) que shells e TUIs mandam ao arrancar —
 		// sem essas respostas o programa do outro lado fica preso esperando. É o que deixa um
 		// TUI subir num shell que ninguém abriu na tela ainda.
-		const screen = new Screen({
+		const screen = this.dependencies.createScreen({
 			cols,
 			rows,
 			scrollback: SCREEN_SCROLLBACK_LINES,
@@ -76,7 +255,7 @@ export class ShellSupervisor {
 
 		let shell!: Shell;
 
-		const pty = new Bun.Terminal({
+		const pty = this.dependencies.createTerminal({
 			cols,
 			rows,
 			name: "xterm-256color",
@@ -94,7 +273,8 @@ export class ShellSupervisor {
 				shell.exited = true;
 				shell.exitCode = code;
 				this.flushPending(shell);
-				publish(id, { type: "exit", exitCode: code });
+				this.maybeStopAgentSweep();
+				this.dependencies.publishStream(id, { type: "exit", exitCode: code });
 			},
 		});
 
@@ -112,15 +292,16 @@ export class ShellSupervisor {
 			}
 
 			shell.title = trimmed;
-			publish(id, { type: "title", title: trimmed });
+			this.dependencies.publishStream(id, { type: "title", title: trimmed });
 		});
 
 		// `setsid -c` faz do shell um líder de sessão com o PTY como terminal de controle —
 		// sem isso o job control falha e shells rigorosos como fish nem começam.
-		const proc = Bun.spawn(["setsid", "-c", shellPath ?? SHELL, ...(shellArgs ?? [])], {
+		const proc = this.dependencies.spawnProcess({
 			terminal: pty,
 			cwd,
-			env: { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor" },
+			shellPath: shellPath ?? SHELL,
+			shellArgs: shellArgs ?? [],
 		});
 
 		// O callback `exit` do Bun.Terminal não é confiável com setsid: o processo morre e o
@@ -134,7 +315,8 @@ export class ShellSupervisor {
 			shell.exited = true;
 			shell.exitCode = code;
 			this.flushPending(shell);
-			publish(id, { type: "exit", exitCode: code });
+			this.maybeStopAgentSweep();
+			this.dependencies.publishStream(id, { type: "exit", exitCode: code });
 		});
 
 		shell = {
@@ -144,7 +326,7 @@ export class ShellSupervisor {
 			projectId: projectId ?? null,
 			cols,
 			rows,
-			createdAt: Date.now(),
+			createdAt: this.dependencies.now(),
 			pty,
 			pid: proc.pid,
 			screen,
@@ -152,25 +334,33 @@ export class ShellSupervisor {
 			title: null,
 			exited: false,
 			exitCode: null,
+			agent: null,
+			agentActiveAt: 0,
+			publishedAgentStatus: null,
+			agentStatusAt: this.dependencies.now(),
+			lastInputAt: 0,
 			pending: [],
 			flushTimer: null,
 		};
 		this.shells.set(id, shell);
+		this.ensureAgentSweep();
+		this.dependencies.publishCatalog();
 
 		return this.record(shell);
 	}
 
-	write(id: string, data: string): boolean {
+	private write(id: string, data: string): boolean {
 		const shell = this.shells.get(id);
 		if (!shell || shell.exited) {
 			return false;
 		}
 
+		shell.lastInputAt = this.dependencies.now();
 		shell.pty.write(data);
 		return true;
 	}
 
-	resize(id: string, cols: number, rows: number): boolean {
+	private resize(id: string, cols: number, rows: number): boolean {
 		const shell = this.shells.get(id);
 		if (!shell || shell.exited) {
 			return false;
@@ -179,10 +369,10 @@ export class ShellSupervisor {
 		if (
 			!Number.isInteger(cols) ||
 			!Number.isInteger(rows) ||
-			cols < 2 ||
-			rows < 2 ||
-			cols > 500 ||
-			rows > 500
+			cols < TERMINAL_GRID_LIMITS.minCols ||
+			rows < TERMINAL_GRID_LIMITS.minRows ||
+			cols > TERMINAL_GRID_LIMITS.maxCols ||
+			rows > TERMINAL_GRID_LIMITS.maxRows
 		) {
 			return false;
 		}
@@ -196,7 +386,7 @@ export class ShellSupervisor {
 
 	// Idempotente por design: o shell pode ter morrido sozinho (exit callback) no mesmo
 	// instante em que o usuário pediu o fechamento; quem rodar segundo não faz nada.
-	close(id: string): boolean {
+	private close(id: string): boolean {
 		const shell = this.shells.get(id);
 		if (!shell) {
 			return false;
@@ -215,16 +405,12 @@ export class ShellSupervisor {
 		shell.pty.close();
 		shell.screen.dispose();
 		this.shells.delete(id);
-		publish(id, { type: "closed" });
+		this.maybeStopAgentSweep();
+		this.dependencies.publishStream(id, { type: "closed" });
 		return true;
 	}
 
-	get(id: string): ShellRecord | null {
-		const shell = this.shells.get(id);
-		return shell ? this.record(shell) : null;
-	}
-
-	rename(id: string, label: string): ShellRecord | null {
+	private rename(id: string, label: string): ShellRecord | null {
 		const shell = this.shells.get(id);
 		if (!shell) {
 			return null;
@@ -233,24 +419,16 @@ export class ShellSupervisor {
 		const trimmed = label.trim();
 		if (trimmed) {
 			shell.label = trimmed;
+			this.dependencies.publishCatalog();
 			return this.record(shell);
 		}
 
 		return null;
 	}
 
-	replayBase64(id: string): string | null {
-		const shell = this.shells.get(id);
-		return shell ? shell.ring.readBase64() : null;
-	}
-
-	list(): ShellRecord[] {
-		return [...this.shells.values()]
-			.sort((a, b) => b.createdAt - a.createdAt)
-			.map((shell) => this.record(shell));
-	}
-
 	private record(shell: Shell): ShellRecord {
+		const agent = shell.exited ? null : shell.agent;
+
 		return {
 			id: shell.id,
 			label: shell.label,
@@ -262,7 +440,78 @@ export class ShellSupervisor {
 			title: shell.title,
 			status: shell.exited ? "exited" : "live",
 			exitCode: shell.exitCode,
+			pid: shell.pid,
+			agent,
+			agentStatus: agent ? this.agentStatus(shell) : null,
+			agentStatusAt: shell.agentStatusAt,
 		};
+	}
+
+	private agentStatus(shell: Shell) {
+		return shellAgentStatus({
+			agentActiveAt: shell.agentActiveAt,
+			now: this.dependencies.now(),
+			screenLines: bottomScreenLines(shell.screen),
+		});
+	}
+
+	// Detecção periódica de agent CLI: a árvore de processos de cada shell vivo é relida e o slug
+	// reconhecido vira identidade do item na sidebar. O TUI sair (voltar ao prompt) reverte o item
+	// a shell no sweep seguinte.
+	private ensureAgentSweep(): void {
+		if (this.agentTimer) {
+			return;
+		}
+
+		this.agentTimer = setInterval(() => {
+			void this.sweepAgents();
+		}, this.agentSweepMs);
+		this.agentTimer.unref?.();
+	}
+
+	private maybeStopAgentSweep(): void {
+		if (!this.agentTimer) {
+			return;
+		}
+
+		const hasLiveShell = [...this.shells.values()].some((shell) => !shell.exited);
+		if (hasLiveShell) {
+			return;
+		}
+
+		clearInterval(this.agentTimer);
+		this.agentTimer = null;
+	}
+
+	private async sweepAgents(): Promise<void> {
+		if (this.sweeping) {
+			return;
+		}
+
+		this.sweeping = true;
+		try {
+			for (const shell of this.shells.values()) {
+				if (shell.exited) {
+					shell.agent = null;
+					shell.publishedAgentStatus = null;
+					continue;
+				}
+
+				const previousAgent = shell.agent;
+				const previousStatus = shell.publishedAgentStatus;
+				shell.agent = await this.dependencies.scanAgent(shell.pid, this.procRoot);
+				shell.publishedAgentStatus = shell.agent ? this.agentStatus(shell) : null;
+
+				if (previousAgent !== shell.agent || previousStatus !== shell.publishedAgentStatus) {
+					shell.agentStatusAt = this.dependencies.now();
+					this.dependencies.publishCatalog();
+				}
+			}
+		} finally {
+			this.sweeping = false;
+		}
+
+		this.maybeStopAgentSweep();
 	}
 
 	// Coalescência de saída: rajada de output vira um único evento por janela de 8ms —
@@ -292,8 +541,25 @@ export class ShellSupervisor {
 
 		const merged = Buffer.concat(shell.pending);
 		shell.pending = [];
-		publish(shell.id, { type: "data", b64: merged.toString("base64") });
+		// Eco de teclado não é trabalho do agent: saída chegando colada no input do usuário não conta
+		// como atividade, senão digitar no prompt do TUI acendia "Trabalhando".
+		if (this.dependencies.now() - shell.lastInputAt >= INPUT_ECHO_MS) {
+			shell.agentActiveAt = this.dependencies.now();
+			if (
+				shell.agent &&
+				shell.publishedAgentStatus !== "working" &&
+				shell.publishedAgentStatus !== "blocked"
+			) {
+				shell.publishedAgentStatus = "working";
+				shell.agentStatusAt = this.dependencies.now();
+				this.dependencies.publishCatalog();
+			}
+		}
+		this.dependencies.publishStream(shell.id, {
+			type: "data",
+			b64: merged.toString("base64"),
+		});
 	}
 }
 
-export const shellSupervisor = new ShellSupervisor();
+export const shellRuntime = new ShellRuntime();

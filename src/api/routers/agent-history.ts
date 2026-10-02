@@ -8,7 +8,8 @@ import {
 import { openKwDiff } from "../helpers/kw-diff";
 import { AgentHistoryListSchema, AgentHistorySessionSchema } from "../schemas/agent-history";
 
-// O histórico não é um espelho do daemon: ele lê o que claude e codex já gravaram em disco. Por isso
+// O histórico não é um espelho do daemon: ele lê o que claude, codex e opencode 2 já gravaram em
+// disco (arquivo por conversa nos dois primeiros, banco compartilhado no último). Por isso
 // nada aqui depende de pane aberto, e a única ação que toca o terminal é retomar.
 export const agentHistoryRouter = {
 	list: protectedProcedure

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
-import { koworkerDatabasePath } from "@/lib/app-paths";
 import { KOWORK_STORAGE_RELEASE } from "@/constants/release";
+import { koworkerDatabasePath } from "@/lib/app-paths";
 
 // A CLI roda no diretório de outro projeto. O Bun auto-carrega o `.env` desse projeto,
 // então NÃO confiamos em `DATABASE_URL` herdado — forçamos o DB do koworker (app data
@@ -39,14 +39,14 @@ if (!handler) {
 	console.log(`kw-cli - CLI
 
 Tarefas:
-  create [título] --feature <nome|id> [--type <nome|id>] [--category <nome|id>] [--priority <nome|id>] [--complexity <simples|medio|complexo|extremo>]
+  create [título] --feature <nome|id>
                           Cria uma tarefa no projeto do cwd; imprime taskId + pasta v1/v2
   task create [título] [...] Alias de create
-  task list [busca] [--all|--done|--pending] [--type ...] [--priority ...] [--complexity ...]
+  task list [busca] [--all|--done|--pending]
                           Lista tarefas do projeto do cwd; use --all-projects para todos
   task show <taskId|caminho>
                           Mostra metadados e arquivos da tarefa
-  task set <taskId|caminho> [--title ...] [--type ...] [--priority ...] [--complexity ...] [--done|--pending]
+  task set <taskId|caminho> [--title ...] [--done|--pending]
                           Edita metadados de uma tarefa
   task done <taskId|caminho>
   done <taskId|caminho>   Marca a tarefa como concluída
@@ -58,7 +58,6 @@ Tarefas:
                           Finaliza a tarefa depois de integrar e limpar a worktree
   task rm <taskId|caminho>
                           Remove a tarefa (soft delete + quarentena recuperável)
-  task options            Lista complexidades, tipos/categorias e prioridades
 
 Features:
   feature list [busca] [--project <id>]
@@ -95,6 +94,15 @@ Projetos e rotas:
 Skills:
   skill style <slug> [--label ...] [--icon ...] [--color #rrggbb]
                           Define a aparência de uma skill
+  skill install <pasta> --category <id|nome> [--replace]
+                          Instala conteúdo completo na central e vincula as CLIs
+  skill paths             Lista as fontes e a pasta central (Agents)
+  skill categories        Lista as categorias disponíveis
+  skill category <slug> <id|nome>
+                          Categoriza uma skill existente
+  skill sync [slug] [--preview] [--source agents|claude-code|codex|opencode]
+                          Centraliza com backup; --source escolhe a versão principal
+  skill remove <slug>     Remove de todas as fontes com backup
   skill list              Lista as skills globais e sua aparência atual
 
 Backup:

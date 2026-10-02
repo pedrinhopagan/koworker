@@ -6,7 +6,7 @@ import {
 import { DbUsers } from "../../db/users";
 import { PubSub } from "../../pubsub";
 import { PushNotifications } from "../push-notifications";
-import type { RadarAgent } from "./state";
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 
 // O alerta é da transição, não do estado corrente: o agent cai em `idle` logo depois de devolver a vez,
 // então notificar pelo estado atual chegaria descrevendo algo que já mudou.
@@ -36,7 +36,7 @@ export async function alertRadarTransition(agent: RadarAgent) {
 			PushNotifications.send(userId, {
 				title,
 				body,
-				url: "/terminals",
+				url: `/shells?tab=${encodeURIComponent(`agent:${agent.paneId}`)}`,
 				tag: `kowork-radar-${agent.paneId}`,
 				requireInteraction: agent.status === "blocked",
 			}).catch((error: unknown) => {

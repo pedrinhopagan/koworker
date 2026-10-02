@@ -1,5 +1,4 @@
 import { dbAgentSessionSnapshots } from "../../db/agent-session-snapshots";
-import { getSystemSettings } from "../system-settings";
 import {
 	ensureKwTerminalServer,
 	ensureWorkspaceByLabel,
@@ -147,14 +146,7 @@ export async function reopenSavedTerminals() {
 
 		await dbAgentSessionSnapshots.markRestored(restoredIds);
 
-		const settings = await getSystemSettings();
-		await revealKwTerminalClient({
-			config: {
-				template: settings.terminalTemplate,
-				multiplexer: settings.terminalMultiplexer,
-			},
-			workingDir,
-		});
+		await revealKwTerminalClient({ workingDir });
 
 		return { restored: opened + existing, opened, existing, failed };
 	} finally {

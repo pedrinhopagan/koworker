@@ -1,5 +1,6 @@
 import { spawnDetachedFromService } from "@/api/helpers/detached-process";
 import { spawnEnv } from "@/api/helpers/spawn";
+import { translatePaneInput } from "@/api/helpers/terminal/pane-input";
 import { z } from "zod";
 
 const KwTerminalAgentSessionSchema = z
@@ -14,6 +15,31 @@ const KwTerminalAgentSessionSchema = z
 const KwTerminalErrorSchema = z.object({
 	error: z.object({ code: z.string(), message: z.string() }),
 });
+
+const KwTerminalPaneReadSchema = z.object({
+	type: z.literal("pane_read"),
+	read: z.object({
+		pane_id: z.string(),
+		text: z.string(),
+		revision: z.number().int().nonnegative(),
+	}),
+});
+
+const KwTerminalPaneLayoutSchema = z.object({
+	type: z.literal("pane_layout"),
+	layout: z.object({
+		panes: z.array(
+			z.object({
+				pane_id: z.string(),
+				rect: z.object({ width: z.number().int().positive(), height: z.number().int().positive() }),
+			}),
+		),
+	}),
+});
+
+const KwTerminalOkSchema = z.object({ type: z.literal("ok") });
+let screenRequestCounter = 0;
+const socketPaths = new Map<string, string>();
 
 // Wrappers finos sobre o binário `kw-terminal`. O estado de verdade do "que está aberto" vive no
 // servidor kw-terminal (um daemon independente que sobrevive ao restart do backend), então lemos dele
@@ -161,6 +187,16 @@ async function kwTerminalServerRunning(): Promise<boolean> {
 // remontado a partir de XDG_CONFIG_HOME: o kw-terminal escolhe o diretório por sessão nomeada e
 // aceita override por env, e adivinhar isso aqui daria um caminho errado sem aviso.
 export async function kwTerminalSocketPath(): Promise<string> {
+	const cacheKey = [
+		process.env.HERDR_SOCKET_PATH ?? "",
+		process.env.HERDR_SESSION ?? "",
+		process.env.KW_TERMINAL_CONFIG_PATH ?? "",
+	].join("\0");
+	const known = socketPaths.get(cacheKey);
+	if (known) {
+		return known;
+	}
+
 	const { ok, stdout } = await runKwTerminal(["status", "server"]);
 	const socket = ok ? /^socket:\s*(.+)$/m.exec(stdout)?.[1]?.trim() : null;
 
@@ -168,12 +204,165 @@ export async function kwTerminalSocketPath(): Promise<string> {
 		throw new Error("kw-terminal não informou o caminho do socket");
 	}
 
+	socketPaths.set(cacheKey, socket);
+
 	return socket;
 }
 
-// Paridade com o tmux, cuja CLI sobe o daemon sozinha no primeiro comando: se o servidor kw-terminal
-// não está de pé, lançamos `kw-terminal server` headless e aguardamos o socket responder. O cliente
-// TUI que o usuário abrir depois atacha nesse mesmo servidor.
+async function requestKwTerminal<TResult>(params: {
+	method: string;
+	input: object;
+	schema: z.ZodType<TResult>;
+	socketPath?: string;
+}): Promise<TResult> {
+	const requestId = `kowork-screen-${++screenRequestCounter}`;
+	const decoder = new TextDecoder();
+	let pending = "";
+	let settled = false;
+	let resolveResponse!: (value: TResult) => void;
+	let rejectResponse!: (error: Error) => void;
+	const response = new Promise<TResult>((resolve, reject) => {
+		resolveResponse = resolve;
+		rejectResponse = reject;
+	});
+	const timeout = setTimeout(() => {
+		if (!settled) {
+			settled = true;
+			rejectResponse(new Error("O kw-terminal não respondeu a tempo"));
+		}
+	}, 5_000);
+	const socket = await Bun.connect({
+		unix: params.socketPath ?? (await kwTerminalSocketPath()),
+		socket: {
+			data(socket, chunk) {
+				pending += decoder.decode(chunk, { stream: true });
+				const lines = pending.split("\n");
+				pending = lines.pop() ?? "";
+
+				for (const line of lines) {
+					let payload: unknown;
+					try {
+						payload = JSON.parse(line);
+					} catch {
+						continue;
+					}
+
+					const envelope = z
+						.object({
+							id: z.string(),
+							result: z.unknown().optional(),
+							error: z.unknown().optional(),
+						})
+						.safeParse(payload);
+					if (!envelope.success || envelope.data.id !== requestId) {
+						continue;
+					}
+
+					settled = true;
+					clearTimeout(timeout);
+					socket.end();
+					if (envelope.data.error) {
+						rejectResponse(new Error("O kw-terminal recusou a operação no pane"));
+						return;
+					}
+
+					const parsed = params.schema.safeParse(envelope.data.result);
+					if (!parsed.success) {
+						rejectResponse(new Error("Resposta inválida do kw-terminal"));
+						return;
+					}
+					resolveResponse(parsed.data);
+				}
+			},
+			close() {
+				if (!settled) {
+					clearTimeout(timeout);
+					rejectResponse(new Error("Conexão com o kw-terminal encerrada"));
+				}
+			},
+			error(_socket, error) {
+				if (!settled) {
+					clearTimeout(timeout);
+					rejectResponse(error);
+				}
+			},
+		},
+	});
+
+	socket.write(
+		`${JSON.stringify({ id: requestId, method: params.method, params: params.input })}\n`,
+	);
+
+	return await response;
+}
+
+export async function kwTerminalPaneRead(paneId: string) {
+	const read = await requestKwTerminal({
+		method: "pane.read",
+		input: { pane_id: paneId, source: "visible", format: "ansi", strip_ansi: false },
+		schema: KwTerminalPaneReadSchema,
+	});
+
+	return { ansi: read.read.text, revision: read.read.revision };
+}
+
+// Cauda do buffer do pane (linhas quebradas na largura da tela), para o espelho mostrar história
+// e não só a viewport: `lines` conta a partir do fim.
+export async function kwTerminalPaneRecent(paneId: string, lines: number) {
+	const read = await requestKwTerminal({
+		method: "pane.read",
+		input: { pane_id: paneId, source: "recent", lines, format: "ansi", strip_ansi: false },
+		schema: KwTerminalPaneReadSchema,
+	});
+
+	return { ansi: read.read.text, revision: read.read.revision };
+}
+
+export async function kwTerminalPaneSize(paneId: string) {
+	const layout = await requestKwTerminal({
+		method: "pane.layout",
+		input: { pane_id: paneId },
+		schema: KwTerminalPaneLayoutSchema,
+	});
+	const pane = layout.layout.panes.find((candidate) => candidate.pane_id === paneId);
+	if (!pane) {
+		throw new Error("O layout do kw-terminal não contém o pane");
+	}
+
+	return { cols: Math.max(2, pane.rect.width), rows: Math.max(2, pane.rect.height) };
+}
+
+export async function kwTerminalPaneScreen(paneId: string) {
+	const [read, size] = await Promise.all([kwTerminalPaneRead(paneId), kwTerminalPaneSize(paneId)]);
+
+	return { paneId, ...read, ...size };
+}
+
+export async function kwTerminalPaneSendInput(paneId: string, data: string) {
+	const socketPath = await kwTerminalSocketPath();
+
+	// Sequencial de propósito: o daemon reordena texto e tecla enviados no mesmo pacote, então cada
+	// operação espera a anterior para o agent receber exatamente o que foi digitado.
+	for (const op of translatePaneInput(data)) {
+		await requestKwTerminal({
+			method: "keys" in op ? "pane.send_keys" : "pane.send_input",
+			input: { pane_id: paneId, ...op },
+			schema: KwTerminalOkSchema,
+			socketPath,
+		});
+	}
+}
+
+export async function kwTerminalPaneSendText(paneId: string, text: string) {
+	await requestKwTerminal({
+		method: "pane.send_text",
+		input: { pane_id: paneId, text },
+		schema: KwTerminalOkSchema,
+	});
+}
+
+// Se o servidor kw-terminal não está de pé, lançamos `kw-terminal server` headless e aguardamos o
+// socket responder. O cliente TUI que o usuário abrir depois atacha nesse mesmo servidor.
 //
 // O daemon PRECISA nascer fora do cgroup do backend: um filho direto morre no restart do serviço
 // (KillMode control-group derruba o cgroup inteiro), e era assim que deploys encerravam todas as
@@ -207,7 +396,19 @@ function launchKwTerminalServer(): void {
 	}
 }
 
+// O kw-terminal é o único terminal externo: sem ele instalado (ou no Windows, onde ele não roda) a
+// abertura falha com o motivo, sem cair em outro terminal.
+export function kwTerminalAvailable(): boolean {
+	return process.platform !== "win32" && !!Bun.which("kw-terminal", { PATH: spawnEnv().PATH });
+}
+
 async function ensureKwTerminalServerOnce(): Promise<void> {
+	if (!kwTerminalAvailable()) {
+		throw new Error(
+			"Terminal externo indisponível: instale o kw-terminal (Linux ou macOS) para abrir terminais",
+		);
+	}
+
 	if (await kwTerminalServerRunning()) {
 		return;
 	}
@@ -226,10 +427,26 @@ async function ensureKwTerminalServerOnce(): Promise<void> {
 	);
 }
 
-// Argv do cliente TUI que o koworker spawna dentro do emulador quando não há nenhum aberto. `session
-// attach default` atacha no server que ensureKwTerminalServer garante (o mesmo onde vivem os
-// workspaces), espelhando o `tmux attach-session` do caminho tmux.
-export const KW_TERMINAL_CLIENT_ARGV = ["kw-terminal", "session", "attach", "default"];
+// Argv do cliente TUI que o koworker abre quando não há nenhum aberto. `session attach default` atacha
+// no server que ensureKwTerminalServer garante (o mesmo onde vivem os workspaces).
+const KW_TERMINAL_CLIENT_ARGV = ["kw-terminal", "session", "attach", "default"];
+
+// A janela que hospeda o cliente TUI: Alacritty no Linux e Terminal.app no macOS, os emuladores que o
+// koworker sempre usou por padrão. No Windows o kw-terminal não roda, então não há janela.
+export function kwTerminalWindowArgv(title: string): string[] | null {
+	if (process.platform === "linux") {
+		return ["alacritty", "--title", title, "-e", ...KW_TERMINAL_CLIENT_ARGV];
+	}
+	if (process.platform === "darwin") {
+		return [
+			"osascript",
+			"-e",
+			`tell application "Terminal" to do script "${KW_TERMINAL_CLIENT_ARGV.join(" ")}"`,
+		];
+	}
+
+	return null;
+}
 
 // O server kw-terminal não expõe contagem de clientes conectados pela CLI, então detectamos pelo
 // processo: qualquer invocação do TUI (bare `kw-terminal`, `kw-terminal session attach ...`,
@@ -243,8 +460,7 @@ export function isKwTerminalClientProcess(command: string): boolean {
 	);
 }
 
-// Há um cliente TUI do kw-terminal realmente aberto? `pgrep` é unix, como o
-// `sessionHasTerminalAttached` do caminho tmux (o modo kw-terminal também só roda em unix).
+// Há um cliente TUI do kw-terminal realmente aberto? `pgrep` é unix, como o próprio kw-terminal.
 export async function kwTerminalClientAttached(): Promise<boolean> {
 	const proc = Bun.spawn(["pgrep", "-af", "kw-terminal"], {
 		stdout: "pipe",

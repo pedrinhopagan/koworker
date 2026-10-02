@@ -158,7 +158,7 @@ export function Tooltip({
 				onOpenAutoFocus={(event) => event.preventDefault()}
 				onCloseAutoFocus={(event) => event.preventDefault()}
 				className={cn(
-					"px-2 py-1 text-xs text-foreground bg-background border border-border",
+					"rounded-md border border-border bg-popover px-2.5 py-1 text-xs font-medium text-popover-foreground shadow-md",
 					className,
 				)}
 			>

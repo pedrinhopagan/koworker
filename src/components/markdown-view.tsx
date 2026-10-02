@@ -1,15 +1,18 @@
 import { highlightTree } from "@lezer/highlight";
 import type { SyntaxNode, Tree } from "@lezer/common";
+import { useRouter } from "@tanstack/react-router";
 import {
 	createElement,
 	Fragment,
 	memo,
 	type ReactNode,
 	useMemo,
+	type MouseEvent,
 	useSyncExternalStore,
 } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { useLinkCwd } from "@/components/link-cwd";
 import {
 	codeLanguageVersion,
 	loadedCodeLanguage,
@@ -19,6 +22,8 @@ import {
 	subscribeCodeLanguages,
 } from "@/lib/markdown-engine";
 import { cn } from "@/lib/utils";
+import { fileHref, openLinkTarget } from "@/lib/link-navigation";
+import { looksLikeFilePath } from "@/lib/link-paths";
 
 // As classes que o `highlightTree` devolve precisam existir no documento; dentro do editor quem as
 // monta é o `syntaxHighlighting`, aqui é esta chamada — idempotente e feita uma vez por bundle.
@@ -73,7 +78,10 @@ function textOf(doc: string, node: SyntaxNode) {
 // de terceiro, e `javascript:` num link clicável seria execução arbitrária dentro do app.
 function safeHref(raw: string) {
 	const url = raw.trim().replaceAll(/^<|>$/g, "");
-	return /^(https?:|mailto:|#|\/|\.)/i.test(url) ? url : null;
+	if (url.startsWith("/")) {
+		return fileHref(url);
+	}
+	return /^(https?:|mailto:|file:|#|\.)/i.test(url) ? url : null;
 }
 
 function childUrl(doc: string, node: SyntaxNode) {
@@ -167,9 +175,15 @@ function renderInline(doc: string, node: SyntaxNode): ReactNode[] {
 		}
 
 		if (child.name === "InlineCode") {
+			const text = plainText(doc, child);
+			const cited = looksLikeFilePath(text);
 			out.push(
-				<code key={key} className="cm-md-inline-code">
-					{plainText(doc, child)}
+				<code
+					key={key}
+					className={cn("cm-md-inline-code", cited && "md-view-path")}
+					data-path={cited ? text.trim() : undefined}
+				>
+					{text}
 				</code>,
 			);
 			continue;
@@ -405,6 +419,8 @@ export const MarkdownView = memo(function MarkdownView({
 	text: string;
 	className?: string;
 }) {
+	const cwd = useLinkCwd();
+	const router = useRouter({ warn: false });
 	const languages = useCodeLanguages();
 	const content = useMemo(
 		() => renderDocument(text, markdownParser.parse(text)),
@@ -413,8 +429,45 @@ export const MarkdownView = memo(function MarkdownView({
 		[text, languages],
 	);
 
+	function navigate(href: string) {
+		if (router) {
+			void router.navigate({ href });
+			return;
+		}
+		window.location.assign(href);
+	}
+
+	function handleClick(event: MouseEvent<HTMLDivElement>) {
+		if (event.button !== 0 && event.button !== 1) {
+			return;
+		}
+		const target = event.target as HTMLElement;
+		const cited = target.closest<HTMLElement>("code[data-path]");
+		if (cited?.dataset.path) {
+			event.preventDefault();
+			void openLinkTarget(cited.dataset.path, cwd, navigate, event.altKey || event.button === 1);
+			return;
+		}
+
+		const link = target.closest<HTMLAnchorElement>("a[href]");
+		if (!link) {
+			return;
+		}
+		const raw = link.getAttribute("href") ?? "";
+		const filesystemLink = link.href.startsWith("file://") || (cwd && raw.startsWith("."));
+		if (!filesystemLink) return;
+
+		event.preventDefault();
+		void openLinkTarget(raw, cwd, navigate, event.altKey || event.button === 1);
+	}
+
 	return (
-		<div data-component="markdown-view" className={cn("md-view min-w-0", className)}>
+		<div
+			data-component="markdown-view"
+			className={cn("md-view min-w-0", className)}
+			onClick={handleClick}
+			onAuxClick={handleClick}
+		>
 			{content}
 		</div>
 	);

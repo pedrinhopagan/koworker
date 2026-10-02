@@ -3,8 +3,6 @@ import { basename } from "node:path";
 import { RESERVED_KOWORKER_FOLDERS } from "@/constants/koworker";
 import { protectedProcedure } from "../auth/context";
 import type { tasks } from "../db/connection";
-import { dbCategories } from "../db/categories";
-import { dbPriorities } from "../db/priorities";
 import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
 import { mapWithConcurrency } from "../helpers/concurrency";
@@ -66,8 +64,6 @@ type VaultGroup = {
 	folderPath?: string;
 	fileCount: number;
 	lastEditedAt: number;
-	categoryId?: string;
-	priorityId?: string;
 	done?: boolean;
 };
 
@@ -159,25 +155,12 @@ export const vaultRouter = {
 		const project = await dbProjects.getById(input.projectId);
 		if (!project) throw new Error("Projeto não encontrado");
 
-		const [priorities, categories] = await Promise.all([
-			dbPriorities.getAll(),
-			dbCategories.getAll(),
-		]);
-		const priority = priorities[0];
-		const category = categories[0];
-		if (!priority || !category) {
-			throw new Error("Defina ao menos uma prioridade e uma categoria antes de promover");
-		}
-
 		const file = await getVaultFile({ projectRoute: project.main_route, name: input.name });
 		if (!file) throw new Error("Arquivo não encontrado");
 
 		const task = await createTaskStorage({
 			projectId: project.id,
 			title: file.title,
-			priorityId: priority.id,
-			categoryId: category.id,
-			complexity: "medio",
 			seed: false,
 		});
 		if (!task) throw new Error("Tarefa não encontrada após a criação");
@@ -301,18 +284,10 @@ export const vaultRouter = {
 		const existing = await dbTasks.getByFolderPath({ projectId: project.id, folderPath });
 		if (existing) throw new Error("Essa pasta já pertence a uma tarefa");
 
-		const [priorities, categories, storageKeys, firstContent] = await Promise.all([
-			dbPriorities.getAll(),
-			dbCategories.getAll(),
+		const [storageKeys, firstContent] = await Promise.all([
 			dbTasks.listStorageKeys(),
 			readFirstMarkdownContent({ projectRoute: project.main_route, folderPath }),
 		]);
-		const priority = priorities[0];
-		const category = categories[0];
-		if (!priority || !category) {
-			throw new Error("Defina ao menos uma prioridade e uma categoria antes de adotar");
-		}
-
 		const id = crypto.randomUUID();
 		const storageKey = allocateStorageKey({
 			id,
@@ -327,8 +302,6 @@ export const vaultRouter = {
 				firstContent ? resolveDisplayTitle({ firstContent }).title : undefined,
 				"tarefa",
 			),
-			priority_id: priority.id,
-			category_id: category.id,
 		});
 
 		await PubSub.publish("tasks", project.id, {
@@ -426,8 +399,6 @@ async function readProjectVault(project: { id: string; main_route: string }): Pr
 				folderPath: group.task.folder_path,
 				fileCount: group.files.length,
 				lastEditedAt: maxMtime(group.files),
-				categoryId: group.task.category_id ?? undefined,
-				priorityId: group.task.priority_id ?? undefined,
 				done: Boolean(group.task.done),
 			})),
 	];

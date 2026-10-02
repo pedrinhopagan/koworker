@@ -1,3 +1,4 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	createLazyFileRoute,
 	Link,
@@ -19,17 +20,17 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
+import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
 import {
 	DocMobileActionsDrawer,
 	DocSheetActionButton,
 	DocSheetDivider,
 } from "@/components/doc-mobile-actions-drawer";
-import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
 import { DocToolbar } from "@/components/doc-toolbar";
-import { TaskTitleInput } from "@/components/tasks/task-meta-controls";
+import { TaskTitleInput } from "@/components/tasks/task-edit-controls";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -38,11 +39,11 @@ import { Dialog } from "@/components/ui/dialog";
 import { Tooltip } from "@/components/ui/tooltip";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
 import { useProjectFocus } from "@/hooks/use-project-focus";
-import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { useSkillCategoriesQuery } from "@/hooks/use-skill-categories";
 import { useSkillQuery } from "@/hooks/use-skills";
-import { LucideIcon } from "@/lib/lucide-icon";
 import { copyToClipboard } from "@/lib/build-prompt";
+import { LucideIcon } from "@/lib/lucide-icon";
+import { errorMessage } from "@/lib/orpc-errors";
 import { openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
@@ -54,10 +55,10 @@ import { SkillDocumentFrontmatter } from "../-components/skill-document-frontmat
 import { SkillFilesStrip } from "../-components/skill-files-strip";
 import { SkillHeaderActions } from "../-components/skill-header-actions";
 import { SkillStandardizeDialog } from "../-components/skill-standardize-dialog";
+import { getSkillConflictNature } from "../-utils/skill-page-actions";
 import { useSkillDocumentAutosave } from "../-utils/use-skill-document-autosave";
 import { useSkillMutations } from "../-utils/use-skill-mutations";
 import { useSkillSettingsMutation } from "../-utils/use-skill-settings";
-import { getSkillConflictNature } from "../-utils/skill-page-actions";
 
 export const Route = createLazyFileRoute("/_app/skills/$slug/")({
 	component: SkillPage,
@@ -213,18 +214,10 @@ function SkillEditor({
 	const [appearanceOpen, setAppearanceOpen] = useState(false);
 	const [actionsOpen, setActionsOpen] = useState(false);
 	const [activeVariantPath, setActiveVariantPath] = useState(skill.primaryPath);
-
-	// Skill é global: a sessão não carrega projeto (não troca o projeto selecionado ao abrir pelo switcher)
-	// e a chave ignora o projeto, então a mesma skill grava uma vez só no MRU. Sem subtitle: o slug já é o
-	// título, repeti-lo embaixo era ruído.
-	const { pinned, togglePin } = useRecordDocSession({
-		key: docSessionKey({ kind: "skill", variantPath: activeVariantPath }),
-		kind: "skill",
-		title: skill.label,
-		icon: skill.icon,
-		iconColor: skill.color,
-		nav: { to: "/skills/$slug", params: { slug: skill.slug } },
-	});
+	// Arquivo aberto no editor dentro da variante ativa. SKILL.md é o documento da skill (frontmatter
+	// + corpo, autosave da página); qualquer outro arquivo de texto da pasta abre pelo pane comum.
+	const [activeFile, setActiveFile] = useState("SKILL.md");
+	const queryClient = useQueryClient();
 
 	const settingsMutation = useSkillSettingsMutation();
 	const categoriesQuery = useSkillCategoriesQuery();
@@ -241,10 +234,21 @@ function SkillEditor({
 
 	useEffect(() => () => setReading(false), [setReading]);
 
+	// Flush do que está aberto: o pane roteia pro autosave do SKILL.md ou pro debounce do arquivo da
+	// faixa. Tudo que exige "gravado antes de agir" (copiar, zipar, renomear, sair) passa por aqui.
+	const flushPending = useCallback(async () => {
+		await paneRef.current?.flush();
+	}, []);
+
 	const activeVariant =
 		variants.find((variant) => variant.path === activeVariantPath) ?? variants[0];
 	const hasConflict = new Set(variants.map((variant) => variant.contentHash)).size > 1;
-	const hasMultipleVariants = variants.length > 1;
+	const distinctVariants = variants.filter(
+		(variant, index) =>
+			variants.findIndex((candidate) => candidate.canonicalRoot === variant.canonicalRoot) ===
+			index,
+	);
+	const hasMultipleVariants = distinctVariants.length > 1;
 
 	const saveDocument = useCallback(
 		async (document: {
@@ -271,7 +275,7 @@ function SkillEditor({
 		enableBeforeUnload: () => autosave.pending,
 		shouldBlockFn: async () => {
 			try {
-				await autosave.flush();
+				await flushPending();
 				return false;
 			} catch {
 				return true;
@@ -308,7 +312,7 @@ function SkillEditor({
 	}
 
 	async function renameSlug(newSlug: string) {
-		await autosave.flush();
+		await flushPending();
 		await renameSkill({
 			slug: skill.slug,
 			newSlug,
@@ -318,19 +322,23 @@ function SkillEditor({
 				contentHash: variant.contentHash,
 			})),
 		});
-		await navigate({ to: "/skills/$slug", params: { slug: newSlug }, replace: true });
+		await navigate({
+			to: "/skills/$slug",
+			params: { slug: newSlug },
+			replace: true,
+		});
 	}
 
 	async function selectVariant(path: string) {
 		if (path === activeVariantPath) return;
-		await autosave.flush();
+		await flushPending();
 		setActiveVariantPath(path);
 	}
 
 	// Voltar pelo histórico preserva a busca e os filtros da listagem; sem entrada anterior (abriu a
 	// skill direto pela URL) cai na listagem limpa.
 	async function navigateBack() {
-		await autosave.flush();
+		await flushPending();
 		if (canGoBack) {
 			router.history.back();
 			return;
@@ -342,14 +350,14 @@ function SkillEditor({
 	const skillDir = activeVariant?.dir ?? skill.primaryDir;
 
 	async function copySkillZip() {
-		await autosave.flush();
+		await flushPending();
 		await shareFolderAsZip(skillDir);
 	}
 
 	const multiSource = skill.sources.length > 1;
 
 	async function deleteActiveCopy() {
-		await autosave.flush();
+		await flushPending();
 		setConfirmingDelete(false);
 		removeSkill({
 			slug: skill.slug,
@@ -361,7 +369,7 @@ function SkillEditor({
 	}
 
 	async function deleteEverywhere() {
-		await autosave.flush();
+		await flushPending();
 		removeAllSkill({ slug: skill.slug }, () => {
 			setConfirmingDelete(false);
 			navigate({ to: "/skills" });
@@ -379,19 +387,64 @@ function SkillEditor({
 		variantPath: activeVariantPath,
 	};
 
+	const isSkillFile = activeFile === "SKILL.md";
+	const fileInput = { ...variantTarget, relativePath: activeFile };
+	const fileQuery = useQuery({
+		...orpc.skills.readFile.queryOptions({ input: fileInput }),
+		enabled: !isSkillFile,
+	});
+	const writeFileMutation = useMutation(orpc.skills.writeFile.mutationOptions());
+	const fileHashRef = useRef("");
+	useEffect(() => {
+		if (fileQuery.data) {
+			fileHashRef.current = fileQuery.data.hash;
+		}
+	}, [fileQuery.data]);
+
+	// Arquivo removido no disco (ou ausente na variante recém-escolhida) volta pro SKILL.md, que toda
+	// pasta de skill tem.
+	useEffect(() => {
+		if (!activeVariant?.files.some((file) => file.path === activeFile)) {
+			setActiveFile("SKILL.md");
+		}
+	}, [activeVariant, activeFile]);
+
+	async function openFile(path: string) {
+		if (path === activeFile) return;
+		await flushPending();
+		setActiveFile(path);
+	}
+
+	// O hash da última leitura viaja junto: se um agent editou o mesmo arquivo no disco, a escrita
+	// falha em vez de sobrescrever. A resposta traz o hash novo e reescreve o cache da leitura —
+	// reabrir o arquivo depois não pode trazer o texto velho de volta.
+	async function writeActiveFile(content: string) {
+		const result = await writeFileMutation.mutateAsync({
+			...fileInput,
+			content,
+			expectedHash: fileHashRef.current,
+		});
+		fileHashRef.current = result.hash;
+		queryClient.setQueryData(orpc.skills.readFile.queryOptions({ input: fileInput }).queryKey, {
+			content,
+			hash: result.hash,
+		});
+		queryClient.invalidateQueries({ queryKey: orpc.skills.get.key() });
+	}
+
 	async function copyPath(path: string) {
-		await autosave.flush();
+		await flushPending();
 		const copied = await copyToClipboard(path);
 		toast[copied ? "success" : "error"](copied ? "Caminho copiado" : "Falha ao copiar caminho");
 	}
 
 	async function openSkillFolder() {
-		await autosave.flush();
+		await flushPending();
 		await openFolderInOs(skillDir);
 	}
 
 	async function copyFile(relativePath: string) {
-		await autosave.flush();
+		await flushPending();
 		const { content } = await orpc.skills.readFile.call({
 			...variantTarget,
 			relativePath,
@@ -401,7 +454,7 @@ function SkillEditor({
 	}
 
 	async function copySkillText() {
-		await autosave.flush();
+		await flushPending();
 		const result = await orpc.skills.exportText.call(variantTarget);
 		const copied = await copyToClipboard(result.content);
 		if (!copied) {
@@ -492,12 +545,10 @@ function SkillEditor({
 									onCopySkill={() => copyFile("SKILL.md")}
 									onCopyText={copySkillText}
 									onCopyZip={copySkillZip}
-									flush={autosave.flush}
+									flush={flushPending}
 								/>
 								<SkillHeaderActions
-									pinned={pinned}
 									onAppearance={() => setAppearanceOpen(true)}
-									onTogglePin={togglePin}
 									onReading={() => setReading(true)}
 									onCollapse={() => paneRef.current?.collapseAll()}
 									onExpand={() => paneRef.current?.expandAll()}
@@ -547,7 +598,7 @@ function SkillEditor({
 								onCopySkill={() => copyFile("SKILL.md")}
 								onCopyText={copySkillText}
 								onCopyZip={copySkillZip}
-								flush={autosave.flush}
+								flush={flushPending}
 							/>
 						</div>
 						<DocSheetDivider />
@@ -556,8 +607,6 @@ function SkillEditor({
 							onExpand={() => paneRef.current?.expandAll()}
 							onCopyPath={() => runAction(copyPath(`${skillDir}/SKILL.md`))}
 							onReading={() => setReading(true)}
-							pinned={pinned}
-							onTogglePin={togglePin}
 							share={{
 								onOpenInOs: () => runAction(openSkillFolder()),
 								onCopyZip: () => runAction(copySkillZip()),
@@ -594,7 +643,7 @@ function SkillEditor({
 										</div>
 									)}
 									{hasMultipleVariants &&
-										variants.map((variant) => {
+										distinctVariants.map((variant) => {
 											const isActive = variant.path === activeVariantPath;
 											return (
 												<button
@@ -657,48 +706,67 @@ function SkillEditor({
 			)}
 
 			{/* Mesma estrutura de tarefa/vault: overlay em tela cheia na leitura, `display:contents`
-			    fora dela. Keyado pela variante ativa pra remontar o editor ao trocar de tab. */}
+			    fora dela. Keyado por variante + arquivo aberto pra remontar o editor a cada troca. */}
 			<div className={reading ? "fixed inset-0 z-50 flex flex-col bg-background" : "contents"}>
 				<DocEditorPane
-					key={activeVariantPath}
+					key={`${activeVariantPath}:${activeFile}`}
 					ref={paneRef}
-					fileName="SKILL.md"
+					fileName={isSkillFile || fileQuery.data ? activeFile : null}
+					emptyState={
+						fileQuery.error
+							? errorMessage(fileQuery.error, "Não foi possível abrir o arquivo")
+							: "Carregando arquivo..."
+					}
 					sessionKey={docSessionKey({
 						kind: "skill",
-						variantPath: activeVariantPath,
+						variantPath: isSkillFile ? activeVariantPath : `${activeVariant.dir}/${activeFile}`,
 					})}
-					content={activeVariant?.content ?? content}
+					content={
+						isSkillFile ? (activeVariant?.content ?? content) : (fileQuery.data?.content ?? "")
+					}
 					folderPath={activeVariant?.dir ?? skill.primaryDir}
+					linkCwd={activeVariant?.dir ?? skill.primaryDir}
 					documentMaxWidth="52rem"
-					externalSave={{
-						schedule: (content) => autosave.schedule({ content }),
-						flush: autosave.flush,
-					}}
+					externalSave={
+						isSkillFile
+							? {
+									schedule: (content) => autosave.schedule({ content }),
+									flush: autosave.flush,
+								}
+							: undefined
+					}
+					writeFile={isSkillFile ? undefined : ({ content }) => writeActiveFile(content)}
 					beforeEditor={
 						<>
 							<SkillFilesStrip
 								files={activeVariant.files}
+								activePath={activeFile}
+								onOpen={(file) => runAction(openFile(file.path))}
 								onCopyContent={(file) => runAction(copyFile(file.path))}
 								onCopyPath={(file) => runAction(copyPath(file.path))}
 								onOpenFolder={() => runAction(openSkillFolder())}
 							/>
-							<SkillDocumentFrontmatter
-								slug={skill.slug}
-								description={autosave.document.description}
-								metadata={autosave.document.metadata}
-								status={autosave.status}
-								renaming={renaming}
-								onSlugCommit={renameSlug}
-								onDescriptionChange={(description) => autosave.schedule({ description })}
-								onDescriptionCommit={() => runAction(autosave.flush())}
-								onMetadataChange={(metadata) => autosave.schedule({ metadata }, true)}
-							/>
+							{isSkillFile && (
+								<SkillDocumentFrontmatter
+									slug={skill.slug}
+									description={autosave.document.description}
+									metadata={autosave.document.metadata}
+									status={autosave.status}
+									renaming={renaming}
+									onSlugCommit={renameSlug}
+									onDescriptionChange={(description) => autosave.schedule({ description })}
+									onDescriptionCommit={() => runAction(autosave.flush())}
+									onMetadataChange={(metadata) => autosave.schedule({ metadata }, true)}
+								/>
+							)}
 						</>
 					}
-					onPasteFrontmatter={applyPastedFrontmatter}
+					onPasteFrontmatter={isSkillFile ? applyPastedFrontmatter : undefined}
 					reading={reading}
 					onExitReading={() => setReading(false)}
-					onExit={() => void navigate({ to: "/skills" })}
+					onExit={() =>
+						isSkillFile ? void navigate({ to: "/skills" }) : runAction(openFile("SKILL.md"))
+					}
 				/>
 				{reading ? (
 					<Button
@@ -778,7 +846,7 @@ function SkillEditor({
 			<SkillStandardizeDialog
 				open={confirmingStandardize}
 				label={activeVariantLabel}
-				flush={autosave.flush}
+				flush={flushPending}
 				loadPreview={async () => await orpc.skills.standardizePreview.call(variantTarget)}
 				apply={async (planHash) => await standardize({ ...variantTarget, planHash })}
 				onClose={() => setConfirmingStandardize(false)}

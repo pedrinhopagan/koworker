@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { CalendarClock } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { docSheetAction } from "@/components/doc-mobile-actions-drawer";

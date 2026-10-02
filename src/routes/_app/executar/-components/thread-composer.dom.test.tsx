@@ -2,7 +2,6 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { screen, waitFor } from "@testing-library/react";
 
 import type { AgentStep } from "@/lib/agent-stream";
-import { get } from "../../../../../tests/web/dom";
 import {
 	cleanup,
 	fireEvent,
@@ -254,31 +253,32 @@ describe("ThreadComposer", () => {
 		expect(screen.getByText("A nova sessão lê a tarefa antes de começar.")).toBeTruthy();
 	});
 
-	test("claude troca o modelo por atalho e não oferece effort inexistente na CLI", async () => {
-		const commands: string[] = [];
+	test("o acessório da barra entra entre o menu de skills e o microfone", () => {
 		renderWithQuery(
 			<div data-theme-root>
 				<ThreadComposer
-					draftKey="draft-configuracao"
+					draftKey="draft-acessorio"
 					cli="claude"
+					accessory={<button type="button">Modelo</button>}
 					disabled={false}
 					pending={false}
 					hint=""
 					onSubmit={() => {}}
-					onCommand={(command) => {
-						commands.push(command);
-					}}
 				/>
 			</div>,
 		);
-		const user = userEvent.setup();
 
-		expect(screen.getByLabelText("Abrir skills e comandos")).toBeTruthy();
-		await user.click(screen.getByLabelText("Selecionar modelo da sessão"));
-		await user.click(get("custom-select-item", { value: "opus" }));
+		const toolbar = screen.getByLabelText("Abrir skills e comandos").parentElement!;
+		const labels = [...toolbar.querySelectorAll("button")].map(
+			(button) => button.getAttribute("aria-label") ?? button.textContent,
+		);
 
-		expect(commands).toEqual(["/model opus"]);
-		expect(screen.queryByLabelText("Selecionar effort da sessão")).toBeNull();
+		expect(labels).toEqual([
+			"Abrir skills e comandos",
+			"Modelo",
+			"Ditar continuação",
+			"Enviar continuação",
+		]);
 	});
 
 	test("abre skills e comandos por toque sem exigir que a pessoa digite barra", async () => {
@@ -299,47 +299,6 @@ describe("ThreadComposer", () => {
 		await user.click(screen.getByLabelText("Abrir skills e comandos"));
 
 		expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("/");
-	});
-
-	test("mantém o modelo observado visível quando a troca está temporariamente bloqueada", () => {
-		renderWithQuery(
-			<div data-theme-root>
-				<ThreadComposer
-					draftKey="draft-modelo-ocupado"
-					cli="claude"
-					currentModel="sonnet"
-					modelSwitchDisabled
-					disabled={false}
-					pending={false}
-					hint=""
-					onSubmit={() => {}}
-					onCommand={() => {}}
-				/>
-			</div>,
-		);
-
-		const trigger = screen.getByLabelText("Selecionar modelo da sessão");
-		expect(trigger.hasAttribute("disabled")).toBe(true);
-		expect(screen.getByText("Sonnet")).toBeTruthy();
-	});
-
-	test("codex não oferece atalhos que a CLI não interpreta por texto", () => {
-		renderWithQuery(
-			<div data-theme-root>
-				<ThreadComposer
-					draftKey="draft-codex-sem-atalho"
-					cli="codex"
-					disabled={false}
-					pending={false}
-					hint=""
-					onSubmit={() => {}}
-					onCommand={() => {}}
-				/>
-			</div>,
-		);
-
-		expect(screen.queryByLabelText("Selecionar modelo da sessão")).toBeNull();
-		expect(screen.queryByLabelText("Selecionar effort da sessão")).toBeNull();
 	});
 });
 

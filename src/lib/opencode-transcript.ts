@@ -8,7 +8,7 @@ import { trim } from "@/lib/agent-stream";
 // enquanto o modelo escreve e congela quando o passo termina — então a tradução não é linha a linha
 // como no claude/codex, e sim estado que acompanha cada parte até ela valer um bloco.
 
-const DETAIL_MAX_CHARS = 400;
+export const DETAIL_MAX_CHARS = 400;
 
 const PartDataSchema = z.object({
 	type: z.string(),
@@ -35,8 +35,9 @@ export type OpencodePartRow = {
 
 // Os rótulos seguem o vocabulário dos outros tradutores: quem desenha o passo lê o mesmo texto que
 // aparece na tela, e os ícones casam pela chave do rótulo.
-const TOOL_LABELS: Record<string, string> = {
+export const TOOL_LABELS: Record<string, string> = {
 	bash: "Terminal",
+	shell: "Terminal",
 	read: "Ler arquivo",
 	edit: "Editar arquivo",
 	write: "Escrever arquivo",
@@ -65,7 +66,7 @@ const DETAIL_KEYS = [
 	"skill",
 ];
 
-function detailOf(input: Record<string, unknown> | undefined) {
+export function detailOf(input: Record<string, unknown> | undefined) {
 	const value = input
 		? DETAIL_KEYS.map((key) => input[key]).find(
 				(entry) => typeof entry === "string" && entry.trim(),

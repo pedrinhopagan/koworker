@@ -2,8 +2,6 @@ import {
 	Check,
 	FileArchive,
 	FolderOpen,
-	Pin,
-	PinOff,
 	SlidersHorizontal,
 	SquareArrowOutUpRight,
 	Tag,
@@ -26,7 +24,7 @@ import { useSkillSettingsMutation } from "../-utils/use-skill-settings";
 
 // Menu único da skill (card e detalhe): aparência e categoria são coisas separadas. "Aparência" abre
 // o dialog; "Categoria" abre um submenu à direita que move a skill direto, sem dialog. No card ele
-// recebe `docActions` (fixar/abrir/zip) e roda controlado, pra abrir tanto pelo botão (clique
+// recebe `docActions` (abrir/zip) e roda controlado, pra abrir tanto pelo botão (clique
 // esquerdo) quanto pelo clique direito no card; no detalhe vem sem isso e cai no modo descontrolado.
 export function SkillSettingsMenu({
 	skill,
@@ -44,8 +42,6 @@ export function SkillSettingsMenu({
 	open?: boolean;
 	onOpenChange?: (open: boolean) => void;
 	docActions?: {
-		pinned: boolean;
-		onTogglePin: () => void;
 		onOpen: () => void;
 		onOpenInOs: () => void;
 		onShareZip: () => void;
@@ -96,10 +92,6 @@ export function SkillSettingsMenu({
 				{docActions && (
 					<>
 						<DropdownMenuSeparator />
-						<DropdownMenuItem onSelect={docActions.onTogglePin}>
-							{docActions.pinned ? <PinOff /> : <Pin />}
-							{docActions.pinned ? "Desfixar sessão" : "Fixar sessão"}
-						</DropdownMenuItem>
 						<DropdownMenuItem onSelect={docActions.onOpen}>
 							<SquareArrowOutUpRight />
 							Abrir

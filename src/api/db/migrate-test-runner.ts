@@ -1,4 +1,4 @@
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import Database from "bun:sqlite";
 
@@ -27,16 +27,65 @@ await db
 	.execute();
 await db
 	.insertInto("projects")
-	.values({
-		id: "aaaaaaaa-0000-4000-8000-000000000001",
-		name: "Projeto",
-		color: "#000000",
-		display_order: 0,
-		main_route: projectRoute,
-		hide_terminal: 0,
-		task_layout_version: 1,
-		created_at: 1,
-	})
+	.values([
+		{
+			id: "aaaaaaaa-0000-4000-8000-000000000001",
+			name: "Projeto",
+			color: "#000000",
+			display_order: 0,
+			main_route: projectRoute,
+			hide_terminal: 0,
+			task_layout_version: 1,
+			created_at: 1,
+		},
+		{
+			id: "bbbbbbbb-0000-4000-8000-000000000001",
+			name: "Outro projeto",
+			color: "#000000",
+			display_order: 1,
+			main_route: join(root, "other-project"),
+			hide_terminal: 0,
+			task_layout_version: 1,
+			created_at: 2,
+		},
+	])
+	.execute();
+await db
+	.insertInto("task_groups")
+	.values([
+		{
+			id: "11111111-0000-4000-8000-000000000001",
+			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
+			name: "Preservada",
+			color: "#6366f1",
+			display_order: 0,
+			created_at: 1,
+		},
+		{
+			id: "22222222-0000-4000-8000-000000000002",
+			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
+			name: "Preta 1",
+			color: "#000000",
+			display_order: 1,
+			created_at: 2,
+		},
+		{
+			id: "33333333-0000-4000-8000-000000000003",
+			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
+			name: "Preta 2",
+			color: "#000000",
+			display_order: 2,
+			created_at: 3,
+		},
+		{
+			id: "44444444-0000-4000-8000-000000000004",
+			project_id: "bbbbbbbb-0000-4000-8000-000000000001",
+			name: "Outro projeto",
+			color: "#000000",
+			display_order: 0,
+			created_at: 4,
+		},
+	])
 	.execute();
 await db
 	.insertInto("project_routes")
@@ -48,6 +97,7 @@ await db
 			route: projectRoute,
 			icon: "Sparkles",
 			command: "prime-agent",
+			background: 0,
 			display_order: 0,
 			created_at: 1,
 		},
@@ -58,6 +108,7 @@ await db
 			route: projectRoute,
 			icon: "Cpu",
 			command: "claude --dangerously-skip-permissions",
+			background: 0,
 			display_order: 1,
 			created_at: 2,
 		},
@@ -68,6 +119,7 @@ await db
 			route: projectRoute,
 			icon: "FolderOpen",
 			command: "bun run jogo:iniciar",
+			background: 0,
 			display_order: 2,
 			created_at: 3,
 		},
@@ -78,6 +130,7 @@ await db
 			route: projectRoute,
 			icon: "FolderOpen",
 			command: "bun run deploy",
+			background: 0,
 			display_order: 3,
 			created_at: 4,
 		},
@@ -122,7 +175,6 @@ await db
 			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
 			folder_path: ".koworker/adotada",
 			title: "Primeira",
-			complexity: "medio",
 			display_order: 0,
 			done: 0,
 			created_at: 1,
@@ -132,7 +184,6 @@ await db
 			project_id: "aaaaaaaa-0000-4000-8000-000000000001",
 			folder_path: ".koworker/adotada",
 			title: "Segunda",
-			complexity: "medio",
 			display_order: 1,
 			done: 0,
 			created_at: 2,
@@ -147,6 +198,11 @@ const first = await db
 	.select(["t.id", "t.folder_path", "t.storage_key", "t.storage_slug"])
 	.orderBy("t.created_at", "asc")
 	.execute();
+const firstGroups = await db
+	.selectFrom("task_groups as tg")
+	.select(["tg.id", "tg.color"])
+	.orderBy("tg.id")
+	.execute();
 ensureDbSchema();
 const firstSessions = await db
 	.selectFrom("agent_sessions")
@@ -157,6 +213,11 @@ const second = await db
 	.selectFrom("tasks as t")
 	.select(["t.id", "t.folder_path", "t.storage_key", "t.storage_slug"])
 	.orderBy("t.created_at", "asc")
+	.execute();
+const secondGroups = await db
+	.selectFrom("task_groups as tg")
+	.select(["tg.id", "tg.color"])
+	.orderBy("tg.id")
 	.execute();
 const secondSessions = await db
 	.selectFrom("agent_sessions")
@@ -176,17 +237,26 @@ const pathIndex = sqlite
 		"SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'tasks_project_folder_path_live_unique_idx'",
 	)
 	.get();
+const tables = sqlite
+	.query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type = 'table'")
+	.all()
+	.map((row) => row.name);
 sqlite.close();
+const backups = (await readdir(root)).filter((name) => name.includes(".bak-"));
 
 console.log(
 	JSON.stringify({
 		content: await Bun.file(filePath).text(),
 		first,
+		firstGroups,
 		mtimePreserved: (await stat(filePath)).mtimeMs === before.mtimeMs,
 		pathIndex,
 		projectRoutes,
 		firstSessions,
 		second,
+		secondGroups,
 		secondSessions,
+		tables,
+		backups,
 	}),
 );

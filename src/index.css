@@ -2,67 +2,53 @@
 @import "tw-animate-css";
 @import "@xterm/xterm/css/xterm.css";
 @import "./styles/markdown.css";
+@import "./styles/vault-branched-menu.css";
+@import "./styles/mobile-bottom-nav.css";
+@import "./styles/toast.css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-	--radius: 0rem;
-
-	/* Fontes trocáveis em runtime (a store sobrescreve estas vars no root).
-	   Precisam ficar fora de `@theme inline`, que inlineia o valor literal e
-	   mataria a reatividade — mesmo motivo das cores indiretarem por var(). */
-	--app-font: "IBM Plex Sans", system-ui, sans-serif;
-	--reading-font: "Atkinson Hyperlegible", system-ui, sans-serif;
+	--radius: 0.625rem;
+	--control-radius: 0.5rem;
+	--app-font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+	--reading-font: var(--app-font);
 }
 
 .light {
-	/* Tema claro "book": base de papel bege/amarelada alinhada ao terminal.
-	   As superfícies elevadas ficam em creme quente — nunca branco puro — e o texto
-	   secundário/bordas são escuros o bastante pra ler sobre o papel. */
-	--background: oklch(0.936 0.036 92);
-	--foreground: oklch(0.3 0.014 74);
-
-	/* Superfície das barras (TabBar, sidebar, StatusBar): papel mais fundo que o bg */
-	--chrome: oklch(0.902 0.036 90);
-
-	--card: oklch(0.96 0.028 92);
-	--card-foreground: oklch(0.3 0.014 74);
-
-	--popover: oklch(0.963 0.026 92);
-	--popover-foreground: oklch(0.3 0.014 74);
-
-	--select: oklch(0.948 0.03 92);
-	--select-foreground: oklch(0.42 0.024 72);
-
-	--primary: oklch(0.62 0.11 75);
-	--primary-foreground: oklch(0.965 0.03 92);
-
-	--secondary: oklch(0.893 0.036 90);
-	--secondary-foreground: oklch(0.3 0.014 74);
-
-	--muted: oklch(0.893 0.036 90);
-	--muted-foreground: oklch(0.435 0.026 72);
-
-	/* Superfície de realce (hover/focus de itens): papel um degrau mais fundo que o bg, texto escuro.
-	   É superfície sutil, não cor de marca — por isso todo `hover:bg-accent` fica legível sem par. */
-	--accent: oklch(0.87 0.035 90);
-	--accent-foreground: oklch(0.3 0.014 74);
-
-	--destructive: oklch(0.53 0.15 25);
-	--destructive-foreground: oklch(0.965 0.03 92);
-
-	--warning: oklch(0.6 0.12 55);
-	--warning-foreground: oklch(0.3 0.014 74);
-
-	--success: oklch(0.62 0.11 75);
-	--success-foreground: oklch(0.965 0.03 92);
-
-	--border: oklch(0.78 0.032 88);
-
-	--input: oklch(0.795 0.032 88);
-
-	--ring: oklch(0.62 0.11 75);
-
+	color-scheme: light;
+	--background: oklch(0.992 0 0);
+	--foreground: var(--color-zinc-800);
+	--chrome: var(--color-zinc-50);
+	--card: var(--color-white);
+	--card-foreground: var(--foreground);
+	--popover: var(--card);
+	--popover-foreground: var(--foreground);
+	--select: var(--card);
+	--select-foreground: var(--foreground);
+	--primary: oklch(0.488 0.217 264);
+	--primary-foreground: var(--color-white);
+	--secondary: var(--color-zinc-50);
+	--secondary-foreground: var(--foreground);
+	--muted: var(--color-zinc-50);
+	--muted-foreground: var(--color-zinc-500);
+	--accent: var(--color-zinc-100);
+	--accent-foreground: var(--color-zinc-900);
+	--destructive: var(--color-red-600);
+	--destructive-foreground: var(--color-white);
+	--warning: var(--color-amber-700);
+	--warning-foreground: var(--color-amber-950);
+	--success: var(--color-emerald-700);
+	--success-foreground: var(--color-white);
+	--border: var(--color-zinc-200);
+	--input: var(--color-zinc-300);
+	--ring: var(--primary);
+	--sidebar: var(--color-zinc-50);
+	--sidebar-foreground: var(--foreground);
+	--sidebar-muted-foreground: var(--muted-foreground);
+	--sidebar-row-hover: var(--background);
+	--sidebar-row-selected: var(--card);
+	--message: var(--accent);
 	--syntax-keyword: oklch(0.45 0.15 25);
 	--syntax-string: oklch(0.42 0.11 130);
 	--syntax-number: oklch(0.45 0.1 70);
@@ -71,51 +57,39 @@
 }
 
 .dark {
-	/* WorkOpilot theme - earthy/terminal aesthetic (dark mode) */
-	/* bg alinhado ao terminal Alacritty (#1a1916) */
-	--background: oklch(0.213 0.006 95);
-	--foreground: oklch(0.88 0 90);
-
-	/* Superfície das barras (TabBar, sidebar, StatusBar): divisão sutil sobre o bg */
-	--chrome: oklch(0.245 0.006 95);
-
-	--card: oklch(0.26 0 90);
-	--card-foreground: oklch(0.88 0 90);
-
-	--popover: oklch(0.29 0 90);
-	--popover-foreground: oklch(0.88 0 90);
-
-	--select: oklch(0.26 0 90);
-	--select-foreground: oklch(0.61 0 90);
-
-	--primary: oklch(0.78 0.11 75);
-	--primary-foreground: oklch(0.23 0 90);
-
-	--secondary: oklch(0.32 0 90);
-	--secondary-foreground: oklch(0.88 0 90);
-
-	--muted: oklch(0.29 0 90);
-	--muted-foreground: oklch(0.7 0 90);
-
-	/* Superfície de realce (hover/focus): cinza um degrau acima do card, texto claro. */
-	--accent: oklch(0.32 0 90);
-	--accent-foreground: oklch(0.88 0 90);
-
-	--destructive: oklch(0.58 0.133 24);
-	--destructive-foreground: oklch(0.88 0 90);
-
-	--warning: oklch(0.66 0.104 43);
-	--warning-foreground: oklch(0.23 0 90);
-
-	--success: oklch(0.78 0.11 75);
-	--success-foreground: oklch(0.23 0 90);
-
-	--border: oklch(0.35 0.011 85);
-
-	--input: oklch(0.35 0.011 85);
-
-	--ring: oklch(0.78 0.11 75);
-
+	color-scheme: dark;
+	--background: var(--color-neutral-950);
+	--foreground: var(--color-neutral-100);
+	--chrome: var(--background);
+	--card: color-mix(in srgb, var(--background) 97%, white);
+	--card-foreground: var(--foreground);
+	--popover: var(--card);
+	--popover-foreground: var(--foreground);
+	--select: var(--card);
+	--select-foreground: var(--foreground);
+	--primary: oklch(0.571 0.21 264);
+	--primary-foreground: var(--color-white);
+	--secondary: rgb(255 255 255 / 3%);
+	--secondary-foreground: var(--foreground);
+	--muted: rgb(255 255 255 / 3%);
+	--muted-foreground: color-mix(in srgb, var(--color-neutral-500) 90%, white);
+	--accent: rgb(255 255 255 / 4%);
+	--accent-foreground: var(--foreground);
+	--destructive: var(--color-red-500);
+	--destructive-foreground: var(--color-white);
+	--warning: var(--color-amber-400);
+	--warning-foreground: var(--color-amber-950);
+	--success: var(--color-emerald-400);
+	--success-foreground: var(--color-emerald-950);
+	--border: rgb(255 255 255 / 6%);
+	--input: rgb(255 255 255 / 8%);
+	--ring: var(--primary);
+	--sidebar: #000;
+	--sidebar-foreground: #f1f3f7;
+	--sidebar-muted-foreground: var(--color-neutral-400);
+	--sidebar-row-hover: rgb(255 255 255 / 8%);
+	--sidebar-row-selected: rgb(255 255 255 / 7%);
+	--message: var(--accent);
 	--syntax-keyword: oklch(0.7 0.12 25);
 	--syntax-string: oklch(0.74 0.11 130);
 	--syntax-number: oklch(0.78 0.11 70);
@@ -124,7 +98,8 @@
 }
 
 @theme inline {
-	--font-mono: var(--app-font);
+	--font-sans: var(--app-font);
+	--font-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 	--font-reading: var(--reading-font);
 	--font-display: var(--app-font);
 
@@ -132,6 +107,12 @@
 	--color-foreground: var(--foreground);
 
 	--color-chrome: var(--chrome);
+	--color-sidebar: var(--sidebar);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-muted-foreground: var(--sidebar-muted-foreground);
+	--color-sidebar-row-hover: var(--sidebar-row-hover);
+	--color-sidebar-row-selected: var(--sidebar-row-selected);
+	--color-message: var(--message);
 
 	--color-card: var(--card);
 	--color-card-foreground: var(--card-foreground);
@@ -173,9 +154,13 @@
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
 	--radius-xl: calc(var(--radius) + 4px);
+	--radius-2xl: calc(var(--radius) + 8px);
 
 	--shadow-xs: 0 1px 0 0 rgb(0 0 0 / 0.06);
 	--shadow-sm: 0 1px 0 0 rgb(0 0 0 / 0.12);
+
+	--spacing-shell-bar: 52px;
+	--spacing-shell-foot: 36px;
 }
 
 @layer base {
@@ -190,16 +175,15 @@
 		overflow: hidden;
 	}
 	html {
-		font-size: 15px;
+		font-size: 16px;
 	}
 	body {
 		font-size: 14px;
 		line-height: 1.45;
-		@apply bg-background text-foreground;
+		@apply bg-background font-sans text-foreground;
 	}
 	[data-theme-root] ::selection {
-		background-color: color-mix(in oklab, var(--foreground) 22%, transparent);
-		color: var(--foreground);
+		background-color: color-mix(in srgb, var(--primary) 24%, transparent);
 	}
 	:where([data-theme-root], [data-theme-root] *) {
 		scrollbar-color: color-mix(in oklab, var(--muted-foreground) 42%, transparent) transparent;
@@ -235,15 +219,6 @@
 	.no-scrollbar {
 		-ms-overflow-style: none; /* IE/Edge antigo */
 		scrollbar-width: none; /* Firefox */
-	}
-
-	.doc-switcher-open .cm-scroller,
-	.doc-switcher-open main,
-	.doc-switcher-open [class*="overflow-y-auto"]:not(.doc-switcher-list),
-	.doc-switcher-open [class*="overflow-auto"]:not(.doc-switcher-list),
-	.doc-switcher-open [class*="overflow-y-scroll"]:not(.doc-switcher-list),
-	.doc-switcher-open [class*="overflow-scroll"]:not(.doc-switcher-list) {
-		overflow: hidden !important;
 	}
 
 	.desktop-drag-region {
@@ -551,31 +526,20 @@
 	animation: accordion-up 0.2s ease-out;
 }
 
-/* Cobrinha de blocos do kw-terminal: cada célula acende na sua vez e apaga devagar, então a cauda
-   fica visível e a leitura é "está andando" sem girar nada. O atraso vem do inline style, e a volta
-   pela linha do meio faz a cobrinha fechar o circuito na célula inicial em vez de teleportar. */
-@keyframes snake-cell {
-	0% {
-		opacity: 0;
-		transform: scale(0.55);
-	}
-	10% {
-		opacity: 1;
-		transform: scale(1);
-	}
-	35% {
-		opacity: 0.35;
-		transform: scale(0.85);
-	}
-	60%,
+@keyframes lattice-cell {
+	0%,
+	35%,
 	100% {
-		opacity: 0;
-		transform: scale(0.55);
+		opacity: 0.2;
+	}
+	10%,
+	24% {
+		opacity: 1;
 	}
 }
 
-.animate-snake-cell {
-	animation: snake-cell 1.2s linear infinite;
+.animate-lattice-cell {
+	animation: lattice-cell 0.9s cubic-bezier(0.77, 0, 0.175, 1) infinite;
 }
 
 @keyframes status-knock-center {
@@ -615,14 +579,29 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.animate-snake-cell {
-		animation: none;
-		opacity: 0.6;
+	.animate-lattice-cell {
+		animation-delay: 0ms !important;
+		animation-duration: 1.4s;
 	}
 
 	.animate-status-knock-center,
 	.animate-status-knock-ring {
 		animation: none;
 		opacity: 0.7;
+	}
+}
+
+@keyframes update-chip-sweep {
+	0% {
+		transform: translateX(-100%);
+	}
+	100% {
+		transform: translateX(400%);
+	}
+}
+
+@media (pointer: coarse) {
+	[data-theme-root]:has(.xterm-helper-textarea:focus) .mobile-bottom-nav {
+		display: none;
 	}
 }

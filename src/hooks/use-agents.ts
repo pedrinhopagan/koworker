@@ -22,6 +22,7 @@ function toTaskAgent(agent: AgentRecord | AgentDetail): TaskAgent {
 		findings: agent.findings,
 		icon: agent.settings.icon ?? metadataIcon ?? DEFAULT_AGENT_ICON,
 		color: agent.settings.color ?? metadataColor ?? DEFAULT_AGENT_COLOR,
+		categoryId: agent.settings.categoryId,
 		sources: agent.sources,
 		conflict: agent.conflict,
 		primaryPath: agent.primaryPath,

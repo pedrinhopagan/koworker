@@ -187,7 +187,6 @@ describe("dbExecutionRuns", () => {
 			await dbExecutionRuns.listStale({
 				heartbeatBefore: now - 90_000,
 				promptStartedBefore: now - 45 * 60_000,
-				flowStartedBefore: now - 225 * 60_000,
 			})
 		).map((run) => run.id);
 
@@ -236,13 +235,12 @@ describe("dbExecutionRuns", () => {
 			await dbExecutionRuns.listStale({
 				heartbeatBefore: now - 90_000,
 				promptStartedBefore: now - 45 * 60_000,
-				flowStartedBefore: now - 225 * 60_000,
 			})
 		).map((run) => run.id);
 
 		expect(stale).toContain("flow-heartbeat-morto");
 		expect(stale).not.toContain("flow-heartbeat-vivo");
-		expect(stale).not.toContain("flow-longo-vivo");
+		expect(stale).toContain("flow-longo-vivo");
 	});
 
 	test("não ressuscita para em andamento um run já encerrado", async () => {

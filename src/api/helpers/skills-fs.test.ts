@@ -14,7 +14,9 @@ let deleteSkillInFs: typeof import("./skills-fs").deleteSkillInFs;
 let getSkillFromFs: typeof import("./skills-fs").getSkillFromFs;
 let listSkillsFromFs: typeof import("./skills-fs").listSkillsFromFs;
 let previewSkillStandardizationInFs: typeof import("./skills-fs").previewSkillStandardizationInFs;
+let readSkillFileFromFs: typeof import("./skills-fs").readSkillFileFromFs;
 let renameSkillInFs: typeof import("./skills-fs").renameSkillInFs;
+let writeSkillFileInFs: typeof import("./skills-fs").writeSkillFileInFs;
 let standardizeSkillInFs: typeof import("./skills-fs").standardizeSkillInFs;
 let skillContentHash: typeof import("./skills-fs").skillContentHash;
 let updateSkillInFs: typeof import("./skills-fs").updateSkillInFs;
@@ -32,10 +34,12 @@ beforeAll(async () => {
 		getSkillFromFs,
 		listSkillsFromFs,
 		previewSkillStandardizationInFs,
+		readSkillFileFromFs,
 		renameSkillInFs,
 		skillContentHash,
 		standardizeSkillInFs,
 		updateSkillInFs,
+		writeSkillFileInFs,
 	} = await import("./skills-fs"));
 });
 
@@ -181,7 +185,13 @@ afterEach(async () => {
 async function addRow(tool: string, path: string, scope: string, createdAt: number) {
 	await db
 		.insertInto("skill_source_paths")
-		.values({ id: crypto.randomUUID(), tool, path, scope, created_at: createdAt })
+		.values({
+			id: crypto.randomUUID(),
+			tool,
+			path,
+			scope,
+			created_at: createdAt,
+		})
 		.execute();
 }
 
@@ -200,6 +210,61 @@ async function homeDir(): Promise<string> {
 	tempDirs.push(dir);
 	return dir;
 }
+
+describe("writeSkillFileInFs", () => {
+	test("edita arquivo auxiliar da variante, recusa o SKILL.md e path fora da skill", async () => {
+		const dir = await homeDir();
+		await writeSkill(dir, "edita-arquivo", "descricao", "corpo");
+		await mkdir(join(dir, "edita-arquivo", "references"), { recursive: true });
+		await writeFile(join(dir, "edita-arquivo", "references", "guia.md"), "velho\n");
+		await addRow("agents", dir, "global", 1);
+
+		const variant = (await getSkillFromFs("edita-arquivo"))?.variants.at(0);
+		if (!variant) {
+			throw new Error("Variante não encontrada");
+		}
+		const target = { slug: "edita-arquivo", variantPath: variant.path };
+		const read = await readSkillFileFromFs({ ...target, relativePath: "references/guia.md" });
+		expect(read.content).toBe("velho\n");
+
+		const written = await writeSkillFileInFs({
+			...target,
+			relativePath: "references/guia.md",
+			content: "novo\n",
+			expectedHash: read.hash,
+		});
+		expect(await readFile(join(dir, "edita-arquivo", "references", "guia.md"), "utf8")).toBe(
+			"novo\n",
+		);
+		// A leitura seguinte já enxerga o novo conteúdo: a escrita invalida o cache de fs.
+		const reread = await readSkillFileFromFs({ ...target, relativePath: "references/guia.md" });
+		expect(reread.content).toBe("novo\n");
+		expect(reread.hash).toBe(written.hash);
+
+		for (const recusa of [
+			// SKILL.md tem frontmatter e só muda por updateSkillInFs.
+			{ ...target, relativePath: "SKILL.md", expectedHash: written.hash },
+			// Variante inventada não resolve nas fontes autorizadas.
+			{
+				slug: "edita-arquivo",
+				variantPath: join(dir, "outra", "SKILL.md"),
+				relativePath: "references/guia.md",
+				expectedHash: reread.hash,
+			},
+		]) {
+			let error: Error | null = null;
+			try {
+				await writeSkillFileInFs({ ...recusa, content: "invadido" });
+			} catch (err: any) {
+				error = err;
+			}
+			expect(error).not.toBeNull();
+		}
+		expect(await readFile(join(dir, "edita-arquivo", "references", "guia.md"), "utf8")).toBe(
+			"novo\n",
+		);
+	});
+});
 
 describe("listSkillsFromFs", () => {
 	test("serve o conteúdo em cache e revalida assim que uma mutation acontece", async () => {
@@ -596,8 +661,69 @@ describe("standardizeSkillInFs", () => {
 		});
 		expect(result.updated).toBe(1);
 		expect(await Bun.file(join(target, "bundle", "sobra.txt")).exists()).toBe(false);
-		expect(new Uint8Array(await readFile(join(target, "bundle", "asset.bin")))).toEqual(
+		expect(new Uint8Array(await readFile(join(source, "bundle", "asset.bin")))).toEqual(
 			new Uint8Array([0, 1, 255]),
 		);
 	});
+});
+
+test("renomeia e remove uma skill compartilhada preservando o link do Claude", async () => {
+	const agents = await homeDir();
+	const claude = await homeDir();
+	await writeSkill(agents, "linked-name", "compartilhada", "compartilhada");
+	await symlink(join(agents, "linked-name"), join(claude, "linked-name"));
+	await addRow("agents", agents, "global", 1);
+	await addRow("claude-code", claude, "global", 2);
+	const skill = await getSkillFromFs("linked-name");
+	await renameSkillInFs({
+		slug: "linked-name",
+		newSlug: "new-linked-name",
+		expectedVariants: skill?.variants.map((variant) => ({
+			path: variant.path,
+			contentHash: variant.contentHash,
+		})),
+	});
+	expect(await readFile(join(claude, "new-linked-name", "SKILL.md"), "utf8")).toContain(
+		"name: new-linked-name",
+	);
+	const result = await deleteAllSkillInFs({ slug: "new-linked-name" });
+	tempDirs.push(result.backupPath);
+	expect(result.removed).toBe(2);
+	expect(await getSkillFromFs("new-linked-name")).toBeNull();
+});
+
+test("instala arquivos auxiliares, exige intenção para substituir e preserva backup", async () => {
+	const agents = await homeDir();
+	const claude = await homeDir();
+	const incoming = await homeDir();
+	await addRow("agents", agents, "global", 1);
+	await addRow("claude-code", claude, "global", 2);
+	await writeSkill(incoming, "installed", "nova", "nova");
+	await writeFile(join(incoming, "installed", "guide.txt"), "referência completa");
+	const { installSkillInFs } = await import("./skills-fs");
+	const first = await installSkillInFs({
+		sourceDir: join(incoming, "installed"),
+		replace: false,
+	});
+	if (first.syncBackupPath) tempDirs.push(first.syncBackupPath);
+	expect(await readFile(join(claude, "installed", "guide.txt"), "utf8")).toBe(
+		"referência completa",
+	);
+	await expect(
+		installSkillInFs({
+			sourceDir: join(incoming, "installed"),
+			replace: false,
+		}),
+	).rejects.toThrow("já existe");
+	await writeFile(join(incoming, "installed", "guide.txt"), "guia atualizado");
+	const updated = await installSkillInFs({
+		sourceDir: join(incoming, "installed"),
+		replace: true,
+	});
+	if (updated.backupPath) tempDirs.push(updated.backupPath);
+	if (updated.syncBackupPath) tempDirs.push(updated.syncBackupPath);
+	expect(await readFile(join(updated.backupPath!, "guide.txt"), "utf8")).toBe(
+		"referência completa",
+	);
+	expect(await readFile(join(claude, "installed", "guide.txt"), "utf8")).toBe("guia atualizado");
 });

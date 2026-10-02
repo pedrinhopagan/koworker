@@ -1,10 +1,22 @@
 import { FitAddon } from "@xterm/addon-fit";
-import { Terminal } from "@xterm/xterm";
-import { useEffect, useRef } from "react";
+import type { Terminal } from "@xterm/xterm";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "@/components/ui/toast";
+
+import { TerminalConnectionStatus, TerminalToolbar } from "@/components/terminal-toolbar";
+import { errorMessage } from "@/lib/orpc-errors";
 
 import type { ShellStreamEvent } from "@/api/pubsub";
-import { orpcWs } from "@/client";
-import { subscribeWithRetry } from "@/lib/realtime-subscription";
+import { TERMINAL_FONT_FAMILY, TERMINAL_FONT_SIZE } from "@/lib/terminal-look";
+import {
+	connectTerminalViewport,
+	createTerminalLayoutScheduler,
+	createTerminalInputQueue,
+	createTerminalResizeGate,
+	mountTerminalViewport,
+} from "@/lib/terminal-viewport";
+import { useSplitViewStore } from "@/stores/split-view";
+import { createShellViewportAdapter } from "../-utils/shell-viewport-adapter";
 
 export type ShellStreamEnvelope = ShellStreamEvent | { type: "replay"; b64: string };
 
@@ -18,30 +30,38 @@ function decodeBase64(b64: string): Uint8Array {
 	return bytes;
 }
 
-// As cores saem das vars do tema: o renderer DOM do xterm aplica os valores como style,
-// então claro/escuro acompanham o app sem paleta duplicada aqui.
-const TERMINAL_THEME = {
-	background: "var(--background)",
-	foreground: "var(--foreground)",
-	cursor: "var(--primary)",
-	cursorAccent: "var(--primary-foreground)",
-	selectionBackground: "var(--accent)",
-};
-
 type ShellTerminalProps = {
 	shellId: string;
+	cwd?: string;
 	className?: string;
+	disabled?: boolean;
 	onTitle?: (title: string) => void;
 	onStatus?: (status: "live" | "exited" | "closed", exitCode?: number | null) => void;
 };
 
-export function ShellTerminal({ shellId, className, onTitle, onStatus }: ShellTerminalProps) {
+export function ShellTerminal({
+	shellId,
+	cwd,
+	className,
+	disabled = false,
+	onTitle,
+	onStatus,
+}: ShellTerminalProps) {
 	const hostRef = useRef<HTMLDivElement>(null);
+	const [terminal, setTerminal] = useState<Terminal | null>(null);
+	const [connected, setConnected] = useState(false);
+	const [scrolled, setScrolled] = useState(false);
+	const disabledRef = useRef(disabled);
+	disabledRef.current = disabled;
 
-	// Callbacks vivem em ref: o efeito é dono da instância do xterm e não pode reciclar
-	// terminal vivo porque a tela do pai recriou as funções de callback.
 	const handlers = useRef({ onTitle, onStatus });
 	handlers.current = { onTitle, onStatus };
+
+	useEffect(() => {
+		if (terminal) {
+			terminal.options.disableStdin = disabled || !connected;
+		}
+	}, [terminal, disabled, connected]);
 
 	useEffect(() => {
 		const host = hostRef.current;
@@ -49,20 +69,32 @@ export function ShellTerminal({ shellId, className, onTitle, onStatus }: ShellTe
 			return;
 		}
 
-		const term = new Terminal({
-			fontSize: 13,
-			fontFamily:
-				'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-			cursorBlink: true,
-			scrollback: 10_000,
-			theme: TERMINAL_THEME,
-		});
 		const fit = new FitAddon();
-		term.loadAddon(fit);
-		term.open(host);
-		term.focus();
+		const adapter = createShellViewportAdapter(shellId);
+		const viewport = mountTerminalViewport({
+			host,
+			cwd,
+			options: {
+				fontSize: TERMINAL_FONT_SIZE,
+				fontFamily: TERMINAL_FONT_FAMILY,
+				cursorBlink: true,
+				scrollback: 10_000,
+			},
+			prepare: (terminal) => terminal.loadAddon(fit),
+		});
+		const term = viewport.terminal;
+		setTerminal(term);
+		term.onScroll(() => setScrolled(term.buffer.active.viewportY < term.buffer.active.baseY));
+
+		term.attachCustomWheelEventHandler(
+			() => term.buffer.active.type !== "alternate" || term.modes.mouseTrackingMode !== "none",
+		);
 
 		let disposed = false;
+		let online = false;
+		term.options.disableStdin = true;
+		let requestedCols = 0;
+		let requestedRows = 0;
 
 		function fitNow() {
 			if (disposed) {
@@ -75,21 +107,55 @@ export function ShellTerminal({ shellId, className, onTitle, onStatus }: ShellTe
 			}
 
 			fit.fit();
-			void orpcWs.shells.resize
-				.call({ id: shellId, cols: dimensions.cols, rows: dimensions.rows })
-				.catch(() => {});
+			if (
+				disabledRef.current ||
+				(dimensions.cols === requestedCols && dimensions.rows === requestedRows)
+			) {
+				return;
+			}
+			requestedCols = dimensions.cols;
+			requestedRows = dimensions.rows;
+			void adapter.resize(dimensions.cols, dimensions.rows).catch(() => {
+				requestedCols = requestedRows = 0;
+			});
 		}
+		const layout = createTerminalLayoutScheduler(fitNow);
+		const resize = createTerminalResizeGate(() => layout.request());
+		resize.setPaused(useSplitViewStore.getState().resizing);
 
-		const observer = new ResizeObserver(() => fitNow());
+		const observer = new ResizeObserver(() => {
+			resize.request();
+		});
 		observer.observe(host);
 
+		const unsubscribe = useSplitViewStore.subscribe((state) => resize.setPaused(state.resizing));
+
+		const send = createTerminalInputQueue({
+			send: async (data) => {
+				if (disposed || !online) {
+					throw new Error("Terminal desconectado; entrada não enviada");
+				}
+				return await adapter.input(data);
+			},
+			onError: (error) =>
+				toast.error(
+					errorMessage(
+						error,
+						"Falha ao enviar ao terminal. Confira a conexão antes de tentar novamente.",
+					),
+				),
+		});
 		term.onData((data) => {
-			void orpcWs.shells.input.call({ id: shellId, data }).catch(() => {});
+			if (!disabledRef.current && online) {
+				void send(data);
+			}
 		});
 
 		function handle(event: ShellStreamEnvelope) {
 			if (event.type === "replay") {
 				term.reset();
+				requestedCols = requestedRows = 0;
+				layout.request();
 				if (event.b64) {
 					term.write(decodeBase64(event.b64));
 				}
@@ -114,25 +180,51 @@ export function ShellTerminal({ shellId, className, onTitle, onStatus }: ShellTe
 			handlers.current.onStatus?.("closed");
 		}
 
-		const controller = new AbortController();
-
-		void subscribeWithRetry({
+		const disconnect = connectTerminalViewport({
 			label: "Shells",
-			signal: controller.signal,
-			subscribe: (signal) => orpcWs.shells.stream.call({ id: shellId }, { signal }),
+			subscribe: adapter.subscribe,
 			onEvent: handle,
+			onConnectionChange: (value) => {
+				online = value;
+				term.options.disableStdin = !value || disabledRef.current;
+				setConnected(value);
+			},
 			onReconnect: () => {
-				handlers.current.onStatus?.("live");
+				requestedCols = requestedRows = 0;
+				layout.request();
 			},
 		});
 
 		return () => {
 			disposed = true;
-			controller.abort();
+			disconnect();
+			unsubscribe();
 			observer.disconnect();
-			term.dispose();
+			layout.dispose();
+			viewport.dispose();
 		};
-	}, [shellId]);
+	}, [shellId, cwd]);
 
-	return <div ref={hostRef} data-component="shell-terminal" className={className} />;
+	return (
+		<div data-component="shell-terminal" className={className}>
+			<div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+				{!connected && <TerminalConnectionStatus />}
+				<div ref={hostRef} className="h-full w-full overscroll-contain" />
+				{scrolled && (
+					<button
+						type="button"
+						onClick={() => terminal?.scrollToBottom()}
+						className="absolute right-3 bottom-3 z-10 min-h-11 border border-border bg-popover px-3 text-xs shadow-sm focus-visible:ring-1 focus-visible:ring-ring"
+					>
+						Ir para o fim
+					</button>
+				)}
+			</div>
+			<TerminalToolbar
+				terminal={terminal}
+				disabled={disabled || !connected}
+				onScrollToEnd={() => terminal?.scrollToBottom()}
+			/>
+		</div>
+	);
 }

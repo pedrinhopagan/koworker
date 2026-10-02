@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { translateClaudeTranscriptLine } from "@/lib/claude-transcript";
 import { translateCodexTranscriptLine } from "@/lib/codex-transcript";
+import { readOpencode2Head } from "./opencode2";
+import { cleanUserPrompt } from "./prompt-text";
 import type { CliSessionFile, HistoryCli } from "./paths";
 
 // O começo do arquivo responde tudo que a lista precisa: onde a conversa rodou, quando começou e o
@@ -42,7 +44,13 @@ const CodexMetaSchema = z.object({
 	}),
 });
 
+// O claude e o codex têm um arquivo por conversa, mas as do opencode 2 dividem o mesmo banco: a
+// chave é cli + id, não o caminho.
 const cache = new Map<string, { limit: number; head: CliSessionHead }>();
+
+function cacheKey(file: CliSessionFile) {
+	return `${file.cli}:${file.sessionId}`;
+}
 
 function epoch(value: string | undefined) {
 	if (!value) {
@@ -60,23 +68,6 @@ const TITLE_MAX_CHARS = 240;
 // que metade das sessões começa. O título é a primeira fala que tem assunto.
 const BARE_COMMAND = /^\/[a-z0-9:_-]+$/i;
 
-// O que o claude embrulha em torno de um comando local: eco do comando, saída dele e o aviso de que
-// nada daquilo foi digitado pelo usuário. Como marcação, não como frase.
-const LOCAL_COMMAND_TAGS =
-	/<(command-message|command-args|command-contents|local-command-stdout|local-command-stderr|local-command-caveat)>[\s\S]*?<\/\1>/g;
-const COMMAND_NAME_TAG = /<command-name>([\s\S]*?)<\/command-name>/;
-
-function cleanTitle(text: string) {
-	const command = COMMAND_NAME_TAG.exec(text)?.[1]?.trim();
-	const rest = text
-		.replaceAll(LOCAL_COMMAND_TAGS, "")
-		.replace(COMMAND_NAME_TAG, "")
-		.replaceAll(/<\/?[a-z-]+>/gi, "")
-		.trim();
-
-	return [command, rest].filter(Boolean).join(" ").trim();
-}
-
 function titleOf(raw: unknown, cli: HistoryCli) {
 	const patches =
 		cli === "claude" ? translateClaudeTranscriptLine(raw) : translateCodexTranscriptLine(raw);
@@ -86,7 +77,7 @@ function titleOf(raw: unknown, cli: HistoryCli) {
 			continue;
 		}
 
-		const text = cleanTitle(patch.payload.text);
+		const text = cleanUserPrompt(patch.payload.text);
 		if (text && !BARE_COMMAND.test(text)) {
 			return text.slice(0, TITLE_MAX_CHARS);
 		}
@@ -192,6 +183,11 @@ function readCodexHead(chunk: string, complete: boolean, sessionId: string): Cli
 }
 
 async function read(file: CliSessionFile, limit: number): Promise<CliSessionHead> {
+	// A conversa do opencode 2 não é um arquivo: o cabeçalho dela é a própria linha da sessão.
+	if (file.cli === "opencode2") {
+		return readOpencode2Head(file.sessionId);
+	}
+
 	const handle = Bun.file(file.path);
 	const size = file.sizeBytes || handle.size;
 	const end = Math.min(limit, size);
@@ -210,7 +206,7 @@ export async function readSessionHead(
 	options: { deep?: boolean } = {},
 ): Promise<CliSessionHead> {
 	const limit = options.deep ? DEEP_HEAD_BYTES : HEAD_BYTES;
-	const known = cache.get(file.path);
+	const known = cache.get(cacheKey(file));
 	if (known && (known.limit >= limit || known.head.title)) {
 		return known.head;
 	}
@@ -225,7 +221,7 @@ export async function readSessionHead(
 			root: true,
 		}),
 	);
-	cache.set(file.path, { limit, head });
+	cache.set(cacheKey(file), { limit, head });
 
 	return head;
 }

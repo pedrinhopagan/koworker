@@ -20,7 +20,7 @@ import {
 	MediaRenameSchema,
 	MediaUploadSchema,
 } from "../schemas";
-import { mapTasks } from "./tasks";
+import { mapTasks } from "../helpers/task-display";
 
 const MEDIA_TASK_SCAN_BATCH_SIZE = 16;
 

@@ -12,7 +12,7 @@ import {
 	X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
 import {
@@ -22,7 +22,7 @@ import {
 } from "@/components/doc-mobile-actions-drawer";
 import { DocToolbar } from "@/components/doc-toolbar";
 import { InvokeDefaultsControl } from "@/components/invoke-defaults-control";
-import { TaskTitleInput } from "@/components/tasks/task-meta-controls";
+import { TaskTitleInput } from "@/components/tasks/task-edit-controls";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -33,7 +33,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { AGENT_TOOL_LABEL } from "@/constants/agents";
 import { useAgentQuery } from "@/hooks/use-agents";
 import { useProjectFocus } from "@/hooks/use-project-focus";
-import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { openFolderInOs } from "@/lib/os-share";
 import { cn } from "@/lib/utils";
@@ -131,18 +130,6 @@ function AgentEditor({
 	const [appearanceOpen, setAppearanceOpen] = useState(false);
 	const [actionsOpen, setActionsOpen] = useState(false);
 	const [activeVariantPath, setActiveVariantPath] = useState(agent.primaryPath);
-
-	// Agent é global: a sessão não carrega projeto (não troca o projeto selecionado ao abrir pelo
-	// switcher) e a chave ignora o projeto, então o mesmo agent grava uma vez só no MRU. Sem subtitle:
-	// o slug já é o título, repeti-lo embaixo era ruído.
-	const { pinned, togglePin } = useRecordDocSession({
-		key: docSessionKey({ kind: "agent", variantPath: activeVariantPath }),
-		kind: "agent",
-		title: agent.label,
-		icon: agent.icon,
-		iconColor: agent.color,
-		nav: { to: "/agents/$slug", params: { slug: agent.slug } },
-	});
 
 	const settingsMutation = useAgentSettingsMutation();
 	const {
@@ -374,8 +361,6 @@ function AgentEditor({
 									onCopyContent={() => void paneRef.current?.copyContent()}
 									onCopyPath={() => void paneRef.current?.copyPath()}
 									onReading={() => setReading(true)}
-									pinned={pinned}
-									onTogglePin={togglePin}
 									share={{ onOpenInOs: openAgentFolder }}
 								/>
 								<Button
@@ -455,8 +440,6 @@ function AgentEditor({
 							onCopyContent={() => void paneRef.current?.copyContent()}
 							onCopyPath={() => void paneRef.current?.copyPath()}
 							onReading={() => setReading(true)}
-							pinned={pinned}
-							onTogglePin={togglePin}
 							share={{ onOpenInOs: openAgentFolder }}
 							layout="stacked"
 							onAction={closeActions}
@@ -552,6 +535,7 @@ function AgentEditor({
 					sessionKey={docSessionKey({ kind: "agent", variantPath: activeVariantPath })}
 					content={activeVariant?.content ?? content}
 					folderPath={activeVariant?.dir ?? agent.primaryDir}
+					linkCwd={activeVariant?.dir ?? agent.primaryDir}
 					writeFile={({ content }) => persist({ description, content, metadata })}
 					onPasteFrontmatter={applyPastedFrontmatter}
 					reading={reading}

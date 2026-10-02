@@ -21,6 +21,7 @@ export function SessionQuestion({
 	const [selected, setSelected] = useState<string[]>([]);
 	const [freeText, setFreeText] = useState("");
 	const answered = !!payload.answers;
+	const reply = [...(payload.answers ?? []), payload.freeText].filter(Boolean).join(", ");
 
 	function toggle(label: string) {
 		if (!payload.multiSelect) {
@@ -50,7 +51,13 @@ export function SessionQuestion({
 					<MessageCircleQuestion className="size-3" />
 				</span>
 				<Text as="span" className="text-[11px] font-bold uppercase tracking-[0.12em]">
-					{answered ? "Pergunta respondida" : "O agente perguntou"}
+					{answered
+						? reply
+							? "Pergunta respondida"
+							: "Pergunta encerrada"
+						: payload.async
+							? "O agente perguntou e segue trabalhando"
+							: "O agente perguntou"}
 				</Text>
 				{payload.multiSelect && !answered && (
 					<Text as="span" size="xs" tone="muted">
@@ -63,13 +70,30 @@ export function SessionQuestion({
 
 			{answered ? (
 				<Text size="xs" tone="muted" className="mt-3">
-					Você respondeu:{" "}
-					{[...(payload.answers ?? []), payload.freeText].filter(Boolean).join(", ")}
+					{reply ? `Você respondeu: ${reply}` : "Encerrada sem resposta."}
 				</Text>
 			) : readOnly ? (
-				<Text size="xs" tone="muted" className="mt-3">
-					Responda no terminal para preservar a interação nativa do agent.
-				</Text>
+				<div className="mt-3 space-y-2">
+					{payload.options.length > 0 && (
+						<ul className="grid gap-1.5">
+							{payload.options.map((option, index) => (
+								<li key={option.label} className="border border-border bg-background px-3 py-2">
+									<Text as="span" className="block text-sm font-medium">
+										{index + 1}. {option.label}
+									</Text>
+									{option.description && (
+										<Text as="span" size="xs" tone="muted" className="mt-0.5 block">
+											{option.description}
+										</Text>
+									)}
+								</li>
+							))}
+						</ul>
+					)}
+					<Text size="xs" tone="muted">
+						Responda no terminal: a escolha precisa passar pelo seletor do próprio agente.
+					</Text>
+				</div>
 			) : (
 				<div className="mt-3 space-y-2">
 					<ul className="grid gap-2">

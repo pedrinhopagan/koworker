@@ -73,4 +73,12 @@ describe("MarkdownView", () => {
 		expect(links[0]?.getAttribute("href")).toBe("https://kowork.dev");
 		expect(root.textContent).toContain("não");
 	});
+
+	test("caminho absoluto vira file URI em vez de rota do servidor", () => {
+		const root = view("[revisão](/mnt/projeto/.koworker/tarefa/review.md)");
+
+		expect(root.querySelector("a")?.getAttribute("href")).toBe(
+			"file:///mnt/projeto/.koworker/tarefa/review.md",
+		);
+	});
 });

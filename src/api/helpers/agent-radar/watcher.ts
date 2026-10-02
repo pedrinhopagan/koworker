@@ -5,9 +5,9 @@ import {
 } from "@/constants/agent-radar";
 import { dbProjects } from "../../db/projects";
 import { EXECUTION_WORKSPACE_LABEL } from "../execution-terminal";
-import { getSystemSettings } from "../system-settings";
 import {
 	ensureKwTerminalServer,
+	kwTerminalAvailable,
 	ensureOpencodeIntegration,
 	kwTerminalAgentList,
 	kwTerminalPaneList,
@@ -38,8 +38,8 @@ import {
 	renameRadarWorkspace,
 	resetRadarAgents,
 	setRadarFocus,
-	type RadarFocus,
 } from "./state";
+import type { RadarFocus } from "@/api/schemas/terminal-workspace";
 
 const RECONNECT_MIN_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
@@ -297,9 +297,11 @@ async function syncRadar(current: number) {
 				// OpenCode sem reporte: a integração não carregou nesta instância. Instala para as
 				// próximas e adota do banco a sessão mais recente daquele diretório, que é o único
 				// sinal disponível — todas as conversas moram no mesmo arquivo de banco.
-				if (pane.agent === "opencode" && !session.sessionId) {
-					void ensureOpencodeIntegration();
-					const adopted = locateOpencodeSessionByDirectory(pane.cwd);
+				if ((pane.agent === "opencode" || pane.agent === "opencode2") && !session.sessionId) {
+					if (pane.agent === "opencode") {
+						void ensureOpencodeIntegration();
+					}
+					const adopted = locateOpencodeSessionByDirectory(pane.cwd, pane.agent);
 
 					return [pane.pane_id, adopted ? { sessionId: adopted, path: null } : null] as const;
 				}
@@ -309,6 +311,7 @@ async function syncRadar(current: number) {
 					? await resolveProcessTranscript({
 							agent: pane.agent,
 							processIds: processInfo.foreground_processes.map((process) => process.pid),
+							sessionId: session.sessionId,
 						})
 					: null;
 
@@ -338,6 +341,7 @@ async function syncRadar(current: number) {
 				tabLabel: tabLabels.get(pane.tab_id) ?? pane.tab_id,
 				agent: pane.agent,
 				status,
+				awaitingInput: pane.agent_status === "blocked",
 				activity: pane.activity ?? null,
 				title: pane.title ?? null,
 				cwd: pane.cwd,
@@ -379,6 +383,7 @@ async function handleStatusEvent(event: KwTerminalEvent, current: number) {
 	const next = {
 		...known,
 		status,
+		awaitingInput: event.data.agent_status === "blocked",
 		agent: event.data.agent ?? known.agent,
 		// Campo ausente é "o daemon não disse", não "virou vazio": zerar aqui apagava a atividade
 		// que o cartão já mostrava a cada transição que vinha sem os campos opcionais.
@@ -488,10 +493,9 @@ async function connect() {
 	}
 }
 
-// A central só existe onde existe kw-terminal: nos modos tmux e none não há daemon de onde ler
-// status, e subir um só pra observar seria criar terminal que o usuário não pediu.
+// A central só existe onde existe kw-terminal: sem ele não há daemon de onde ler status.
 export async function startAgentRadar() {
-	if (running || (await getSystemSettings()).terminalMultiplexer !== "kw-terminal") {
+	if (running || !kwTerminalAvailable()) {
 		return;
 	}
 

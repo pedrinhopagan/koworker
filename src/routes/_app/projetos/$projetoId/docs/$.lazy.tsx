@@ -9,7 +9,7 @@ import { DocToolbar } from "@/components/doc-toolbar";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { useProjectFocus } from "@/hooks/use-project-focus";
-import { useRecordDocSession } from "@/hooks/use-record-doc-session";
+import { joinPath } from "@/lib/os-share";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
 
@@ -23,6 +23,7 @@ function ProjectDocPage() {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { projects } = useProjectFocus();
+	const project = projects.find((entry) => entry.id === projetoId);
 	const paneRef = useRef<DocEditorPaneHandle>(null);
 	const reading = useReadingModeStore((s) => s.reading);
 	const setReading = useReadingModeStore((s) => s.setReading);
@@ -34,19 +35,6 @@ function ProjectDocPage() {
 	});
 	const docQuery = useQuery(docQueryOptions);
 	const file = docQuery.data ?? null;
-
-	const { pinned, togglePin } = useRecordDocSession(
-		file
-			? {
-					key: docSessionKey({ kind: "docs", projectId: projetoId, path: docPath }),
-					kind: "docs",
-					title: file.name,
-					subtitle: file.dirLabel || undefined,
-					projectName: projects.find((project) => project.id === projetoId)?.name,
-					nav: { to: "/projetos/$projetoId/docs/$", params: { projetoId, _splat: docPath } },
-				}
-			: null,
-	);
 
 	const writeMutation = useMutation({
 		...orpc.projects.writeDoc.mutationOptions(),
@@ -107,8 +95,6 @@ function ProjectDocPage() {
 								onCopyContent={() => void paneRef.current?.copyContent()}
 								onCopyPath={() => void paneRef.current?.copyPath()}
 								onReading={() => setReading(true)}
-								pinned={pinned}
-								onTogglePin={togglePin}
 							/>
 						</div>
 					</div>
@@ -122,6 +108,7 @@ function ProjectDocPage() {
 					sessionKey={docSessionKey({ kind: "docs", projectId: projetoId, path: docPath })}
 					content={file.content}
 					folderPath={dir}
+					linkCwd={project ? joinPath(project.mainRoute, dir) : undefined}
 					writeFile={(payload) =>
 						writeMutation.mutateAsync({ id: projetoId, path: docPath, content: payload.content })
 					}

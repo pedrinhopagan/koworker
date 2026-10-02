@@ -243,6 +243,7 @@ const highlightMark = Decoration.mark({ class: "cm-md-highlight" });
 type Callbacks = {
 	onInlineCodeClick?: (text: string) => void;
 	onHeadingMention?: (text: string) => void;
+	onLinkClick?: (target: string, external: boolean) => void;
 };
 
 function bindWidgetTap(el: HTMLElement, run: () => void) {
@@ -914,11 +915,41 @@ function buildDecorations(view: EditorView, callbacks: Callbacks): DecorationSet
 					return false;
 				}
 
+				if (node.name === "Link") {
+					const url = node.node.getChild("URL");
+					if (!url) return;
+					const target = doc.sliceString(url.from, url.to).replaceAll(/^<|>$/g, "");
+					let labelTo = -1;
+					for (let child = node.node.firstChild; child; child = child.nextSibling) {
+						if (child.name === "LinkMark" && doc.sliceString(child.from, child.to) === "]") {
+							labelTo = child.from;
+							break;
+						}
+					}
+					const labelFrom = node.from + 1;
+					if (labelTo <= labelFrom) return;
+					ranges.push(hidden.range(node.from, labelFrom));
+					ranges.push(
+						Decoration.mark({
+							tagName: "a",
+							attributes: {
+								class: "cm-md-link",
+								href: /^(https?:|mailto:)/i.test(target) ? target : "#",
+								"data-target": target,
+							},
+						}).range(labelFrom, labelTo),
+					);
+					ranges.push(hidden.range(labelTo, node.to));
+					return;
+				}
+
 				// Estilos de texto: marcadores sempre escondidos, independente do cursor.
 				if (ALWAYS_HIDDEN_MARKS.has(node.name)) {
 					ranges.push(hidden.range(node.from, node.to));
 					return;
 				}
+
+				if (node.name === "LinkMark" && node.node.parent?.getChild("URL")) return;
 
 				if (!CURSOR_HIDDEN_MARKS.has(node.name)) return;
 
@@ -1145,6 +1176,35 @@ export function markdownLivePreview(callbacks: Callbacks = {}) {
 		activeCellField,
 		tableDecorationsField,
 		livePreviewPlugin(callbacks),
+		EditorView.domEventHandlers({
+			mousedown(event) {
+				const link = (event.target as Element).closest<HTMLAnchorElement>("a.cm-md-link");
+				if (!link || (event.button !== 0 && event.button !== 1)) return false;
+				event.preventDefault();
+				callbacks.onLinkClick?.(link.dataset.target ?? "", event.altKey || event.button === 1);
+				return true;
+			},
+			click(event) {
+				const link = (event.target as Element).closest<HTMLAnchorElement>("a.cm-md-link");
+				if (!link) return false;
+				event.preventDefault();
+				if (event.detail === 0) callbacks.onLinkClick?.(link.dataset.target ?? "", event.altKey);
+				return true;
+			},
+			auxclick(event) {
+				const link = (event.target as Element).closest<HTMLAnchorElement>("a.cm-md-link");
+				if (!link || event.button !== 1) return false;
+				event.preventDefault();
+				return true;
+			},
+			touchend(event) {
+				const link = (event.target as Element).closest<HTMLAnchorElement>("a.cm-md-link");
+				if (!link) return false;
+				event.preventDefault();
+				callbacks.onLinkClick?.(link.dataset.target ?? "", false);
+				return true;
+			},
+		}),
 		baseTheme,
 	];
 }

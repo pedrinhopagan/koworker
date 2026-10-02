@@ -2,10 +2,7 @@ import {
 	Check,
 	ClipboardCopy,
 	FileArchive,
-	Flame,
 	FolderSymlink,
-	Gauge,
-	LayoutGrid,
 	Layers,
 	Pencil,
 	Share2,
@@ -15,17 +12,11 @@ import { useEffect, useState } from "react";
 import { tv } from "tailwind-variants";
 
 import { Drawer } from "@/components/ui/drawer";
-import {
-	COMPLEXITY_COLORS,
-	COMPLEXITY_LABELS,
-	TASK_COMPLEXITIES,
-	type TaskComplexity,
-} from "@/constants/complexity";
 import { cn } from "@/lib/utils";
 
 import type { TaskMenuActions, TaskMenuData, TaskMenuTarget } from "./task-context-menu";
 
-type SheetView = "main" | "priority" | "category" | "complexity" | "feature" | "move" | "share";
+type SheetView = "main" | "feature" | "move" | "share";
 
 const actionItem = tv({
 	base: "flex min-h-12 w-full items-center gap-3 px-5 py-3 text-base text-foreground transition-colors hover:bg-muted/30",
@@ -41,8 +32,6 @@ type TaskMobileActionsDrawerProps = {
 	target: TaskMenuTarget;
 	data: TaskMenuData;
 	actions: TaskMenuActions;
-	complexity: TaskComplexity;
-	onComplexityChange: (complexity: TaskComplexity) => void;
 	disabled?: boolean;
 };
 
@@ -91,8 +80,6 @@ export function TaskMobileActionsDrawer({
 	target,
 	data,
 	actions,
-	complexity,
-	onComplexityChange,
 	disabled,
 }: TaskMobileActionsDrawerProps) {
 	const [view, setView] = useState<SheetView>("main");
@@ -118,9 +105,6 @@ export function TaskMobileActionsDrawer({
 
 	const viewTitles: Record<SheetView, string> = {
 		main: target.label,
-		priority: "Prioridade",
-		category: "Categoria",
-		complexity: "Complexidade",
 		feature: "Mover para feature",
 		move: "Mover para projeto",
 		share: "Compartilhar",
@@ -159,33 +143,6 @@ export function TaskMobileActionsDrawer({
 					>
 						<Pencil className="size-[18px] shrink-0" />
 						Editar título
-					</button>
-					<button
-						type="button"
-						disabled={disabled}
-						onClick={() => setView("complexity")}
-						className={actionItem()}
-					>
-						<Gauge className="size-[18px] shrink-0" />
-						Complexidade
-					</button>
-					<button
-						type="button"
-						disabled={disabled}
-						onClick={() => setView("category")}
-						className={actionItem()}
-					>
-						<LayoutGrid className="size-[18px] shrink-0" />
-						Categoria
-					</button>
-					<button
-						type="button"
-						disabled={disabled}
-						onClick={() => setView("priority")}
-						className={actionItem()}
-					>
-						<Flame className="size-[18px] shrink-0" />
-						Prioridade
 					</button>
 					{data.features && actions.onMoveToFeature && (
 						<button
@@ -239,49 +196,6 @@ export function TaskMobileActionsDrawer({
 						{confirmDelete ? "Toque de novo para excluir" : "Excluir tarefa"}
 					</button>
 				</nav>
-			)}
-
-			{view === "priority" && (
-				<ColorPickList
-					items={data.priorities}
-					activeId={target.priorityId}
-					emptyLabel="Nenhuma prioridade"
-					onPick={(id) => runAction(() => actions.onSetPriority(target, id))}
-				/>
-			)}
-
-			{view === "category" && (
-				<ColorPickList
-					items={data.categories}
-					activeId={target.categoryId}
-					emptyLabel="Nenhuma categoria"
-					onPick={(id) => runAction(() => actions.onSetCategory(target, id))}
-				/>
-			)}
-
-			{view === "complexity" && (
-				<div className="flex flex-col">
-					{TASK_COMPLEXITIES.map((level) => {
-						const active = level === complexity;
-						return (
-							<button
-								key={level}
-								type="button"
-								onClick={() => runAction(() => onComplexityChange(level))}
-								className={pickItem({ class: active ? "font-medium" : undefined })}
-							>
-								<span
-									className="size-2.5 shrink-0 rounded-full"
-									style={{ backgroundColor: COMPLEXITY_COLORS[level] }}
-								/>
-								<span className="min-w-0 flex-1 truncate text-left">
-									{COMPLEXITY_LABELS[level]}
-								</span>
-								{active && <Check className="size-4 shrink-0 text-muted-foreground" />}
-							</button>
-						);
-					})}
-				</div>
 			)}
 
 			{view === "feature" && data.features && actions.onMoveToFeature && (

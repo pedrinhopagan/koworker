@@ -2,9 +2,17 @@ import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 
-export type HistoryCli = "claude" | "codex";
+import type { HistoryCli } from "@/api/schemas/agent-history";
 
-export const HISTORY_CLIS: readonly HistoryCli[] = ["claude", "codex"];
+export type { HistoryCli } from "@/api/schemas/agent-history";
+
+export const HISTORY_CLIS: readonly HistoryCli[] = ["claude", "codex", "opencode2"];
+
+// As CLIs que gravam a conversa num arquivo por sessão. O opencode 2 guarda no banco e não passa
+// por nada que leia bytes de transcript.
+export type FileHistoryCli = Exclude<HistoryCli, "opencode2">;
+
+export type CliTranscriptFile = CliSessionFile & { cli: FileHistoryCli };
 
 export type CliSessionFile = {
 	cli: HistoryCli;
@@ -32,7 +40,7 @@ export function claudeDirPrefix(path: string) {
 	return path.replaceAll(/[^a-zA-Z0-9]/g, "-");
 }
 
-function fileEntry(cli: HistoryCli, path: string): CliSessionFile | null {
+function fileEntry(cli: FileHistoryCli, path: string): CliTranscriptFile | null {
 	const sessionId = SESSION_ID.exec(basename(path))?.[1];
 	if (!sessionId) {
 		return null;
@@ -59,7 +67,7 @@ function scan(root: string, pattern: string) {
 // prefixo da pasta já descarta as outras antes de qualquer leitura. A raiz entra em mais de uma
 // forma porque o projeto pode estar cadastrado por um link simbólico e o claude grava a pasta pelo
 // caminho que o terminal usou.
-export function listClaudeSessionFiles(mainRoutes?: string[]): CliSessionFile[] {
+export function listClaudeSessionFiles(mainRoutes?: string[]): CliTranscriptFile[] {
 	const root = claudeSessionsRoot();
 	const prefixes = mainRoutes?.length ? mainRoutes.map(claudeDirPrefix) : null;
 
@@ -77,7 +85,7 @@ export function listClaudeSessionFiles(mainRoutes?: string[]): CliSessionFile[] 
 
 // O codex guarda tudo por data, sem pista do diretório no caminho: quem separa por projeto é o `cwd`
 // do cabeçalho. Subagente e sessão derivada também caem aqui e são descartados na leitura.
-export function listCodexSessionFiles(): CliSessionFile[] {
+export function listCodexSessionFiles(): CliTranscriptFile[] {
 	return scan(codexSessionsRoot(), "**/rollout-*.jsonl").flatMap((path) => {
 		const entry = fileEntry("codex", path);
 

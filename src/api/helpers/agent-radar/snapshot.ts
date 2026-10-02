@@ -1,5 +1,5 @@
 import { dbAgentSessionSnapshots } from "../../db/agent-session-snapshots";
-import type { RadarAgent } from "./state";
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 
 const CAPTURE_DEBOUNCE_MS = 2_000;
 

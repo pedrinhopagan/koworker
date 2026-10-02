@@ -3,6 +3,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { orpc } from "@/client";
 import { AppShell } from "@/components/layout/app-shell";
 import { useNavigateEvents } from "@/hooks/use-navigate-events";
+import { useRouteProjectSync } from "@/hooks/use-route-project-sync";
 import { useTasksRealtime } from "@/hooks/use-tasks-realtime";
 import { useTerminalEvents } from "@/hooks/use-terminal-events";
 
@@ -46,6 +47,7 @@ function AppLayout() {
 }
 
 function AppChrome() {
+	useRouteProjectSync();
 	useTerminalEvents();
 	useTasksRealtime();
 	useNavigateEvents();

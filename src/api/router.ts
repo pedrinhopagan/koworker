@@ -3,28 +3,30 @@ import { ORPCError } from "@orpc/server";
 import { protectedProcedure, publicProcedure } from "./auth/context";
 import { isLocalRequest } from "./auth/device";
 import { Auth } from "./auth/login";
-import { getRadarFocus, listRadarAgents } from "./helpers/agent-radar/state";
+import { loadModelCatalog, watchModelCatalog } from "./helpers/agent-radar/model-catalog";
+import { getRadarAgent, getRadarFocus, listRadarAgents } from "./helpers/agent-radar/state";
+import { subscribeAgentTerminalScreen } from "./helpers/agent-radar/terminal-screen";
 import { subscribeAgentRadarTranscript } from "./helpers/agent-radar/transcript";
 import { getPromptRun } from "./helpers/prompt-run";
-import { shellSupervisor } from "./helpers/shells/supervisor";
+import { shellRuntime } from "./helpers/shells/supervisor";
+import { terminalWorkspaceSnapshot } from "./helpers/terminal-workspace";
+import { shouldEmitTerminalWorkspaceSnapshot } from "./helpers/terminal-workspace-revision";
 import { PubSub } from "./pubsub";
+import { agentCategoriesRouter } from "./routers/agent-categories";
 import { agentHistoryRouter } from "./routers/agent-history";
 import { agentRadarRouter } from "./routers/agent-radar";
 import { agentSessionsRouter } from "./routers/agent-sessions";
 import { agentsRouter } from "./routers/agents";
-import { categoriesRouter } from "./routers/categories";
 import { devicesRouter } from "./routers/devices";
-import { flowRouter } from "./routers/flow";
 import { kwTerminalRouter } from "./routers/kw-terminal";
 import { mediaRouter } from "./routers/media";
 import { mostruarioRouter } from "./routers/mostruario";
 import { notificationsRouter } from "./routers/notifications";
 import { pairingRouter } from "./routers/pairing";
-import { prioritiesRouter } from "./routers/priorities";
-import { promptRouter } from "./routers/prompt";
-import { promptHistoryRouter } from "./routers/prompt-history";
+import { projectActionsRouter } from "./routers/project-actions";
 import { projectRoutesRouter } from "./routers/project-routes";
 import { projectsRouter } from "./routers/projects";
+import { promptRouter } from "./routers/prompt";
 import { settingsRouter } from "./routers/settings";
 import { shellsRouter } from "./routers/shells";
 import { skillCategoriesRouter } from "./routers/skill-categories";
@@ -35,13 +37,7 @@ import { taskStorageRouter } from "./routers/task-storage";
 import { tasksRouter } from "./routers/tasks";
 import { terminalRouter, terminalWsRouter } from "./routers/terminal";
 import { vaultRouter } from "./routers/vault";
-import {
-	AgentRadarPaneSchema,
-	EndpointSchemas,
-	FlowTaskSchema,
-	PromptRunIdSchema,
-	ShellIdSchema,
-} from "./schemas";
+import { AgentRadarPaneSchema, EndpointSchemas, PromptRunIdSchema, ShellIdSchema } from "./schemas";
 
 export const router = {
 	auth: {
@@ -79,20 +75,18 @@ export const router = {
 	devices: devicesRouter,
 	projects: projectsRouter,
 	projectRoutes: projectRoutesRouter,
+	projectActions: projectActionsRouter,
 	tasks: tasksRouter,
 	taskGroups: taskGroupsRouter,
 	taskStorage: taskStorageRouter,
-	categories: categoriesRouter,
-	priorities: prioritiesRouter,
-	flow: flowRouter,
 	skills: skillsRouter,
 	skillCategories: skillCategoriesRouter,
 	agents: agentsRouter,
+	agentCategories: agentCategoriesRouter,
 	agentHistory: agentHistoryRouter,
 	agentRadar: agentRadarRouter,
 	agentSessions: agentSessionsRouter,
 	prompt: promptRouter,
-	promptHistory: promptHistoryRouter,
 	terminal: terminalRouter,
 	kwTerminal: kwTerminalRouter,
 	shells: shellsRouter,
@@ -131,10 +125,6 @@ export const wsRouter = {
 	navigate: protectedProcedure.handler(({ signal }) =>
 		PubSub.subscribe("navigate", "global", signal),
 	),
-
-	flow: protectedProcedure
-		.input(FlowTaskSchema)
-		.handler(({ input, signal }) => PubSub.subscribe("flow", input.taskId, signal)),
 
 	promptRun: protectedProcedure.input(PromptRunIdSchema).handler(async function* ({
 		input,
@@ -176,11 +166,58 @@ export const wsRouter = {
 		yield* events;
 	}),
 
+	// O catálogo de modelos dos CLIs: abre com o atual e reenvia quando o cache de um deles muda.
+	modelCatalog: protectedProcedure.handler(async function* ({ signal }) {
+		watchModelCatalog();
+		const events = PubSub.subscribe("modelCatalog", "global", signal);
+
+		yield await loadModelCatalog();
+
+		yield* events;
+	}),
+
+	terminalWorkspace: protectedProcedure.handler(async function* ({ signal }) {
+		const events = PubSub.subscribe("terminalWorkspace", "global", signal);
+		const initial = terminalWorkspaceSnapshot();
+		let deliveredRevision = initial.revision;
+
+		yield initial;
+
+		for await (const event of events) {
+			if (!shouldEmitTerminalWorkspaceSnapshot(deliveredRevision, event.revision)) {
+				continue;
+			}
+
+			const snapshot = terminalWorkspaceSnapshot();
+			if (!shouldEmitTerminalWorkspaceSnapshot(deliveredRevision, snapshot.revision)) {
+				continue;
+			}
+
+			deliveredRevision = snapshot.revision;
+			yield snapshot;
+		}
+	}),
+
 	// A conversa que o CLI aberto num pane está gravando no disco. Vive fora de `agentSession` porque
 	// não há sessão do app por trás: o dono do processo é o terminal, e o app só lê o arquivo.
 	agentRadarTranscript: protectedProcedure
 		.input(AgentRadarPaneSchema)
 		.handler(({ input, signal }) => subscribeAgentRadarTranscript(input.paneId, signal)),
+
+	agentTerminal: {
+		stream: protectedProcedure.input(AgentRadarPaneSchema).handler(({ input, signal }) => {
+			if (!getRadarAgent(input.paneId)) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Este agent não está mais aberto no terminal",
+				});
+			}
+
+			return subscribeAgentTerminalScreen(input.paneId, signal);
+		}),
+		input: agentRadarRouter.terminalInput,
+		resize: agentRadarRouter.terminalResize,
+		scroll: agentRadarRouter.terminalScroll,
+	},
 
 	// Stream cru de um shell embutido. Assina antes de ler o replay, no mesmo bloco síncrono:
 	// bytes que chegam depois disso só viajam pelo canal vivo, bytes de antes só no replay —
@@ -189,12 +226,12 @@ export const wsRouter = {
 	shells: {
 		stream: protectedProcedure.input(ShellIdSchema).handler(async function* ({ input, signal }) {
 			const events = PubSub.subscribe("shells", input.id, signal);
-			const replay = shellSupervisor.replayBase64(input.id);
-			if (replay === null) {
+			const attachment = shellRuntime.attach(input.id);
+			if (!attachment) {
 				throw new ORPCError("NOT_FOUND", { message: "Shell não encontrado" });
 			}
 
-			yield { type: "replay" as const, b64: replay };
+			yield { type: "replay" as const, b64: attachment.replayBase64 };
 			yield* events;
 		}),
 		input: shellsRouter.input,

@@ -90,7 +90,7 @@ export function SkillStandardizeDialog({
 			onClose={onClose}
 			onConfirm={() => void confirm()}
 			title="Definir como principal"
-			description={`A pasta de “${label}” será espelhada nas demais fontes.`}
+			description={`A versão de “${label}” será a principal. Skills globais passam a compartilhar a biblioteca central.`}
 			confirmLabel="Confirmar"
 			variant="danger"
 			loading={loading}

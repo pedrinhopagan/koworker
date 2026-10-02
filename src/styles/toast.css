@@ -1,0 +1,32 @@
+.toast-fuse {
+	animation-name: toast-fuse;
+	animation-timing-function: linear;
+	animation-fill-mode: forwards;
+}
+
+.toaster:hover .toast-fuse,
+.toaster:focus-within .toast-fuse {
+	animation-play-state: paused;
+}
+
+@keyframes toast-fuse {
+	from {
+		transform: scaleX(1);
+	}
+
+	to {
+		transform: scaleX(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.toast-fuse {
+		visibility: hidden;
+	}
+}
+
+@media (max-width: 600px) {
+	[data-theme-root]:has(.mobile-bottom-nav) .toaster {
+		bottom: calc(80px + env(safe-area-inset-bottom));
+	}
+}

@@ -2,13 +2,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
 	Bug,
 	ChevronDown,
+	Crosshair,
 	DatabaseZap,
 	Ellipsis,
 	FolderKanban,
+	Loader2,
 	SquareTerminal,
 } from "lucide-react";
 import { type ComponentType, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { InvokeCliSelect } from "@/components/invoke-cli-select";
 import {
@@ -20,11 +22,12 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip } from "@/components/ui/tooltip";
-import { INVOKE_CLI_OPTIONS, type InvokeCli } from "@/constants/invoke";
-import { useProjectFocus } from "@/hooks";
+import { type WorkingCli, WORKING_CLI_OPTIONS } from "@/constants/invoke";
+import { type UseProjectFocusReturn, useProjectFocus } from "@/hooks";
 import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
 import { getAppEnv, getAppVersionFallback, isDevelopmentEnvironment } from "@/lib/env";
 import { getDesktopVersion, isDesktop, openDevtools } from "@/lib/desktop";
+import { focusCliAgent } from "@/lib/terminal";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 
@@ -41,7 +44,7 @@ function ActionButton({ onClick, label, icon: Icon, disabled }: ActionButtonProp
 			type="button"
 			onClick={onClick}
 			disabled={disabled}
-			className="h-6 px-2 inline-flex items-center gap-1 text-[11px] border border-border/70 bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors disabled:opacity-40"
+			className="h-6 rounded-md px-2 inline-flex items-center gap-1 text-[11px] border border-border/70 bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors disabled:opacity-40"
 		>
 			<Icon size={12} />
 			{label}
@@ -56,6 +59,8 @@ export function StatusBar() {
 	const isDev = isDevelopmentEnvironment();
 	const cli = usePromptBarStore((s) => s.cli);
 	const setCli = usePromptBarStore((s) => s.setCli);
+	const projectFocus = useProjectFocus();
+	const [focusing, setFocusing] = useState(false);
 
 	useEffect(() => {
 		let active = true;
@@ -97,32 +102,61 @@ export function StatusBar() {
 		}, 120);
 	}
 
-	const cliOptions = INVOKE_CLI_OPTIONS.map((option) => ({
+	async function handleFocusAgent() {
+		setFocusing(true);
+		try {
+			await focusCliAgent({
+				cli,
+				...(projectFocus.selectedProjectId ? { projectId: projectFocus.selectedProjectId } : {}),
+			});
+		} finally {
+			setFocusing(false);
+		}
+	}
+
+	const cliOptions = WORKING_CLI_OPTIONS.map((option) => ({
 		id: option.value,
 		label: option.label,
 		hint: option.hint,
 	}));
+	const cliLabel = cliOptions.find((option) => option.id === cli)?.label ?? cli;
 
 	return (
-		<footer className="flex h-9 items-center justify-between gap-2 border-t border-border/80 bg-chrome px-3 text-xs md:h-8 md:gap-3 md:px-3">
+		<footer className="flex h-9 shrink-0 items-center justify-between gap-2 border-t border-border bg-chrome px-3 text-xs md:h-shell-foot md:gap-3">
 			<div className="min-w-0 flex items-center gap-2 truncate">
 				<div
 					className={cn(
-						"shrink-0 px-2 py-0.5 rounded border text-[11px] uppercase tracking-wide bg-muted/25 text-muted-foreground",
+						"shrink-0 rounded-sm border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
 						isDev
-							? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-amber-200/75"
-							: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/5 dark:text-emerald-200/75",
+							? "border-warning/40 bg-warning/10 text-warning"
+							: "border-success/40 bg-success/10 text-success",
 					)}
 				>
 					{appEnv}
 				</div>
 
-				<div className="truncate text-muted-foreground/85">v{appVersion}</div>
+				<div className="shrink-0 text-muted-foreground">v{appVersion}</div>
 			</div>
 
 			<div className="hidden md:flex items-center gap-1 min-w-0">
-				<ProjectSelectTrigger />
+				<ProjectSelectTrigger projectFocus={projectFocus} />
 				<InvokeCliSelect compact />
+				<Tooltip label={`Focar a sessão ${cliLabel} (abre uma se não houver)`}>
+					<Button
+						variant="outline"
+						size="icon"
+						aria-label={`Focar a sessão ${cliLabel} (abre uma se não houver)`}
+						disabled={focusing}
+						className="size-6 border-border/70 bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+						onClick={() => void handleFocusAgent()}
+					>
+						{focusing ? (
+							<Loader2 className="size-3 animate-spin" />
+						) : (
+							<Crosshair className="size-3" />
+						)}
+					</Button>
+				</Tooltip>
 				<ActionButton onClick={handleOpenConsole} label="Console" icon={Bug} />
 				<ActionButton onClick={handleClearCache} label="Limpar Cache" icon={DatabaseZap} />
 			</div>
@@ -144,7 +178,7 @@ export function StatusBar() {
 						{cliOptions.map((option) => (
 							<DropdownMenuItem
 								key={option.id}
-								onClick={() => setCli(option.id as InvokeCli)}
+								onClick={() => setCli(option.id as WorkingCli)}
 								className={cn(option.id === cli && "font-medium text-foreground")}
 							>
 								<SquareTerminal size={14} />
@@ -154,6 +188,13 @@ export function StatusBar() {
 								</div>
 							</DropdownMenuItem>
 						))}
+
+						<DropdownMenuSeparator />
+
+						<DropdownMenuItem onClick={() => void handleFocusAgent()} disabled={focusing}>
+							{focusing ? <Loader2 className="size-3.5 animate-spin" /> : <Crosshair size={14} />}
+							Focar sessão {cliLabel}
+						</DropdownMenuItem>
 
 						<DropdownMenuSeparator />
 
@@ -173,9 +214,9 @@ export function StatusBar() {
 	);
 }
 
-function ProjectSelectTrigger() {
+function ProjectSelectTrigger({ projectFocus }: { projectFocus: UseProjectFocusReturn }) {
 	const openDialog = useProjectSelectDialogStore((s) => s.openDialog);
-	const { selectedProjectId, selectedProject, accent, loading } = useProjectFocus();
+	const { selectedProjectId, selectedProject, accent, loading } = projectFocus;
 
 	const label =
 		selectedProjectId === undefined
@@ -188,7 +229,7 @@ function ProjectSelectTrigger() {
 			<button
 				type="button"
 				onClick={openDialog}
-				className="inline-flex h-6 max-w-[180px] items-center gap-1 border border-border/70 bg-muted/40 px-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+				className="inline-flex h-6 max-w-[180px] rounded-md items-center gap-1 border border-border/70 bg-muted/40 px-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
 				style={accent ? { borderColor: accent.border } : undefined}
 			>
 				{accentColor ? (
@@ -197,7 +238,7 @@ function ProjectSelectTrigger() {
 					<FolderKanban size={12} className="shrink-0" />
 				)}
 				<span className="truncate text-left">{label}</span>
-				<ChevronDown size={12} className="shrink-0 opacity-50" />
+				<ChevronDown size={12} className="shrink-0 text-muted-foreground" />
 			</button>
 		</Tooltip>
 	);

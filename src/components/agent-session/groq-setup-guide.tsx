@@ -1,5 +1,5 @@
 import { CheckCircle2, Copy, ExternalLink, KeyRound, RefreshCw } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";

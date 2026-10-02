@@ -1,4 +1,4 @@
-import { ArrowDownAZ, Clock, Flame, Gauge, LayoutGrid } from "lucide-react";
+import { ArrowDownAZ, Clock, GripVertical } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -7,10 +7,9 @@ import { cn } from "@/lib/utils";
 
 const icons = {
 	recente: Clock,
-	categoria: LayoutGrid,
-	prioridade: Flame,
-	complexidade: Gauge,
+	manual: GripVertical,
 	alfabetica: ArrowDownAZ,
+	GripVertical,
 };
 
 export const TASK_SORT_OPTIONS = TASK_SORT_MODES.map((option) => ({

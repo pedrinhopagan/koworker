@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, DatabaseBackup, FolderSync, Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc, type RouterOutputs } from "@/client";
 import { Text } from "@/components/typography";
@@ -12,20 +12,16 @@ import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { TaskStoragePreview } from "./task-storage-preview";
 import { TaskSyncRow, type TaskSyncDraft } from "./task-sync-row";
 
-type Category = RouterOutputs["categories"]["list"][number];
-type Priority = RouterOutputs["priorities"]["list"][number];
 type Feature = RouterOutputs["taskGroups"]["list"][number];
 
 export function TaskSyncAction({
 	projectId,
-	categories,
-	priorities,
 	features,
+	triggerClassName,
 }: {
 	projectId: string | null;
-	categories: Category[];
-	priorities: Priority[];
 	features: Feature[];
+	triggerClassName?: string;
 }) {
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
@@ -98,7 +94,6 @@ export function TaskSyncAction({
 				...task,
 				selected: true,
 				groupId: "",
-				complexity: "medio",
 				done: false,
 			})),
 		);
@@ -115,9 +110,6 @@ export function TaskSyncAction({
 				folderName: draft.folderName,
 				title: draft.title.trim(),
 				groupId: draft.groupId,
-				categoryId: draft.categoryId,
-				priorityId: draft.priorityId,
-				complexity: draft.complexity,
 				done: draft.done,
 			})),
 		});
@@ -151,7 +143,14 @@ export function TaskSyncAction({
 
 	return (
 		<>
-			<Button type="button" variant="outline" size="sm" disabled={!projectId} onClick={handleOpen}>
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				className={triggerClassName}
+				disabled={!projectId}
+				onClick={handleOpen}
+			>
 				<RefreshCw className="size-4" />
 				Reconciliar arquivos
 			</Button>
@@ -231,7 +230,7 @@ export function TaskSyncAction({
 				)}
 
 				{journal && journal.status !== "completed" && journal.status !== "rolled_back" && (
-					<div className="mt-4 flex flex-wrap items-center justify-between gap-3 border border-border bg-card p-4">
+					<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
 						<div>
 							<Text className="font-medium">Journal {journal.status}</Text>
 							<Text size="xs" tone="muted" className="mt-0.5 font-mono">
@@ -294,8 +293,6 @@ export function TaskSyncAction({
 							<TaskSyncRow
 								key={`${draft.projectId}:${draft.folderName}`}
 								draft={draft}
-								categories={categories}
-								priorities={priorities}
 								features={features.filter((feature) => feature.projectId === draft.projectId)}
 								disabled={pending}
 								onChange={(updates) =>

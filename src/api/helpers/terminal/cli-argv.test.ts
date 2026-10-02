@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 
-import { cliResumeArgv, cliStartArgv, cliStartWithFullAccessArgv } from "./cli-argv";
+import {
+	cliResumeArgv,
+	cliResumeByIdArgv,
+	cliStartArgv,
+	cliStartWithFullAccessArgv,
+} from "./cli-argv";
 
 test("início interativo do Claude preserva opções seguras", () => {
 	expect(
@@ -49,6 +54,7 @@ test("início interativo do Codex preserva opções seguras", () => {
 
 test("atalho global abre os agentes com acesso irrestrito", () => {
 	expect(cliStartWithFullAccessArgv("codex")).toEqual(["codex", "--yolo"]);
+	expect(cliStartWithFullAccessArgv("pi")).toEqual(["pi"]);
 	expect(cliStartWithFullAccessArgv("claude")).toEqual([
 		"claude",
 		"--dangerously-skip-permissions",
@@ -68,4 +74,40 @@ test("início e retomada interativos nunca usam flags perigosas", () => {
 	}
 	expect(cliResumeArgv("claude")).toEqual(["claude", "--continue"]);
 	expect(cliResumeArgv("codex")).toEqual(["codex", "resume", "--last"]);
+});
+
+test("retomada por id aceita modelo, esforço e acesso total", () => {
+	expect(cliResumeByIdArgv("codex", "thread-1")).toEqual(["codex", "resume", "thread-1"]);
+	expect(
+		cliResumeByIdArgv("codex", "thread-1", {
+			model: "gpt-6-astra",
+			effort: "high",
+			fullAccess: true,
+		}),
+	).toEqual([
+		"codex",
+		"resume",
+		"--dangerously-bypass-approvals-and-sandbox",
+		"-m",
+		"gpt-6-astra",
+		"-c",
+		"model_reasoning_effort=high",
+		"thread-1",
+	]);
+	expect(cliResumeByIdArgv("claude", "sess-1", { model: "opus", fullAccess: true })).toEqual([
+		"claude",
+		"--resume",
+		"sess-1",
+		"--dangerously-skip-permissions",
+		"--model",
+		"opus",
+	]);
+});
+
+test("opencode 2 retoma pelo id e ignora as opções das outras clis", () => {
+	expect(cliResumeByIdArgv("opencode2", "ses_abc")).toEqual(["opencode2", "--session", "ses_abc"]);
+	// Modelo, esforço e acesso total são flags que só o claude e o codex têm.
+	expect(
+		cliResumeByIdArgv("opencode2", "ses_abc", { model: "opus", effort: "high", fullAccess: true }),
+	).toEqual(["opencode2", "--session", "ses_abc"]);
 });

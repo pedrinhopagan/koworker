@@ -4,12 +4,10 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import {
 	type CodexApprovalMode,
 	INVOKE_INHERIT,
-	type InvokeCli,
 	type InvokePermissionMode,
 	normalizeCodexModel,
+	type WorkingCli,
 } from "@/constants/invoke";
-import type { PromptTemplateSlug } from "@/constants/prompt-templates";
-import type { PromptEngine, PromptEngineEffort } from "@/api/schemas/prompt";
 import { nextImageIndex } from "@/lib/build-prompt";
 
 // Imagem colada no textarea, já gravada em `.koworker/medias/` do projeto de origem. O `index` é a
@@ -22,8 +20,8 @@ export interface PromptImage {
 }
 
 // Referência leve do alvo de invocação escolhido: só kind+slug. O painel resolve o agent/skill
-// completo pelas listas em cache. Vive no store (não persistido) pra que o autofill possa pré-marcar
-// um alvo de fora do painel; zera na troca de projeto como o estado local fazia.
+// completo pelas listas em cache. Vive no store (não persistido) porque Invocação e Conversa leem o
+// mesmo alvo; zera na troca de projeto como o estado local fazia.
 export interface InvokeSelection {
 	kind: "agent" | "skill";
 	slug: string;
@@ -46,7 +44,7 @@ export interface CodexSessionConfig {
 // Config de invocação: preferências de aba do terminal + as duas sessões lado a lado. O `cli` ativo
 // (estado de topo do store) decide qual sessão o comando usa.
 export interface InvokeConfig {
-	// Nova aba tmux por invocação (default) vs. reaproveitar a aba do alvo.
+	// Nova aba do kw-terminal por invocação (default) vs. reaproveitar a aba do alvo.
 	forceNew: boolean;
 	// Dispara sem trazer a janela do terminal pra frente.
 	background: boolean;
@@ -86,64 +84,35 @@ const VALID_APPROVAL_MODES = new Set<CodexApprovalMode>([
 interface PromptBarState {
 	text: string;
 	expanded: boolean;
-	// CLI de trabalho da sessão (claude|codex): governa o comando, os knobs de sessão exibidos e a
+	// CLI de trabalho da sessão: governa o comando, os knobs de sessão exibidos e a
 	// grafia das skills no prompt copiado/invocado. Persiste — é um modo de trabalho, não um detalhe.
-	cli: InvokeCli;
+	cli: WorkingCli;
 	// Seção de invocação (Alvo + Sessão) revelada pelo trigger "Invocação". Vive abaixo do `expanded`:
 	// só aparece com o prompt aberto, mas lembra o próprio estado entre sessões.
 	invokeOpen: boolean;
 	executeOpen: boolean;
 	// Seção "Anexos" (toggles kw/rota/input) revelada pelo trigger homônimo — mesmo regime do `invokeOpen`.
 	attachOpen: boolean;
-	// Seção "Estruturação" (estrutura Goal/Contexto/... + autofill) revelada pelo trigger homônimo.
-	structureOpen: boolean;
-	// Template ativo (slug em PROMPT_TEMPLATES); null = prompt sem estrutura.
-	structureTemplate: string | null;
-	// Rascunho dos campos por template e por campo — trocar de template preserva o que já foi digitado.
-	structureValues: Record<string, Record<string, string>>;
 	// Prefixa `/kw` na cabeça do prompt — a skill koworker viaja junto com a invocação/cópia.
 	interactWithKw: boolean;
 	interactWithRoute: boolean;
 	interactWithInput: boolean;
 	// Imagens coladas/anexadas ao rascunho — persiste junto com o texto (os marcadores continuam lá).
 	images: PromptImage[];
-	// Alvo de invocação corrente (agent/skill), compartilhado entre o painel e o autofill. Não persiste.
+	// Alvo de invocação corrente (agent/skill), compartilhado entre Invocação e Conversa. Não persiste.
 	selection: InvokeSelection | null;
-	// Motor/esforço do autofill de estrutura — preferência do usuário, persiste.
-	autofillEngine: PromptEngine;
-	autofillEffort: PromptEngineEffort;
-	// Autofill em voo: o painel de anexos mostra skeletons enquanto true. Não persiste.
-	autofillPending: boolean;
 	invoke: InvokeConfig;
 
 	setText: (text: string) => void;
 	setExpanded: (expanded: boolean) => void;
 	toggleExpanded: () => void;
-	setCli: (cli: InvokeCli) => void;
-	setInvokeOpen: (open: boolean) => void;
+	setCli: (cli: WorkingCli) => void;
 	toggleInvokeOpen: () => void;
 	setExecuteOpen: (open: boolean) => void;
 	toggleExecuteOpen: () => void;
 	toggleAttachOpen: () => void;
-	toggleStructureOpen: () => void;
 	setAllSectionsOpen: (open: boolean) => void;
-	setStructureTemplate: (slug: string | null) => void;
-	// Escreve um campo do template ativo; sem template ativo, não faz nada.
-	setStructureField: (field: string, value: string) => void;
-	// Descarta o rascunho de campos do template ativo.
-	clearStructureFields: () => void;
-	// Aplica o resultado do autofill: adota a estrutura só se nenhuma escolhida (a menos de `force`,
-	// que troca a estrutura e repreenche tudo) e escreve campos só onde vazio — texto digitado nunca é
-	// sobrescrito, salvo em `force`.
-	applyStructureAutofill: (params: {
-		structure: PromptTemplateSlug;
-		fields: Record<string, string>;
-		force: boolean;
-	}) => void;
 	setSelection: (selection: InvokeSelection | null) => void;
-	setAutofillEngine: (engine: PromptEngine) => void;
-	setAutofillEffort: (effort: PromptEngineEffort) => void;
-	setAutofillPending: (pending: boolean) => void;
 	setInteractWithKw: (value: boolean) => void;
 	setInteractWithRoute: (value: boolean) => void;
 	setInteractWithInput: (value: boolean) => void;
@@ -199,73 +168,23 @@ export const usePromptBarStore = create<PromptBarState>()(
 			invokeOpen: false,
 			executeOpen: false,
 			attachOpen: false,
-			structureOpen: false,
-			structureTemplate: null,
-			structureValues: {},
 			interactWithKw: true,
 			interactWithRoute: true,
 			interactWithInput: true,
 			images: [],
 			selection: null,
-			autofillEngine: "opus",
-			autofillEffort: "medium",
-			autofillPending: false,
 			invoke: DEFAULT_INVOKE,
 
 			setText: (text) => set({ text }),
 			setExpanded: (expanded) => set({ expanded }),
 			toggleExpanded: () => set((state) => ({ expanded: !state.expanded })),
 			setCli: (cli) => set({ cli }),
-			setInvokeOpen: (invokeOpen) => set({ invokeOpen }),
 			toggleInvokeOpen: () => set((state) => ({ invokeOpen: !state.invokeOpen })),
 			setExecuteOpen: (executeOpen) => set({ executeOpen }),
 			toggleExecuteOpen: () => set((state) => ({ executeOpen: !state.executeOpen })),
 			toggleAttachOpen: () => set((state) => ({ attachOpen: !state.attachOpen })),
-			toggleStructureOpen: () => set((state) => ({ structureOpen: !state.structureOpen })),
-			setAllSectionsOpen: (open) =>
-				set({ attachOpen: open, structureOpen: open, invokeOpen: open, executeOpen: open }),
-			setStructureTemplate: (structureTemplate) => set({ structureTemplate }),
-
-			setStructureField: (field, value) =>
-				set((state) => {
-					if (!state.structureTemplate) return state;
-					const current = state.structureValues[state.structureTemplate] ?? {};
-					return {
-						structureValues: {
-							...state.structureValues,
-							[state.structureTemplate]: { ...current, [field]: value },
-						},
-					};
-				}),
-
-			clearStructureFields: () =>
-				set((state) => {
-					if (!state.structureTemplate) return state;
-					const structureValues = { ...state.structureValues };
-					delete structureValues[state.structureTemplate];
-					return { structureValues };
-				}),
-
-			applyStructureAutofill: ({ structure, fields, force }) =>
-				set((state) => {
-					const structureTemplate = force ? structure : (state.structureTemplate ?? structure);
-					const base = force ? {} : (state.structureValues[structure] ?? {});
-					const values = { ...base };
-					for (const [key, value] of Object.entries(fields)) {
-						if (force || !values[key]?.trim()) {
-							values[key] = value;
-						}
-					}
-					return {
-						structureTemplate,
-						structureValues: { ...state.structureValues, [structure]: values },
-					};
-				}),
-
+			setAllSectionsOpen: (open) => set({ attachOpen: open, invokeOpen: open, executeOpen: open }),
 			setSelection: (selection) => set({ selection }),
-			setAutofillEngine: (autofillEngine) => set({ autofillEngine }),
-			setAutofillEffort: (autofillEffort) => set({ autofillEffort }),
-			setAutofillPending: (autofillPending) => set({ autofillPending }),
 			setInteractWithKw: (interactWithKw) => set({ interactWithKw }),
 			setInteractWithRoute: (interactWithRoute) => set({ interactWithRoute }),
 			setInteractWithInput: (interactWithInput) => set({ interactWithInput }),
@@ -333,15 +252,10 @@ export const usePromptBarStore = create<PromptBarState>()(
 				invokeOpen: state.invokeOpen,
 				executeOpen: state.executeOpen,
 				attachOpen: state.attachOpen,
-				structureOpen: state.structureOpen,
-				structureTemplate: state.structureTemplate,
-				structureValues: state.structureValues,
 				interactWithKw: state.interactWithKw,
 				interactWithRoute: state.interactWithRoute,
 				interactWithInput: state.interactWithInput,
 				images: state.images,
-				autofillEngine: state.autofillEngine,
-				autofillEffort: state.autofillEffort,
 				invoke: state.invoke,
 			}),
 			// O shape do `invoke` mudou (sessões aninhadas) e campos novos surgiram; o merge reconstrói a
@@ -367,9 +281,15 @@ export const usePromptBarStore = create<PromptBarState>()(
 					invoke.codex.approvalMode = DEFAULT_INVOKE.codex.approvalMode;
 				}
 				invoke.codex.model = normalizeCodexModel(invoke.codex.model);
-				const cli: InvokeCli = saved.cli === "codex" ? "codex" : "claude";
+				const cli: WorkingCli = saved.cli === "codex" || saved.cli === "pi" ? saved.cli : "claude";
 				const images = Array.isArray(saved.images) ? saved.images : [];
-				return { ...current, ...saved, cli, invoke, images };
+				return {
+					...current,
+					...saved,
+					cli,
+					invoke,
+					images,
+				};
 			},
 		},
 	),

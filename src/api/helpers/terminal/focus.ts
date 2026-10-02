@@ -1,7 +1,7 @@
 // Foco de janela: best-effort. Traz o terminal do projeto (título "<projeto> - Kowork") pra frente
 // via xdotool (X11) ou kdotool (Wayland). Qualquer falha — sem display gráfico, binário ausente,
 // emulador que não casa a classe — é ignorada: o terminal só não ganha foco, não quebra a abertura.
-// `windowClass` é genérico (default Alacritty, o preset do modo tmux); outros modos passam a sua.
+// `windowClass` default é Alacritty, a janela do kw-terminal no Linux.
 
 async function toolOutput(cmd: string[]): Promise<string> {
 	try {
@@ -35,7 +35,7 @@ export async function focusTerminalWindow(
 	const tool = wayland ? "kdotool" : "xdotool";
 
 	// Interseção: a janela que casa o título do projeto E é da classe informada (o foco só faz sentido
-	// pro emulador do preset; outros emuladores simplesmente não focam).
+	// pra janela do kw-terminal; outros emuladores simplesmente não focam).
 	const titleIds = new Set(toLines(await toolOutput([tool, "search", "--name", title])));
 	const classIds = toLines(await toolOutput([tool, "search", "--class", windowClass]));
 	const match = classIds.find((id) => titleIds.has(id));

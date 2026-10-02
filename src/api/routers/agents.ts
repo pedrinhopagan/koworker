@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 
 import { lintPrinciples } from "@/lib/principles/lint";
 import { protectedProcedure } from "../auth/context";
+import { dbAgentCategories } from "../db/agent-categories";
 import { dbAgentSettings } from "../db/agent-settings";
 import { dbAgentSourcePaths } from "../db/agent-source-paths";
 import {
@@ -61,6 +62,7 @@ export const agentsRouter = {
 					label: override?.label ?? null,
 					icon: override?.icon ?? null,
 					color: override?.color ?? null,
+					categoryId: override?.category_id ?? null,
 				},
 			};
 		});
@@ -77,11 +79,15 @@ export const agentsRouter = {
 				label: override?.label ?? null,
 				icon: override?.icon ?? null,
 				color: override?.color ?? null,
+				categoryId: override?.category_id ?? null,
 			},
 		});
 	}),
 
 	updateSettings: protectedProcedure.input(AgentSettingsSchema).handler(async ({ input }) => {
+		if (input.categoryId && !(await dbAgentCategories.getById(input.categoryId))) {
+			throw new Error("Categoria não encontrada");
+		}
 		await dbAgentSettings.upsert(input);
 		return { success: true };
 	}),

@@ -2,28 +2,24 @@ import { realpathSync } from "node:fs";
 
 import { buildClaudeArgv } from "@/lib/claude-command";
 import { buildCodexArgv } from "@/lib/codex-command";
-import type { TerminalMultiplexer } from "@/constants/terminal";
+import type { WorkingCli } from "@/constants/invoke";
 import { PubSub, type TerminalEvent } from "../../pubsub";
-import {
-	buildNoneCommandArgv,
-	hasTerminalCommand,
-	type TerminalCommand,
-	terminalCommandText,
-} from "./command";
+import { spawnEnv } from "../spawn";
+import { hasTerminalCommand, type TerminalCommand, terminalCommandText } from "./command";
 import {
 	cliResumeArgv,
 	cliResumeByIdArgv,
+	type CliResumeOptions,
+	type ResumableCli,
 	cliStartArgv,
 	cliStartWithFullAccessArgv,
 } from "./cli-argv";
-import { type EmulatorProcess, spawnEmulator } from "./emulator";
 import { focusTerminalWindow } from "./focus";
 import {
 	ensureKwTerminalServer,
 	ensureWorkspaceByLabel,
 	findTabByLabel,
 	findWorkspaceByLabel,
-	KW_TERMINAL_CLIENT_ARGV,
 	type KwTerminalAgent,
 	kwTerminalAgentFocus,
 	kwTerminalAgentList,
@@ -40,6 +36,7 @@ import {
 	kwTerminalWorkspaceClose,
 	kwTerminalWorkspaceFocus,
 	kwTerminalWorkspaceList,
+	kwTerminalWindowArgv,
 } from "./kw-terminal";
 import {
 	isInvocationWindow,
@@ -48,26 +45,6 @@ import {
 	type TerminalTabTarget,
 	terminalTabLabel,
 } from "./names";
-import {
-	sessionHasTerminalAttached,
-	tmuxKillSession,
-	tmuxKillWindow,
-	tmuxListWindows,
-	tmuxNewSession,
-	tmuxNewWindow,
-	tmuxSelectWindow,
-	tmuxSendKeys,
-	tmuxSessionExists,
-	tmuxWindowExists,
-} from "./tmux";
-
-// Emulador + multiplexador resolvidos pela fronteira (o router lê as settings de SO e passa como dado).
-// O serviço não relê settings a cada chamada: quem é dono da config é a tabela `settings`.
-export type TerminalConfig = {
-	template: string;
-	multiplexer: TerminalMultiplexer;
-};
-
 export type OpenTerminalResult = {
 	sessionName: string;
 	windowName: string;
@@ -75,20 +52,10 @@ export type OpenTerminalResult = {
 	isNewWindow: boolean;
 };
 
-export type InvocationSessionInfo = {
-	projectId: string;
-	projectName: string;
-	sessionName: string;
-	windowCount: number;
-};
-
 type TrackedWindow = {
 	taskId: string;
 	windowName: string;
-	// Só no modo `none`: o processo do emulador. O fechamento é detectado pelo `.exited` dele.
-	process?: EmulatorProcess;
-	// Só no modo kw-terminal: IDs voláteis da tab/pane kw-terminal. Repopulados por label após restart
-	// do backend.
+	// IDs voláteis da tab/pane kw-terminal. Repopulados por label após restart do backend.
 	paneId?: string;
 	tabId?: string;
 };
@@ -97,16 +64,13 @@ type TrackedSession = {
 	projectId: string;
 	projectName: string;
 	sessionName: string;
-	multiplexer: TerminalMultiplexer;
 	windows: TrackedWindow[];
-	// Só no modo kw-terminal: ID volátil do workspace kw-terminal. Repopulado por label após restart do
-	// backend.
+	// ID volátil do workspace kw-terminal. Repopulado por label após restart do backend.
 	workspaceId?: string;
 };
 
-// Estado em memória do serviço (o backend é um processo único e longo). Nos modos tmux/kw-terminal é
-// um espelho do multiplexador, usado pra casar a window morta com o taskId da UI; no modo none é a
-// única fonte (não há daemon externo). O monitor cuida de tmux/kw-terminal; o modo none usa `.exited`.
+// Estado em memória do serviço (o backend é um processo único e longo): espelho do kw-terminal, usado
+// pra casar a tab morta com o taskId da UI.
 let sessions: TrackedSession[] = [];
 let monitorTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -119,13 +83,11 @@ function findSession(projectId: string): TrackedSession | undefined {
 }
 
 type OpenParams = {
-	config: TerminalConfig;
 	projectId: string;
 	projectName: string;
 	workingDir: string;
 	taskId: string;
-	// O alvo, não o rótulo: o nome da window/tab sai daqui em `openTerminal` e só de lá, para os três
-	// multiplexadores enxergarem o mesmo nome para o mesmo alvo.
+	// O alvo, não o rótulo: o nome da tab sai daqui em `openTerminal` e só de lá.
 	tab: TerminalTabTarget;
 	command: TerminalCommand | undefined;
 	forceNew: boolean;
@@ -143,15 +105,7 @@ function openTerminal(params: OpenParams): Promise<OpenTerminalResult> {
 		windowName: terminalTabLabel(params.tab),
 	};
 
-	if (params.config.multiplexer === "none") {
-		return Promise.resolve(openNone(resolved));
-	}
-
-	if (params.config.multiplexer === "kw-terminal") {
-		return openKwTerminal(resolved);
-	}
-
-	return openTmux(resolved);
+	return openKwTerminal(resolved);
 }
 
 // O grupo do kw-terminal é o projeto, sempre pelo nome cadastrado — nunca pela pasta onde o comando
@@ -172,7 +126,7 @@ export function projectWorkspace(params: { projectName: string | null; mainRoute
 async function createProjectSessionTab(params: {
 	projectName: string | null;
 	mainRoute: string;
-	cli: "claude" | "codex";
+	cli: ResumableCli;
 	tab: TerminalTabTarget;
 	// A tab nasce na raiz do projeto por padrão; conversa retomada do histórico nasce na pasta onde
 	// ela rodou, que pode ser um worktree ou uma subpasta.
@@ -183,7 +137,11 @@ async function createProjectSessionTab(params: {
 	reuseExisting?: boolean;
 }) {
 	await ensureKwTerminalServer();
-	await kwTerminalIntegrationInstall(params.cli);
+	// O opencode 2 não tem integração para instalar: quem reporta estado e sessão dele é o próprio
+	// kw-terminal, lendo o serviço local do opencode.
+	if (params.cli !== "opencode2") {
+		await kwTerminalIntegrationInstall(params.cli);
+	}
 	const { workspace } = await projectWorkspace(params);
 
 	if (params.reuseExisting) {
@@ -232,33 +190,39 @@ async function createProjectSessionTab(params: {
 // focus por WM.
 const KW_TERMINAL_CLIENT_LABEL = "kw-terminal";
 
-// Depois de focar no daemon, garante que há uma janela pra ver: sem cliente TUI aberto spawna o
-// emulador do preset rodando o attach (título estável "kw-terminal - Kowork") e sobe a janela pelo
-// WM. O foco WM é best-effort silencioso — casa título × classe do preset, outros emuladores só não
-// focam.
-export async function revealKwTerminalClient(params: {
-	config: TerminalConfig;
-	workingDir: string;
-}): Promise<void> {
+// Depois de focar no daemon, garante que há uma janela pra ver: sem cliente TUI aberto abre a janela
+// do kw-terminal (título estável "kw-terminal - Kowork") e sobe ela pelo WM. O foco WM é best-effort
+// silencioso.
+export async function revealKwTerminalClient(params: { workingDir: string }): Promise<void> {
 	if (!(await kwTerminalClientAttached())) {
-		spawnAttach({
-			config: params.config,
-			title: `${KW_TERMINAL_CLIENT_LABEL} - Kowork`,
-			commandArgv: [...KW_TERMINAL_CLIENT_ARGV],
-			workingDir: params.workingDir,
-		});
+		const argv = kwTerminalWindowArgv(`${KW_TERMINAL_CLIENT_LABEL} - Kowork`);
+		if (!argv) {
+			throw new Error("Terminal externo indisponível: o kw-terminal só roda no Linux e no macOS");
+		}
+		try {
+			Bun.spawn(argv, {
+				cwd: params.workingDir,
+				stdout: "ignore",
+				stderr: "ignore",
+				stdin: "ignore",
+				env: spawnEnv(),
+			});
+		} catch {
+			throw new Error(
+				`Não foi possível abrir a janela do kw-terminal: "${argv[0]}" não encontrado`,
+			);
+		}
 		await Bun.sleep(400);
 	}
 
 	await focusTerminalWindow(KW_TERMINAL_CLIENT_LABEL).catch(() => {});
 }
 
-// Modo kw-terminal: 1 tab = 1 window lógica (paridade tmux). Workspace = sessão do projeto (label
-// `sessionName`), tab = tarefa/rota (label `windowName`), pane raiz da tab recebe o comando. IDs
-// kw-terminal são voláteis; recuperamos workspace/tab por label pra sobreviver a restart do backend.
+// Workspace = sessão do projeto (label `sessionName`), tab = tarefa/rota (label `windowName`), pane raiz
+// da tab recebe o comando. IDs kw-terminal são voláteis; recuperamos workspace/tab por label pra
+// sobreviver a restart do backend.
 async function openKwTerminal(params: ResolvedOpenParams): Promise<OpenTerminalResult> {
-	const { config, projectId, projectName, sessionName, windowName, workingDir, background } =
-		params;
+	const { projectId, projectName, sessionName, windowName, workingDir, background } = params;
 
 	await ensureKwTerminalServer();
 
@@ -319,21 +283,20 @@ async function openKwTerminal(params: ResolvedOpenParams): Promise<OpenTerminalR
 	}
 
 	// Foreground: primeiro foca no daemon (workspace + tab) pra o cliente renderizar já na tab certa;
-	// depois traz a janela do cliente pra frente, igual ao caminho tmux.
+	// depois traz a janela do cliente pra frente.
 	if (!background) {
 		await kwTerminalWorkspaceFocus(workspaceId);
 		if (tab) {
 			await kwTerminalTabFocus(tab.tab_id);
 		}
 
-		await revealKwTerminalClient({ config, workingDir });
+		await revealKwTerminalClient({ workingDir });
 	}
 
 	trackWindow({
 		projectId,
 		projectName,
 		sessionName,
-		multiplexer: "kw-terminal",
 		taskId: params.taskId,
 		windowName,
 		workspaceId,
@@ -345,194 +308,11 @@ async function openKwTerminal(params: ResolvedOpenParams): Promise<OpenTerminalR
 	return { sessionName, windowName, isNewSession, isNewWindow };
 }
 
-async function openTmux(params: ResolvedOpenParams): Promise<OpenTerminalResult> {
-	const { config, projectId, projectName, sessionName, windowName, workingDir, background } =
-		params;
-	const title = `${projectName} - Kowork`;
-
-	let isNewSession = false;
-	let isNewWindow = false;
-
-	const sessionExists = await tmuxSessionExists(sessionName);
-
-	if (sessionExists) {
-		const windowExists = await tmuxWindowExists(sessionName, windowName);
-
-		if (params.forceNew || !windowExists) {
-			if (windowExists && params.forceNew && params.killExistingOnForceNew) {
-				await tmuxKillWindow(sessionName, windowName);
-			}
-
-			await tmuxNewWindow({ sessionName, windowName, workingDir });
-			isNewWindow = true;
-			publish({
-				eventType: "window_opened",
-				projectId,
-				taskId: params.taskId,
-				sessionName,
-				windowName,
-			});
-		}
-
-		if (!background) {
-			if (!(await sessionHasTerminalAttached(sessionName))) {
-				spawnAttach({
-					config,
-					title,
-					commandArgv: ["tmux", "attach-session", "-t", sessionName],
-					workingDir,
-				});
-				await Bun.sleep(300);
-			}
-
-			await focusTerminalWindow(projectName).catch(() => {});
-			await tmuxSelectWindow(sessionName, windowName);
-		}
-	} else {
-		await tmuxNewSession({ sessionName, workingDir, windowName });
-
-		if (!background) {
-			spawnAttach({
-				config,
-				title,
-				commandArgv: ["tmux", "attach-session", "-t", sessionName],
-				workingDir,
-			});
-			await Bun.sleep(500);
-		}
-
-		isNewSession = true;
-		isNewWindow = true;
-		publish({ eventType: "session_opened", projectId, sessionName });
-		publish({
-			eventType: "window_opened",
-			projectId,
-			taskId: params.taskId,
-			sessionName,
-			windowName,
-		});
-	}
-
-	if (params.command && hasTerminalCommand(params.command)) {
-		await tmuxSendKeys(sessionName, windowName, terminalCommandText(params.command));
-	}
-
-	trackWindow({
-		projectId,
-		projectName,
-		sessionName,
-		multiplexer: "tmux",
-		taskId: params.taskId,
-		windowName,
-	});
-	startMonitor();
-
-	return { sessionName, windowName, isNewSession, isNewWindow };
-}
-
-// Spawna o emulador do preset atachado no multiplexador (tmux ou cliente kw-terminal). O
-// `commandArgv` é o comando de attach de cada modo; o resto (template do preset, título, cwd) é comum.
-function spawnAttach(params: {
-	config: TerminalConfig;
-	title: string;
-	commandArgv: string[];
-	workingDir: string;
-}) {
-	spawnEmulator({
-		template: params.config.template,
-		title: params.title,
-		commandArgv: params.commandArgv,
-		cwd: params.workingDir,
-	});
-}
-
-function openNone(params: ResolvedOpenParams): OpenTerminalResult {
-	const { projectId, projectName, sessionName, windowName, workingDir, command } = params;
-	const shell = process.env.SHELL ?? "/bin/sh";
-
-	const child = spawnEmulator({
-		template: params.config.template,
-		title: `${projectName} - Kowork`,
-		commandArgv: buildNoneCommandArgv(command, shell),
-		cwd: workingDir,
-	});
-
-	// Cada abertura é uma janela nova (não há multiplexador); rastreada pelo processo do emulador.
-	const isNewSession = !findSession(projectId);
-	const session = ensureNoneSession({ projectId, projectName, sessionName });
-	const window: TrackedWindow = { taskId: params.taskId, windowName, process: child };
-	session.windows.push(window);
-
-	if (isNewSession) {
-		publish({ eventType: "session_opened", projectId, sessionName });
-	}
-	publish({
-		eventType: "window_opened",
-		projectId,
-		taskId: params.taskId,
-		sessionName,
-		windowName,
-	});
-
-	void child.exited.then(() => handleNoneWindowClosed(session, window));
-
-	return { sessionName, windowName, isNewSession, isNewWindow: true };
-}
-
-function ensureNoneSession(params: {
-	projectId: string;
-	projectName: string;
-	sessionName: string;
-}): TrackedSession {
-	const existing = findSession(params.projectId);
-	if (existing) {
-		return existing;
-	}
-
-	const created: TrackedSession = {
-		projectId: params.projectId,
-		projectName: params.projectName,
-		sessionName: params.sessionName,
-		multiplexer: "none",
-		windows: [],
-	};
-	sessions.push(created);
-
-	return created;
-}
-
-function handleNoneWindowClosed(session: TrackedSession, window: TrackedWindow) {
-	const index = session.windows.indexOf(window);
-	if (index === -1) {
-		return;
-	}
-
-	session.windows.splice(index, 1);
-	publish({
-		eventType: "window_closed",
-		projectId: session.projectId,
-		taskId: window.taskId,
-		sessionName: session.sessionName,
-		windowName: window.windowName,
-	});
-
-	if (session.windows.length === 0) {
-		sessions = sessions.filter((candidate) => candidate !== session);
-		publish({
-			eventType: "session_closed",
-			projectId: session.projectId,
-			sessionName: session.sessionName,
-		});
-	}
-}
-
-// Modos tmux/kw-terminal: dedup por taskId (a mesma tarefa reaproveita a window). No modo none o
-// tracking é feito direto em `openNone` (uma window por processo), então esta função não é usada lá.
+// Dedup por taskId: a mesma tarefa reaproveita a tab.
 function trackWindow(params: {
 	projectId: string;
 	projectName: string;
 	sessionName: string;
-	multiplexer: TerminalMultiplexer;
 	taskId: string;
 	windowName: string;
 	workspaceId?: string;
@@ -567,17 +347,15 @@ function trackWindow(params: {
 		projectId: params.projectId,
 		projectName: params.projectName,
 		sessionName: params.sessionName,
-		multiplexer: params.multiplexer,
 		windows: [window],
 		...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
 	});
 }
 
-// Monitor de fechamento externo (tmux + kw-terminal): a cada 3s confere se cada sessão/window
-// rastreada ainda existe no multiplexador; o que o usuário fechou por fora vira
-// `session_closed`/`window_closed`. O modo none não entra aqui (o `.exited` de cada processo já
-// cobre). `.unref()` deixa o backend encerrar sem esperar o timer — o `Bun.serve` mantém o loop vivo
-// em produção. Para sozinho quando não há mais nenhuma sessão tmux nem kw-terminal rastreada.
+// Monitor de fechamento externo: a cada 3s confere se cada workspace/tab rastreado ainda existe no
+// kw-terminal; o que o usuário fechou por fora vira `session_closed`/`window_closed`. `.unref()` deixa
+// o backend encerrar sem esperar o timer: o `Bun.serve` mantém o loop vivo em produção. Para sozinho
+// quando não há mais nenhuma sessão rastreada.
 function startMonitor() {
 	if (monitorTimer) {
 		return;
@@ -590,23 +368,11 @@ function startMonitor() {
 }
 
 async function tickMonitor() {
-	await tickTmuxSessions();
 	await tickKwTerminalSessions();
 
-	const stillMonitored = sessions.some(
-		(session) => session.multiplexer === "tmux" || session.multiplexer === "kw-terminal",
-	);
-	if (!stillMonitored && monitorTimer) {
+	if (sessions.length === 0 && monitorTimer) {
 		clearInterval(monitorTimer);
 		monitorTimer = null;
-	}
-}
-
-async function tickTmuxSessions() {
-	for (const session of sessions.filter((candidate) => candidate.multiplexer === "tmux")) {
-		if (!(await tmuxSessionExists(session.sessionName))) {
-			pruneSession(session);
-		}
 	}
 }
 
@@ -615,16 +381,13 @@ async function tickTmuxSessions() {
 // voláteis são repopulados por label (o server kw-terminal sobrevive ao restart do backend, mas o ID
 // em memória não).
 async function tickKwTerminalSessions() {
-	const kwTerminalSessions = sessions.filter(
-		(candidate) => candidate.multiplexer === "kw-terminal",
-	);
-	if (kwTerminalSessions.length === 0) {
+	if (sessions.length === 0) {
 		return;
 	}
 
 	const workspaces = await kwTerminalWorkspaceList();
 
-	for (const session of kwTerminalSessions) {
+	for (const session of sessions) {
 		const workspace = resolveKwTerminalWorkspace(session, workspaces);
 		if (!workspace) {
 			pruneSession(session);
@@ -758,21 +521,90 @@ async function closeKwTerminalInvocationTabs(
 	return killed;
 }
 
-async function invocationWindowNames(params: {
-	config: TerminalConfig;
-	projectId: string;
-	sessionName: string;
-}): Promise<string[]> {
-	let names: string[];
-	if (params.config.multiplexer === "none") {
-		names = findSession(params.projectId)?.windows.map((window) => window.windowName) ?? [];
-	} else if (params.config.multiplexer === "kw-terminal") {
-		names = await kwTerminalTabLabels(params.projectId, params.sessionName);
-	} else {
-		names = await tmuxListWindows(params.sessionName);
+async function closeKwTerminalProject(params: { projectId: string; sessionName: string }) {
+	const tracked = findSession(params.projectId);
+	const workspaceId =
+		tracked?.workspaceId ?? (await findWorkspaceByLabel(params.sessionName))?.workspace_id;
+
+	if (workspaceId && !(await kwTerminalWorkspaceClose(workspaceId))) {
+		throw new Error("Falha ao encerrar workspace kw-terminal");
 	}
 
-	return names.filter(isInvocationWindow);
+	for (const window of tracked?.windows ?? []) {
+		publish({
+			eventType: "window_closed",
+			projectId: params.projectId,
+			taskId: window.taskId,
+			sessionName: params.sessionName,
+			windowName: window.windowName,
+		});
+	}
+
+	sessions = sessions.filter((session) => session.projectId !== params.projectId);
+	publish({
+		eventType: "session_closed",
+		projectId: params.projectId,
+		sessionName: params.sessionName,
+	});
+}
+
+async function closeKwTerminalWindow(params: {
+	projectId: string;
+	sessionName: string;
+	taskId: string;
+	windowName: string;
+}) {
+	const session = findSession(params.projectId);
+	const tracked = session?.windows.find((candidate) => candidate.taskId === params.taskId);
+	let tabId = tracked?.tabId;
+
+	if (!tabId) {
+		const workspaceId =
+			session?.workspaceId ?? (await findWorkspaceByLabel(params.sessionName))?.workspace_id;
+		if (workspaceId) {
+			tabId = (await findTabByLabel(workspaceId, params.windowName))?.tab_id;
+		}
+	}
+
+	if (tabId && !(await kwTerminalTabClose(tabId))) {
+		throw new Error("Falha ao fechar tab kw-terminal");
+	}
+
+	if (session) {
+		session.windows = session.windows.filter((window) => window.taskId !== params.taskId);
+	}
+	publish({
+		eventType: "window_closed",
+		projectId: params.projectId,
+		taskId: params.taskId,
+		sessionName: params.sessionName,
+		windowName: params.windowName,
+	});
+}
+
+async function focusKwTerminalAgent(params: { cli: WorkingCli; mainRoute: string }) {
+	await ensureKwTerminalServer();
+
+	const agent = selectAgentForCli({
+		agents: await kwTerminalAgentList(),
+		cli: params.cli,
+		mainRoute: params.mainRoute,
+	});
+	if (!agent) {
+		return null;
+	}
+
+	if (!(await kwTerminalAgentFocus(agent.terminal_id))) {
+		throw new Error(`Falha ao focar a sessão ${params.cli} no kw-terminal`);
+	}
+
+	await revealKwTerminalClient({ workingDir: agent.cwd });
+
+	return agent;
+}
+
+async function invocationWindowNames(projectId: string, sessionName: string): Promise<string[]> {
+	return (await kwTerminalTabLabels(projectId, sessionName)).filter(isInvocationWindow);
 }
 
 function invocationArgv(params: {
@@ -805,24 +637,13 @@ function invocationArgv(params: {
 }
 
 async function windowExists(params: {
-	config: TerminalConfig;
 	projectId: string;
 	sessionName: string;
 	windowName: string;
 }): Promise<boolean> {
-	if (params.config.multiplexer === "none") {
-		return !!findSession(params.projectId)?.windows.some(
-			(window) => window.windowName === params.windowName,
-		);
-	}
-
-	if (params.config.multiplexer === "kw-terminal") {
-		return (await kwTerminalTabLabels(params.projectId, params.sessionName)).includes(
-			params.windowName,
-		);
-	}
-
-	return await tmuxWindowExists(params.sessionName, params.windowName);
+	return (await kwTerminalTabLabels(params.projectId, params.sessionName)).includes(
+		params.windowName,
+	);
 }
 
 // Sessão do CLI ativo a focar: só os agents daquele binário abertos dentro do projeto (cwd exato
@@ -860,10 +681,10 @@ export function selectAgentForCli(params: {
 
 export const Terminal = {
 	startSession(params: {
-		projectName: string;
+		projectName: string | null;
 		mainRoute: string;
 		cli: "claude" | "codex";
-		// Sessão livre da rota `/terminals` ou invocação de agent/skill: quem dispara diz o alvo, o
+		// Sessão livre da rota `/shells` ou invocação de agent/skill: quem dispara diz o alvo, o
 		// rótulo sai do motor de nomes.
 		tab?: TerminalTabTarget;
 		prompt?: string;
@@ -872,10 +693,13 @@ export const Terminal = {
 		agent?: string;
 		permissionMode?: "bypass" | "plan" | "acceptEdits" | "default";
 		approvalMode?: "bypass" | "fullAuto" | "readOnly" | "default";
+		// Conversa que continua outra (troca de CLI) nasce na pasta onde a anterior rodava.
+		cwd?: string;
 	}) {
 		return createProjectSessionTab({
 			projectName: params.projectName,
 			mainRoute: params.mainRoute,
+			...(params.cwd ? { cwd: params.cwd } : {}),
 			cli: params.cli,
 			tab: params.tab ?? { kind: "session" },
 			command: { kind: "argv", argv: cliStartArgv(params) },
@@ -900,9 +724,14 @@ export const Terminal = {
 		projectName: string | null;
 		mainRoute: string;
 		cwd: string;
-		cli: "claude" | "codex";
+		cli: ResumableCli;
 		sessionId: string;
+		// Troca de modelo de uma sessão viva: a mesma conversa reabre com outro modelo/esforço e já
+		// recebe a mensagem. A tab do pane recém-fechado tem que nascer de novo, nunca ser reusada.
+		options?: CliResumeOptions & { tab?: TerminalTabTarget };
 	}) {
+		const reopening = !!params.options;
+
 		return createProjectSessionTab({
 			projectName: params.projectName,
 			mainRoute: params.mainRoute,
@@ -910,26 +739,28 @@ export const Terminal = {
 			cli: params.cli,
 			// O id no rótulo é o que permite reutilizar a tab sem trocar uma conversa pela outra:
 			// retomadas diferentes da mesma CLI precisam de tabs diferentes.
-			tab: {
+			tab: params.options?.tab ?? {
 				kind: "session",
 				label: `Retomar ${params.cli} · ${params.sessionId.slice(0, 8)}`,
 			},
-			command: { kind: "argv", argv: cliResumeByIdArgv(params.cli, params.sessionId) },
-			reuseExisting: true,
+			command: {
+				kind: "argv",
+				argv: cliResumeByIdArgv(params.cli, params.sessionId, params.options ?? {}),
+			},
+			reuseExisting: !reopening,
 		});
 	},
 
 	// Traz pra frente a sessão do CLI ativo do projeto já aberta no kw-terminal: foca o agent no
 	// daemon, garante um cliente TUI visível e sobe a janela pelo WM. Sem agent daquele CLI dentro do
-	// projeto (ou fora do modo kw-terminal) abre a tab `cli_<cli>` no grupo do projeto e sobe o CLI
-	// nela; a tab que já existe é só focada, sem reexecutar o comando.
+	// projeto abre a tab `cli_<cli>` no grupo do projeto e sobe o CLI nela; a tab que já existe é só
+	// focada, sem reexecutar o comando.
 	//
 	// O projeto é obrigatório: focar "a primeira sessão daquele CLI" levava o kw-terminal para o grupo
 	// de uma pasta qualquer (um codex esquecido em `~` vira o grupo `pedro`), que nunca é o que a tela
 	// está mostrando.
 	async focusAgent(params: {
-		config: TerminalConfig;
-		cli: "claude" | "codex";
+		cli: WorkingCli;
 		projectId?: string;
 		projectName?: string;
 		mainRoute?: string;
@@ -939,36 +770,19 @@ export const Terminal = {
 			throw new Error(`Escolha o projeto antes de focar a sessão ${params.cli}`);
 		}
 
-		if (params.config.multiplexer === "kw-terminal") {
-			await ensureKwTerminalServer();
-
-			const agent = selectAgentForCli({
-				agents: await kwTerminalAgentList(),
-				cli: params.cli,
-				mainRoute,
-			});
-
-			if (agent) {
-				if (!(await kwTerminalAgentFocus(agent.terminal_id))) {
-					throw new Error(`Falha ao focar a sessão ${params.cli} no kw-terminal`);
-				}
-
-				await revealKwTerminalClient({ config: params.config, workingDir: agent.cwd });
-
-				return { agent: agent.agent, cwd: agent.cwd, status: agent.agent_status, opened: false };
-			}
+		const agent = await focusKwTerminalAgent({ cli: params.cli, mainRoute });
+		if (agent) {
+			return { agent: agent.agent, cwd: agent.cwd, status: agent.agent_status, opened: false };
 		}
 
 		const tab: TerminalTabTarget = { kind: "cli", cli: params.cli };
 		const alreadyOpen = await windowExists({
-			config: params.config,
 			projectId,
 			sessionName: sessionNameFor(projectName),
 			windowName: terminalTabLabel(tab),
 		});
 
 		await openTerminal({
-			config: params.config,
 			projectId,
 			projectName,
 			workingDir: mainRoute,
@@ -986,7 +800,6 @@ export const Terminal = {
 	},
 
 	openForTask(params: {
-		config: TerminalConfig;
 		projectId: string;
 		projectName: string;
 		mainRoute: string;
@@ -1006,7 +819,6 @@ export const Terminal = {
 			: undefined;
 
 		return openTerminal({
-			config: params.config,
 			projectId: params.projectId,
 			projectName: params.projectName,
 			workingDir: params.mainRoute,
@@ -1020,7 +832,6 @@ export const Terminal = {
 	},
 
 	openForRoute(params: {
-		config: TerminalConfig;
 		projectId: string;
 		projectName: string;
 		routeId: string;
@@ -1031,7 +842,6 @@ export const Terminal = {
 		background?: boolean;
 	}): Promise<OpenTerminalResult> {
 		return openTerminal({
-			config: params.config,
 			projectId: params.projectId,
 			projectName: params.projectName,
 			workingDir: params.routePath,
@@ -1044,60 +854,14 @@ export const Terminal = {
 		});
 	},
 
-	async closeProjectSession(params: {
-		config: TerminalConfig;
-		projectId: string;
-		projectName: string;
-	}): Promise<void> {
-		const sessionName = sessionNameFor(params.projectName);
-
-		if (params.config.multiplexer === "none") {
-			// O `.exited` de cada processo dispara handleNoneWindowClosed de forma assíncrona (não durante
-			// este loop), então iterar o array vivo é seguro — nada o muta aqui.
-			for (const window of findSession(params.projectId)?.windows ?? []) {
-				window.process?.kill();
-			}
-			return;
-		}
-
-		if (params.config.multiplexer === "kw-terminal") {
-			// Fecha o workspace inteiro. O `workspaceId` em memória some no restart do backend, então
-			// caímos no lookup por label (`sessionName` é estável) pra ainda achar o workspace.
-			const tracked = findSession(params.projectId);
-			const workspaceId =
-				tracked?.workspaceId ?? (await findWorkspaceByLabel(sessionName))?.workspace_id;
-
-			if (workspaceId && !(await kwTerminalWorkspaceClose(workspaceId))) {
-				throw new Error("Falha ao encerrar workspace kw-terminal");
-			}
-
-			for (const window of tracked?.windows ?? []) {
-				publish({
-					eventType: "window_closed",
-					projectId: params.projectId,
-					taskId: window.taskId,
-					sessionName,
-					windowName: window.windowName,
-				});
-			}
-
-			sessions = sessions.filter((session) => session.projectId !== params.projectId);
-			publish({ eventType: "session_closed", projectId: params.projectId, sessionName });
-			return;
-		}
-
-		if (await tmuxSessionExists(sessionName)) {
-			if (!(await tmuxKillSession(sessionName))) {
-				throw new Error("Falha ao encerrar sessão tmux");
-			}
-
-			sessions = sessions.filter((session) => session.projectId !== params.projectId);
-			publish({ eventType: "session_closed", projectId: params.projectId, sessionName });
-		}
+	async closeProjectSession(params: { projectId: string; projectName: string }): Promise<void> {
+		await closeKwTerminalProject({
+			projectId: params.projectId,
+			sessionName: sessionNameFor(params.projectName),
+		});
 	},
 
 	async closeTaskWindow(params: {
-		config: TerminalConfig;
 		projectId: string;
 		projectName: string;
 		taskId: string;
@@ -1110,128 +874,27 @@ export const Terminal = {
 			title: params.taskTitle,
 		});
 
-		if (params.config.multiplexer === "none") {
-			const window = findSession(params.projectId)?.windows.find(
-				(candidate) => candidate.windowName === windowName,
-			);
-			window?.process?.kill();
-			return;
-		}
-
-		if (params.config.multiplexer === "kw-terminal") {
-			// 1 tab = 1 window lógica: fechamos a tab, não o pane. `tabId` em memória some no restart, então
-			// resolvemos por label (workspace por `sessionName`, tab por `windowName`) como fallback.
-			const session = findSession(params.projectId);
-			const tracked = session?.windows.find((candidate) => candidate.taskId === params.taskId);
-			let tabId = tracked?.tabId;
-
-			if (!tabId) {
-				const workspaceId =
-					session?.workspaceId ?? (await findWorkspaceByLabel(sessionName))?.workspace_id;
-				if (workspaceId) {
-					tabId = (await findTabByLabel(workspaceId, windowName))?.tab_id;
-				}
-			}
-
-			if (tabId && !(await kwTerminalTabClose(tabId))) {
-				throw new Error("Falha ao fechar tab kw-terminal");
-			}
-
-			if (session) {
-				session.windows = session.windows.filter((window) => window.taskId !== params.taskId);
-			}
-			publish({
-				eventType: "window_closed",
-				projectId: params.projectId,
-				taskId: params.taskId,
-				sessionName,
-				windowName,
-			});
-			return;
-		}
-
-		if (
-			(await tmuxSessionExists(sessionName)) &&
-			(await tmuxWindowExists(sessionName, windowName))
-		) {
-			if (!(await tmuxKillWindow(sessionName, windowName))) {
-				throw new Error("Falha ao fechar window tmux");
-			}
-
-			const session = findSession(params.projectId);
-			if (session) {
-				session.windows = session.windows.filter((window) => window.taskId !== params.taskId);
-			}
-			publish({
-				eventType: "window_closed",
-				projectId: params.projectId,
-				taskId: params.taskId,
-				sessionName,
-				windowName,
-			});
-		}
+		await closeKwTerminalWindow({
+			projectId: params.projectId,
+			taskId: params.taskId,
+			sessionName,
+			windowName,
+		});
 	},
 
-	// Lista os projetos informados que têm invocações de agent/skill abertas, com a contagem. Projetos
-	// sem invocação aberta não entram (nada a fechar). As consultas por projeto são independentes.
-	async listInvocationSessions(params: {
-		config: TerminalConfig;
-		projects: { id: string; name: string }[];
-	}): Promise<InvocationSessionInfo[]> {
-		const infos = await Promise.all(
-			params.projects.map(async (project) => {
-				const sessionName = sessionNameFor(project.name);
-				const windowCount = (
-					await invocationWindowNames({ config: params.config, projectId: project.id, sessionName })
-				).length;
-
-				return { projectId: project.id, projectName: project.name, sessionName, windowCount };
-			}),
-		);
-
-		return infos.filter((info) => info.windowCount > 0);
-	},
-
-	// Fecha só as windows de invocação dos projetos selecionados, preservando terminal/tarefas/rotas.
-	// No tmux/kw-terminal, sessões que ficam sem window podem ser encerradas pelo multiplexador e o
-	// monitor emite `session_closed`. Retorna quantas windows foram fechadas.
+	// Fecha só as tabs de invocação dos projetos selecionados, preservando terminal/tarefas/rotas.
+	// Workspaces que ficam sem tab podem ser encerrados pelo kw-terminal e o monitor emite
+	// `session_closed`. Retorna quantas tabs foram fechadas.
 	async closeInvocationSessions(params: {
-		config: TerminalConfig;
 		projects: { id: string; name: string }[];
 	}): Promise<number> {
 		let killed = 0;
 
 		for (const project of params.projects) {
 			const sessionName = sessionNameFor(project.name);
-			const windowNames = await invocationWindowNames({
-				config: params.config,
-				projectId: project.id,
-				sessionName,
-			});
+			const windowNames = await invocationWindowNames(project.id, sessionName);
 
-			if (params.config.multiplexer === "none") {
-				const session = findSession(project.id);
-				for (const windowName of windowNames) {
-					const window = session?.windows.find((candidate) => candidate.windowName === windowName);
-					if (window?.process) {
-						window.process.kill();
-						killed += 1;
-					}
-				}
-				continue;
-			}
-
-			if (params.config.multiplexer === "kw-terminal") {
-				killed += await closeKwTerminalInvocationTabs(project.id, sessionName, windowNames);
-				continue;
-			}
-
-			for (const windowName of windowNames) {
-				if (await tmuxKillWindow(sessionName, windowName)) {
-					killed += 1;
-					notifyInvocationWindowClosed(sessionName, windowName);
-				}
-			}
+			killed += await closeKwTerminalInvocationTabs(project.id, sessionName, windowNames);
 		}
 
 		return killed;

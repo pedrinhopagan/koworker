@@ -1,24 +1,18 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { errorMessage } from "@/lib/orpc-errors";
 import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
-import { docSessionKey, useDocSessionsStore } from "@/stores/doc-sessions";
 
-// Conclui/reabre uma tarefa. Concluir também fecha as sessões de leitura da tarefa (uma por arquivo)
-// no switcher Alt+` — a tab não deve sobreviver à conclusão. Compartilhado pela lista e pela página.
+// Conclui/reabre uma tarefa. Compartilhado pela lista e pela página.
 export function useSetDoneMutation(projectId?: string | null) {
 	const queryClient = useQueryClient();
-	const removeRecentsByPrefix = useDocSessionsStore((s) => s.removeRecentsByPrefix);
 
 	return useMutation({
 		...orpc.tasks.setDone.mutationOptions(),
 		onSuccess: (_data, variables) => {
 			invalidateTaskQueries(queryClient, { taskId: variables.id, projectId });
-			if (variables.done) {
-				removeRecentsByPrefix(docSessionKey({ kind: "task", taskId: variables.id, file: "" }));
-			}
 		},
 		onError: (error, variables) =>
 			toast.error(

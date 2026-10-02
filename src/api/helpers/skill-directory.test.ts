@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -9,6 +9,7 @@ import {
 	replaceSkillDirectories,
 	SKILL_TEXT_FILE_LIMIT,
 	type SkillDirectoryReplacement,
+	writeSkillDirectoryText,
 } from "./skill-directory";
 
 const tempDirs: string[] = [];
@@ -92,6 +93,60 @@ describe("readSkillDirectoryText", () => {
 			}
 			expect(error).not.toBeNull();
 		}
+	});
+});
+
+describe("writeSkillDirectoryText", () => {
+	test("grava texto preservando o modo e recusa hash velho, binário e traversal", async () => {
+		const parent = await directory();
+		const root = join(parent, "skill");
+		const sibling = join(parent, "skill-secret");
+		await mkdir(join(root, "scripts"), { recursive: true });
+		await mkdir(sibling);
+		await writeFile(join(root, "SKILL.md"), "skill");
+		await writeFile(join(root, "binary"), new Uint8Array([0, 1]));
+		await writeFile(join(root, "scripts", "run.sh"), "echo velho\n");
+		await chmod(join(root, "scripts", "run.sh"), 0o755);
+		await writeFile(join(sibling, "secret.txt"), "segredo");
+
+		const manifest = await inspectSkillDirectory(root);
+		const hashOf = (path: string) => manifest.files.find((file) => file.path === path)?.hash ?? "";
+
+		const written = await writeSkillDirectoryText({
+			dir: root,
+			relativePath: "scripts/run.sh",
+			content: "echo novo\n",
+			expectedHash: hashOf("scripts/run.sh"),
+		});
+
+		expect(await readFile(join(root, "scripts", "run.sh"), "utf8")).toBe("echo novo\n");
+		expect((await stat(join(root, "scripts", "run.sh"))).mode & 0o777).toBe(0o755);
+		expect(written.hash).not.toBe(hashOf("scripts/run.sh"));
+		// Nenhum temporário sobra na pasta depois da troca.
+		expect((await inspectSkillDirectory(root)).files.map((file) => file.path)).toEqual([
+			"SKILL.md",
+			"binary",
+			"scripts/run.sh",
+		]);
+
+		const recusas = [
+			// Hash da leitura anterior: o arquivo já mudou no disco.
+			{ relativePath: "scripts/run.sh", expectedHash: hashOf("scripts/run.sh") },
+			{ relativePath: "binary", expectedHash: hashOf("binary") },
+			{ relativePath: "../skill-secret/secret.txt", expectedHash: "qualquer" },
+			{ relativePath: "ausente.md", expectedHash: "qualquer" },
+		];
+		for (const recusa of recusas) {
+			let error: Error | null = null;
+			try {
+				await writeSkillDirectoryText({ dir: root, content: "invadido", ...recusa });
+			} catch (err: any) {
+				error = err;
+			}
+			expect(error).not.toBeNull();
+		}
+		expect(await readFile(join(root, "scripts", "run.sh"), "utf8")).toBe("echo novo\n");
+		expect(await readFile(join(sibling, "secret.txt"), "utf8")).toBe("segredo");
 	});
 });
 

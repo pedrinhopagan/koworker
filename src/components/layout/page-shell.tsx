@@ -2,6 +2,7 @@ import { ArrowLeft, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Text, Title } from "@/components/typography";
+import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 
@@ -36,22 +37,23 @@ export function PageShell({
 		<div className="flex flex-col min-h-0 w-full h-full overflow-hidden">
 			{header && <>{header}</>}
 			{!header && (
-				<div className={cn("mb-6 border-b border-border", headerClassName)}>
-					<div className="mx-auto flex w-full max-w-6xl flex-col items-stretch gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+				<div className={cn("mb-5 border-b border-border bg-background", headerClassName)}>
+					<div className="mx-auto flex w-full max-w-6xl flex-col items-stretch gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6">
 						<div className="flex min-w-0 items-center gap-3">
 							{onBack && (
-								<button
-									type="button"
+								<Button
+									variant="outline"
+									size="icon-sm"
 									onClick={onBack}
 									aria-label="Voltar"
-									className="flex size-8 cursor-pointer items-center justify-center border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+									className="shrink-0 text-muted-foreground hover:text-foreground"
 								>
 									<ArrowLeft className="size-4" />
-								</button>
+								</Button>
 							)}
 							{icon && <Icon icon={icon} color="var(--project-accent, var(--primary))" size="md" />}
 							<div className="min-w-0">
-								<Title size="lg" className="truncate uppercase tracking-[0.12em]">
+								<Title size="lg" className="truncate">
 									{title}
 								</Title>
 								{description && (

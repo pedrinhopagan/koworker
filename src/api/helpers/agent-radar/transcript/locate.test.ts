@@ -114,3 +114,27 @@ test("agent que não grava transcript não tem conversa para abrir", async () =>
 		}),
 	).toBeNull();
 });
+
+test("claude aberto por outro caminho que não o cwd do pane ainda acha a sessão pelo id", async () => {
+	const root = await mkdtemp(join(tmpdir(), "kowork-transcript-locate-"));
+	const claudeProjectsDir = join(root, "claude");
+	const sessionId = "644689fd-88cf-410e-a5c7-137498d1464b";
+	const path = join(claudeProjectsDir, claudeProjectSlug("/mnt/real/repo"), `${sessionId}.jsonl`);
+	await mkdir(join(claudeProjectsDir, claudeProjectSlug("/mnt/real/repo")), { recursive: true });
+	await Bun.write(path, "claude");
+
+	try {
+		expect(
+			await locateAgentTranscript(
+				{ agent: "claude", cwd: "/home/link/repo", sessionId, sessionPath: "/sumiu.jsonl" },
+				{
+					claudeProjectsDir,
+					codexSessionsDir: join(root, "codex"),
+					opencodeDbPath: join(root, "opencode.db"),
+				},
+			),
+		).toEqual({ cli: "claude", path });
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});

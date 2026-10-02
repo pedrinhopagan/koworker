@@ -440,6 +440,7 @@ export function PromptField({
 				/>
 
 				<textarea
+					data-slot="prompt-input"
 					ref={textareaRef}
 					value={value}
 					onChange={handleChange}
@@ -457,7 +458,7 @@ export function PromptField({
 					disabled={disabled || uploading}
 					placeholder={placeholder}
 					className={cn(
-						"relative flex w-full resize-none rounded-none border border-input bg-transparent pr-13 shadow-xs transition-colors field-sizing-content md:pr-9",
+						"relative flex w-full resize-none rounded-lg border border-input bg-transparent pr-13 shadow-xs transition-colors field-sizing-content md:pr-9",
 						FIELD_METRICS,
 						"placeholder:text-muted-foreground",
 						"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring",

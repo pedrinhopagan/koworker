@@ -5,7 +5,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { Text, Title } from "@/components/typography";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DeleteConfirmButton } from "@/components/ui/delete-confirm-button";
+import { HoldButton } from "@/components/ui/hold-button";
 import { Icon } from "@/components/ui/icon";
 import { useDevices } from "@/hooks/use-devices";
 import { formatDateTime, relativeTimeFrom } from "@/lib/relative-time";
@@ -114,7 +114,7 @@ function DeviceRow({ device, canManage, busy, onApprove, onBlock, onRevoke }: De
 	const status = STATUS_BADGE[device.status];
 
 	return (
-		<div className="flex flex-col gap-4 border border-border bg-card p-4 sm:flex-row sm:items-start sm:justify-between">
+		<div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-start sm:justify-between">
 			<div className="flex min-w-0 items-start gap-3">
 				<Icon icon={MonitorSmartphone} size="sm" className="mt-0.5 shrink-0" />
 
@@ -157,12 +157,7 @@ function DeviceRow({ device, canManage, busy, onApprove, onBlock, onRevoke }: De
 					)}
 
 					{!device.current && (
-						<DeleteConfirmButton
-							onDelete={onRevoke}
-							disabled={busy}
-							title={`Remover ${device.name}`}
-							confirmTitle="Confirmar remoção"
-						/>
+						<HoldButton onConfirm={onRevoke} disabled={busy} title={`Remover ${device.name}`} />
 					)}
 				</div>
 			)}

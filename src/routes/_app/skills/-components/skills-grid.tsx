@@ -9,7 +9,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
-import { useDocEntityPin } from "@/hooks/use-doc-entity-pin";
 import { openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
@@ -279,17 +278,6 @@ function SkillTile({ skill, index, categories, onAppearance }: SkillTileProps) {
 	const [confirmDelete, setConfirmDelete] = useState(false);
 	const { removeAllSkill, removing } = useSkillMutations();
 
-	const { pinned, togglePin } = useDocEntityPin({
-		kind: "skill",
-		primaryPath: skill.primaryPath,
-		meta: {
-			title: skill.label,
-			icon: skill.icon,
-			iconColor: skill.color,
-			nav: { to: "/skills/$slug", params: { slug: skill.slug } },
-		},
-	});
-
 	// Link absoluto inset-0 navega; o conteúdo é pointer-events-none acima dele (clique no corpo cai no
 	// link). Só os controles próprios (menu, findings) reativam o ponteiro. Igual ao TaskItem. O botão
 	// abre o menu no clique esquerdo; o clique direito no card abre o mesmo menu, ancorado no botão.
@@ -298,7 +286,7 @@ function SkillTile({ skill, index, categories, onAppearance }: SkillTileProps) {
 			<div
 				className={cn(
 					"group relative flex min-w-0 flex-col p-4",
-					"border border-border border-t-2 bg-card transition-colors",
+					"rounded-xl border border-border border-t-2 bg-card transition-colors",
 					"hover:bg-secondary/50",
 					"animate-in fade-in-0 slide-in-from-bottom-2 fill-mode-both",
 				)}
@@ -326,8 +314,6 @@ function SkillTile({ skill, index, categories, onAppearance }: SkillTileProps) {
 					open={menuOpen}
 					onOpenChange={setMenuOpen}
 					docActions={{
-						pinned,
-						onTogglePin: togglePin,
 						onOpen: () => navigate({ to: "/skills/$slug", params: { slug: skill.slug } }),
 						onOpenInOs: () => void openFolderInOs(skill.primaryDir),
 						onShareZip: () => void shareFolderAsZip(skill.primaryDir),

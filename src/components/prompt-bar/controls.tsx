@@ -7,7 +7,7 @@ import { type InvokeOption, reflectValue } from "@/constants/invoke";
 import { cn } from "@/lib/utils";
 
 // Peças compartilhadas do prompt-bar: colapso animado, rótulo de grupo, chip de toggle e select
-// compacto — usadas pelas seções do footer, pelo painel de anexos e pelo painel de invocação.
+// compacto, usadas pelas seções do footer e pelos painéis de invocação e conversa.
 
 export function Collapse({ open, children }: { open: boolean; children: React.ReactNode }) {
 	return (
@@ -112,7 +112,7 @@ export function MiniSelect({
 					<>
 						<Icon className="size-3.5 shrink-0 text-muted-foreground" />
 						<span className="truncate text-left text-xs">{active?.label ?? ""}</span>
-						<ChevronDown className="size-3.5 shrink-0 opacity-50" />
+						<ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
 					</>
 				)}
 				renderItem={(option) => <span className="text-xs">{option.label}</span>}

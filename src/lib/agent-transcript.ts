@@ -4,8 +4,16 @@ import type { AgentEventPayload, AgentSessionEvent, AgentSessionPatch } from "@/
 // pergunta estruturada (AskUserQuestion) com a resposta que o usuário escolheu. Permissão continua de
 // fora porque o menu de aprovação nunca é gravado no arquivo.
 export type TranscriptPatch =
-	| Extract<AgentSessionPatch, { type: "append" | "settle" | "result" }>
-	| { type: "answer"; toolUseId: string; text: string };
+	| Extract<AgentSessionPatch, { type: "append" | "settle" }>
+	| {
+			type: "result";
+			status: "done" | "failed" | "cancelled";
+			durationMs?: number;
+			costUsd?: number;
+			error?: string;
+	  }
+	| { type: "answer"; toolUseId: string; text: string; questionId?: string }
+	| { type: "queue"; op: "enqueue" | "dequeue" | "remove"; text?: string };
 
 // O arquivo cresce por acréscimo e a leitura corta em qualquer byte: a linha partida no fim de um
 // pedaço espera o próximo. Não há `flush` porque o fim do arquivo não é o fim da sessão.
@@ -42,8 +50,22 @@ export function createTranscriptParser(translate: (raw: unknown) => TranscriptPa
 export function createTranscriptMirror(sessionId: string, maxEvents = Number.POSITIVE_INFINITY) {
 	let events: AgentSessionEvent[] = [];
 	let seq = 0;
+	let queue: string[] = [];
 	const tools = new Map<string, AgentSessionEvent>();
 	const questions = new Map<string, AgentSessionEvent[]>();
+
+	function applyQueue(patch: Extract<TranscriptPatch, { type: "queue" }>) {
+		if (patch.op === "enqueue") {
+			queue = [...queue, patch.text ?? ""];
+			return;
+		}
+		if (patch.op === "dequeue") {
+			queue = queue.slice(1);
+			return;
+		}
+		const index = queue.indexOf(patch.text ?? "");
+		queue = index === -1 ? queue : queue.toSpliced(index, 1);
+	}
 
 	function append(payload: AgentEventPayload) {
 		const event = { id: crypto.randomUUID(), sessionId, seq, at: Date.now(), payload };
@@ -55,6 +77,20 @@ export function createTranscriptMirror(sessionId: string, maxEvents = Number.POS
 		}
 
 		return event;
+	}
+
+	function closeQuestions(toolUseId: string) {
+		const asked = questions.get(toolUseId) ?? [];
+		questions.delete(toolUseId);
+		const closed = asked.flatMap((target): AgentSessionEvent[] =>
+			target.payload.kind === "question" && !target.payload.answers && !target.payload.async
+				? [{ ...target, payload: { ...target.payload, answers: [] } }]
+				: [],
+		);
+		const bySeq = new Map(closed.map((event) => [event.seq, event]));
+		events = events.map((event) => bySeq.get(event.seq) ?? event);
+
+		return closed;
 	}
 
 	function settle(patch: Extract<TranscriptPatch, { type: "settle" }>) {
@@ -96,18 +132,29 @@ export function createTranscriptMirror(sessionId: string, maxEvents = Number.POS
 	}
 
 	function answer(patch: Extract<TranscriptPatch, { type: "answer" }>) {
-		const targets = questions.get(patch.toolUseId);
-		if (!targets || targets.length === 0) {
+		const known = questions.get(patch.toolUseId);
+		const targets = patch.questionId
+			? known?.filter(
+					(target) =>
+						target.payload.kind === "question" && target.payload.questionId === patch.questionId,
+				)
+			: known;
+		if (!known || !targets || targets.length === 0) {
 			return [];
 		}
 
-		questions.delete(patch.toolUseId);
+		const remaining = known.filter((target) => !targets.includes(target));
+		if (remaining.length > 0) {
+			questions.set(patch.toolUseId, remaining);
+		} else {
+			questions.delete(patch.toolUseId);
+		}
 		const updates = targets.flatMap((target): AgentSessionEvent[] => {
 			if (target.payload.kind !== "question" || target.payload.answers) {
 				return [];
 			}
 
-			const value = answeredValue(patch.text, target.payload.question);
+			const value = patch.questionId ? null : answeredValue(patch.text, target.payload.question);
 			const fallback = targets.length === 1 ? patch.text : null;
 			const chosen = value ?? fallback;
 			if (!chosen) {
@@ -132,8 +179,13 @@ export function createTranscriptMirror(sessionId: string, maxEvents = Number.POS
 			return events;
 		},
 
+		queued() {
+			return queue.filter(Boolean);
+		},
+
 		reset() {
 			events = [];
+			queue = [];
 			tools.clear();
 			questions.clear();
 			seq = 0;
@@ -142,6 +194,9 @@ export function createTranscriptMirror(sessionId: string, maxEvents = Number.POS
 		apply(patches: TranscriptPatch[]) {
 			return patches.flatMap((patch): AgentSessionEvent[] => {
 				if (patch.type === "settle") {
+					if (questions.has(patch.toolUseId)) {
+						return closeQuestions(patch.toolUseId);
+					}
 					const updated = settle(patch);
 
 					return updated ? [updated] : [];
@@ -149,6 +204,12 @@ export function createTranscriptMirror(sessionId: string, maxEvents = Number.POS
 
 				if (patch.type === "answer") {
 					return answer(patch);
+				}
+
+				if (patch.type === "queue") {
+					applyQueue(patch);
+
+					return [];
 				}
 
 				if (patch.type === "result") {

@@ -14,6 +14,7 @@ let result: {
 	ambiguousTaskCreate: { exitCode: number; stdout: string; stderr: string };
 	createdFeature?: {
 		id: string;
+		color: string;
 		storageKeyLength?: number;
 		storageSlug: string | null;
 		displayOrder: number;
@@ -48,6 +49,7 @@ describe("kw-cli feature", () => {
 		expect(result.featureCreate).toMatchObject({ exitCode: 0, stderr: "" });
 		expect(result.featureCreate.stdout).toContain('Feature "Nova Área" criada.');
 		expect(result.createdFeature).toMatchObject({
+			color: "#0ea5e9",
 			storageKeyLength: 8,
 			storageSlug: "nova-area",
 			displayOrder: 1,

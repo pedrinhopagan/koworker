@@ -1,5 +1,13 @@
-import { ArrowLeft, ExternalLink, Loader2, Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import {
+	ArrowLeft,
+	ChevronLeft,
+	ChevronRight,
+	ExternalLink,
+	Loader2,
+	Pencil,
+	Trash2,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
@@ -69,6 +77,10 @@ type AssetViewerPageProps = {
 	onRename?: (newName: string) => void;
 	onDelete?: () => void;
 	deleting?: boolean;
+	// Navegação entre as imagens vizinhas da mesma pasta; ausente quando não há vizinho daquele lado.
+	onPrev?: () => void;
+	onNext?: () => void;
+	position?: { index: number; total: number };
 };
 
 // Página completa de visualização de uma imagem: header (voltar, nome/renomear, ações) + a imagem.
@@ -83,9 +95,31 @@ export function AssetViewerPage({
 	onRename,
 	onDelete,
 	deleting,
+	onPrev,
+	onNext,
+	position,
 }: AssetViewerPageProps) {
 	const [renameValue, setRenameValue] = useState<string | null>(null);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
+	const renaming = renameValue !== null;
+
+	useEffect(() => {
+		if (renaming) {
+			return;
+		}
+
+		function handleKeyDown(event: KeyboardEvent) {
+			if (event.key === "ArrowLeft") {
+				onPrev?.();
+			} else if (event.key === "ArrowRight") {
+				onNext?.();
+			}
+		}
+
+		window.addEventListener("keydown", handleKeyDown);
+
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [renaming, onPrev, onNext]);
 
 	function commitRename() {
 		const next = renameValue?.trim();
@@ -128,6 +162,12 @@ export function AssetViewerPage({
 							}}
 							className="min-w-0 flex-1 bg-transparent px-1 text-sm outline-none"
 						/>
+					)}
+
+					{position && (
+						<Text size="xs" tone="muted" className="shrink-0 tabular-nums">
+							{position.index + 1} / {position.total}
+						</Text>
 					)}
 
 					<div className="flex items-center gap-1">
@@ -175,7 +215,7 @@ export function AssetViewerPage({
 				</div>
 			</div>
 
-			<div className="min-h-0 flex-1">
+			<div className="relative min-h-0 flex-1">
 				<AssetViewer
 					blob={blob}
 					name={name}
@@ -183,6 +223,28 @@ export function AssetViewerPage({
 					isError={isError}
 					onOpenInOs={onOpenInOs}
 				/>
+
+				{onPrev && (
+					<button
+						type="button"
+						onClick={onPrev}
+						aria-label="Imagem anterior"
+						className="-translate-y-1/2 absolute top-1/2 left-2 flex size-9 items-center justify-center border border-border bg-background/90 text-muted-foreground backdrop-blur-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+					>
+						<ChevronLeft className="size-5" />
+					</button>
+				)}
+
+				{onNext && (
+					<button
+						type="button"
+						onClick={onNext}
+						aria-label="Próxima imagem"
+						className="-translate-y-1/2 absolute top-1/2 right-2 flex size-9 items-center justify-center border border-border bg-background/90 text-muted-foreground backdrop-blur-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+					>
+						<ChevronRight className="size-5" />
+					</button>
+				)}
 			</div>
 
 			<ConfirmDialog

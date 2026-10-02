@@ -98,7 +98,6 @@ describe("sincronização de tarefas", () => {
 					folderName: "importada",
 					title: "Título editado",
 					groupId,
-					complexity: "complexo",
 					done: true,
 				},
 			],
@@ -113,7 +112,6 @@ describe("sincronização de tarefas", () => {
 		expect(row.folder_path).toBe(".koworker/importada");
 		expect(row.title).toBe("Título editado");
 		expect(row.group_id).toBe(groupId);
-		expect(row.complexity).toBe("complexo");
 		expect(row.done).toBe(1);
 		expect(row.completed_at).toBeNumber();
 		expect(await Bun.file(join(projectRoute, ".koworker", "importada", "index.md")).text()).toBe(

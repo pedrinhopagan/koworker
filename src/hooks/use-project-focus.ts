@@ -3,6 +3,7 @@ import { useEffect, useMemo } from "react";
 
 import { orpc } from "@/client";
 import { useSelectedProjectStore } from "@/stores/selected-project";
+import { useThemeStore } from "@/stores/theme";
 
 type UseProjectFocusOptions = {
 	preferredProjectId?: string | null;
@@ -19,6 +20,12 @@ const withAlpha = (color: string, alpha: string) => {
 	}
 	return color;
 };
+
+export function readableAccent(color: string, theme: string) {
+	return theme === "dark"
+		? `oklch(from ${color} max(l, 0.72) c h)`
+		: `oklch(from ${color} min(l, 0.58) c h)`;
+}
 
 export function useProjectFocus(options: UseProjectFocusOptions = {}) {
 	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
@@ -76,18 +83,19 @@ export function useProjectFocus(options: UseProjectFocusOptions = {}) {
 		return projects.find((project) => project.id === resolvedProjectId) ?? null;
 	}, [projects, resolvedProjectId]);
 
+	const theme = useThemeStore((s) => s.theme);
 	const accent = useMemo(() => {
 		const color = selectedProject?.color ?? null;
 		if (!color) return null;
 		return {
-			color,
+			color: readableAccent(color, theme),
 			soft: withAlpha(color, "14"),
 			muted: withAlpha(color, "0d"),
 			border: withAlpha(color, "55"),
 			glow: withAlpha(color, "40"),
 			ring: withAlpha(color, "33"),
 		};
-	}, [selectedProject?.color]);
+	}, [selectedProject?.color, theme]);
 
 	const explicitProject = useMemo(() => {
 		if (!explicitProjectId) return null;

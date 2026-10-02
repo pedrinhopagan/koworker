@@ -1,12 +1,9 @@
 import { realpathSync } from "node:fs";
 
-import { dbCategories } from "@/api/db/categories";
-import { dbPriorities } from "@/api/db/priorities";
+import { normalizeEntityName } from "@/api/db/entity-name";
 import { dbProjects } from "@/api/db/projects";
 import { dbTaskGroups } from "@/api/db/task-groups";
 import { dbTasks } from "@/api/db/tasks";
-import { normalizeEntityName } from "@/api/db/entity-name";
-import { TASK_COMPLEXITIES, type TaskComplexity } from "@/constants/complexity";
 import { noteSessionTask } from "./kw-terminal";
 
 // Caminho real e normalizado: resolve symlinks (o main_route pode ter sido cadastrado por um
@@ -103,54 +100,4 @@ export function assertHexColor(value: string | undefined): string | undefined {
 		throw new Error(`Cor inválida: ${value} (esperado #rrggbb, ex.: #3584e4)`);
 	}
 	return value;
-}
-
-// Categoria por nome (normalizado) ou por id. Erro quando nenhum casa.
-export async function resolveCategoryId(arg: string): Promise<string> {
-	const byName = await dbCategories.findByNormalizedName(arg);
-	if (byName) return byName.id;
-
-	const byId = await dbCategories.getById(arg);
-	if (byId) return byId.id;
-
-	throw new Error(`Categoria não encontrada: ${arg}`);
-}
-
-export async function resolveCategoryIdOrNull(arg: string): Promise<string | null> {
-	if (isNullEntityInput(arg)) {
-		return null;
-	}
-	return await resolveCategoryId(arg);
-}
-
-// Prioridade por nome (normalizado) ou por id. Erro quando nenhum casa.
-export async function resolvePriorityId(arg: string): Promise<string> {
-	const byName = await dbPriorities.findByNormalizedName(arg);
-	if (byName) return byName.id;
-
-	const byId = await dbPriorities.getById(arg);
-	if (byId) return byId.id;
-
-	throw new Error(`Prioridade não encontrada: ${arg}`);
-}
-
-export async function resolvePriorityIdOrNull(arg: string): Promise<string | null> {
-	if (isNullEntityInput(arg)) {
-		return null;
-	}
-	return await resolvePriorityId(arg);
-}
-
-// Complexidade é boundary: valida contra a união finita. Erro quando não casa.
-export function resolveComplexity(arg: string): TaskComplexity {
-	const value = arg.trim().toLowerCase();
-	if ((TASK_COMPLEXITIES as readonly string[]).includes(value)) {
-		return value as TaskComplexity;
-	}
-
-	throw new Error(`Complexidade inválida: ${arg} (use: ${TASK_COMPLEXITIES.join(", ")})`);
-}
-
-function isNullEntityInput(arg: string): boolean {
-	return ["", "none", "null", "nenhum", "nenhuma", "sem"].includes(arg.trim().toLowerCase());
 }

@@ -16,6 +16,7 @@ const mapProjectRoute = (row: project_routes) => ({
 	route: row.route,
 	icon: row.icon ?? undefined,
 	command: row.command ?? undefined,
+	background: row.background === 1,
 	displayOrder: row.display_order,
 	createdAt: row.created_at,
 	updatedAt: row.updated_at ?? undefined,
@@ -36,6 +37,7 @@ export const projectRoutesRouter = {
 			route: input.route,
 			icon: input.icon,
 			command: input.command,
+			background: input.background === undefined ? undefined : Number(input.background),
 		});
 
 		const row = await dbProjectRoutes.getById(id);
@@ -53,6 +55,7 @@ export const projectRoutesRouter = {
 			route: input.route,
 			icon: input.icon,
 			command: input.command,
+			background: input.background === undefined ? undefined : Number(input.background),
 		});
 
 		const row = await dbProjectRoutes.getById(input.id);

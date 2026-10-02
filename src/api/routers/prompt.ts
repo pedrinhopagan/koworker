@@ -12,10 +12,8 @@ import {
 	startPromptRun,
 } from "../helpers/prompt-run";
 import { dropRunSteps, getRunSteps } from "../helpers/run-steps";
-import { runPromptAutofill } from "../helpers/prompt-autofill";
 import { transcribeAudio } from "../helpers/audio-transcription";
 import {
-	PromptAutofillSchema,
 	AudioTranscriptionSchema,
 	PromptExecuteSchema,
 	PromptRunClearSchema,
@@ -28,10 +26,6 @@ export const promptRouter = {
 	transcribe: protectedProcedure
 		.input(AudioTranscriptionSchema)
 		.handler(({ input }) => transcribeAudio(input.file)),
-
-	autofill: protectedProcedure
-		.input(PromptAutofillSchema)
-		.handler(({ input }) => runPromptAutofill(input)),
 
 	execute: protectedProcedure.input(PromptExecuteSchema).handler(async ({ input, context }) => {
 		const project = await dbProjects.getById(input.projectId);

@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+const TaskGroupColorSchema = z
+	.string()
+	.regex(/^#[0-9a-fA-F]{6}$/)
+	.refine((color) => color.toLowerCase() !== "#000000", "A cor da feature não pode ser preta");
+
 export const TaskGroupIdSchema = z.object({
 	id: z.string().min(1),
 });
@@ -16,19 +21,13 @@ export const TaskGroupFolderSchema = z.object({
 export const TaskGroupCreateSchema = z.object({
 	projectId: z.string().trim().min(1),
 	name: z.string().trim().min(1),
-	color: z
-		.string()
-		.regex(/^#[0-9a-fA-F]{6}$/)
-		.optional(),
+	color: TaskGroupColorSchema.optional(),
 });
 
 export const TaskGroupUpdateSchema = z.object({
 	id: z.string().min(1),
 	name: z.string().trim().min(1).optional(),
-	color: z
-		.string()
-		.regex(/^#[0-9a-fA-F]{6}$/)
-		.optional(),
+	color: TaskGroupColorSchema.optional(),
 });
 
 export const TaskGroupReorderSchema = z.object({
@@ -44,7 +43,7 @@ export const TaskGroupDbCreateSchema = z.object({
 	name: z.string().min(1),
 	storage_key: z.string().min(8).optional(),
 	storage_slug: z.string().min(1).optional(),
-	color: z.string().optional(),
+	color: TaskGroupColorSchema.optional(),
 	display_order: z.number().int().optional(),
 	created_at: z.number().int().optional(),
 	updated_at: z.number().int().optional(),

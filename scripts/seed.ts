@@ -1,16 +1,5 @@
 import { envVariables } from "../src/api/config/env";
 import { db } from "../src/api/db/connection";
-import { DEFAULT_CATEGORIES } from "../src/constants/categories";
-
-const createId = () => crypto.randomUUID();
-const now = Date.now();
-
-const normalizeName = (value: string) =>
-	value
-		.normalize("NFD")
-		.replaceAll(/[\u0300-\u036F]/g, "")
-		.trim()
-		.toLowerCase();
 
 async function seedAdminUser() {
 	const adminUser = envVariables.KOWORK_ADMIN_USER;
@@ -44,45 +33,3 @@ async function seedAdminUser() {
 }
 
 await seedAdminUser();
-
-const existingCategories = await db.selectFrom("categories").select(["name"]).execute();
-const existingCategoryNames = new Set(existingCategories.map((item) => normalizeName(item.name)));
-
-const categoriesToInsert = DEFAULT_CATEGORIES.filter(
-	(item) => !existingCategoryNames.has(normalizeName(item.name)),
-).map((item, index) => ({
-	id: createId(),
-	name: item.name,
-	color: item.color,
-	structure_slug: item.structureSlug,
-	display_order: index,
-	created_at: now,
-}));
-
-if (categoriesToInsert.length > 0) {
-	await db.insertInto("categories").values(categoriesToInsert).execute();
-}
-
-const defaultPriorities = [
-	{ name: "Alta", level: 1, color: "#ef4444" },
-	{ name: "Media", level: 2, color: "#f59e0b" },
-	{ name: "Baixa", level: 3, color: "#22c55e" },
-];
-
-const existingPriorities = await db.selectFrom("priorities").select(["name"]).execute();
-const existingPriorityNames = new Set(existingPriorities.map((item) => normalizeName(item.name)));
-
-const prioritiesToInsert = defaultPriorities
-	.filter((item) => !existingPriorityNames.has(normalizeName(item.name)))
-	.map((item, index) => ({
-		id: createId(),
-		name: item.name,
-		level: item.level,
-		color: item.color,
-		display_order: index,
-		created_at: now,
-	}));
-
-if (prioritiesToInsert.length > 0) {
-	await db.insertInto("priorities").values(prioritiesToInsert).execute();
-}

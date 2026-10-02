@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import { claudeTranscriptModel, translateClaudeTranscriptLine } from "./claude-transcript";
+import { createTranscriptMirror, createTranscriptParser } from "./agent-transcript";
+import {
+	claudeTranscriptEffort,
+	claudeTranscriptModel,
+	translateClaudeTranscriptLine,
+} from "./claude-transcript";
 
 describe("translateClaudeTranscriptLine", () => {
 	test("a fala do usuário é o texto puro da linha", () => {
@@ -233,10 +238,197 @@ describe("translateClaudeTranscriptLine", () => {
 				operation: "enqueue",
 				content: "/kw Execute o plano",
 			}),
-		).toEqual([]);
+		).toEqual([{ type: "queue", op: "enqueue", text: "/kw Execute o plano" }]);
 
 		expect(
 			translateClaudeTranscriptLine({ type: "attachment", attachment: { type: "hook_success" } }),
 		).toEqual([]);
 	});
+});
+
+test("fala colada no terminal remove apenas o invólucro pasted_content", () => {
+	expect(
+		translateClaudeTranscriptLine({
+			type: "user",
+			message: {
+				content: '<pasted_content id="abc">Linha um\nLinha dois</pasted_content id="abc">',
+			},
+		}),
+	).toEqual([{ type: "append", payload: { kind: "user", text: "Linha um\nLinha dois" } }]);
+});
+
+describe("fila e eventos do terminal do claude", () => {
+	test("a fila acompanha enqueue, absorção no meio do turno e dequeue", () => {
+		const mirror = createTranscriptMirror("pane");
+		const parser = createTranscriptParser(translateClaudeTranscriptLine);
+		const lines = [
+			{ type: "queue-operation", operation: "enqueue", content: "Primeira na fila" },
+			{
+				type: "queue-operation",
+				operation: "enqueue",
+				content: "<task-notification>\n<status>completed</status>\n</task-notification>",
+			},
+			{ type: "queue-operation", operation: "enqueue", content: "Segunda na fila" },
+		];
+		mirror.apply(parser.push(`${lines.map((line) => JSON.stringify(line)).join("\n")}\n`));
+
+		expect(mirror.queued()).toEqual(["Primeira na fila", "Segunda na fila"]);
+
+		mirror.apply(
+			parser.push(
+				`${[
+					{ type: "queue-operation", operation: "remove", content: "Segunda na fila" },
+					{
+						type: "attachment",
+						attachment: {
+							type: "queued_command",
+							prompt: "Segunda na fila",
+							commandMode: "prompt",
+							origin: { kind: "human" },
+						},
+					},
+				]
+					.map((line) => JSON.stringify(line))
+					.join("\n")}\n`,
+			),
+		);
+
+		expect(mirror.queued()).toEqual(["Primeira na fila"]);
+		expect(mirror.list().map((event) => event.payload)).toEqual([
+			{ kind: "user", text: "Segunda na fila" },
+		]);
+
+		mirror.apply(
+			parser.push(`${JSON.stringify({ type: "queue-operation", operation: "dequeue" })}\n`),
+		);
+
+		expect(mirror.queued()).toEqual([]);
+	});
+
+	test("notificação de tarefa em segundo plano vira aviso, não fala do usuário", () => {
+		const notification =
+			'<task-notification>\n<task-id>a1</task-id>\n<status>failed</status>\n<summary>Agent "QA" failed</summary>\n</task-notification>';
+
+		expect(
+			translateClaudeTranscriptLine({
+				type: "user",
+				message: { role: "user", content: notification },
+			}),
+		).toEqual([
+			{
+				type: "append",
+				payload: {
+					kind: "notice",
+					label: "Tarefa em segundo plano falhou",
+					detail: 'Agent "QA" failed',
+					tone: "error",
+				},
+			},
+		]);
+		expect(
+			translateClaudeTranscriptLine({
+				type: "attachment",
+				attachment: {
+					type: "queued_command",
+					prompt: notification.replace("failed</status>", "completed</status>"),
+					commandMode: "task-notification",
+				},
+			}),
+		).toMatchObject([
+			{ type: "append", payload: { kind: "notice", label: "Tarefa em segundo plano concluída" } },
+		]);
+	});
+
+	test("saída de comando local, interrupção, duração do turno e erro da API", () => {
+		expect(
+			translateClaudeTranscriptLine({
+				type: "user",
+				message: {
+					role: "user",
+					content:
+						"<local-command-stdout>Set model to \u001B[1mOpus\u001B[22m</local-command-stdout>",
+				},
+			}),
+		).toEqual([
+			{
+				type: "append",
+				payload: {
+					kind: "notice",
+					label: "Saída do comando",
+					detail: "Set model to Opus",
+					tone: "info",
+				},
+			},
+		]);
+		expect(
+			translateClaudeTranscriptLine({
+				type: "system",
+				subtype: "local_command",
+				content: "<local-command-stdout></local-command-stdout>",
+				commandRun: { command: "clear" },
+			}),
+		).toEqual([]);
+		expect(
+			translateClaudeTranscriptLine({
+				type: "user",
+				message: {
+					role: "user",
+					content: [{ type: "text", text: "[Request interrupted by user]" }],
+				},
+			}),
+		).toEqual([{ type: "result", status: "cancelled" }]);
+		expect(
+			translateClaudeTranscriptLine({ type: "system", subtype: "turn_duration", durationMs: 4200 }),
+		).toEqual([{ type: "result", status: "done", durationMs: 4200 }]);
+		expect(
+			translateClaudeTranscriptLine({
+				type: "assistant",
+				isApiErrorMessage: true,
+				message: {
+					model: "<synthetic>",
+					content: [{ type: "text", text: "API Error: 529 Overloaded" }],
+				},
+			}),
+		).toEqual([
+			{
+				type: "append",
+				payload: {
+					kind: "notice",
+					label: "Erro da API",
+					detail: "API Error: 529 Overloaded",
+					tone: "error",
+				},
+			},
+		]);
+	});
+});
+
+test("um /model ou /effort digitado no terminal troca modelo e esforço na hora", () => {
+	const stdout = (text: string) => ({
+		type: "user",
+		message: { role: "user", content: `<local-command-stdout>${text}</local-command-stdout>` },
+	});
+
+	expect(
+		claudeTranscriptModel(
+			stdout("Set model to `Sonnet 5` for this session only with `low` effort"),
+		),
+	).toBe("Sonnet 5");
+	expect(
+		claudeTranscriptEffort(
+			stdout("Set model to `Sonnet 5` for this session only with `low` effort"),
+		),
+	).toBe("low");
+	expect(claudeTranscriptModel(stdout("Set model to Haiku 4.5 for this session only"))).toBe(
+		"Haiku 4.5",
+	);
+	expect(
+		claudeTranscriptEffort(
+			stdout("Set effort level to medium (this session only): Balanced approach"),
+		),
+	).toBe("medium");
+	expect(
+		claudeTranscriptModel(stdout("Set effort level to medium (this session only)")),
+	).toBeNull();
+	expect(claudeTranscriptModel(stdout("Kept model as Sonnet 5"))).toBeNull();
 });

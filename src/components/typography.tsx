@@ -31,6 +31,7 @@ const textVariants = tv({
 		tone: {
 			default: "text-foreground",
 			muted: "text-muted-foreground",
+			faint: "text-muted-foreground/60",
 			warning: "text-warning",
 			success: "text-success",
 			destructive: "text-destructive",

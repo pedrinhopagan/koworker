@@ -7,5 +7,6 @@ const searchSchema = z.object({
 });
 
 export const Route = createFileRoute("/_app/media/$fileName/")({
-	validateSearch: (search) => searchSchema.parse(search),
+	validateSearch: searchSchema,
+	beforeLoad: ({ search }) => ({ routeProjectId: search.projectId }),
 });

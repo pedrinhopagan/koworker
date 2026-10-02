@@ -57,3 +57,6 @@ example_**.png
 
 # koworker task vault (conteúdo local, fora do git)
 .koworker
+
+# TanStack Router
+.tanstack

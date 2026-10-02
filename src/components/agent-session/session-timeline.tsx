@@ -1,36 +1,42 @@
-import { Bot, ChevronUp, CircleCheck, CircleDot, Loader2, TriangleAlert } from "lucide-react";
-import { memo, useMemo, useState } from "react";
+import { Bot, ChevronUp, CircleDot } from "lucide-react";
+import { memo, useMemo, useRef, useState } from "react";
 
 import { agentCliVisual } from "@/components/agent-radar/agent-cli";
 import { MarkdownView } from "@/components/markdown-view";
 import { Text } from "@/components/typography";
+import { StatusMark } from "@/components/ui/status-mark";
 import type { AgentSessionEvent } from "@/lib/agent-session";
 import { toTimelineGroups, type TimelineGroup, type TrailStep } from "@/lib/agent-timeline";
+import { formatElapsedSeconds } from "@/hooks/use-elapsed-seconds";
 import { cn } from "@/lib/utils";
 import { AgentAnswer } from "./agent-answer";
 import { SessionPermission } from "./session-permission";
 import { SessionQuestion } from "./session-question";
 import { SessionTrace } from "./session-trace";
 import { SessionUserMessage } from "./session-user-message";
+import { ThoughtLine } from "./thought-line";
 
 function ResultRow({ event }: { event: AgentSessionEvent }) {
 	if (event.payload.kind !== "result") {
 		return null;
 	}
 
-	const failed = event.payload.status !== "done";
 	const seconds = event.payload.durationMs ? Math.round(event.payload.durationMs / 1000) : null;
+	const label =
+		event.payload.status === "done"
+			? "Turno concluído"
+			: event.payload.status === "cancelled"
+				? "Turno interrompido"
+				: event.payload.status === "timeout"
+					? "Turno expirou"
+					: "Turno falhou";
 
 	return (
 		<div className="flex flex-wrap items-center gap-2 border-t border-dashed border-border pt-2">
-			{failed ? (
-				<TriangleAlert className="size-3.5 shrink-0 text-destructive" />
-			) : (
-				<CircleCheck className="size-3.5 shrink-0 text-muted-foreground" />
-			)}
+			<StatusMark status={event.payload.status} />
 			<Text as="span" size="xs" tone="muted">
-				{failed ? "Turno interrompido" : "Turno concluído"}
-				{seconds === null ? "" : ` · ${seconds}s`}
+				{label}
+				{seconds === null ? "" : ` · ${formatElapsedSeconds(seconds)}`}
 				{event.payload.costUsd ? ` · US$ ${event.payload.costUsd.toFixed(3)}` : ""}
 			</Text>
 			{event.payload.error && (
@@ -46,8 +52,10 @@ type GroupProps = {
 	group: TimelineGroup;
 	agent?: string;
 	pending?: boolean;
+	asyncAnswersOnly?: boolean;
 	onDecide?: (requestId: string, decision: "allow" | "deny", reason?: string) => void;
 	onAnswer?: (questionId: string, input: { answers: string[]; freeText?: string }) => void;
+	onExpandAnswer?: (element: HTMLElement) => void;
 };
 
 // O espelho da conversa preserva a identidade de cada evento entre lotes, então comparar por
@@ -80,8 +88,10 @@ function sameGroup(left: GroupProps, right: GroupProps) {
 	if (
 		left.agent !== right.agent ||
 		left.pending !== right.pending ||
+		left.asyncAnswersOnly !== right.asyncAnswersOnly ||
 		left.onDecide !== right.onDecide ||
 		left.onAnswer !== right.onAnswer ||
+		left.onExpandAnswer !== right.onExpandAnswer ||
 		left.group.kind !== right.group.kind ||
 		left.group.key !== right.group.key
 	) {
@@ -129,9 +139,12 @@ const TimelineGroupView = memo(function TimelineGroupView({
 	group,
 	agent,
 	pending,
+	asyncAnswersOnly,
 	onDecide,
 	onAnswer,
+	onExpandAnswer,
 }: GroupProps) {
+	const answerSection = useRef<HTMLElement>(null);
 	if (group.kind === "trail") {
 		return <SessionTrace steps={group.steps} total={group.total} />;
 	}
@@ -149,7 +162,10 @@ const TimelineGroupView = memo(function TimelineGroupView({
 
 	if (payload.kind === "assistant") {
 		return (
-			<section className="min-w-0 rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm md:p-4">
+			<section
+				ref={answerSection}
+				className="min-w-0 rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm md:p-4"
+			>
 				<header className="mb-2 flex items-center gap-2">
 					<span
 						className={cn(
@@ -169,6 +185,11 @@ const TimelineGroupView = memo(function TimelineGroupView({
 				<AgentAnswer
 					runId={group.event.id}
 					output={payload.text}
+					onExpand={() => {
+						if (answerSection.current) {
+							onExpandAnswer?.(answerSection.current);
+						}
+					}}
 					meta={{
 						...(agent ? { agent } : {}),
 						at: group.event.at,
@@ -191,11 +212,13 @@ const TimelineGroupView = memo(function TimelineGroupView({
 	}
 
 	if (payload.kind === "question") {
+		const readOnly = !onAnswer || (!!asyncAnswersOnly && !payload.async);
+
 		return (
 			<SessionQuestion
 				payload={payload}
-				pending={!!pending || !onAnswer}
-				readOnly={!onAnswer}
+				pending={!!pending || readOnly}
+				readOnly={readOnly}
 				onAnswer={(input) => onAnswer?.(payload.questionId, input)}
 			/>
 		);
@@ -232,11 +255,14 @@ export function SessionTimeline({
 	busy,
 	agent,
 	pending,
+	asyncAnswersOnly,
 	onDecide,
 	onAnswer,
+	onExpandAnswer,
 }: {
 	events: AgentSessionEvent[];
 	busy: boolean;
+	asyncAnswersOnly?: boolean;
 	// Slug da CLI que responde nesta conversa. Sem ele o bloco cai no rótulo genérico "Agente".
 	agent?: string;
 	pending?: boolean;
@@ -244,24 +270,36 @@ export function SessionTimeline({
 	// visível, mas quem responde é quem está na frente do CLI.
 	onDecide?: (requestId: string, decision: "allow" | "deny", reason?: string) => void;
 	onAnswer?: (questionId: string, input: { answers: string[]; freeText?: string }) => void;
+	onExpandAnswer?: (element: HTMLElement) => void;
 }) {
 	const groups = useMemo(() => toTimelineGroups(events), [events]);
-	const [expanded, setExpanded] = useState(false);
-	const folded = !expanded && groups.length > FOLD_KEEP_VISIBLE;
-	const visible = folded ? groups.slice(-FOLD_KEEP_VISIBLE) : groups;
-	const hiddenCount = groups.length - visible.length;
+	const [firstVisibleKey, setFirstVisibleKey] = useState<string | null>(null);
+	const knownStart = groups.findIndex((group) => group.key === firstVisibleKey);
+	const hiddenCount = knownStart < 0 ? Math.max(0, groups.length - FOLD_KEEP_VISIBLE) : knownStart;
+	const visible = groups.slice(hiddenCount);
+	if (knownStart < 0 && visible.length) {
+		setFirstVisibleKey(visible[0].key);
+	}
 
 	return (
-		<div className="min-w-0 space-y-4">
+		<div
+			data-component="session-timeline"
+			data-hidden-count={hiddenCount}
+			data-visible-count={visible.length}
+			className="min-w-0 space-y-4"
+		>
 			{hiddenCount > 0 && (
 				<button
 					type="button"
-					onClick={() => setExpanded(true)}
+					data-slot="load-previous"
+					onClick={() =>
+						setFirstVisibleKey(groups[Math.max(0, hiddenCount - FOLD_KEEP_VISIBLE)].key)
+					}
 					className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2.5 text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 				>
 					<ChevronUp className="size-3.5 shrink-0" />
 					<Text as="span" size="xs">
-						Mostrar {hiddenCount.toLocaleString("pt-BR")} blocos anteriores
+						Mostrar {Math.min(hiddenCount, FOLD_KEEP_VISIBLE)} blocos anteriores
 					</Text>
 				</button>
 			)}
@@ -272,24 +310,20 @@ export function SessionTimeline({
 					group={group}
 					{...(agent ? { agent } : {})}
 					{...(pending === undefined ? {} : { pending })}
+					{...(asyncAnswersOnly ? { asyncAnswersOnly } : {})}
 					{...(onDecide ? { onDecide } : {})}
 					{...(onAnswer ? { onAnswer } : {})}
+					{...(onExpandAnswer ? { onExpandAnswer } : {})}
 				/>
 			))}
 
-			{busy && (
-				<div
-					className={cn(
-						"flex items-center gap-2 rounded-lg bg-primary/8 px-3 py-2.5",
-						"text-primary",
-					)}
-				>
-					<Loader2 className="size-3.5 animate-spin" />
-					<Text size="xs" tone="muted">
-						O agente está trabalhando…
-					</Text>
-				</div>
-			)}
+			<ThoughtLine events={events} working={busy} />
+
+			<div aria-hidden className="pointer-events-none sticky bottom-0 z-10 h-8">
+				<div className="absolute inset-0 backdrop-blur-[1px] [mask-image:linear-gradient(to_top,black_30%,transparent)]" />
+				<div className="absolute inset-0 backdrop-blur-[3px] [mask-image:linear-gradient(to_top,black,transparent_60%)]" />
+				<div className="absolute inset-0 bg-linear-to-t from-background/70 to-transparent" />
+			</div>
 		</div>
 	);
 }

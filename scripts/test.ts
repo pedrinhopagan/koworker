@@ -21,7 +21,9 @@ const nodeExitCode = nodeTests.length > 0 ? run(nodeTests) : 0;
 // @testing-library cai no `react-dom/test-utils` antigo e todo teste de DOM estoura.
 const domExitCode =
 	domTests.length > 0
-		? run(["--preload", "./tests/web/setup-dom.ts", ...domTests], { NODE_ENV: "development" })
+		? run(["--conditions=development", "--preload", "./tests/web/setup-dom.ts", ...domTests], {
+				NODE_ENV: "development",
+			})
 		: 0;
 
 process.exit(nodeExitCode || domExitCode);

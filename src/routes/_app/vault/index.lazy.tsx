@@ -15,20 +15,16 @@ import {
 	ChevronsDownUp,
 	ChevronsUpDown,
 	CircleCheck,
-	Clock,
 	Files,
-	Flame,
-	LayoutGrid,
 	Library,
 	Loader2,
-	Plus,
 	Search,
 	Unlink,
 	WifiOff,
 	X,
 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { PageShell } from "@/components/layout/page-shell";
@@ -45,12 +41,12 @@ import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useSkillsQuery } from "@/hooks/use-skills";
 import { useStableCallback } from "@/hooks/use-stable-callback";
 import { useRemoveTaskMutation } from "@/hooks/use-task-mutations";
-import { copyMarkdown, joinPath, openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { errorMessage } from "@/lib/orpc-errors";
+import { copyMarkdown, joinPath, openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { invalidateTaskQueries } from "@/lib/task-query-invalidation";
 import { cn } from "@/lib/utils";
 import { type ClickModifiers, Tree } from "./-components/tree";
-import { TreeBatchMenu, type TreeActions, TreeNodeMenu } from "./-components/tree-node-menu";
+import { type TreeActions, TreeBatchMenu, TreeNodeMenu } from "./-components/tree-node-menu";
 import {
 	buildVaultTree,
 	collectFileLeaves,
@@ -61,8 +57,6 @@ import {
 	filterTree,
 	flattenVisibleLeaves,
 	ROOT_KEY,
-	TAREFAS_KEY,
-	type TaskSortMode,
 	type TreeNode,
 	type VaultEntry,
 } from "./-utils/build-vault-tree";
@@ -132,17 +126,14 @@ function VaultPage() {
 	const [hideCompleted, setHideCompleted] = useState(true);
 	// Ordenação das pastas de tarefa (controle inline na linha "Tarefas"). Local do vault — não
 	// acopla ao `useSortMode` do /tarefas.
-	const [taskSort, setTaskSort] = useState<TaskSortMode>("recente");
 
-	// Diálogos de arquivo: criar nota solta (só título), renomear e deletar. Um por vez.
-	const [creatingTitle, setCreatingTitle] = useState<string | null>(null);
+	// Diálogos de arquivo: renomear e deletar. Um por vez.
 	const [renaming, setRenaming] = useState<{ name: string; value: string } | null>(null);
 	const [deleting, setDeleting] = useState<string | null>(null);
 	// Diálogos da pasta de tarefa: renomear (título da tarefa) e excluir.
 	const [renamingTask, setRenamingTask] = useState<{ id: string; value: string } | null>(null);
 	const [deletingTask, setDeletingTask] = useState<{ id: string; title: string } | null>(null);
 
-	const createNoteFormId = useId();
 	const renameNoteFormId = useId();
 	const renameTaskFormId = useId();
 
@@ -166,8 +157,6 @@ function VaultPage() {
 	useEffect(() => {
 		setExpanded(computeDefaultExpanded(allProjects, projects));
 		setHideCompleted(true);
-		setTaskSort("recente");
-		setCreatingTitle(null);
 		setRenaming(null);
 		setDeleting(null);
 		setRenamingTask(null);
@@ -188,8 +177,6 @@ function VaultPage() {
 		...orpc.vault.listEntries.queryOptions({ input: { projectId: selectedProjectId } }),
 		enabled: selectedProjectId !== null,
 	});
-	const prioritiesQuery = useQuery(orpc.priorities.list.queryOptions());
-	const categoriesQuery = useQuery(orpc.categories.list.queryOptions());
 	// Todas as tasks do projeto (inclusive vazias) — alvo dos pickers do menu de contexto. O
 	// agregador do vault só traz grupos com arquivo, então uma task vazia não apareceria sem esta.
 	// Só no modo single com projeto resolvido: em "Todos"/load o menu de contexto não aparece.
@@ -215,10 +202,6 @@ function VaultPage() {
 		[groups],
 	);
 
-	const looseNames = useMemo(
-		() => new Set(entries.filter((entry) => entry.origin === "loose").map((entry) => entry.name)),
-		[entries],
-	);
 	const taskOptions = useMemo(
 		() => (tasksQuery.data ?? []).map((task) => ({ id: task.id, displayTitle: task.displayTitle })),
 		[tasksQuery.data],
@@ -231,35 +214,19 @@ function VaultPage() {
 			projects: projects
 				.filter((project) => project.id !== selectedProjectId)
 				.map((project) => ({ id: project.id, name: project.name, color: project.color })),
-			priorities: (prioritiesQuery.data ?? []).map((priority) => ({
-				id: priority.id,
-				name: priority.name,
-				color: priority.color,
-			})),
-			categories: (categoriesQuery.data ?? []).map((category) => ({
-				id: category.id,
-				name: category.name,
-				color: category.color,
-			})),
 		}),
-		[projects, prioritiesQuery.data, categoriesQuery.data, selectedProjectId],
+		[projects, selectedProjectId],
 	);
 
 	const tree = useMemo(() => {
-		const priorities = prioritiesQuery.data ?? [];
-		const categories = categoriesQuery.data ?? [];
-
 		if (!allProjects) {
 			return buildVaultTree({
 				entries,
 				groups,
 				agents: taskAgents,
 				skills: taskSkills,
-				priorities,
-				categories,
 				projectColor: selectedProject?.color ?? null,
 				hideCompleted,
-				taskSort,
 			});
 		}
 
@@ -277,11 +244,8 @@ function VaultPage() {
 				groups: projectGroups,
 				agents: [],
 				skills: [],
-				priorities,
-				categories,
 				projectColor: project.color,
 				hideCompleted,
-				taskSort,
 				keyPrefix,
 				includeSkillsAgents: false,
 			});
@@ -302,11 +266,8 @@ function VaultPage() {
 		groups,
 		taskAgents,
 		taskSkills,
-		prioritiesQuery.data,
-		categoriesQuery.data,
 		selectedProject?.color,
 		hideCompleted,
-		taskSort,
 	]);
 
 	// Lookup nodeKey→entry: um nó selecionado pode estar sob pasta colapsada, então varre a árvore
@@ -550,16 +511,6 @@ function VaultPage() {
 		onError: (err) => toast.error(errorMessage(err, "Não foi possível deletar")),
 	});
 
-	const createNoteMutation = useMutation({
-		...orpc.vault.writeFile.mutationOptions(),
-		onSuccess: (_result, variables) => {
-			invalidateVaultAndTasks();
-			setCreatingTitle(null);
-			navigate({ to: "/vault/$fileName", params: { fileName: variables.name } });
-		},
-		onError: (err) => toast.error(errorMessage(err, "Não foi possível criar a nota")),
-	});
-
 	const updateTaskMutation = useMutation({
 		...orpc.tasks.update.mutationOptions(),
 		onSuccess: () => {
@@ -761,10 +712,6 @@ function VaultPage() {
 			const task = tasksQuery.data?.find((item) => item.id === node.taskId);
 			setRenamingTask({ id: node.taskId, value: task?.title ?? "" });
 		},
-		onSetTaskPriority: (node, priorityId) =>
-			updateTaskMutation.mutate({ id: node.taskId, priorityId }),
-		onSetTaskCategory: (node, categoryId) =>
-			updateTaskMutation.mutate({ id: node.taskId, categoryId }),
 		onToggleTaskDone: (node) => setTaskDoneMutation.mutate({ id: node.taskId, done: !node.done }),
 		onMoveTaskToProject: (node, projectId) =>
 			moveTaskToProjectMutation.mutate({ id: node.taskId, targetProjectId: projectId }),
@@ -837,12 +784,6 @@ function VaultPage() {
 		return true;
 	});
 
-	const renderAccessory = useStableCallback((node: TreeNode) => {
-		if (node.key !== TAREFAS_KEY) return null;
-
-		return <TaskSortControl mode={taskSort} onChange={setTaskSort} />;
-	});
-
 	const wrapNode = useStableCallback(
 		(node: TreeNode, row: ReactNode, onOpenChange: (open: boolean) => void) => {
 			if (node.kind === "fileLeaf" && selection.keys.has(node.key)) {
@@ -873,19 +814,6 @@ function VaultPage() {
 			);
 		},
 	);
-
-	function confirmCreateNote() {
-		if (creatingTitle === null) return;
-		const base = creatingTitle.trim().replaceAll(/[/\\]/g, "-").replace(/^\.+/, "");
-		if (!base) return;
-
-		const name = `${base}.md`;
-		if (looseNames.has(name)) {
-			toast.error("Já existe uma nota com esse nome");
-			return;
-		}
-		createNoteMutation.mutate({ projectId, name, content: `# ${base}\n\n` });
-	}
 
 	function confirmRename() {
 		if (!renaming) return;
@@ -998,28 +926,11 @@ function VaultPage() {
 									<CircleCheck className="size-4" />
 								</Button>
 							</Tooltip>
-							{!readOnly && (
-								<>
-									<Divider className="hidden sm:block" />
-									<Tooltip label="Nova nota solta">
-										<Button
-											type="button"
-											variant="ghost"
-											size="sm"
-											className="ml-auto sm:ml-0"
-											onClick={() => setCreatingTitle("")}
-										>
-											<Plus className="size-4" />
-											Nova nota
-										</Button>
-									</Tooltip>
-								</>
-							)}
 						</div>
 					</div>
 
 					{selection.keys.size > 0 && (
-						<div className="mb-2 flex items-center justify-between border border-border bg-card px-3 py-1.5">
+						<div className="mb-2 flex items-center justify-between rounded-xl border border-border bg-card px-3 py-1.5">
 							<Text size="sm" className="font-mono tabular-nums">
 								{selection.keys.size} selecionada{selection.keys.size > 1 ? "s" : ""} · botão
 								direito para ações
@@ -1033,7 +944,7 @@ function VaultPage() {
 
 					{(() => {
 						// Em "Todos" (readOnly) a árvore é só browse + abrir: sem DnD nem menu de contexto,
-						// então omitimos canDrop/wrapNode/renderAccessory e não montamos o DndContext.
+						// então omitimos canDrop/wrapNode e não montamos o DndContext.
 						const treeView =
 							searching && visibleNodes.length === 0 ? (
 								<Text size="sm" tone="muted" className="px-2 py-1 font-mono">
@@ -1049,7 +960,6 @@ function VaultPage() {
 									onOpenAgent={openAgent}
 									onOpenSkill={openSkill}
 									canDrop={readOnly ? undefined : canDrop}
-									renderAccessory={readOnly ? undefined : renderAccessory}
 									wrapNode={readOnly ? undefined : wrapNode}
 								/>
 							);
@@ -1085,45 +995,6 @@ function VaultPage() {
 					})()}
 				</div>
 			)}
-
-			<Dialog
-				open={creatingTitle !== null}
-				onClose={() => setCreatingTitle(null)}
-				title="Nova nota solta"
-				className="max-w-md"
-				footer={
-					<>
-						<Button type="button" variant="outline" onClick={() => setCreatingTitle(null)}>
-							Cancelar
-						</Button>
-						<Button type="submit" form={createNoteFormId} disabled={createNoteMutation.isPending}>
-							{createNoteMutation.isPending ? "Criando..." : "Criar nota"}
-						</Button>
-					</>
-				}
-			>
-				<form
-					id={createNoteFormId}
-					onSubmit={(e) => {
-						e.preventDefault();
-						confirmCreateNote();
-					}}
-				>
-					<Input
-						autoFocus
-						value={creatingTitle ?? ""}
-						onChange={(e) => setCreatingTitle(e.target.value)}
-						placeholder="Título da nota"
-						className="font-mono text-sm"
-						aria-label="Título"
-					/>
-					{creatingTitle?.trim() && (
-						<Text size="xs" tone="muted" className="mt-2 font-mono">
-							arquivo: {creatingTitle.trim().replaceAll(/[/\\]/g, "-").replace(/^\.+/, "")}.md
-						</Text>
-					)}
-				</form>
-			</Dialog>
 
 			<Dialog
 				open={renaming !== null}
@@ -1229,48 +1100,6 @@ function VaultPage() {
 
 function Divider({ className }: { className?: string }) {
 	return <div className={cn("mx-1 h-5 w-px shrink-0 bg-border", className)} />;
-}
-
-const SORT_OPTIONS: { mode: TaskSortMode; label: string; icon: typeof Clock }[] = [
-	{ mode: "recente", label: "Mais recentes", icon: Clock },
-	{ mode: "prioridade", label: "Por prioridade", icon: Flame },
-	{ mode: "categoria", label: "Por categoria", icon: LayoutGrid },
-];
-
-// Ordenação inline das pastas de tarefa, irmã do botão da linha "Tarefas". `stopPropagation` evita
-// que o clique colapse/expanda a pasta.
-function TaskSortControl({
-	mode,
-	onChange,
-}: {
-	mode: TaskSortMode;
-	onChange: (mode: TaskSortMode) => void;
-}) {
-	return (
-		<div className="flex shrink-0 items-center gap-0.5 pr-2">
-			{SORT_OPTIONS.map((option) => {
-				const active = option.mode === mode;
-				return (
-					<Tooltip key={option.mode} label={option.label}>
-						<Button
-							type="button"
-							variant={active ? "secondary" : "ghost"}
-							size="icon-sm"
-							aria-label={option.label}
-							aria-pressed={active}
-							className={active ? undefined : "text-muted-foreground"}
-							onClick={(event) => {
-								event.stopPropagation();
-								onChange(option.mode);
-							}}
-						>
-							<option.icon className="size-3.5" />
-						</Button>
-					</Tooltip>
-				);
-			})}
-		</div>
-	);
 }
 
 // Zona de drop pra soltar arquivos de uma tarefa de volta no vault (unlink). Fixa no rodapé e fora

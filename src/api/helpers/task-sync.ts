@@ -8,9 +8,9 @@ import { dbTasks } from "../db/tasks";
 import { PubSub } from "../pubsub";
 import type { TaskSyncCreateInput } from "../schemas/tasks";
 import { readFirstMarkdownContent, readTaskFolderMeta, resolveDisplayTitle } from "./task-folder";
+import { withProjectStorageLock } from "./task-storage-coordinator";
 import { allocateStorageKey, normalizeStorageSlug } from "./task-storage-path";
 import { restartTasksWatcher } from "./tasks-watcher";
-import { withProjectStorageLock } from "./task-storage-coordinator";
 
 const KOWORKER_DIR = ".koworker";
 
@@ -124,9 +124,6 @@ export async function createDiscoveredTasks(input: TaskSyncCreateInput) {
 						storage_slug: normalizeStorageSlug(task.title, "tarefa"),
 						title: task.title,
 						group_id: task.groupId,
-						priority_id: task.priorityId,
-						category_id: task.categoryId,
-						complexity: task.complexity,
 						done: task.done ? 1 : 0,
 						completed_at: task.done ? now : undefined,
 					};

@@ -1,9 +1,6 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { toast } from "sonner";
+import { useEffect, useState } from "react";
 
-import { orpc } from "@/client";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -25,11 +22,13 @@ import {
 	withoutInvokeInherit,
 } from "@/constants/invoke";
 import { useProjectFocus } from "@/hooks/use-project-focus";
-import { errorMessage } from "@/lib/orpc-errors";
+import type { TerminalWorkspaceActions } from "@/routes/_app/shells/-utils/use-terminal-workspace";
 
 type NewSessionDialogProps = {
 	open: boolean;
+	actions: TerminalWorkspaceActions;
 	onClose: () => void;
+	defaultCli?: InvokeCli;
 };
 
 const CLI_ITEMS = INVOKE_CLI_OPTIONS.map((option) => ({
@@ -54,13 +53,17 @@ function selectItems(options: { value: string; label: string; hint: string }[]) 
 	return options.map((option) => ({ id: option.value, label: option.label, hint: option.hint }));
 }
 
-export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
+export function NewSessionDialog({
+	open,
+	actions,
+	onClose,
+	defaultCli = "claude",
+}: NewSessionDialogProps) {
 	const navigate = useNavigate();
-	const queryClient = useQueryClient();
 	const { projects, selectedProjectId, loading } = useProjectFocus();
 
 	const [projectId, setProjectId] = useState<string | null>(null);
-	const [cli, setCli] = useState<InvokeCli>("claude");
+	const [cli, setCli] = useState<InvokeCli>(defaultCli);
 	const [label, setLabel] = useState("");
 	const [prompt, setPrompt] = useState("");
 	const [model, setModel] = useState(INVOKE_INHERIT);
@@ -68,29 +71,17 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 	const [agent, setAgent] = useState("");
 	const [permissionMode, setPermissionMode] = useState<InvokePermissionMode>("bypass");
 	const [approvalMode, setApprovalMode] = useState<CodexApprovalMode>("bypass");
+	const [pending, setPending] = useState(false);
 
 	const activeProjectId = projectId ?? selectedProjectId ?? null;
 
-	const start = useMutation({
-		...orpc.kwTerminal.sessionStart.mutationOptions(),
-		onError: (error) => toast.error(errorMessage(error, "Não foi possível abrir a sessão")),
-		onSuccess: async (result) => {
-			await queryClient.invalidateQueries({ queryKey: orpc.kwTerminal.overview.key() });
-			setLabel("");
-			setPrompt("");
-			onClose();
-			navigate({ to: "/terminals/$paneId", params: { paneId: result.paneId } });
-		},
-	});
-	const resume = useMutation({
-		...orpc.kwTerminal.sessionResumeLast.mutationOptions(),
-		onError: (error) => toast.error(errorMessage(error, "Não foi possível retomar a conversa")),
-		onSuccess: async (result) => {
-			await queryClient.invalidateQueries({ queryKey: orpc.kwTerminal.overview.key() });
-			onClose();
-			await navigate({ to: "/terminals/$paneId", params: { paneId: result.paneId } });
-		},
-	});
+	useEffect(() => {
+		if (open) {
+			setCli(defaultCli);
+			setModel(INVOKE_INHERIT);
+			setEffort(INVOKE_INHERIT);
+		}
+	}, [open, defaultCli]);
 
 	function submit() {
 		if (!activeProjectId) {
@@ -99,25 +90,42 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 		const selectedModel = withoutInvokeInherit(model);
 		const selectedEffort = withoutInvokeInherit(effort);
 
-		start.mutate({
-			projectId: activeProjectId,
-			cli,
-			tab: { kind: "session", ...(label.trim() ? { label: label.trim() } : {}) },
-			...(prompt.trim() ? { prompt: prompt.trim() } : {}),
-			...(selectedModel ? { model: selectedModel } : {}),
-			...(selectedEffort ? { effort: selectedEffort } : {}),
-			...(cli === "claude" && agent.trim() ? { agent: agent.trim() } : {}),
-			...(cli === "claude" ? { permissionMode } : { approvalMode }),
-		});
+		setPending(true);
+		void actions
+			.startConversation({
+				projectId: activeProjectId,
+				cli,
+				tab: { kind: "session", ...(label.trim() ? { label: label.trim() } : {}) },
+				...(prompt.trim() ? { prompt: prompt.trim() } : {}),
+				...(selectedModel ? { model: selectedModel } : {}),
+				...(selectedEffort ? { effort: selectedEffort } : {}),
+				...(cli === "claude" && agent.trim() ? { agent: agent.trim() } : {}),
+				...(cli === "claude" ? { permissionMode } : { approvalMode }),
+			})
+			.then((result) => {
+				setLabel("");
+				setPrompt("");
+				onClose();
+				return navigate({ to: "/shells", search: { tab: `agent:${result.paneId}` } });
+			})
+			.catch(() => {})
+			.finally(() => setPending(false));
 	}
 
 	function resumeLast() {
 		if (activeProjectId) {
-			resume.mutate({ projectId: activeProjectId, cli });
+			setPending(true);
+			void actions
+				.resumeConversation({ projectId: activeProjectId, cli })
+				.then((result) => {
+					onClose();
+					return navigate({ to: "/shells", search: { tab: `agent:${result.paneId}` } });
+				})
+				.catch(() => {})
+				.finally(() => setPending(false));
 		}
 	}
 
-	const pending = start.isPending || resume.isPending;
 	const modelItems = selectItems(cli === "codex" ? CODEX_MODEL_OPTIONS : INVOKE_MODEL_OPTIONS);
 	const effortItems = selectItems(cli === "codex" ? CODEX_EFFORT_OPTIONS : INVOKE_EFFORT_OPTIONS);
 
@@ -135,7 +143,7 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 						size="sm"
 						onClick={onClose}
 						disabled={pending}
-						className="w-full sm:w-auto"
+						className="h-12 w-full sm:h-8 sm:w-auto"
 					>
 						Cancelar
 					</Button>
@@ -144,7 +152,7 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 						size="sm"
 						onClick={resumeLast}
 						disabled={!activeProjectId || pending}
-						className="w-full sm:w-auto"
+						className="h-12 w-full sm:h-8 sm:w-auto"
 					>
 						Retomar última conversa
 					</Button>
@@ -152,7 +160,7 @@ export function NewSessionDialog({ open, onClose }: NewSessionDialogProps) {
 						size="sm"
 						onClick={submit}
 						disabled={!activeProjectId || pending}
-						className="w-full sm:w-auto"
+						className="h-12 w-full sm:h-8 sm:w-auto"
 					>
 						Abrir nova conversa
 					</Button>

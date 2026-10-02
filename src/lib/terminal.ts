@@ -1,13 +1,12 @@
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc, type RouterInputs, type RouterOutputs } from "@/client";
-import type { InvokeCli } from "@/constants/invoke";
+import type { WorkingCli } from "@/constants/invoke";
 import { errorMessage } from "@/lib/orpc-errors";
 
-// O terminal agora é um serviço do backend (spawn via Bun.spawn na máquina local), então funciona
-// igual no browser e no desktop. Cada função dispara a procedure e traduz o
-// resultado num toast; a capacidade `canOpenTerminal` (há emulador configurado?) esconde a UI quando
-// não há terminal.
+// O terminal externo é o kw-terminal, dirigido pelo backend na máquina local, então funciona igual no
+// browser e no desktop. Cada função dispara a procedure e traduz o resultado num toast; a capacidade
+// `canOpenTerminal` (o kw-terminal está instalado?) avisa a UI quando não há terminal.
 
 export type ProjectInfo = {
 	id: string;
@@ -79,7 +78,7 @@ async function openRoute(
 // Traz pra frente a sessão do CLI ativo que já está rodando no kw-terminal. Sem agent daquele CLI o
 // backend abre uma no projeto em foco; sem projeto em foco responde com o motivo e viramos toast.
 export async function focusCliAgent(params: {
-	cli: InvokeCli;
+	cli: WorkingCli;
 	projectId?: string;
 }): Promise<boolean> {
 	try {
@@ -261,32 +260,6 @@ export async function closeProjectTerminal(
 	}
 }
 
-// Fecha só as abas de invocação de agent/skill dos projetos escolhidos, preservando terminal, tarefas
-// e rotas. Retorna quantas foram encerradas.
-export async function closeInvocationTerminals(
-	projects: ProjectRef[],
-	options: OpenTerminalOptions = {},
-): Promise<number> {
-	const { showToast = true } = options;
-
-	try {
-		const { closed } = await orpc.terminal.closeInvocationSessions.call({ projects });
-		if (showToast) {
-			toast.success(
-				closed > 0
-					? `${closed} terminal(is) de invocação encerrado(s)`
-					: "Nenhum terminal de invocação encerrado",
-			);
-		}
-		return closed;
-	} catch {
-		if (showToast) toast.error("Erro ao encerrar terminais de invocação");
-		return 0;
-	}
-}
-
-// Atalho de um clique: fecha as abas de invocação de todos os projetos e mata os Chromes/daemons
-// órfãos do agent-browser que sobraram no host. Retorna quantas abas foram encerradas.
 export async function sweepAllActiveTerminals(options: OpenTerminalOptions = {}): Promise<number> {
 	const { showToast = true } = options;
 
@@ -295,13 +268,13 @@ export async function sweepAllActiveTerminals(options: OpenTerminalOptions = {})
 		if (showToast) {
 			toast.success(
 				closed > 0
-					? `${closed} terminal(is) encerrado(s) e processos órfãos limpos`
-					: "Processos órfãos limpos",
+					? `${closed} terminal(is) e navegadores do agent-browser encerrados`
+					: "Navegadores do agent-browser encerrados",
 			);
 		}
 		return closed;
 	} catch {
-		if (showToast) toast.error("Erro ao limpar tudo ativo");
+		if (showToast) toast.error("Erro ao encerrar invocações e agent-browser");
 		return 0;
 	}
 }

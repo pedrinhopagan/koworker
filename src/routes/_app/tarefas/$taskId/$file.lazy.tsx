@@ -17,7 +17,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createLazyFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, LayoutList, Loader2, MoreVertical, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
@@ -25,39 +25,36 @@ import { DocMobileActionsDrawer, DocSheetDivider } from "@/components/doc-mobile
 import { DocShareControls } from "@/components/doc-share-controls";
 import { DocToolbar } from "@/components/doc-toolbar";
 import { FileContextMenu } from "@/components/file-context-menu";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
-	TASK_SELECT_CONTENT_SELECTOR,
 	TaskEditControls,
-	TaskMetaSelects,
 	TaskTitleInput,
 	taskTitlePlaceholder,
-} from "@/components/tasks/task-meta-controls";
+} from "@/components/tasks/task-edit-controls";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Tooltip } from "@/components/ui/tooltip";
 import { RECENCY_HIGHLIGHT_DEPTH, recencyLevelClass } from "@/constants/tasks";
 import { useClickOutside } from "@/hooks/use-click-outside";
-import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { useRemoveTaskMutation, useUpdateTaskMutation } from "@/hooks/use-task-mutations";
+import { joinPath, revealFileInOs } from "@/lib/os-share";
 import { reflowMarkdown } from "@/lib/reflow-markdown";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
-import { FileDatePopover } from "./-components/file-date-popover";
-import { FlowRunButton } from "./-components/flow-run-button";
-import { TaskAttachments } from "./-components/task-attachments";
-import { useTaskShare } from "./-components/use-task-share";
-import { TaskOverviewPage } from "./index.lazy";
 import {
 	canonicalTaskRoute,
 	isTaskIdSegment,
 	taskMatchesFeature,
 } from "../-utils/task-route-resolution";
+import { FileDatePopover } from "./-components/file-date-popover";
+import { TaskAttachments } from "./-components/task-attachments";
+import { useTaskShare } from "./-components/use-task-share";
+import { TaskOverviewPage } from "./index.lazy";
 
 export const Route = createLazyFileRoute("/_app/tarefas/$taskId/$file")({
 	component: TaskFileRoute,
@@ -130,28 +127,6 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 	const taskQuery = useQuery(orpc.tasks.getFull.queryOptions({ input: { id: taskId } }));
 	const task = taskQuery.data ?? null;
 	const route = task ? canonicalTaskRoute(task) : null;
-
-	const { pinned, togglePin } = useRecordDocSession(
-		task
-			? {
-					key: docSessionKey({ kind: "task", taskId, file: activeFile }),
-					kind: "task",
-					title: task.displayTitle,
-					subtitle: activeFile,
-					projectName: task.project?.name,
-					projectId: task.project?.id,
-					nav: {
-						to: "/tarefas/$taskId/$file/$canonicalFile",
-						params: {
-							taskId: canonicalTaskRoute(task).featureId,
-							file: canonicalTaskRoute(task).taskId,
-							canonicalFile: activeFile,
-						},
-					},
-				}
-			: null,
-		{ completed: task?.done ?? false },
-	);
 
 	function openFile(name: string, options?: { replace?: boolean }) {
 		if (!route) return;
@@ -271,7 +246,6 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 
 	useClickOutside(headerRef, () => setEditing(false), {
 		enabled: editing,
-		ignoreSelector: TASK_SELECT_CONTENT_SELECTOR,
 	});
 
 	useEffect(() => {
@@ -444,8 +418,6 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 		onCopyContent: () => void paneRef.current?.copyContent(),
 		onCopyPath: () => void paneRef.current?.copyPath(),
 		onReading: () => setReading(true),
-		pinned,
-		onTogglePin: togglePin,
 	};
 
 	// Conteúdo do menu de ações, seccionado Tarefa/Arquivo. Idêntico no popover desktop e no drawer
@@ -457,20 +429,13 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 				<Text size="xs" tone="muted" className="px-5 pt-2 pb-1">
 					Tarefa
 				</Text>
-				<div className="flex flex-col gap-2 px-5 py-2">
-					<TaskMetaSelects
-						categoryId={task.categoryId ?? null}
-						priorityId={task.priorityId ?? null}
-						complexity={task.complexity}
-						interactive
-						layout="stacked"
-						onCategoryChange={(categoryId) => updateMutation.mutate({ id: task.id, categoryId })}
-						onPriorityChange={(priorityId) => updateMutation.mutate({ id: task.id, priorityId })}
-						onComplexityChange={(complexity) => updateMutation.mutate({ id: task.id, complexity })}
-					/>
-				</div>
-				<FlowRunButton taskId={taskId} layout="stacked" onAction={onAction} />
-				<TaskAttachments taskId={taskId} attachments={task.attachments} onAction={onAction} />
+
+				<TaskAttachments
+					taskId={taskId}
+					folderAbs={share.folderAbs}
+					attachments={task.attachments}
+					onAction={onAction}
+				/>
 				{share.folderAbs ? (
 					<DocShareControls
 						layout="stacked"
@@ -625,7 +590,7 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 							items={task.files.map((file) => file.name)}
 							strategy={horizontalListSortingStrategy}
 						>
-							<div className="mx-auto flex h-8 w-full max-w-6xl items-stretch">
+							<div className="flex h-8 w-full items-stretch">
 								<div
 									className={cn(
 										"flex min-w-0 flex-1 items-stretch overflow-x-auto md:overflow-x-visible",
@@ -637,6 +602,9 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 											key={file.name}
 											file={file}
 											path={`${task.folderPath}/${file.name}`}
+											absolutePath={
+												share.folderAbs ? joinPath(share.folderAbs, file.name) : undefined
+											}
 											isActive={file.name === activeFile}
 											level={task.files.length > 1 ? recencyLevels.get(file.name) : undefined}
 											isRenaming={renamingFile === file.name}
@@ -652,7 +620,7 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 										/>
 									))}
 									{creatingFile ? (
-										<div className="min-w-28 shrink-0 border-l border-border bg-secondary text-foreground md:min-w-0 md:flex-1">
+										<div className="min-w-28 shrink-0 border-l border-border bg-secondary text-foreground first:border-l-0 md:min-w-0 md:flex-1">
 											<input
 												ref={newFileInputRef}
 												value={newFileValue}
@@ -701,6 +669,7 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 					sessionKey={docSessionKey({ kind: "task", taskId, file: activeFile })}
 					content={editorContent}
 					folderPath={task.folderPath}
+					linkCwd={task.project ? joinPath(task.project.mainRoute, task.folderPath) : undefined}
 					writeFile={(payload) => writeFileMutation.mutateAsync({ id: taskId, ...payload })}
 					emptyState={
 						creatingFile
@@ -734,6 +703,7 @@ export function TaskFilePage({ taskId, activeFile }: { taskId: string; activeFil
 type SortableFileTabProps = {
 	file: { name: string; createdAt: number; editedAt: number };
 	path: string;
+	absolutePath?: string;
 	isActive: boolean;
 	level: number | undefined;
 	isRenaming: boolean;
@@ -751,6 +721,7 @@ type SortableFileTabProps = {
 function SortableFileTab({
 	file,
 	path,
+	absolutePath,
 	isActive,
 	level,
 	isRenaming,
@@ -780,7 +751,7 @@ function SortableFileTab({
 			ref={setNodeRef}
 			style={style}
 			className={cn(
-				"min-w-28 shrink-0 border-l border-border md:min-w-0 md:flex-1",
+				"min-w-28 shrink-0 border-l border-border first:border-l-0 md:min-w-0 md:flex-1",
 				isActive ? "bg-secondary text-foreground" : "text-muted-foreground",
 				isDragging && "opacity-60",
 			)}
@@ -801,6 +772,8 @@ function SortableFileTab({
 				<FileContextMenu
 					name={file.name}
 					path={path}
+					absolutePath={absolutePath}
+					onOpenFolder={absolutePath ? () => void revealFileInOs(absolutePath) : undefined}
 					onRename={onStartRename}
 					onDelete={onRequestDelete}
 				>

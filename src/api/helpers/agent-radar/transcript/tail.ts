@@ -1,14 +1,28 @@
 import { watch, type FSWatcher } from "node:fs";
 
+import type { AgentTranscript } from "@/api/schemas/agent-radar-transcript";
 import type { AgentSessionEvent } from "@/lib/agent-session";
 import {
 	createTranscriptMirror,
 	createTranscriptParser,
 	type TranscriptPatch,
 } from "@/lib/agent-transcript";
-import { claudeTranscriptModel, translateClaudeTranscriptLine } from "@/lib/claude-transcript";
-import { codexTranscriptModel, createCodexTranscriptTranslator } from "@/lib/codex-transcript";
-import type { AgentTranscript } from "./locate";
+import {
+	claudeTranscriptEffort,
+	claudeTranscriptModel,
+	translateClaudeTranscriptLine,
+} from "@/lib/claude-transcript";
+import {
+	codexTranscriptEffort,
+	codexTranscriptModel,
+	createCodexTranscriptTranslator,
+} from "@/lib/codex-transcript";
+import {
+	piTranscriptEffort,
+	piTranscriptModel,
+	translatePiTranscriptLine,
+} from "@/lib/pi-transcript";
+import { openOpencode2Tail } from "./opencode2-tail";
 import { openOpencodeTail } from "./opencode-tail";
 
 const READ_CHUNK_BYTES = 1_000_000;
@@ -23,26 +37,39 @@ export type TranscriptTail = {
 	source: AgentTranscript;
 	events: () => AgentSessionEvent[];
 	model: () => string | null;
+	effort: () => string | null;
+	queued: () => string[];
 	close: () => void;
 };
 
 type TailInput = {
 	sessionId: string;
 	source: AgentTranscript;
-	onEvents: (events: AgentSessionEvent[], reset: boolean, model: string | null) => void;
+	onEvents: (
+		events: AgentSessionEvent[],
+		reset: boolean,
+		model: string | null,
+		effort?: string | null,
+		queued?: string[],
+	) => void;
 	onError: (error: unknown) => void;
 };
 
-type FileSource = Extract<AgentTranscript, { cli: "claude" | "codex" }>;
+type FileSource = Extract<AgentTranscript, { cli: "claude" | "codex" | "pi" }>;
+type FileCli = FileSource["cli"];
 
 // Ponto único de abertura para o resto do radar: quem quer a conversa de um pane não precisa saber
 // se ela vive num arquivo que cresce (claude, codex) ou num banco que muda no lugar (opencode).
 export async function openTranscriptTail(input: TailInput): Promise<TranscriptTail> {
-	if (input.source.cli === "opencode") {
-		return openOpencodeTail(input);
+	const source = input.source;
+	if (source.cli === "opencode") {
+		return openOpencodeTail({ ...input, source });
+	}
+	if (source.cli === "opencode2") {
+		return openOpencode2Tail({ ...input, source });
 	}
 
-	return await openFileTranscriptTail({ ...input, source: input.source });
+	return await openFileTranscriptTail({ ...input, source });
 }
 
 // Cada arquivo aberto ganha tradutor próprio: o do codex guarda estado entre linhas para não
@@ -52,16 +79,24 @@ type TranscriptTranslator = {
 	reset?: () => void;
 };
 
-function createTranslators(): Record<"claude" | "codex", TranscriptTranslator> {
+function createTranslators(): Record<FileCli, TranscriptTranslator> {
 	return {
 		claude: { translate: translateClaudeTranscriptLine },
 		codex: createCodexTranscriptTranslator(),
+		pi: { translate: translatePiTranscriptLine },
 	};
 }
 
-const MODEL_EXTRACTORS: Record<"claude" | "codex", (raw: unknown) => string | null> = {
+const MODEL_EXTRACTORS: Record<FileCli, (raw: unknown) => string | null> = {
 	claude: claudeTranscriptModel,
 	codex: codexTranscriptModel,
+	pi: piTranscriptModel,
+};
+
+const EFFORT_EXTRACTORS: Record<FileCli, (raw: unknown) => string | null> = {
+	claude: claudeTranscriptEffort,
+	codex: codexTranscriptEffort,
+	pi: piTranscriptEffort,
 };
 
 async function readTranscript(input: {
@@ -95,9 +130,12 @@ async function openFileTranscriptTail(
 	const translators = createTranslators();
 	const { translate } = translators[input.source.cli];
 	const extractModel = MODEL_EXTRACTORS[input.source.cli];
+	const extractEffort = EFFORT_EXTRACTORS[input.source.cli];
 	let model: string | null = null;
+	let effort: string | null = null;
 	const parser = createTranscriptParser((raw) => {
 		model = extractModel(raw) ?? model;
+		effort = extractEffort(raw) ?? effort;
 
 		return translate(raw);
 	});
@@ -117,6 +155,7 @@ async function openFileTranscriptTail(
 				parser.reset();
 				translators[input.source.cli].reset?.();
 				model = null;
+				effort = null;
 			},
 			push: (chunk) => events.push(...mirror.apply(parser.push(chunk))),
 		});
@@ -143,8 +182,10 @@ async function openFileTranscriptTail(
 			pulling = true;
 			void pull()
 				.then(({ events, reset }) => {
-					if (!closed && (events.length > 0 || reset)) {
-						input.onEvents(events, reset, model);
+					const queued = mirror.queued();
+					if (!closed && (events.length > 0 || reset || queued.join("\0") !== lastQueued)) {
+						lastQueued = queued.join("\0");
+						input.onEvents(events, reset, model, effort, queued);
 					}
 				})
 				.catch(input.onError)
@@ -160,7 +201,8 @@ async function openFileTranscriptTail(
 	}
 
 	const first = await pull();
-	input.onEvents(first.events, true, model);
+	let lastQueued = mirror.queued().join("\0");
+	input.onEvents(first.events, true, model, effort, mirror.queued());
 
 	const watcher: FSWatcher = watch(input.source.path, { persistent: false }, () => schedule());
 	watcher.on("error", input.onError);
@@ -175,6 +217,8 @@ async function openFileTranscriptTail(
 		source: input.source,
 		events: () => mirror.list(),
 		model: () => model,
+		effort: () => effort,
+		queued: () => mirror.queued(),
 		close() {
 			closed = true;
 			pending = false;

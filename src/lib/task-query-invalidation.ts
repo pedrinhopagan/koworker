@@ -5,7 +5,7 @@ export type TaskQueryInvalidation = {
 	projectId: string | null | undefined;
 };
 
-const projectTaskProcedures = new Set(["getAll", "listByProject", "metrics", "focus"]);
+const projectTaskProcedures = new Set(["getAll", "listByProject", "metrics", "focus", "recent"]);
 const detailTaskProcedures = new Set(["getById", "getFull"]);
 
 function matchesProject(

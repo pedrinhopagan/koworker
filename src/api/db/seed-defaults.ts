@@ -2,26 +2,27 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { DEFAULT_CATEGORIES } from "@/constants/categories";
+import { DEFAULT_AGENT_CATEGORIES } from "@/constants/agent-categories";
 import { expandTilde } from "../helpers/os-actions";
-import { defaultSystemSettings, setSystemSettings } from "../helpers/system-settings";
+import {
+	defaultSystemSettings,
+	LEGACY_TERMINAL_SETTING_KEYS,
+	setSystemSettings,
+} from "../helpers/system-settings";
+import { dbAgentCategories } from "./agent-categories";
+import { dbAgentSettings } from "./agent-settings";
 import { dbAgentSourcePaths } from "./agent-source-paths";
-import { dbCategories } from "./categories";
 import { db } from "./connection";
-import { normalizeEntityName } from "./entity-name";
 import { dbSettings } from "./settings";
 import { dbSkillSourcePaths } from "./skill-source-paths";
 
-// O multiplexador de terminal `herdr` foi renomeado para `kw-terminal` (o binário externo mudou de
-// nome). Bancos existentes ainda podem ter o valor antigo gravado em `terminal_multiplexer`. UPDATE
-// único no boot; naturalmente idempotente — sem linha "herdr", roda como no-op.
-export async function migrateTerminalMultiplexerRename() {
-	await db
-		.updateTable("settings")
-		.set({ value: "kw-terminal", updated_at: Date.now() })
-		.where("key", "=", "terminal_multiplexer")
-		.where("value", "=", "herdr")
-		.execute();
+// O terminal externo virou só kw-terminal: quem tinha tmux, none ou um template de emulador passa a
+// abrir no kw-terminal, e as preferências antigas saem do banco. Só onde o kw-terminal roda; no
+// Windows não há para onde migrar. Idempotente: sem as linhas, é no-op.
+export async function migrateLegacyTerminalSettings() {
+	if (process.platform === "win32") return;
+
+	await db.deleteFrom("settings").where("key", "in", LEGACY_TERMINAL_SETTING_KEYS).execute();
 }
 
 // Marca que a config de SO já foi semeada uma vez. Sem isso, reescrever os settings a cada boot
@@ -30,7 +31,8 @@ const SEEDED_MARKER = "default_sources_seeded";
 
 // Marca própria das categorias default: separa o ciclo de vida delas do dos roots de SO, para que
 // semear uma não force a outra.
-const CATEGORIES_SEEDED_MARKER = "default_categories_seeded";
+
+const AGENT_CATEGORIES_SEEDED_MARKER = "default_agent_categories_seeded";
 
 // Garante que cada root default de plataforma exista com scope 'global', sem duplicar. Compara com o
 // til expandido para reconhecer linhas custom equivalentes (ex.: `~/.claude/skills`) e nunca remove
@@ -79,28 +81,37 @@ export async function ensureDefaultSettings() {
 	]);
 }
 
-// Semeia, uma única vez, as categorias padrão já vinculadas à estrutura de prompt. Cria só as
-// ausentes por nome normalizado — bancos que já têm "feature"/"fix" pré-existentes não ganham
-// duplicata, e categorias criadas pelo usuário nunca são tocadas.
-export async function ensureDefaultCategories() {
-	if (await dbSettings.has(CATEGORIES_SEEDED_MARKER)) {
+// Semeia, uma única vez, as categorias de agents e o ícone/cor/categoria de cada perfil conhecido.
+// Categoria existente por nome normalizado é reaproveitada; override que o usuário já gravou em
+// agent_settings (ícone, cor ou categoria) nunca é sobrescrito.
+export async function ensureDefaultAgentCategories() {
+	if (await dbSettings.has(AGENT_CATEGORIES_SEEDED_MARKER)) {
 		return;
 	}
 
-	const existing = await dbCategories.getAll();
-	const existingNames = new Set(existing.map((row) => normalizeEntityName(row.name)));
+	const settingsBySlug = new Map((await dbAgentSettings.getAll()).map((row) => [row.slug, row]));
 
-	for (const category of DEFAULT_CATEGORIES) {
-		if (existingNames.has(normalizeEntityName(category.name))) {
-			continue;
+	for (const category of DEFAULT_AGENT_CATEGORIES) {
+		const existing = await dbAgentCategories.findByNormalizedName(category.name);
+		const categoryId = existing?.id ?? crypto.randomUUID();
+		if (!existing) {
+			await dbAgentCategories.create({
+				id: categoryId,
+				name: category.name,
+				color: category.color,
+			});
 		}
-		await dbCategories.create({
-			id: crypto.randomUUID(),
-			name: category.name,
-			color: category.color,
-			structure_slug: category.structureSlug,
-		});
+
+		for (const agent of category.agents) {
+			const current = settingsBySlug.get(agent.slug);
+			await dbAgentSettings.upsert({
+				slug: agent.slug,
+				icon: current?.icon ?? agent.icon,
+				color: current?.color ?? category.color,
+				categoryId: current?.category_id ?? categoryId,
+			});
+		}
 	}
 
-	await dbSettings.set({ key: CATEGORIES_SEEDED_MARKER, value: "1" });
+	await dbSettings.set({ key: AGENT_CATEGORIES_SEEDED_MARKER, value: "1" });
 }

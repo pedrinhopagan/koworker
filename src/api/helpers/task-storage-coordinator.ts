@@ -1,3 +1,5 @@
+import { ORPCError } from "@orpc/server";
+import Database from "bun:sqlite";
 import {
 	cp,
 	link,
@@ -12,8 +14,6 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import Database from "bun:sqlite";
-import { ORPCError } from "@orpc/server";
 
 import { envVariables } from "../config/env";
 import { db, type tasks } from "../db/connection";
@@ -24,12 +24,16 @@ import { dbTaskStorageRuns } from "../db/task-storage-runs";
 import { dbTasks } from "../db/tasks";
 import { TaskStoragePlanSchema } from "../schemas/task-storage";
 import {
+	buildExpectedTaskFolderPath,
+	normalizeStorageSlug,
+	resolveExistingTaskFolder,
+	resolveTaskFolderDestination,
+} from "./task-storage-path";
+import {
 	fingerprintTaskStorageDirectory,
 	previewTaskStorage,
 	type TaskStorageFingerprint,
 } from "./task-storage-scan";
-import { resolveExistingTaskFolder, resolveTaskFolderDestination } from "./task-storage-path";
-import { buildExpectedTaskFolderPath, normalizeStorageSlug } from "./task-storage-path";
 import { CLEARED_TASK_WORKTREE_METADATA } from "./task-worktree";
 import { releaseTaskWatcher, suppressTaskWatcher } from "./tasks-watcher";
 
@@ -1001,7 +1005,6 @@ export type TaskRelinkIntent = {
 	targetProjectId: string;
 	targetGroupId: string | null;
 	displayOrder?: number;
-	categoryId?: string;
 	done?: boolean;
 	completedAt?: number | null;
 	clearMergeMetadata?: boolean;
@@ -1231,9 +1234,6 @@ export async function relinkTasks(input: {
 									...(context.intent.displayOrder === undefined
 										? {}
 										: { display_order: context.intent.displayOrder }),
-									...(context.intent.categoryId === undefined
-										? {}
-										: { category_id: context.intent.categoryId }),
 									...(context.intent.done === undefined
 										? {}
 										: { done: context.intent.done ? 1 : 0 }),

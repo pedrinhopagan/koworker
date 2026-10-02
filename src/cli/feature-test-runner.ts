@@ -110,6 +110,7 @@ console.log(
 		ambiguousTaskCreate,
 		createdFeature: createdFeature && {
 			id: createdFeature.id,
+			color: createdFeature.color,
 			storageKeyLength: createdFeature.storage_key?.length,
 			storageSlug: createdFeature.storage_slug,
 			displayOrder: createdFeature.display_order,

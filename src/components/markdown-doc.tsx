@@ -4,7 +4,15 @@ import { EditorSelection, EditorState, Prec } from "@codemirror/state";
 import { type Command, EditorView, keymap, placeholder } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+	forwardRef,
+	useEffect,
+	useImperativeHandle,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 
 import {
 	collapseAllHeadings,
@@ -22,6 +30,7 @@ import {
 	markdownHighlightStyle,
 	resolveCodeLanguage,
 } from "@/lib/markdown-engine";
+import { openLinkTarget } from "@/lib/link-navigation";
 import { extractFrontmatter } from "@/lib/skills/parser";
 import { useThemeStore } from "@/stores/theme";
 
@@ -203,6 +212,7 @@ type MarkdownEditorProps = {
 	onChange: (content: string) => void;
 	onInlineCodeClick?: (text: string) => void;
 	onHeadingMention?: (text: string) => void;
+	onLinkClick?: (target: string, external: boolean) => void;
 	// Tamanho base da fonte; títulos e demais elementos usam `em`, então escalam junto.
 	fontSize?: string;
 	// Largura-limite da prosa: restringe `.cm-line` a uma medida de leitura e centraliza. Tabelas
@@ -228,6 +238,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 			onChange,
 			onInlineCodeClick,
 			onHeadingMention,
+			onLinkClick,
 			fontSize = "1rem",
 			proseMaxWidth,
 			initialAnchor,
@@ -263,19 +274,23 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 		// o CodeMirror reconfgura e todos os marks aparecem por um frame.
 		const onInlineCodeClickRef = useRef(onInlineCodeClick);
 		const onHeadingMentionRef = useRef(onHeadingMention);
+		const onLinkClickRef = useRef(onLinkClick);
 		const onAnchorChangeRef = useRef(onAnchorChange);
 		const onPasteFrontmatterRef = useRef(onPasteFrontmatter);
 		useEffect(() => {
 			onInlineCodeClickRef.current = onInlineCodeClick;
 			onHeadingMentionRef.current = onHeadingMention;
+			onLinkClickRef.current = onLinkClick;
 			onAnchorChangeRef.current = onAnchorChange;
 			onPasteFrontmatterRef.current = onPasteFrontmatter;
 		});
 
 		// Captura do ponto de leitura: listener de scroll com debounce, mais uma captura final na
 		// desmontagem (troca de arquivo/saída da página). Lê o `view` direto — o store fica sempre
-		// fresco sem depender de ler o handle no unmount (quando o ref já pode estar nulo).
-		useEffect(() => {
+		// fresco sem depender de ler o handle no unmount (quando o ref já pode estar nulo). Layout
+		// effect porque a limpeza dele roda com o editor ainda no documento: na de um effect comum o
+		// DOM já saiu, o `scrollTop` lido é 0 e a posição salva virava o topo do arquivo.
+		useLayoutEffect(() => {
 			if (!view) return;
 
 			const scroller = view.scrollDOM;
@@ -316,6 +331,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 			() => ({
 				onInlineCodeClick: (text: string) => onInlineCodeClickRef.current?.(text),
 				onHeadingMention: (text: string) => onHeadingMentionRef.current?.(text),
+				onLinkClick: (target: string, external: boolean) => {
+					if (onLinkClickRef.current) {
+						onLinkClickRef.current(target, external);
+						return;
+					}
+					void openLinkTarget(target);
+				},
 			}),
 			[],
 		);

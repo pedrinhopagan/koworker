@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, setSystemTime, test } from "bun:test";
 import { screen } from "@testing-library/react";
 import { useState } from "react";
 
@@ -12,7 +12,31 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cleanup, fireEvent, render } from "../../../tests/web/testing-library";
 
-afterEach(cleanup);
+const DESKTOP_WIDTH = 1024;
+const MOBILE_WIDTH = 390;
+
+function setViewportWidth(width: number) {
+	(
+		window as unknown as { happyDOM: { setViewport(v: { width: number }): void } }
+	).happyDOM.setViewport({
+		width,
+	});
+}
+
+afterEach(() => {
+	cleanup();
+	setSystemTime();
+	setViewportWidth(DESKTOP_WIDTH);
+});
+
+function swipeDown(target: HTMLElement, from: number, to: number, durationMs: number) {
+	const touch = { pointerId: 1, pointerType: "touch", clientX: 100 };
+	const startedAt = Date.now();
+	fireEvent.pointerDown(target, { ...touch, clientY: from });
+	fireEvent.pointerMove(target, { ...touch, clientY: to });
+	setSystemTime(new Date(startedAt + durationMs));
+	fireEvent.pointerUp(target, { ...touch, clientY: to });
+}
 
 function DialogHarness() {
 	const [open, setOpen] = useState(true);
@@ -55,6 +79,52 @@ describe("Dialog", () => {
 		fireEvent.keyDown(dialog, { key: "Escape" });
 
 		expect(screen.queryByRole("dialog")).toBeNull();
+	});
+});
+
+describe("Dialog no mobile", () => {
+	test("vira sheet no rodapé", async () => {
+		setViewportWidth(MOBILE_WIDTH);
+		render(<DialogHarness />);
+
+		const dialog = await screen.findByRole("dialog");
+
+		expect(dialog.dataset.side).toBe("bottom");
+	});
+
+	test("fecha ao arrastar o dedo pra baixo", async () => {
+		setViewportWidth(MOBILE_WIDTH);
+		render(<DialogHarness />);
+		const dialog = await screen.findByRole("dialog");
+		Object.defineProperty(dialog, "offsetHeight", { value: 600 });
+
+		swipeDown(dialog, 100, 400, 300);
+
+		expect(screen.queryByRole("dialog")).toBeNull();
+	});
+
+	test("arrasto curto e lento devolve o sheet ao lugar", async () => {
+		setViewportWidth(MOBILE_WIDTH);
+		render(<DialogHarness />);
+		const dialog = await screen.findByRole("dialog");
+		Object.defineProperty(dialog, "offsetHeight", { value: 600 });
+
+		swipeDown(dialog, 100, 160, 300);
+
+		expect(screen.getByRole("dialog").style.transform).toBe("");
+	});
+
+	test("não arrasta com o mouse", async () => {
+		setViewportWidth(MOBILE_WIDTH);
+		render(<DialogHarness />);
+		const dialog = await screen.findByRole("dialog");
+		const mouse = { pointerId: 1, pointerType: "mouse", clientX: 100 };
+
+		fireEvent.pointerDown(dialog, { ...mouse, clientY: 100 });
+		fireEvent.pointerMove(dialog, { ...mouse, clientY: 400 });
+		fireEvent.pointerUp(dialog, { ...mouse, clientY: 400 });
+
+		expect(screen.getByRole("dialog")).toBeTruthy();
 	});
 });
 

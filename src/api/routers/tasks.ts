@@ -1,30 +1,25 @@
 import { join } from "node:path";
 
-import { type TaskComplexity } from "@/constants/complexity";
 import { RECENCY_IGNORE_OFFSET_MS } from "@/constants/tasks";
 import { protectedProcedure } from "../auth/context";
-import { dbCategories } from "../db/categories";
 import type { tasks } from "../db/connection";
-import { dbPriorities } from "../db/priorities";
 import { dbProjects } from "../db/projects";
 import { dbTaskGroups } from "../db/task-groups";
 import { dbTasks } from "../db/tasks";
 import { listTaskAttachments } from "../helpers/koworker-assets";
 import { openFileInDefaultApp } from "../helpers/os-actions";
+import { createTask } from "../helpers/task-creation";
+import { getRecentTasks, mapTask, mapTasks, mapTaskWithDisplay } from "../helpers/task-display";
 import {
 	deleteTaskFile,
-	inferTaskStage,
 	parseTaskFileOrder,
-	readFirstMarkdownContent,
 	readTaskFiles,
-	readTaskFolderMeta,
 	renameTaskFile,
 	resolveDisplayTitle,
 	setTaskFileEditedAt,
 	shiftTaskFolderEditedAt,
 	writeTaskFile,
 } from "../helpers/task-folder";
-import { createTask } from "../helpers/task-creation";
 import {
 	quarantineTaskStorage,
 	relinkTasks,
@@ -43,6 +38,7 @@ import {
 	TaskIdSchema,
 	TaskIgnoreRecencySchema,
 	TaskListByProjectSchema,
+	TaskRecentSchema,
 	TaskMetricsSchema,
 	TaskMoveToFeatureSchema,
 	TaskMoveToProjectSchema,
@@ -57,135 +53,6 @@ import {
 	TaskUpdateSchema,
 	TaskWriteFileSchema,
 } from "../schemas";
-
-const mapTask = (
-	row: tasks,
-	display: { title: string; fromContent: boolean },
-	meta: { fileNames?: string[]; artifactNames?: string[]; lastEditedAt?: number } = {},
-) => ({
-	id: row.id,
-	projectId: row.project_id,
-	folderPath: row.folder_path,
-	title: row.title ?? undefined,
-	displayTitle: display.title,
-	// O displayTitle veio do início do 1º .md (a task não tem título). A UI usa isso pra
-	// explicar, na edição do nome, que o texto mostrado é só o começo do conteúdo.
-	titleFromContent: display.fromContent,
-	priorityId: row.priority_id ?? undefined,
-	categoryId: row.category_id ?? undefined,
-	// O banco guarda texto livre; a garantia do conjunto vem da boundary zod na escrita. Único
-	// ponto onde a coluna larga vira a união — os consumidores confiam neste tipo.
-	complexity: row.complexity as TaskComplexity,
-	groupId: row.group_id ?? undefined,
-	displayOrder: row.display_order,
-	done: Boolean(row.done),
-	completedAt: row.completed_at ?? undefined,
-	createdAt: row.created_at,
-	updatedAt: row.updated_at ?? undefined,
-	deletedAt: row.deleted_at ?? undefined,
-	// Última edição em disco dos .md da task; base do destaque de recência na lista. Sem .md,
-	// cai no created_at (não no updated_at: mexer em metadados não é "editar o arquivo").
-	lastEditedAt: meta.lastEditedAt ?? row.created_at,
-	fileNames: meta.fileNames ?? [],
-	artifactNames: meta.artifactNames ?? [],
-	worktree: mapWorktree(row),
-});
-
-function mapWorktree(row: tasks) {
-	if (!row.merge_ready_at) {
-		return null;
-	}
-	if (
-		!row.worktree_branch ||
-		!row.merge_target_branch ||
-		!row.worktree_path ||
-		!row.worktree_pr_url
-	) {
-		throw new Error("Metadados de worktree incompletos");
-	}
-
-	return {
-		readyAt: row.merge_ready_at,
-		branch: row.worktree_branch,
-		targetBranch: row.merge_target_branch,
-		path: row.worktree_path,
-		prUrl: row.worktree_pr_url,
-	};
-}
-
-// Resolve o displayTitle e os nomes dos .md de uma única row.
-async function mapTaskWithDisplay(row: tasks) {
-	const project = await dbProjects.getById(row.project_id);
-	const meta = project
-		? await readTaskFolderMeta({
-				projectRoute: project.main_route,
-				folderPath: row.folder_path,
-			})
-		: { fileNames: [] };
-
-	const title = row.title?.trim();
-	if (title) return mapTask(row, { title, fromContent: false }, meta);
-
-	const firstContent = project
-		? await readFirstMarkdownContent({
-				projectRoute: project.main_route,
-				folderPath: row.folder_path,
-			})
-		: undefined;
-	return mapTask(row, resolveDisplayTitle({ firstContent }), meta);
-}
-
-// Resolve o displayTitle de várias rows de uma vez: carrega os projetos das tasks sem título
-// uma vez e lê o 1º .md de cada. Rows com título não tocam o disco.
-export async function mapTasks(rows: tasks[]) {
-	if (rows.length === 0) return [];
-	const projectIds = [...new Set(rows.map((row) => row.project_id))];
-	const projects = new Map(
-		(await dbProjects.listRootsByIds(projectIds)).map((project) => [project.id, project] as const),
-	);
-
-	const metaByTask = new Map(
-		await Promise.all(
-			rows.map(async (row) => {
-				const project = projects.get(row.project_id);
-				const meta = project
-					? await readTaskFolderMeta({
-							projectRoute: project.main_route,
-							folderPath: row.folder_path,
-						})
-					: { fileNames: [] };
-				return [row.id, meta] as const;
-			}),
-		),
-	);
-
-	const untitled = rows.filter((row) => !row.title?.trim());
-	const firstContentByTask = new Map(
-		await Promise.all(
-			untitled.map(async (row) => {
-				const project = projects.get(row.project_id);
-				const content = project
-					? await readFirstMarkdownContent({
-							projectRoute: project.main_route,
-							folderPath: row.folder_path,
-						})
-					: undefined;
-				return [row.id, content] as const;
-			}),
-		),
-	);
-
-	return rows.map((row) => {
-		const meta = metaByTask.get(row.id) ?? { fileNames: [] };
-		const title = row.title?.trim();
-		if (title) return mapTask(row, { title, fromContent: false }, meta);
-		return mapTask(
-			row,
-			resolveDisplayTitle({ firstContent: firstContentByTask.get(row.id) }),
-			meta,
-		);
-	});
-}
 
 async function publishTaskEvent(
 	taskId: string,
@@ -232,15 +99,13 @@ export const tasksRouter = {
 		return mapTaskWithDisplay(row);
 	}),
 
+	recent: protectedProcedure.input(TaskRecentSchema).handler(({ input }) => getRecentTasks(input)),
+
 	getAll: protectedProcedure.input(TaskGetAllSchema).handler(async ({ input }) => {
 		const rows = await dbTasks.getAll({
 			projectId: input.projectId ?? null,
 			includeCompleted: input.includeCompleted,
 			groupId: input.groupId,
-			taskTypeId: input.taskTypeId,
-			priorityId: input.priorityId,
-			priority: input.priority,
-			complexity: input.complexity,
 			q: input.q,
 			limit: input.limit,
 			offset: input.offset,
@@ -263,11 +128,7 @@ export const tasksRouter = {
 		const row = await dbTasks.getById(input.id);
 		if (!row) return null;
 
-		const [category, priority, project] = await Promise.all([
-			row.category_id ? dbCategories.getById(row.category_id) : null,
-			row.priority_id ? dbPriorities.getById(row.priority_id) : null,
-			dbProjects.getById(row.project_id),
-		]);
+		const project = await dbProjects.getById(row.project_id);
 
 		const { files } = project
 			? await readTaskFiles({
@@ -293,22 +154,8 @@ export const tasksRouter = {
 
 		return {
 			...base,
-			// Próximo passo do fluxo da complexidade, inferido dos artefatos em disco. Alimenta o chip
-			// de invocação sugerida e a cabeça do prompt; o agente não relê o banco.
-			nextStage: inferTaskStage({ fileNames, complexity: base.complexity }),
 			files,
 			attachments,
-			category: category
-				? {
-						id: category.id,
-						name: category.name,
-						color: category.color,
-						structureSlug: category.structure_slug ?? null,
-					}
-				: null,
-			priority: priority
-				? { id: priority.id, name: priority.name, color: priority.color, level: priority.level }
-				: null,
 			project: project
 				? {
 						id: project.id,
@@ -354,9 +201,6 @@ export const tasksRouter = {
 			dbTasks.update({
 				id: input.id,
 				title: input.title,
-				priority_id: input.priorityId,
-				category_id: input.categoryId,
-				complexity: input.complexity,
 				done: input.done === undefined ? undefined : input.done ? 1 : 0,
 				completed_at: input.done === undefined ? undefined : input.done ? Date.now() : null,
 				...(input.done ? CLEARED_TASK_WORKTREE_METADATA : {}),
@@ -491,7 +335,6 @@ export const tasksRouter = {
 				targetProjectId,
 				targetGroupId: input.groupId,
 				displayOrder,
-				categoryId: input.categoryId,
 			})),
 		});
 

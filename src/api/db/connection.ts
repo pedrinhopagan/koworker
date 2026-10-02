@@ -1,6 +1,7 @@
 import { autoIncrement, Database } from "@lobomfz/db";
 import { type } from "arktype";
 import { envVariables } from "@/api/config/env";
+import { DEFAULT_TASK_GROUP_COLOR } from "@/constants/tasks";
 
 const user_type = type.enumerated("admin", "user");
 
@@ -33,6 +34,7 @@ const projectRoutesSchema = type({
 	route: "string",
 	"icon?": "string",
 	"command?": "string",
+	background: type("number.integer").configure({ default: 0 }),
 	display_order: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
@@ -49,17 +51,10 @@ const tasksSchema = type({
 	// Título editável da task. Nullable: a task pode nascer sem nome e cair no fallback
 	// do primeiro .md (resolveDisplayTitle). O H1 do index.md não é mais o título.
 	"title?": "string",
-	// Prioridade e categoria são opcionais: a task pode nascer sem nenhuma das duas (nullable).
-	// A referência e o onDelete: "restrict" seguem valendo — só não são mais obrigatórias.
-	"priority_id?": type("string").configure({ references: "priorities.id", onDelete: "restrict" }),
-	"category_id?": type("string").configure({ references: "categories.id", onDelete: "restrict" }),
-	// Complexidade da task (conjunto finito em constants/complexity.ts). Texto com default "medio":
-	// tasks existentes migram para "medio", novas nascem "medio" quando não informado.
-	complexity: type("string").configure({ default: "medio" }),
 	// Grupo (opcional) ao qual a task pertence. Nulo = pseudo-grupo "Sem grupo". SET NULL para
 	// que deletar um grupo apenas solte as tasks de volta pro "Sem grupo".
 	"group_id?": type("string").configure({ references: "task_groups.id", onDelete: "set null" }),
-	// Ordem manual da task dentro do bucket (group_id + category_id).
+	// Ordem manual da task dentro do grupo.
 	display_order: type("number.integer").configure({ default: 0 }),
 	// Ordem manual das abas (.md) na rota da task, como array JSON de nomes. Arquivos fora
 	// dessa lista (novos, criados no disco pelo agente) entram à direita por birthtime.
@@ -82,7 +77,7 @@ const taskGroupsSchema = type({
 	name: "string",
 	"storage_key?": "string",
 	"storage_slug?": "string",
-	color: type("string").configure({ default: "#000000" }),
+	color: type("string").configure({ default: DEFAULT_TASK_GROUP_COLOR }),
 	display_order: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
@@ -116,31 +111,9 @@ const taskStorageRunsSchema = type({
 	"completed_at?": "number.integer",
 });
 
-const categoriesSchema = type({
-	id: type("string").configure({ primaryKey: true }),
-	name: "string",
-	color: type("string").configure({ default: "#000000" }),
-	// Estrutura de prompt vinculada (slug em constants/prompt-templates.ts). Nullable: a categoria
-	// pode não sugerir template. O conjunto finito é garantido na boundary zod, não no DSL de tabela.
-	"structure_slug?": "string",
-	display_order: type("number.integer").configure({ default: 0 }),
-	created_at: type("number.integer").configure({ default: "now" }),
-	"updated_at?": "number.integer",
-});
-
 const skillCategoriesSchema = type({
 	id: type("string").configure({ primaryKey: true }),
 	name: "string",
-	color: type("string").configure({ default: "#000000" }),
-	display_order: type("number.integer").configure({ default: 0 }),
-	created_at: type("number.integer").configure({ default: "now" }),
-	"updated_at?": "number.integer",
-});
-
-const prioritiesSchema = type({
-	id: type("string").configure({ primaryKey: true }),
-	name: "string",
-	level: type("number.integer").configure({ default: 1 }),
 	color: type("string").configure({ default: "#000000" }),
 	display_order: type("number.integer").configure({ default: 0 }),
 	created_at: type("number.integer").configure({ default: "now" }),
@@ -180,11 +153,24 @@ const skillSourcePathsSchema = type({
 // Metadados internos do koworker para agents do disco. A chave é o slug do agent
 // (nome do arquivo .md), que é o que une as várias fontes num único registro. Nada aqui
 // toca o .md: são apenas overrides de apresentação (nome, ícone, cor).
+const agentCategoriesSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	name: "string",
+	color: type("string").configure({ default: "#000000" }),
+	display_order: type("number.integer").configure({ default: 0 }),
+	created_at: type("number.integer").configure({ default: "now" }),
+	"updated_at?": "number.integer",
+});
+
 const agentSettingsSchema = type({
 	slug: type("string").configure({ primaryKey: true }),
 	"label?": "string",
 	"icon?": "string",
 	"color?": "string",
+	"category_id?": type("string").configure({
+		references: "agent_categories.id",
+		onDelete: "set null",
+	}),
 	created_at: type("number.integer").configure({ default: "now" }),
 	"updated_at?": "number.integer",
 });
@@ -201,37 +187,38 @@ const agentSourcePathsSchema = type({
 	created_at: type("number.integer").configure({ default: "now" }),
 });
 
-// Configuração de SO chave-valor: pasta base de projetos, template do emulador de terminal e
-// multiplexador. Os valores são strings; o significado tipado e os defaults por plataforma vivem em
-// `helpers/system-settings.ts`, a fronteira que traduz estas linhas para o shape interno.
+// Configuração de SO chave-valor: pasta base de projetos e endereço do celular. Os valores são
+// strings; o significado tipado e os defaults vivem em `helpers/system-settings.ts`, a fronteira que
+// traduz estas linhas para o shape interno.
 const settingsSchema = type({
 	key: type("string").configure({ primaryKey: true }),
 	value: "string",
 	"updated_at?": "number.integer",
 });
 
-const prompt_kind = type.enumerated("copy", "agent", "skill");
+const prompt_source = type.enumerated("claude", "codex", "copy");
 
-// Registro de TODO prompt despachado pela barra de prompt: copiar para o clipboard, invocar
-// agent e invocar skill. Deduplicado na entrada (dbPromptHistory): redisparar um prompt idêntico
-// só rebumpa o created_at da linha existente em vez de acumular duplicatas.
-// SEM FK para projects: o histórico sobrevive à exclusão do projeto — por isso project_id/name são
-// texto solto, capturando o estado no momento do disparo. `text` é a instrução crua do usuário;
-// `prompt` é o texto final efetivamente despachado (já com `/kw <target>` ou `/<slug>`).
-const promptHistorySchema = type({
+// Histórico legado de prompts: nada mais grava aqui desde que o histórico passou a morar nas
+// conversas dos agentes. As linhas antigas (`claude`/`codex` lidas dos transcripts, `copy` saído da
+// barra pelo clipboard) ficam preservadas. SEM FK para projects: sobrevive à exclusão do projeto.
+const promptsSchema = type({
 	id: type("string").configure({ primaryKey: true }),
-	kind: prompt_kind,
-	text: "string",
+	source: prompt_source,
 	prompt: "string",
-	"target?": "string",
-	"agent_slug?": "string",
-	"skill_slug?": "string",
+	norm: "string",
+	"session_id?": "string",
+	"transcript_path?": "string",
+	"cwd?": "string",
 	"project_id?": "string",
 	"project_name?": "string",
-	"route_path?": "string",
-	"model?": "string",
-	"effort?": "string",
+	sent_at: "number.integer",
 	created_at: type("number.integer").configure({ default: "now" }),
+});
+
+const promptTranscriptsSchema = type({
+	path: type("string").configure({ primaryKey: true }),
+	size_bytes: "number.integer",
+	indexed_at: "number.integer",
 });
 
 const execution_kind = type.enumerated("prompt", "flow");
@@ -405,8 +392,6 @@ const database = new Database({
 	tables: {
 		users: usersSchema,
 		projects: projectsSchema,
-		categories: categoriesSchema,
-		priorities: prioritiesSchema,
 		project_routes: projectRoutesSchema,
 		task_groups: taskGroupsSchema,
 		tasks: tasksSchema,
@@ -414,9 +399,11 @@ const database = new Database({
 		skill_categories: skillCategoriesSchema,
 		skill_settings: skillSettingsSchema,
 		skill_source_paths: skillSourcePathsSchema,
+		agent_categories: agentCategoriesSchema,
 		agent_settings: agentSettingsSchema,
 		agent_source_paths: agentSourcePathsSchema,
-		prompt_history: promptHistorySchema,
+		prompts: promptsSchema,
+		prompt_transcripts: promptTranscriptsSchema,
 		agent_sessions: agentSessionsSchema,
 		execution_runs: executionRunsSchema,
 		agent_events: agentEventsSchema,
@@ -443,14 +430,14 @@ export type project_routes = DB["project_routes"];
 export type tasks = DB["tasks"];
 export type task_groups = DB["task_groups"];
 export type task_storage_runs = DB["task_storage_runs"];
-export type categories = DB["categories"];
-export type priorities = DB["priorities"];
 export type skill_categories = DB["skill_categories"];
 export type skill_settings = DB["skill_settings"];
 export type skill_source_paths = DB["skill_source_paths"];
+export type agent_categories = DB["agent_categories"];
 export type agent_settings = DB["agent_settings"];
 export type agent_source_paths = DB["agent_source_paths"];
-export type prompt_history = DB["prompt_history"];
+export type prompts = DB["prompts"];
+export type prompt_transcripts = DB["prompt_transcripts"];
 export type agent_sessions = DB["agent_sessions"];
 export type agent_events = DB["agent_events"];
 export type agent_session_snapshots = DB["agent_session_snapshots"];
@@ -468,14 +455,14 @@ export {
 	task_storage_status,
 	taskStorageRunsSchema,
 	tasksSchema,
-	categoriesSchema,
-	prioritiesSchema,
 	skillCategoriesSchema,
 	skillSettingsSchema,
 	skillSourcePathsSchema,
+	agentCategoriesSchema,
 	agentSettingsSchema,
 	agentSourcePathsSchema,
-	promptHistorySchema,
+	promptsSchema,
+	promptTranscriptsSchema,
 	agent_session_status,
 	agentSessionsSchema,
 	agent_event_kind,

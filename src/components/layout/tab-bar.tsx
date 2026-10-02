@@ -1,178 +1,121 @@
-import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Menu, SquarePen, X } from "lucide-react";
+import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { ArrowLeft, ChevronRight, Menu, Search } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { tv } from "tailwind-variants";
+
 import { getActiveTabLabel, MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
-import { NewVaultNoteButton } from "@/components/layout/sidebar-nav-actions";
-import { isTabActive, tabs, topTabs } from "@/components/layout/tab-nav-config";
+import { NavigationDialog } from "@/components/layout/navigation-dialog";
+import { RoutePathButton } from "@/components/layout/route-path-button";
+import { tabs } from "@/components/layout/tab-nav-config";
+import { WindowControls } from "@/components/layout/window-controls";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Tooltip } from "@/components/ui/tooltip";
-import { useNavActionDialogsStore } from "@/hooks/use-nav-action-dialogs";
 import { useProjectFocus } from "@/hooks/use-project-focus";
-import { copyToClipboard } from "@/lib/build-prompt";
-import { hideWindow, isDesktop } from "@/lib/desktop";
+import { isDesktop } from "@/lib/desktop";
 import { cn } from "@/lib/utils";
-import { getWindowToggleShortcutTooltip } from "@/lib/window-shortcut";
 import { useSidebarNavStore } from "@/stores/sidebar-nav";
 
-const tabItem = tv({
-	base: "px-4 py-2.5 text-sm transition-colors cursor-pointer shadow-[inset_0_-2px_0_transparent]",
-	variants: {
-		active: {
-			true: "text-foreground font-medium shadow-[inset_0_-2px_0_var(--project-accent,var(--primary))]",
-			false: "text-muted-foreground hover:text-foreground",
-		},
-	},
-});
-
-const iconButton = tv({
-	base: "px-3 py-2 text-sm transition-colors cursor-pointer text-muted-foreground hover:text-foreground",
-	variants: {
-		active: {
-			true: "text-primary",
-		},
-	},
-});
-
-const routeDisplayPaths: Record<string, string> = {
-	"/tarefas/$taskId/": "/tarefas/$featureId",
-	"/tarefas/$taskId/$file": "/tarefas/$featureId/$taskId",
-	"/tarefas/$taskId/$file/$canonicalFile": "/tarefas/$featureId/$taskId/$file",
-};
-
-export function TabBar() {
+export function TabBar({ compact = false }: { compact?: boolean }) {
 	const location = useLocation();
 	const navigate = useNavigate();
-	const currentPath = location.pathname;
-	const currentRoutePath = useRouterState({
-		select: (state) => state.matches.at(-1)?.fullPath ?? "/",
-	});
-	const displayPath =
-		routeDisplayPaths[currentRoutePath] ??
-		(currentRoutePath === "/" ? currentRoutePath : currentRoutePath.replace(/\/$/, ""));
+	const router = useRouter();
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
-	const openActionDialog = useNavActionDialogsStore((s) => s.open);
-	const sidebarMode = useSidebarNavStore((s) => s.mode);
-	const { selectedProjectId, selectedProject, loading } = useProjectFocus();
-	const projectLabel =
-		selectedProjectId === undefined
-			? "Todos os projetos"
-			: (selectedProject?.name ?? (loading ? "Carregando..." : "Selecionar projeto"));
+	const [navigationOpen, setNavigationOpen] = useState(false);
+	const toggleSidebar = useSidebarNavStore((state) => state.toggleMode);
+	const { selectedProject, loading } = useProjectFocus();
+	const pageLabel = getActiveTabLabel(location.pathname);
+	const projectLabel = selectedProject?.name ?? (loading ? "Carregando..." : "Todos os projetos");
 
 	useEffect(() => {
-		function handleKeyDown(e: KeyboardEvent) {
-			if (!e.altKey || e.key < "0" || e.key > "9") {
+		function handleKeyDown(event: KeyboardEvent) {
+			if (event.defaultPrevented) {
 				return;
 			}
 
-			e.preventDefault();
+			if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey) {
+				if (event.key.toLowerCase() === "k") {
+					event.preventDefault();
+					setNavigationOpen((open) => !open);
+				}
+				if (event.key.toLowerCase() === "b") {
+					event.preventDefault();
+					toggleSidebar();
+				}
+				return;
+			}
 
-			const tab = tabs.find((t) => t.altKey === e.key);
+			if (!event.altKey || event.key < "0" || event.key > "9") {
+				return;
+			}
+
+			const tab = tabs.find((item) => item.altKey === event.key);
 			if (tab) {
-				navigate({ to: tab.path });
+				event.preventDefault();
+				void navigate({ to: tab.path });
 			}
 		}
 
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [navigate]);
-
-	async function handleCopyRoutePath() {
-		const ok = await copyToClipboard(displayPath);
-		toast[ok ? "success" : "error"](ok ? "Rota copiada" : "Falha ao copiar rota");
-	}
+	}, [navigate, toggleSidebar]);
 
 	return (
 		<>
-			<nav
+			<header
+				data-component="workspace-header"
 				className={cn(
-					"flex items-center border-b gap-2 md:gap-4 border-border bg-chrome select-none",
-					isDesktop() && "desktop-drag-region cursor-grab active:cursor-grabbing",
+					"flex h-shell-bar shrink-0 items-center gap-2 border-b border-border bg-background px-3 select-none sm:px-4",
+					isDesktop() && "desktop-drag-region",
 				)}
 			>
-				<button
-					type="button"
+				<Button
+					variant="ghost-muted"
+					size="icon-sm"
 					onClick={() => setMobileNavOpen(true)}
-					className={cn(
-						iconButton({ active: mobileNavOpen }),
-						"md:hidden min-h-12 min-w-12 px-4 py-3",
-					)}
+					className={cn("md:hidden", compact && "md:inline-flex")}
 					aria-label="Abrir menu de navegação"
+					aria-expanded={mobileNavOpen}
 				>
-					<Menu size={20} />
-				</button>
-
-				<div className="min-w-0 flex-1 truncate text-sm font-medium text-foreground md:hidden">
-					{getActiveTabLabel(currentPath)}
+					<Menu className="size-5" />
+				</Button>
+				<Tooltip label="Voltar">
+					<Button
+						variant="ghost-muted"
+						size="icon-sm"
+						onClick={() => router.history.back()}
+						disabled={!router.history.canGoBack()}
+						aria-label="Voltar à página anterior"
+						className={cn("hidden md:inline-flex", compact && "md:hidden")}
+					>
+						<ArrowLeft className="size-4" />
+					</Button>
+				</Tooltip>
+				<div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+					<span className="hidden max-w-48 truncate text-muted-foreground lg:block">
+						{projectLabel}
+					</span>
+					<ChevronRight className="hidden size-3.5 shrink-0 text-muted-foreground/60 lg:block" />
+					<span className="truncate font-medium">{pageLabel}</span>
 				</div>
-
-				{sidebarMode === "compact" ? (
-					<div className="hidden min-w-0 self-stretch items-center border-r border-border md:flex">
-						<span className="max-w-44 truncate px-4 text-sm font-medium text-foreground">
-							{projectLabel}
-						</span>
-					</div>
-				) : null}
-
-				<div className="hidden md:flex">
-					{topTabs.map((tab) => (
-						<Link
-							key={tab.path}
-							to={tab.path}
-							className={tabItem({ active: isTabActive(currentPath, tab.path) })}
-							title={`${tab.label} (Alt+${tab.altKey})`}
-						>
-							{tab.label}
-						</Link>
-					))}
+				<div className="hidden items-center gap-3 xl:flex">
+					<RoutePathButton />
 				</div>
-
-				<div className="hidden md:block flex-1 text-center">
-					<Tooltip label="Copiar padrão da rota">
-						<button
-							type="button"
-							onClick={() => void handleCopyRoutePath()}
-							className="text-xs text-muted-foreground opacity-30 transition-opacity hover:opacity-70"
-						>
-							{displayPath}
-						</button>
-					</Tooltip>
-				</div>
-
-				<div className="md:hidden">
-					<NewVaultNoteButton
-						className={cn(iconButton(), "min-h-12 min-w-12 px-4 py-3")}
-						iconSize={20}
-					/>
-				</div>
-
-				<div className="hidden items-center pr-1 md:flex">
-					<Tooltip label="Nova tarefa">
-						<button
-							type="button"
-							onClick={() => openActionDialog("newTask")}
-							className={iconButton()}
-							aria-label="Nova tarefa"
-						>
-							<SquarePen size={16} />
-						</button>
-					</Tooltip>
-					{isDesktop() ? (
-						<Tooltip label={`Esconder janela — ${getWindowToggleShortcutTooltip()}`}>
-							<button
-								type="button"
-								onClick={() => hideWindow()}
-								className={cn(iconButton(), "hover:text-destructive")}
-								aria-label="Esconder janela"
-							>
-								<X size={16} />
-							</button>
-						</Tooltip>
-					) : null}
-				</div>
-			</nav>
-
+				<Tooltip label="Navegar (Ctrl+K)">
+					<Button
+						variant="ghost-muted"
+						size="icon-sm"
+						onClick={() => setNavigationOpen(true)}
+						aria-label="Buscar página"
+						aria-haspopup="dialog"
+					>
+						<Search className="size-4" />
+					</Button>
+				</Tooltip>
+				<ThemeToggle />
+				<WindowControls />
+			</header>
 			<MobileNavDrawer open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+			<NavigationDialog open={navigationOpen} onClose={() => setNavigationOpen(false)} />
 		</>
 	);
 }

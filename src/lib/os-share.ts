@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { copyToClipboard } from "@/lib/build-prompt";
@@ -22,6 +22,15 @@ export async function openFolderInOs(dir: string): Promise<void> {
 	} catch (error) {
 		console.error("[os-share] abrir pasta:", error);
 		toast.error("Não foi possível abrir a pasta");
+	}
+}
+
+export async function revealFileInOs(path: string): Promise<void> {
+	try {
+		await orpc.system.revealFile.call({ path });
+	} catch (error) {
+		console.error("[os-share] revelar arquivo:", error);
+		toast.error("Não foi possível abrir a pasta do arquivo");
 	}
 }
 

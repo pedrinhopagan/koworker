@@ -61,6 +61,7 @@ export const AgentEventPayloadSchema = z.discriminatedUnion("kind", [
 		multiSelect: z.boolean(),
 		answers: z.array(z.string()).optional(),
 		freeText: z.string().optional(),
+		async: z.boolean().optional(),
 	}),
 	z.object({
 		kind: z.literal("notice"),
@@ -169,4 +170,27 @@ export function pendingInteraction(events: AgentSessionEvent[]) {
 	}
 
 	return null;
+}
+
+export function blockingQuestion(events: AgentSessionEvent[]) {
+	for (const event of events.toReversed()) {
+		if (event.payload.kind === "user" || event.payload.kind === "result") {
+			return null;
+		}
+		if (event.payload.kind === "question" && !event.payload.answers && !event.payload.async) {
+			return event.payload;
+		}
+	}
+
+	return null;
+}
+
+export function lastTurnEnded(events: AgentSessionEvent[]) {
+	for (const event of events.toReversed()) {
+		if (event.payload.kind !== "notice") {
+			return event.payload.kind === "result";
+		}
+	}
+
+	return false;
 }

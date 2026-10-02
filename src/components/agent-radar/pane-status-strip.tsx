@@ -1,12 +1,11 @@
 import { Radio } from "lucide-react";
 
-import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 import { AgentCliName } from "@/components/agent-radar/agent-cli";
 import { Text } from "@/components/typography";
 import { RadarStatusMark } from "@/components/ui/radar-status-mark";
 import { AGENT_RADAR_STATUS_LABELS } from "@/constants/agent-radar";
 import { AGENT_RADAR_VISUALS } from "@/lib/agent-radar-status";
-import { modelDisplayLabel } from "@/lib/model-label";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import { formatElapsedSeconds, useElapsedSeconds } from "@/hooks/use-elapsed-seconds";
@@ -17,11 +16,13 @@ export function PaneStatusStrip({
 	agent,
 	closed,
 	model,
+	effort,
 }: {
-	agent: RadarAgent | null;
+	agent: Pick<RadarAgent, "agent" | "status" | "changedAt" | "activity" | "tabLabel"> | null;
 	closed: boolean;
-	// O modelo que o transcript da sessão reportou por último; nulo enquanto não há resposta gravada.
+	// Modelo e esforço em vigor no CLI, já com os nomes que o seletor mostra.
 	model?: string | null;
+	effort?: string | null;
 }) {
 	const working = agent?.status === "working";
 	const workingFor = useElapsedSeconds(agent && working ? agent.changedAt : null, working);
@@ -31,7 +32,7 @@ export function PaneStatusStrip({
 			<div className="sticky top-0 z-10 flex items-center gap-2 border border-dashed border-border bg-background/95 px-3 py-2 backdrop-blur">
 				<span className="size-1.5 shrink-0 bg-border" aria-hidden />
 				<Text as="span" size="xs" tone="muted">
-					Pane fechado — envio e transcript foram encerrados.
+					Sessão fechada. O envio foi encerrado.
 				</Text>
 			</div>
 		);
@@ -46,7 +47,7 @@ export function PaneStatusStrip({
 	return (
 		<div
 			className={cn(
-				"sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-background/95 px-3 py-2 backdrop-blur",
+				"sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-background/95 px-3 py-2 backdrop-blur max-lg:hidden",
 				agent.status === "blocked" && "border-warning/40 bg-warning/8",
 			)}
 		>
@@ -59,7 +60,8 @@ export function PaneStatusStrip({
 					tone="muted"
 					className="hidden shrink-0 font-mono text-[11px] sm:inline"
 				>
-					{modelDisplayLabel(model)}
+					{model}
+					{effort && ` · ${effort}`}
 				</Text>
 			)}
 

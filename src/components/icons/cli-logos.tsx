@@ -93,6 +93,7 @@ const CLI_LOGOS: Record<string, { icon: LucideIcon; tone: string }> = {
 	"claude-code": { icon: ClaudeLogo, tone: "text-[#d97757]" },
 	codex: { icon: CodexLogo, tone: "text-foreground" },
 	opencode: { icon: OpenCodeLogo, tone: "text-foreground" },
+	opencode2: { icon: OpenCodeLogo, tone: "text-foreground" },
 	pi: { icon: PiLogo, tone: "text-foreground" },
 };
 

@@ -42,12 +42,6 @@ export function Drawer({
 				showClose={false}
 				className={cn(!isBottom && resolvedWidthClassName)}
 			>
-				{isBottom && (
-					<div className="flex shrink-0 justify-center pt-2 pb-1">
-						<div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
-					</div>
-				)}
-
 				<SheetHeader className="flex-row items-start justify-between gap-4 border-b border-border px-5 py-4">
 					<div className="min-w-0">
 						<SheetTitle asChild>
@@ -63,7 +57,13 @@ export function Drawer({
 							</SheetDescription>
 						)}
 					</div>
-					<Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 shrink-0">
+					<Button
+						variant="ghost"
+						size="icon"
+						onClick={onClose}
+						aria-label="Fechar"
+						className="-mr-2 -mt-1 shrink-0 text-muted-foreground hover:text-foreground"
+					>
 						<X className="size-4" />
 					</Button>
 				</SheetHeader>

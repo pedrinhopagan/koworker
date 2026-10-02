@@ -1,38 +1,30 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-	Columns2,
-	ExternalLink,
-	History,
-	Loader2,
-	MoreVertical,
-	Plus,
-	RotateCcw,
-	SquareTerminal,
-} from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
+import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
+import { Loader2, SquareTerminal } from "lucide-react";
+import { useEffect, useState } from "react";
 
-import { orpc } from "@/client";
-import { AgentConversationView } from "@/components/agent-radar/agent-conversation";
+import type { AgentPaneMode } from "@/components/agent-radar/agent-pane-view";
 import { NewSessionDialog } from "@/components/agent-radar/new-session-dialog";
-import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { EmptyFeedback } from "@/components/ui/empty-feedback";
-import { useAgentRadar } from "@/hooks/use-agent-radar";
-import { errorMessage } from "@/lib/orpc-errors";
-import { useSplitViewStore } from "@/stores/split-view";
+import { Button } from "@/components/ui/button";
+import { reconnectRealtime } from "@/client";
+import type { ShellLaunchCommand } from "@/constants/shell-launch";
+import type { InvokeCli } from "@/constants/invoke";
+import { Text } from "@/components/typography";
+import { agentRadarAgentLabel } from "@/constants/agent-radar";
+import { useIsMobileViewport } from "@/hooks/use-is-mobile-viewport";
+import { usePaneMoves } from "@/stores/pane-moves";
 import { NewShellDialog } from "./-components/new-shell-dialog";
-import { agentTabKey, parseAgentPaneId, parseShellTabKey } from "./-components/shell-groups";
-import { ShellPane } from "./-components/shell-pane";
+import { ShellCockpitEmpty } from "./-components/shell-cockpit-empty";
+import { ShellCockpitHeader } from "./-components/shell-cockpit-header";
+import { ShellMobileActions } from "./-components/shell-mobile-actions";
 import { ShellSidebar } from "./-components/shell-sidebar";
 import { ShellWorkspace } from "./-components/shell-workspace";
-import { WorkspaceTabs, type WorkspaceTab } from "./-components/workspace-tabs";
+import { TerminalWorkspaceViewport } from "./-components/terminal-workspace-viewport";
+import { resolveTerminalWorkspaceSelection } from "./-utils/terminal-workspace-state";
+import { usePaneMove } from "./-utils/use-pane-move";
+import { useTerminalWorkspace } from "./-utils/use-terminal-workspace";
+
+const MISSING_TAB_GRACE_MS = 3_000;
 
 export const Route = createLazyFileRoute("/_app/shells/")({
 	component: ShellsWorkspacePage,
@@ -40,236 +32,206 @@ export const Route = createLazyFileRoute("/_app/shells/")({
 
 function ShellsWorkspacePage() {
 	const { tab } = Route.useSearch();
-	const nested = Route.useRouteContext({ select: (context) => context.nested === true });
 	const navigate = useNavigate();
-	const queryClient = useQueryClient();
 	const [creating, setCreating] = useState(false);
-	const [openingConversation, setOpeningConversation] = useState(false);
-
-	const shellsQuery = useQuery({
-		...orpc.shells.list.queryOptions(),
-		refetchInterval: 5_000,
+	const [shellCommand, setShellCommand] = useState<ShellLaunchCommand>("shell");
+	const [conversationCli, setConversationCli] = useState<InvokeCli | null>(null);
+	const isMobile = useIsMobileViewport("(max-width: 1023px)");
+	const { entries, projects, loading, connected, canReopen, reopening, actions } =
+		useTerminalWorkspace();
+	const activeEntry = entries.find((entry) => entry.key === tab) ?? null;
+	const activeKey = activeEntry?.key ?? null;
+	const [view, setView] = useState<{ key: string | null; mode: AgentPaneMode }>({
+		key: activeKey,
+		mode: "conversation",
 	});
-	const projectsQuery = useQuery(orpc.projects.list.queryOptions());
-	const { agents, loading: radarLoading } = useAgentRadar();
-	const savedTerminals = useQuery({
-		...orpc.agentRadar.savedTerminals.queryOptions(),
-		enabled: !radarLoading && agents.length === 0,
-	});
 
-	const pinPane = useSplitViewStore((state) => state.pin);
+	if (view.key !== activeKey) {
+		setView({ key: activeKey, mode: "conversation" });
+	}
+	// Sem transcript não há conversa para mostrar: o terminal é o chat.
+	const mode = activeEntry?.capabilities.converse ? view.mode : "terminal";
 
-	const reopen = useMutation({
-		...orpc.agentRadar.reopenSavedTerminals.mutationOptions(),
-		onSuccess: async (result) => {
-			const restoredLabel =
-				result.restored === 1 ? "1 terminal reaberto" : `${result.restored} terminais reabertos`;
+	// Conversa em trânsito (modelo trocado, CLI trocada): a aba atual fica de pé enquanto o pane
+	// antigo some e a URL só muda quando o pane novo entra no snapshot.
+	const move = usePaneMove(tab);
+	const clearMove = usePaneMoves((state) => state.clear);
 
-			if (result.failed > 0) {
-				const failedLabel = result.failed === 1 ? "1 falhou" : `${result.failed} falharam`;
-				toast.warning(`${restoredLabel}; ${failedLabel}`);
-			} else {
-				toast.success(restoredLabel);
+	// No celular a lista é a tela inicial: uma aba que deixou de existir devolve à lista em vez de
+	// pular para a primeira sessão, como o desktop faz. Uma aba que ainda não existe ganha um
+	// respiro: sessão recém-aberta chega à URL antes de o snapshot do workspace anunciá-la.
+	useEffect(() => {
+		if (loading) return;
+		if (move) {
+			if (move.to && entries.some((entry) => entry.key === move.to)) {
+				clearMove(tab!);
+				void navigate({ to: "/shells", search: { tab: move.to }, replace: true });
 			}
-
-			await queryClient.invalidateQueries({
-				queryKey: orpc.agentRadar.savedTerminals.key(),
+			return;
+		}
+		const present = !tab || entries.some((entry) => entry.key === tab);
+		const resolved = isMobile && !present ? null : resolveTerminalWorkspaceSelection(entries, tab);
+		if (resolved === (tab ?? null)) return;
+		const go = () =>
+			void navigate({
+				to: "/shells",
+				search: resolved ? { tab: resolved } : {},
+				replace: true,
 			});
-		},
-		onError: (error) => toast.error(errorMessage(error, "Não foi possível reabrir os terminais")),
-	});
-	const canReopen = !radarLoading && agents.length === 0 && (savedTerminals.data?.count ?? 0) > 0;
+		if (present) {
+			go();
+			return;
+		}
+		const timer = setTimeout(go, MISSING_TAB_GRACE_MS);
+		return () => clearTimeout(timer);
+	}, [clearMove, entries, isMobile, loading, move, navigate, tab]);
 
-	const closeShell = useMutation({
-		...orpc.shells.close.mutationOptions(),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: orpc.shells.list.key() });
-			void queryClient.invalidateQueries({ queryKey: orpc.shells.get.key() });
-		},
-		onError: (error) => toast.error(errorMessage(error, "Não foi possível fechar o shell")),
-	});
-
-	const shells = shellsQuery.data?.shells ?? [];
-	const projects = projectsQuery.data ?? [];
-	const loading = shellsQuery.isPending || projectsQuery.isPending;
-
-	const shellIdFromTab = parseShellTabKey(tab);
-	const paneIdFromTab = parseAgentPaneId(tab);
-	const activeShell = shells.find((shell) => shell.id === shellIdFromTab) ?? null;
-	const activeAgent = agents.find((agent) => agent.paneId === paneIdFromTab) ?? null;
-	const hasActive = !!(activeShell || activeAgent);
-	const activeKey = hasActive && tab ? tab : null;
-
-	function select(key: string | null) {
-		void navigate({ to: "/shells", search: key ? { tab: key } : {}, replace: true });
+	function openSession(command: ShellLaunchCommand) {
+		setShellCommand(command);
+		setCreating(true);
 	}
 
-	const workspaceTabs: WorkspaceTab[] = [
-		...shells.map((shell) => ({
-			key: shell.id,
-			kind: "shell" as const,
-			id: shell.id,
-			title: shell.title || shell.label,
-			live: shell.status === "live",
-		})),
-		...agents.map((agent) => ({
-			key: agentTabKey(agent.paneId),
-			kind: "agent" as const,
-			id: agent.paneId,
-			cli: agent.agent,
-			title: agent.taskTitle ?? agent.title ?? agent.projectName ?? agent.tabLabel,
-			status: agent.status,
-		})),
-	];
+	function select(key: string) {
+		void navigate({ to: "/shells", search: { tab: key } });
+	}
 
-	const rail = (
-		<ShellSidebar
-			shells={shells}
-			agents={agents}
-			projects={projects}
-			selectedTab={activeKey}
-			loading={loading}
-			radarLoading={radarLoading}
-			onSelect={(key) => select(key)}
-			onCloseShell={(shellId) => closeShell.mutate({ id: shellId })}
-			onNew={() => setCreating(true)}
+	function backToList() {
+		void navigate({ to: "/shells", search: {} });
+	}
+
+	const showList = isMobile && !tab;
+	const empty = (
+		<EmptyFeedback
+			icon={SquareTerminal}
+			title="Nenhuma sessão"
+			subtitle={
+				entries.length === 0
+					? "Abra uma nova sessão para começar."
+					: "Nenhuma sessão corresponde à busca."
+			}
+		/>
+	);
+	const connecting = !connected && (
+		<div
+			role="status"
+			className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-b border-border bg-chrome px-3 text-xs"
 		>
-			<div className="space-y-4 pt-3">
-				{!loading && !radarLoading && shells.length === 0 && agents.length === 0 && (
-					<EmptyFeedback
-						icon={SquareTerminal}
-						title="Nada aberto"
-						subtitle="Abra um shell ou uma conversa de agent."
-					/>
-				)}
-
-				<p className="px-2 text-xs leading-relaxed text-muted-foreground">
-					Tudo que estava no kw-terminal vive aqui: conversas de agent e PTYs de verdade, agrupados
-					por projeto. Use <span className="font-semibold">Dividir tela</span> na sidebar para
-					prender esta rota à esquerda e navegar pelo resto do app na direita.
-				</p>
-			</div>
-		</ShellSidebar>
+			<span>Conectando às sessões…</span>
+			<Button variant="outline" size="sm" onClick={reconnectRealtime}>
+				Reconectar
+			</Button>
+		</div>
 	);
 
 	return (
-		<div className="flex h-full min-h-0 flex-1 flex-col">
-			<header
-				data-component="shells-header"
-				className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-chrome/40 px-3"
-			>
-				<SquareTerminal className="size-4 shrink-0 text-[var(--project-accent,var(--primary))]" />
-				<span className="hidden text-sm font-semibold tracking-[0.12em] uppercase sm:block">
-					Shells
-				</span>
-
-				{canReopen && (
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={reopen.isPending}
-						aria-busy={reopen.isPending}
-						onClick={() => reopen.mutate({})}
+		<div className="flex h-full min-h-0 flex-1 flex-col bg-background">
+			{showList && (
+				<>
+					{connecting}
+					<ShellSidebar
+						mobile
+						entries={entries}
+						projects={projects}
+						selectedTab={null}
+						loading={loading}
+						actions={actions}
+						onSelect={select}
+						actionBar={
+							<ShellMobileActions
+								canReopen={canReopen}
+								reopening={reopening}
+								onReopen={actions.reopen}
+								onLaunch={openSession}
+							/>
+						}
 					>
-						{reopen.isPending ? (
-							<Loader2 className="size-4 animate-spin" />
-						) : (
-							<RotateCcw className="size-4" />
-						)}
-						<span className="max-sm:hidden">Reabrir terminais</span>
-					</Button>
-				)}
+						{empty}
+					</ShellSidebar>
+				</>
+			)}
 
-				<span className="flex-1" />
+			{!showList && connecting}
 
-				{!nested && (
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => pinPane(`/shells${tab ? `?tab=${encodeURIComponent(tab)}` : ""}`)}
-						className="max-md:hidden"
-					>
-						<Columns2 className="size-4" />
-						<span className="max-lg:hidden">Fixar à esquerda</span>
-					</Button>
-				)}
-
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button variant="ghost" size="icon" aria-label="Mais ações">
-							<MoreVertical className="size-4" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuItem onSelect={() => setCreating(true)}>
-							<Plus className="size-4" />
-							Novo shell
-						</DropdownMenuItem>
-						<DropdownMenuItem onSelect={() => setOpeningConversation(true)}>
-							<ExternalLink className="size-4" />
-							Abrir conversa de agent
-						</DropdownMenuItem>
-						<DropdownMenuItem asChild>
-							<Link to="/terminals/history">
-								<History className="size-4" />
-								Histórico de conversas
-							</Link>
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-
-				<Button size="sm" onClick={() => setCreating(true)}>
-					<Plus className="size-4" />
-					<span className="max-sm:hidden">Novo</span>
-				</Button>
-			</header>
-
-			<ShellWorkspace
-				rail={rail}
-				tabs={
-					<WorkspaceTabs
-						tabs={workspaceTabs}
-						activeKey={activeKey}
-						onSelect={(key) => select(key)}
-						onCloseShell={(shellId) => closeShell.mutate({ id: shellId })}
+			{!showList && (
+				<ShellWorkspace
+					rail={
+						!isMobile && (
+							<ShellSidebar
+								entries={entries}
+								projects={projects}
+								selectedTab={activeKey}
+								loading={loading}
+								actions={actions}
+								onSelect={select}
+							>
+								{empty}
+							</ShellSidebar>
+						)
+					}
+				>
+					<ShellCockpitHeader
+						entry={activeEntry}
+						entries={entries}
+						projects={projects}
+						canReopen={canReopen}
+						reopening={reopening}
+						actions={actions}
+						agentMode={mode}
+						onAgentModeChange={(next) => setView({ key: activeKey, mode: next })}
+						onSelect={select}
+						onBack={backToList}
+						onNew={() => openSession("shell")}
+						onOpenConversation={() => setConversationCli("claude")}
 					/>
-				}
-			>
-				{activeShell && <ShellPane shellId={activeShell.id} onDismiss={() => select(null)} />}
 
-				{!activeShell && activeAgent && (
-					<div className="flex min-h-0 min-w-0 flex-1">
-						<AgentConversationView paneId={activeAgent.paneId} />
+					<div className="relative flex min-h-0 min-w-0 flex-1 bg-background">
+						{activeEntry && (
+							<TerminalWorkspaceViewport
+								entry={activeEntry}
+								actions={actions}
+								agentMode={mode}
+								onModeChange={(next) => setView({ key: activeKey, mode: next })}
+							/>
+						)}
+						{!activeEntry && !loading && move && (
+							<div
+								role="status"
+								data-component="pane-move-transit"
+								className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-background p-6"
+							>
+								<Loader2 className="size-5 animate-spin text-muted-foreground" />
+								<Text size="sm" tone="muted" className="text-center">
+									{move.to || move.kind === "reopen"
+										? "Abrindo a conversa no novo pane…"
+										: `Migrando a conversa para o ${agentRadarAgentLabel(move.cli)}…`}
+								</Text>
+							</div>
+						)}
+						{!activeEntry && !loading && !move && (
+							<div className="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-y-auto bg-background p-4 sm:p-6">
+								<ShellCockpitEmpty
+									entries={entries}
+									onSelect={select}
+									onNewShell={() => openSession("shell")}
+									onNewConversation={() => setConversationCli("claude")}
+								/>
+							</div>
+						)}
 					</div>
-				)}
-
-				{!hasActive && (
-					<div className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-muted/10 p-6">
-						<EmptyFeedback
-							icon={SquareTerminal}
-							title={workspaceTabs.length === 0 ? "Nenhum terminal aberto" : "Selecione uma aba"}
-							subtitle={
-								workspaceTabs.length === 0
-									? "Abra um PTY na pasta de qualquer projeto ou conversa com um agent."
-									: "Escolha um shell ou conversa na lista à esquerda."
-							}
-						/>
-					</div>
-				)}
-			</ShellWorkspace>
+				</ShellWorkspace>
+			)}
 
 			<NewShellDialog
+				defaultCommand={shellCommand}
 				open={creating}
-				onClose={function () {
-					setCreating(false);
-				}}
+				actions={actions}
+				onClose={() => setCreating(false)}
 			/>
-
 			<NewSessionDialog
-				open={openingConversation}
-				onClose={function () {
-					setOpeningConversation(false);
-				}}
+				open={conversationCli !== null}
+				defaultCli={conversationCli ?? "claude"}
+				actions={actions}
+				onClose={() => setConversationCli(null)}
 			/>
 		</div>
 	);

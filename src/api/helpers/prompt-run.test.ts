@@ -1,7 +1,7 @@
+import { beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeAll, describe, expect, test } from "bun:test";
 
 process.env.DATABASE_URL = ":memory:";
 process.env.JWT_SECRET = "prompt-run-test-secret";
@@ -12,14 +12,12 @@ let reconcileStaleRuns: typeof import("./prompt-run").reconcileStaleRuns;
 let dbExecutionRuns: typeof import("../db/execution-runs").dbExecutionRuns;
 let trackRun: typeof import("./run-registry").trackRun;
 let releaseRun: typeof import("./run-registry").releaseRun;
-let FLOW_TIMEOUT_MS: number;
 let projectRoute: string;
 
 beforeAll(async () => {
 	({ reconcileStaleRuns, startPromptRun } = await import("./prompt-run"));
 	({ dbExecutionRuns } = await import("../db/execution-runs"));
 	({ trackRun, releaseRun } = await import("./run-registry"));
-	({ FLOW_TIMEOUT_MS } = await import("./flow"));
 
 	const { db } = await import("../db/connection");
 	await db
@@ -63,7 +61,6 @@ beforeAll(async () => {
 			storage_key: "abcd",
 			storage_slug: "tarefa",
 			title: "Tarefa",
-			complexity: "medio",
 			display_order: 0,
 			done: 0,
 			created_at: 1,
@@ -72,13 +69,13 @@ beforeAll(async () => {
 });
 
 describe("reconcileStaleRuns", () => {
-	async function createFlowRun(input: { id: string; startedAt: number; heartbeatAt: number }) {
+	async function createPromptRun(input: { id: string; startedAt: number; heartbeatAt: number }) {
 		await dbExecutionRuns.create({
 			id: input.id,
 			user_id: 3,
 			project_id: "project-prompt-run",
-			kind: "flow",
-			title: "Fluxo",
+			kind: "prompt",
+			title: "Execução",
 			status: "running",
 			started_at: input.startedAt,
 			updated_at: input.startedAt,
@@ -86,11 +83,11 @@ describe("reconcileStaleRuns", () => {
 		});
 	}
 
-	test("mantém o fluxo vivo além do teto de uma etapa", async () => {
+	test("mantém a execução com sinal de vida dentro do prazo", async () => {
 		const now = Date.now();
-		await createFlowRun({
+		await createPromptRun({
 			id: "flow-longo",
-			startedAt: now - 60 * 60_000,
+			startedAt: now - 30 * 60_000,
 			heartbeatAt: now,
 		});
 		const controller = trackRun("flow-longo");
@@ -102,9 +99,9 @@ describe("reconcileStaleRuns", () => {
 		releaseRun("flow-longo");
 	});
 
-	test("encerra o fluxo cujo sinal de vida parou", async () => {
+	test("encerra a execução cujo sinal de vida parou", async () => {
 		const now = Date.now();
-		await createFlowRun({
+		await createPromptRun({
 			id: "flow-sem-sinal",
 			startedAt: now - 10 * 60_000,
 			heartbeatAt: now - 10 * 60_000,
@@ -117,11 +114,11 @@ describe("reconcileStaleRuns", () => {
 		expect(run?.error).toContain("executor caiu");
 	});
 
-	test("encerra por timeout o fluxo que passou do teto de todas as etapas", async () => {
+	test("encerra por timeout a execução que passou do prazo", async () => {
 		const now = Date.now();
-		await createFlowRun({
+		await createPromptRun({
 			id: "flow-estourado",
-			startedAt: now - FLOW_TIMEOUT_MS - 60_000,
+			startedAt: now - 45 * 60_000 - 60_000,
 			heartbeatAt: now,
 		});
 		const controller = trackRun("flow-estourado");

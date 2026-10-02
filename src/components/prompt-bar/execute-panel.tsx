@@ -1,13 +1,13 @@
 import { ChevronRight, Copy, Cpu, Gauge, Loader2, ShieldCheck, Zap } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { GroupLabel, MiniSelect } from "@/components/prompt-bar/controls";
 import { usePromptExecution } from "@/components/prompt-bar/use-prompt-execution";
+import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { LiveOutput } from "@/components/ui/live-output";
 import { Tooltip } from "@/components/ui/tooltip";
-import { Text } from "@/components/typography";
 import {
 	CODEX_APPROVAL_OPTIONS,
 	CODEX_EFFORT_OPTIONS,
@@ -18,7 +18,6 @@ import {
 	INVOKE_PERMISSION_OPTIONS,
 	type InvokePermissionMode,
 } from "@/constants/invoke";
-import type { TaskStage } from "@/constants/complexity";
 import { copyToClipboard } from "@/lib/build-prompt";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
@@ -28,13 +27,11 @@ export function ExecutePanel({
 	projectName,
 	routePath,
 	taskId,
-	nextStage,
 }: {
 	projectId?: string;
 	projectName?: string;
 	routePath: string | null;
 	taskId?: string;
-	nextStage?: TaskStage | null;
 }) {
 	const cli = usePromptBarStore((s) => s.cli);
 	const invoke = usePromptBarStore((s) => s.invoke);
@@ -48,7 +45,6 @@ export function ExecutePanel({
 			projectName,
 			routePath,
 			taskId,
-			nextStage,
 			active: executeOpen,
 		});
 
@@ -160,7 +156,7 @@ function PromptPreview({ prompt }: { prompt: string | null }) {
 				disabled={!prompt}
 				aria-label={expanded ? "Recolher prompt" : "Expandir prompt"}
 				aria-expanded={expanded}
-				className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground disabled:cursor-default disabled:hover:text-muted-foreground/50"
+				className="shrink-0 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-default disabled:opacity-40"
 			>
 				<ChevronRight
 					className={cn("h-3.5 w-3.5 transition-transform duration-150", expanded && "rotate-90")}

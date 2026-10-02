@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import { TASK_COMPLEXITIES } from "@/constants/complexity";
-
 export const TaskIdSchema = z.object({
 	id: z.string().min(1),
 });
@@ -9,27 +7,6 @@ export const TaskIdSchema = z.object({
 export const TaskListFiltersSchema = z.object({
 	q: z.string().trim().min(1).optional(),
 	groupId: z.string().min(1).nullable().optional(),
-	/**
-	 * Filter by the task type/category.
-	 *
-	 * NOTE: In the DB this maps to `tasks.category_id`.
-	 */
-	taskTypeId: z.string().min(1).optional(),
-
-	/**
-	 * Filter by priority.
-	 *
-	 * NOTE: In the DB this maps to `tasks.priority_id`.
-	 */
-	priorityId: z.string().min(1).optional(),
-	priority: z.string().min(1).optional(),
-
-	/**
-	 * Filter by complexity.
-	 *
-	 * NOTE: In the DB this maps to `tasks.complexity`.
-	 */
-	complexity: z.enum(TASK_COMPLEXITIES).optional(),
 });
 
 export const TaskListByProjectSchema = z
@@ -37,6 +14,9 @@ export const TaskListByProjectSchema = z
 		projectId: z.string().min(1),
 	})
 	.merge(TaskListFiltersSchema);
+
+export const TaskRecentSchema = TaskListByProjectSchema.pick({ projectId: true });
+export type TaskRecentInput = z.infer<typeof TaskRecentSchema>;
 
 // Centralized listing endpoint.
 export const TaskGetAllSchema = z
@@ -53,10 +33,6 @@ export const TaskGetAllSchema = z
 export const TaskCreateSchema = z.object({
 	projectId: z.string().trim().min(1),
 	title: z.string().trim().min(1).optional(),
-	// Prioridade e categoria são opcionais: omitidas, a task nasce sem nenhuma delas.
-	priorityId: z.string().trim().min(1).optional(),
-	categoryId: z.string().trim().min(1).optional(),
-	complexity: z.enum(TASK_COMPLEXITIES).default("medio"),
 	// Vincular a task a uma feature (task group) já na criação. Opcional: omitido nasce sem feature.
 	groupId: z.string().trim().min(1).optional(),
 	// Semeia o index.md com o título (H1). Quem cria a task só pra receber arquivos (redirecionar
@@ -84,9 +60,6 @@ export const TaskSyncCreateSchema = z.object({
 				folderName: taskSyncFolderName,
 				title: z.string().trim().min(1),
 				groupId: z.string().trim().min(1),
-				priorityId: z.string().trim().min(1).optional(),
-				categoryId: z.string().trim().min(1).optional(),
-				complexity: z.enum(TASK_COMPLEXITIES),
 				done: z.boolean(),
 			}),
 		)
@@ -102,9 +75,6 @@ export const TaskUpdateSchema = z.object({
 		.nullable()
 		.optional()
 		.transform((v) => (v === "" ? null : v)),
-	priorityId: z.string().trim().min(1).optional(),
-	categoryId: z.string().trim().min(1).optional(),
-	complexity: z.enum(TASK_COMPLEXITIES).optional(),
 	done: z.boolean().optional(),
 });
 
@@ -140,13 +110,8 @@ export const TaskMoveToFeatureSchema = z.object({
 	groupId: z.string().trim().min(1).nullable(),
 });
 
-// Reordena/recoloca um bucket inteiro. As ids vêm na ordem final desejada; o handler grava
-// display_order = índice e fixa group_id nelas. categoryId só é enviado quando o destino é um
-// cluster de categoria (modo Categoria); nos modos achatados é omitido para preservar a
-// categoria de cada task. groupId nulo é o pseudo-grupo "Sem grupo".
 export const TaskReorderSchema = z.object({
 	groupId: z.string().trim().min(1).nullable(),
-	categoryId: z.string().trim().min(1).optional(),
 	orderedIds: z.array(z.string().min(1)).min(1),
 });
 
@@ -324,9 +289,6 @@ export const TaskDbCreateSchema = z.object({
 	storage_key: z.string().min(8).optional(),
 	storage_slug: z.string().min(1).optional(),
 	title: z.string().min(1).optional(),
-	priority_id: z.string().min(1).nullable().optional(),
-	category_id: z.string().min(1).nullable().optional(),
-	complexity: z.enum(TASK_COMPLEXITIES).optional(),
 	group_id: z.string().min(1).nullable().optional(),
 	display_order: z.number().int().optional(),
 	file_order: z.string().nullable().optional(),

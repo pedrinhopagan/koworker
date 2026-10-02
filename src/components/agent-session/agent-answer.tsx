@@ -66,10 +66,12 @@ export const AgentAnswer = memo(function AgentAnswer({
 	runId,
 	output,
 	meta = {},
+	onExpand,
 }: {
 	runId: string;
 	output: string;
 	meta?: AgentAnswerMeta;
+	onExpand?: () => void;
 }) {
 	const [reading, setReading] = useState(false);
 	const [expanded, setExpanded] = useState(false);
@@ -102,11 +104,24 @@ export const AgentAnswer = memo(function AgentAnswer({
 
 			<div className="mt-3 flex flex-wrap items-center gap-2">
 				{long && !expanded && (
-					<Button variant="outline" size="sm" onClick={() => setExpanded(true)}>
+					<Button
+						variant="outline"
+						size="sm"
+						className="max-sm:min-h-12"
+						onClick={() => {
+							setExpanded(true);
+							onExpand?.();
+						}}
+					>
 						Ver resposta inteira
 					</Button>
 				)}
-				<Button variant="ghost" size="sm" onClick={() => setReading(true)}>
+				<Button
+					variant="ghost"
+					size="sm"
+					className="max-sm:min-h-12"
+					onClick={() => setReading(true)}
+				>
 					<Expand className="size-4" />
 					Abrir no leitor
 				</Button>
@@ -115,7 +130,7 @@ export const AgentAnswer = memo(function AgentAnswer({
 					size="sm"
 					onClick={copyOutput}
 					aria-label="Copiar resposta"
-					className="text-muted-foreground"
+					className="max-sm:min-h-12 text-muted-foreground"
 				>
 					{copied ? <Check className="size-4" /> : <Copy className="size-4" />}
 					{copied ? "Copiado" : "Copiar"}
@@ -124,11 +139,7 @@ export const AgentAnswer = memo(function AgentAnswer({
 
 			{reading && (
 				<Sheet open onOpenChange={setReading}>
-					<SheetContent
-						side="bottom"
-						showClose={false}
-						className="h-[94dvh] max-h-[94dvh] pb-[env(safe-area-inset-bottom)]"
-					>
+					<SheetContent side="bottom" showClose={false} className="h-[94dvh] max-h-[94dvh]">
 						<SheetHeader className="flex-row items-start justify-between gap-3 border-b border-border bg-card px-4 py-3">
 							<div className="flex min-w-0 items-start gap-3">
 								<span
@@ -171,7 +182,7 @@ export const AgentAnswer = memo(function AgentAnswer({
 									size="icon"
 									onClick={copyOutput}
 									aria-label="Copiar resposta"
-									className="size-11 border-border bg-background text-foreground hover:bg-muted hover:text-foreground"
+									className="size-12 sm:size-11 border-border bg-background text-foreground hover:bg-muted hover:text-foreground"
 								>
 									{copied ? <Check className="size-5" /> : <Copy className="size-5" />}
 								</Button>
@@ -180,7 +191,7 @@ export const AgentAnswer = memo(function AgentAnswer({
 									size="icon"
 									onClick={() => setReading(false)}
 									aria-label="Fechar leitor"
-									className="size-11 border-border bg-background text-foreground hover:bg-destructive hover:text-destructive-foreground hover:border-destructive"
+									className="size-12 sm:size-11 border-border bg-background text-foreground hover:bg-destructive hover:text-destructive-foreground hover:border-destructive"
 								>
 									<X className="size-5" />
 								</Button>

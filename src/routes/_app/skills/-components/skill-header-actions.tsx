@@ -6,8 +6,6 @@ import {
 	FileArchive,
 	FolderOpen,
 	Link2,
-	Pin,
-	PinOff,
 	SlidersHorizontal,
 	Trash2,
 } from "lucide-react";
@@ -22,9 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function SkillHeaderActions({
-	pinned,
 	onAppearance,
-	onTogglePin,
 	onReading,
 	onCollapse,
 	onExpand,
@@ -33,9 +29,7 @@ export function SkillHeaderActions({
 	onShareZip,
 	onDelete,
 }: {
-	pinned: boolean;
 	onAppearance: () => void;
-	onTogglePin: () => void;
 	onReading: () => void;
 	onCollapse: () => void;
 	onExpand: () => void;
@@ -62,10 +56,6 @@ export function SkillHeaderActions({
 					<DropdownMenuItem onSelect={onAppearance}>
 						<SlidersHorizontal />
 						Aparência
-					</DropdownMenuItem>
-					<DropdownMenuItem onSelect={onTogglePin}>
-						{pinned ? <PinOff /> : <Pin />}
-						{pinned ? "Desfixar sessão" : "Fixar sessão"}
 					</DropdownMenuItem>
 					<DropdownMenuItem onSelect={onCopyPath}>
 						<Link2 />

@@ -1,13 +1,14 @@
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ExternalLink, GitMerge, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { ExternalLink, GitMerge } from "lucide-react";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { newClientRequestId } from "@/lib/client-request-id";
 import { errorMessage } from "@/lib/orpc-errors";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
+import { SlideCommit } from "@/components/ui/slide-commit";
 import { withoutInvokeInherit } from "@/constants/invoke";
 import { usePromptBarStore } from "@/stores/prompt-bar";
 
@@ -41,12 +42,16 @@ export function TaskMergeAction({
 		onError: (error) => toast.error(errorMessage(error, "Não foi possível despachar o merge")),
 	});
 
-	function merge() {
+	async function merge() {
+		if (cli === "pi") {
+			toast.info("O merge automático pelo Pi ainda não está disponível");
+			return;
+		}
 		const session = cli === "codex" ? invoke.codex : invoke.claude;
 		const model = withoutInvokeInherit(session.model);
 		const effort = withoutInvokeInherit(session.effort);
 
-		mergeMutation.mutate({
+		await mergeMutation.mutateAsync({
 			clientRequestId: newClientRequestId(),
 			projectId,
 			taskId,
@@ -85,14 +90,13 @@ export function TaskMergeAction({
 					<ExternalLink className="size-4" />
 				</a>
 			</Button>
-			<Button onClick={merge} disabled={mergeMutation.isPending} className="shrink-0">
-				{mergeMutation.isPending ? (
-					<Loader2 className="size-4 animate-spin" />
-				) : (
-					<GitMerge className="size-4" />
-				)}
-				{mergeMutation.isPending ? "Mergeando PR" : "Mergear PR"}
-			</Button>
+			<SlideCommit
+				label="Mergear PR"
+				pendingLabel="Mergeando PR"
+				onConfirm={merge}
+				describeError={(error) => errorMessage(error, "Não foi possível despachar o merge")}
+				className="shrink-0"
+			/>
 		</div>
 	);
 }

@@ -2,23 +2,15 @@ import type { LucideIcon } from "lucide-react";
 import {
 	Archive,
 	Bot,
-	Brush,
-	Columns2,
-	FilePlus2,
 	FolderKanban,
+	Gauge,
 	Home,
 	Image,
-	Layers,
 	ListChecks,
-	MessageSquareText,
-	OctagonX,
 	Presentation,
-	RefreshCw,
 	Settings,
 	Sparkles,
-	SquarePen,
 	SquareTerminal,
-	X,
 } from "lucide-react";
 
 import { isTabActive } from "@/components/layout/tab-nav-config";
@@ -31,25 +23,6 @@ export type SidebarNavRouteItem = {
 	altKey?: string;
 };
 
-export type SidebarNavActionId =
-	| "openSwitcher"
-	| "newVaultNote"
-	| "newTask"
-	| "refreshPage"
-	| "sweepInvocations"
-	| "sweepAll"
-	| "hideWindow"
-	| "toggleSplit";
-
-export type SidebarNavActionItem = {
-	kind: "action";
-	id: SidebarNavActionId;
-	label: string;
-	icon: LucideIcon;
-	altKey?: string;
-	desktopOnly?: boolean;
-};
-
 export type SidebarNavSelectProjectItem = {
 	kind: "selectProject";
 	label: string;
@@ -57,12 +30,10 @@ export type SidebarNavSelectProjectItem = {
 	altKey: "P";
 };
 
-export type SidebarNavItem =
-	| SidebarNavRouteItem
-	| SidebarNavActionItem
-	| SidebarNavSelectProjectItem;
+export type SidebarNavItem = SidebarNavRouteItem | SidebarNavSelectProjectItem;
 
 export type SidebarNavGroup = {
+	label: string;
 	items: SidebarNavItem[];
 };
 
@@ -75,88 +46,28 @@ export const sidebarSelectProjectItem: SidebarNavSelectProjectItem = {
 
 export const sidebarNavGroups: SidebarNavGroup[] = [
 	{
+		label: "Trabalho",
 		items: [
 			{ kind: "route", path: "/", label: "Home", icon: Home, altKey: "1" },
 			{ kind: "route", path: "/projetos", label: "Projetos", icon: FolderKanban, altKey: "2" },
 			{ kind: "route", path: "/tarefas", label: "Tarefas", icon: ListChecks, altKey: "3" },
-			{ kind: "route", path: "/mostruario", label: "Mostruário", icon: Presentation, altKey: "4" },
-			{
-				kind: "route",
-				path: "/shells",
-				label: "Shells",
-				icon: SquareTerminal,
-				altKey: "5",
-			},
-			{ kind: "route", path: "/media", label: "Mídia", icon: Image, altKey: "6" },
+			{ kind: "route", path: "/shells", label: "Shells", icon: SquareTerminal, altKey: "4" },
+			{ kind: "route", path: "/painel", label: "Painel", icon: Gauge, altKey: "5" },
+			{ kind: "route", path: "/mostruario", label: "Mostruário", icon: Presentation, altKey: "6" },
+			{ kind: "route", path: "/media", label: "Mídia", icon: Image, altKey: "7" },
 		],
 	},
 	{
+		label: "Biblioteca",
 		items: [
-			{
-				kind: "action",
-				id: "openSwitcher",
-				label: "Sessões de leitura",
-				icon: Layers,
-				altKey: "`",
-			},
-		],
-	},
-	{
-		items: [
-			{ kind: "route", path: "/skills", label: "Skills", icon: Sparkles, altKey: "7" },
-			{ kind: "route", path: "/vault", label: "Vault", icon: Archive, altKey: "8" },
+			{ kind: "route", path: "/skills", label: "Skills", icon: Sparkles, altKey: "8" },
+			{ kind: "route", path: "/vault", label: "Vault", icon: Archive, altKey: "9" },
 			{ kind: "route", path: "/agents", label: "Perfis de agents", icon: Bot, altKey: "0" },
 		],
 	},
 	{
-		items: [
-			{ kind: "action", id: "newVaultNote", label: "Nova nota no vault", icon: FilePlus2 },
-			{ kind: "action", id: "newTask", label: "Nova tarefa", icon: SquarePen },
-			{
-				kind: "action",
-				id: "refreshPage",
-				label: "Atualizar dados da página",
-				icon: RefreshCw,
-			},
-			{
-				kind: "action",
-				id: "toggleSplit",
-				label: "Dividir tela",
-				icon: Columns2,
-				desktopOnly: true,
-			},
-			{
-				kind: "action",
-				id: "sweepInvocations",
-				label: "Fechar terminais de invocação",
-				icon: Brush,
-			},
-			{
-				kind: "action",
-				id: "sweepAll",
-				label: "Limpar tudo ativo",
-				icon: OctagonX,
-			},
-			{
-				kind: "action",
-				id: "hideWindow",
-				label: "Esconder janela",
-				icon: X,
-				desktopOnly: true,
-			},
-		],
-	},
-	{
-		items: [
-			{ kind: "route", path: "/configuracoes", label: "Configurações", icon: Settings },
-			{
-				kind: "route",
-				path: "/prompts",
-				label: "Prompts",
-				icon: MessageSquareText,
-				altKey: "8",
-			},
-		],
+		label: "Sistema",
+		items: [{ kind: "route", path: "/configuracoes", label: "Configurações", icon: Settings }],
 	},
 ];
 

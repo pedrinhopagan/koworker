@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { orpc } from "@/client";
-import type { HistoryCli } from "@/api/helpers/agent-history/paths";
+import type { HistoryCli } from "@/api/schemas/agent-history";
 
 export type CliHistoryFilters = {
 	projectId: string | null;

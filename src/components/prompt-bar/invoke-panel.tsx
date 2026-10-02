@@ -11,7 +11,7 @@ import {
 	X,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { GroupLabel, MiniSelect, ToggleBox } from "@/components/prompt-bar/controls";
 import { type Selection, useInvocation } from "@/components/prompt-bar/use-invocation";
@@ -29,12 +29,10 @@ import {
 	INVOKE_PERMISSION_OPTIONS,
 	type InvokePermissionMode,
 } from "@/constants/invoke";
-import type { TaskStage } from "@/constants/complexity";
 import { copyToClipboard } from "@/lib/build-prompt";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { cn } from "@/lib/utils";
 import { usePromptBarStore } from "@/stores/prompt-bar";
-import type { TaskAgent } from "@/types/agents";
 
 // Estrutura mínima compartilhada por agent e skill — o que o picker precisa pra listar e filtrar.
 type TargetEntry = {
@@ -68,12 +66,10 @@ export function InvokePanel({
 	projectId,
 	projectName,
 	routePath,
-	nextStage,
 }: {
 	projectId?: string;
 	projectName?: string;
 	routePath: string | null;
-	nextStage?: TaskStage | null;
 }) {
 	const cli = usePromptBarStore((s) => s.cli);
 	const invoke = usePromptBarStore((s) => s.invoke);
@@ -86,7 +82,6 @@ export function InvokePanel({
 		selection,
 		selectTarget,
 		clearTarget,
-		suggestedAgent,
 		skillList,
 		taskAgents,
 		agentsLoading,
@@ -95,12 +90,10 @@ export function InvokePanel({
 		canInvoke,
 		invoking,
 		handleInvoke,
-	} = useInvocation({ projectId, projectName, routePath, nextStage, active: invokeOpen });
+	} = useInvocation({ projectId, projectName, routePath, active: invokeOpen });
 
 	return (
 		<div className="flex flex-col gap-2">
-			{/* Alvo: Skills | Agent + chip do alvo/sugestão do fluxo. Agents são do claude. O Invocar
-			    fica no fim da linha, à direita. */}
 			<div className="flex flex-wrap items-center gap-2">
 				<GroupLabel>Alvo</GroupLabel>
 				<TargetMenu
@@ -123,20 +116,13 @@ export function InvokePanel({
 					/>
 				) : (
 					<Tooltip label="Agents (--agent) são um recurso do claude">
-						<span className="flex h-8 cursor-not-allowed items-center gap-1.5 border border-border bg-card px-2.5 text-sm text-muted-foreground opacity-40">
+						<span className="flex h-8 cursor-not-allowed items-center gap-1.5 rounded-xl border border-border bg-card px-2.5 text-sm text-muted-foreground opacity-40">
 							<Bot className="h-3.5 w-3.5" />
 							Agent
 						</span>
 					</Tooltip>
 				)}
-				{selection ? (
-					<SelectedChip selection={selection} onClear={clearTarget} />
-				) : suggestedAgent ? (
-					<SuggestionChip
-						agent={suggestedAgent}
-						onSelect={() => selectTarget({ kind: "agent", agent: suggestedAgent })}
-					/>
-				) : null}
+				{selection ? <SelectedChip selection={selection} onClear={clearTarget} /> : null}
 
 				<Tooltip
 					label={
@@ -207,7 +193,7 @@ export function InvokePanel({
 				<div className="ml-auto flex items-center gap-2">
 					<ToggleBox
 						label="nova aba"
-						hint="abre numa aba tmux nova em vez de reusar a do alvo"
+						hint="abre numa aba nova do kw-terminal em vez de reusar a do alvo"
 						checked={invoke.forceNew}
 						onChange={(v) => patchInvoke({ forceNew: v })}
 					/>
@@ -256,26 +242,6 @@ function SelectedChip({
 	);
 }
 
-// Chip da invocação sugerida pelo fluxo: mesmo formato do SelectedChip, mas clicável inteiro pra
-// pré-selecionar o agente do próximo passo. Só aparece sem alvo escolhido; escolher fixa a seleção.
-function SuggestionChip({ agent, onSelect }: { agent: TaskAgent; onSelect: () => void }) {
-	return (
-		<Tooltip label={`Sugestão do fluxo: invocar ${agent.label}`}>
-			<button
-				type="button"
-				onClick={onSelect}
-				className="flex h-8 items-center gap-1.5 border border-dashed border-primary/40 bg-primary/5 px-2 text-sm transition-colors hover:bg-primary/10"
-				style={{ color: agent.color }}
-			>
-				<Sparkles className="h-3.5 w-3.5 shrink-0" />
-				<span className="max-w-32 truncate text-foreground">{agent.label}</span>
-			</button>
-		</Tooltip>
-	);
-}
-
-// `command` com alvo é o comando exato do cli ativo; sem alvo é só o prompt que o "Copiar prompt"
-// copia. Em ambos os casos é o reflexo ao vivo do que os toggles e knobs produzem.
 function CommandPreview({ command, hasTarget }: { command: string | null; hasTarget: boolean }) {
 	// Colapsado por default: o comando numa linha truncada. O chevron à esquerda expande pra ver o
 	// texto inteiro quebrado em linhas.
@@ -297,7 +263,7 @@ function CommandPreview({ command, hasTarget }: { command: string | null; hasTar
 				disabled={!command}
 				aria-label={expanded ? "Recolher comando" : "Expandir comando"}
 				aria-expanded={expanded}
-				className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground disabled:cursor-default disabled:hover:text-muted-foreground/50"
+				className="shrink-0 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-default disabled:opacity-40"
 			>
 				<ChevronRight
 					className={cn("h-3.5 w-3.5 transition-transform duration-150", expanded && "rotate-90")}

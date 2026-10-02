@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc, type RouterInputs } from "@/client";
 import type { DocSaveStatus } from "@/components/ui/save-status";

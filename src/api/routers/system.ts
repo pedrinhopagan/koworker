@@ -4,10 +4,17 @@ import { protectedProcedure } from "../auth/context";
 import { KOWORK_STORAGE_RELEASE } from "@/constants/release";
 import {
 	browseDirectory,
+	openFileInDefaultApp,
 	openInFileManager,
+	revealInFileManager,
 	shareZip,
 	systemCapabilities,
 } from "../helpers/os-actions";
+import { readViewableFile } from "../helpers/file-view";
+import { fileViewRoots } from "../helpers/file-view-roots";
+import { createFilePreviewToken } from "../helpers/file-preview-access";
+import { filePreviewUrl } from "@/lib/file-preview";
+import { resolveLinkTarget } from "../helpers/link-target";
 import {
 	acquireRedeployLock,
 	assertAdminUser,
@@ -16,7 +23,7 @@ import {
 	releaseRedeployLock,
 	spawnRedeployDetached,
 } from "../helpers/redeploy";
-import { BrowseDirectorySchema, OsPathSchema } from "../schemas/system";
+import { BrowseDirectorySchema, LinkTargetSchema, OsPathSchema } from "../schemas/system";
 
 const CLI_RELEASE_TTL_MS = 60_000;
 const CLI_RELEASE_TIMEOUT_MS = 5_000;
@@ -81,9 +88,39 @@ export const systemRouter = {
 		.input(BrowseDirectorySchema)
 		.handler(({ input }) => browseDirectory(input.path ?? "")),
 
-	openFolder: protectedProcedure.input(OsPathSchema).handler(({ input }) => {
-		openInFileManager(input.path);
+	openFolder: protectedProcedure.input(OsPathSchema).handler(async ({ input }) => {
+		await openInFileManager(input.path);
 		return { ok: true };
+	}),
+
+	revealFile: protectedProcedure.input(OsPathSchema).handler(async ({ input }) => {
+		await revealInFileManager(input.path);
+		return { ok: true };
+	}),
+
+	// O browser (e o Electron, que nega `window.open` fora de http/https) bloqueia navegar para
+	// `file://`. Quem abre o arquivo é o backend, que roda na máquina do usuário.
+	openPath: protectedProcedure.input(OsPathSchema).handler(async ({ input }) => {
+		await openFileInDefaultApp(input.path);
+		return { ok: true };
+	}),
+
+	resolveLink: protectedProcedure
+		.input(LinkTargetSchema)
+		.handler(({ input }) => resolveLinkTarget(input)),
+
+	readFile: protectedProcedure.input(OsPathSchema).handler(async ({ input, context }) => {
+		const file = await readViewableFile(input.path, await fileViewRoots());
+		if (file.kind !== "document") {
+			return file;
+		}
+		const token = await createFilePreviewToken({
+			directory: file.dir,
+			viewer: context.user.id,
+			device: context.device.id,
+			epoch: context.user.session_epoch ?? 0,
+		});
+		return { ...file, url: filePreviewUrl(file.path, token) };
 	}),
 
 	shareZip: protectedProcedure.input(OsPathSchema).handler(({ input }) => shareZip(input.path)),

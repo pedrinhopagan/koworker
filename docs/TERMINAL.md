@@ -2,7 +2,7 @@
 
 ## OBJETIVO
 
-Gerenciar terminais integrados ao Kowork para execução de AI Coding Agents. Cada projeto tem sua própria sessão (workspace tmux/kw-terminal ou janela isolada no modo none), e cada tarefa pode ter sua própria tab/window.
+Gerenciar o terminal externo do Kowork para execução de AI Coding Agents. O terminal externo é sempre o kw-terminal: cada projeto tem seu workspace e cada tarefa ou rota pode ter sua própria tab. Os shells integrados (PTY do próprio app, rota `/shells`) são outro sistema e não passam por aqui.
 
 ## ARQUITETURA
 
@@ -13,13 +13,12 @@ Frontend (React)                    Backend (Bun + ORPC)
 │   terminal.ts   │ ── ORPC ────▶ │ routers/terminal.ts  │
 └────────┬────────┘                │ helpers/terminal/    │
          │                          │   service.ts         │
-         │                          │ tmux.ts | kw-terminal.ts │
+         │                          │   kw-terminal.ts     │
          │                          └──────────┬───────────┘
          │                                     │
          │                                     ▼
          │                          ┌──────────────────────┐
-         │                          │ Multiplexador        │
-         │                          │ tmux | kw-terminal | none │
+         │                          │ kw-terminal server   │
          │                          └──────────┬───────────┘
          │                                     │
          ▼                                     ▼
@@ -29,17 +28,17 @@ Frontend (React)                    Backend (Bun + ORPC)
 └─────────────────┘                └──────────────────────┘
 ```
 
-O frontend fala só com ORPC (`src/lib/terminal.ts`). O backend resolve template + multiplexador a partir das settings do sistema e delega para tmux, kw-terminal ou spawn direto de emulador.
+O frontend fala só com ORPC (`src/lib/terminal.ts`). O backend abre, consulta, lista e encerra workspaces e tabs do kw-terminal.
 
-## MULTIPLEXADORES
+## KW-TERMINAL
 
-| Modo | Sessão do projeto | Window da tarefa | Attach / foco |
-|------|-------------------|------------------|---------------|
-| `tmux` | Sessão `kw_<slug>` | Window tmux | Emulador via `terminal_template` + `tmux attach` |
-| `kw-terminal` | Workspace `--label sessionName` | Tab `--label windowName` | `kw-terminal workspace focus` + `kw-terminal tab focus`; spawna emulador com o cliente TUI se nenhum estiver aberto, depois foco WM |
-| `none` | N/A (só tracking em memória) | Processo do emulador | Cada abertura spawna janela nova |
+| Sessão do projeto | Tab da tarefa/rota | Foco |
+|-------------------|--------------------|------|
+| Workspace `--label sessionName` | Tab `--label windowName` | `kw-terminal workspace focus` + `kw-terminal tab focus`; sem cliente TUI aberto, abre a janela do kw-terminal e depois foca pelo WM |
 
-Configuração em `/sistema`: chave `terminal_multiplexer` (`tmux` | `none` | `kw-terminal`) e `terminal_template` (usado no spawn de emulador nos três modos: attach do tmux, cliente TUI do kw-terminal e janela do none).
+Não há configuração. A janela do cliente TUI é fixa por plataforma (`kwTerminalWindowArgv`): Alacritty no Linux e Terminal.app no macOS. As chaves antigas `terminal_multiplexer` e `terminal_template` são apagadas no boot (`migrateLegacyTerminalSettings`, só Linux/macOS).
+
+Disponibilidade: `kwTerminalAvailable()` exige Linux ou macOS com o binário `kw-terminal` no PATH. É o que `system.capabilities.canOpenTerminal` responde e o que `ensureKwTerminalServer` confere antes de tudo. Sem suporte (Windows, ou kw-terminal ausente) a abertura falha com "Terminal externo indisponível" e o launchpad do projeto mostra o aviso; não existe outro terminal de reserva.
 
 ## ESTRUTURA DE ARQUIVOS
 
@@ -60,14 +59,10 @@ src/api/
 ├── routers/terminal.ts      # Router ORPC (procedures + WS)
 ├── helpers/terminal/
 │   ├── service.ts           # Orquestração (open/close/monitor)
-│   ├── tmux.ts              # Adapter tmux
-│   ├── kw-terminal.ts       # Adapter kw-terminal CLI
+│   ├── kw-terminal.ts       # CLI do kw-terminal, disponibilidade e janela do cliente TUI
 │   ├── names.ts             # Labels estáveis (session/window)
-│   ├── focus.ts             # Foco WM (best-effort)
-│   └── emulator.ts          # Spawn de emulador (tmux/none)
+│   └── focus.ts             # Foco WM (best-effort)
 └── schemas/terminal.ts      # Schemas Zod de entrada
-
-src/constants/terminal.ts    # Presets de emulador + multiplexadores
 ```
 
 ## API FRONTEND
@@ -116,13 +111,21 @@ Procedures em `src/api/routers/terminal.ts`:
 
 WebSocket: `terminal.events` → `PubSub.terminal.subscribe`.
 
-Procedures em `src/api/routers/kw-terminal.ts`, que é o que a rota `/terminals` consome:
+Procedures em `src/api/routers/kw-terminal.ts`, consumidas pelo módulo de workspace de `/shells`:
 
 | Procedure | Descrição |
 |-----------|-----------|
 | `overview` | Workspaces com suas tabs, do daemon |
 | `sessionStart` | Cria uma tab e sobe Claude/Codex com prompt, agent, modelo, esforço e modo seguro; devolve o `paneId` |
 | `sessionResumeLast` | Cria uma tab e executa `claude --continue` ou `codex resume --last` após ação explícita |
+
+Procedures de modelo em `src/api/routers/agent-radar.ts`, consumidas pelo seletor da conversa:
+
+| Procedure | Descrição |
+|-----------|-----------|
+| `modelCatalog` | Modelos e níveis de esforço por CLI: claude fixo (`fable`, `opus`, `sonnet`, `haiku`), codex lido de `~/.codex/models_cache.json` |
+| `switchModel` | Mensagem com modelo/esforço/CLI diferentes da sessão; devolve `inplace`, `moved` (novo `paneId`) ou `handoff` |
+| `switchStatus` | Fase da migração entre CLIs (`compacting`, `starting`, `done` com `paneId`, `failed` com `error`) |
 | `tabCreate` / `tabFocus` / `tabRename` / `tabClose` | Ações de tab |
 | `workspaceFocus` / `workspaceRename` / `workspaceClose` | Ações de workspace |
 
@@ -146,7 +149,7 @@ Labels estáveis entre reinícios do backend (lookup por nome, não por ID volá
 - **Rota do projeto**: nome da rota sanitizado (`sanitizeRouteName`)
 - **Tab do CLI do projeto**: `cli_claude` / `cli_codex`
 - **Invocações**: `agent_{slug}` ou `skill_{slug}` (filtro `isInvocationWindow`)
-- **Sessão livre da rota `/terminals`**: `sess_{nome}` ou `sess_{hhmm}` (`sessionTabName`)
+- **Sessão livre da rota `/shells`**: `sess_{nome}` ou `sess_{hhmm}` (`sessionTabName`)
 
 Implementação: `src/api/helpers/terminal/names.ts`. **Ninguém monta esses nomes à mão.** Quem abre
 terminal descreve o alvo (`TerminalTabTarget`: `task`, `run`, `route`, `cli`, `invocation`,
@@ -158,14 +161,47 @@ O grupo sai do **nome do projeto no banco**, nunca da pasta onde o comando calho
 (`terminal/service.ts`) e `ensureWorkspaceByLabel` (`terminal/kw-terminal.ts`) são os únicos caminhos
 para obter um workspace; jobs (`kw_execucoes`) e a reabertura do retrato passam pelo mesmo `ensure`.
 
-## ROTA /terminals
+## ROTA /shells
 
-`/terminals` mostra apenas agents abertos no daemon. Cada linha abre `/terminals/$paneId`; foco no
-cliente TUI, diff e fechamento são ações secundárias.
+`/shells` é a única superfície de terminais vivos. O catálogo versionado `terminalWorkspace` reúne
+shells embutidos e agents do daemon, com identidade, projeto, status, fidelidade e capabilities
+explícitas. A rota consome um único hook de estado e ações; não monta queries, mutations ou polling
+por origem. O `paneId` continua sendo a identidade do agent enquanto o pane existe, representado no
+search como `?tab=agent:<paneId>`.
 
-No desktop, o detalhe mantém a lista à esquerda e a conversa à direita. No mobile, lista e detalhe
-são páginas separadas. O `paneId` é a identidade pública enquanto o pane existe; fechar o pane
-encerra envio, assinatura e validade da rota.
+No celular (viewport abaixo de 1024px) a rota é duas telas: `/shells` sem `tab` é a lista em tela
+cheia — busca, a seção **Tarefas em andamento** (uma entrada por tarefa que tem agent aberto, com um
+chip por agent que abre a conversa e o corpo que abre a tarefa) e os grupos por projeto —, com a barra
+inferior Claude / Codex / Shell abrindo o diálogo já com a CLI escolhida. Tocar numa sessão navega
+para `?tab=` e a sessão ocupa a tela inteira sem a barra superior do app: o header tem voltar, o
+seletor de sessão, a alternância Conversa/Terminal, o atalho da tarefa vinculada e o menu de ações
+(que também lista "Abrir tarefa" e "Tarefas do projeto"). Nada é selecionado sozinho na lista, e uma
+aba que deixou de existir devolve à lista em vez de pular para a primeira sessão. No desktop a
+seleção automática e a sidebar continuam iguais.
+
+No toque a visão Terminal (espelho do agent e shell embutido) é um terminal de verdade: tocar na
+tela sobe o teclado do sistema e o que se digita vai direto ao PTY pelo textarea do xterm
+(`autocomplete`, `autocorrect`, `autocapitalize` e `spellcheck` desligados). Abaixo dela fica a
+faixa de teclas que o teclado do celular não tem (Esc, Tab, Ctrl+C/D/L, setas, Shift+Tab, copiar,
+colar, ir para o fim); os botões não roubam o foco, e com o teclado aberto a navegação inferior do
+app some para a faixa encostar nele. A altura segue o `visualViewport` do root e o fit refaz o grid.
+Arrastar o dedo rola e não abre o teclado (`attachTerminalTouchScroll`): no buffer normal é o
+scrollback do xterm, no alternativo com mouse reporting é a roda do mouse entregue à TUI. A visão Conversa só existe onde o
+app lê o transcript (`converse` = claude, codex, pi, opencode); os demais agents abrem direto no
+terminal. A faixa de status da conversa some abaixo de 1024px, porque o
+header já mostra projeto, modelo e estado.
+
+Citação de arquivo na conversa — link markdown, `código` com cara de caminho (`src/a.ts:12`,
+`package.json`) e o alvo de um passo do rastro (Read, Edit…) — resolve pelo `system.resolveLink` com o
+`cwd` do agent. Em loopback ou no Electron o arquivo abre no app padrão do SO (`system.openPath`);
+fora da máquina (PWA no celular, browser via Tailscale) abre em `/arquivo?path=&line=`, que lê o
+conteúdo por `system.readFile` — só dentro de pasta de projeto cadastrado ou worktree de tarefa,
+texto até 512 KB (markdown renderizado, código com numeração e linha citada destacada) e imagem
+até 4 MB. A decisão vive em `lib/link-paths.ts` (`opensFilesInApp`, `looksLikeFilePath`).
+
+`/terminals` redireciona para `/shells` e `/terminals/$paneId` redireciona para a aba equivalente,
+ambos com `replace`. O namespace `/terminals/history/**` não redireciona e continua reservado ao
+arquivo de conversas.
 
 A timeline prioriza `agent_session_path` informado pelo CLI ao daemon. Quando uma integração antiga
 não reporta o caminho, o backend usa `pane process-info`. No Codex, aceita somente o rollout raiz
@@ -183,6 +219,66 @@ recente daquele diretório, ignorando subagentes (`parent_id`) e arquivadas. Dua
 mesmo diretório sem reporte caem na mesma adotada — é o limite do sinal disponível. Esse recorte não
 aparece em `/terminals/history`, que continua listando só o que claude e codex gravam em disco.
 
+Cada conversa viva pode alternar entre **Conversa** e **Terminal** sem criar outro processo. A visão
+de terminal lê o snapshot ANSI `visible` do mesmo `paneId`, com as dimensões do layout oficial, e
+devolve teclado por `pane.send_input`. O daemon não empurra saída de pane — `events.subscribe` só
+conhece `pane.output_matched`, `pane.agent_status_changed` e `pane.scroll_changed` —, então a ponte
+lê `pane.read` em laço a cada 40 ms enquanto houver leitor e publica pelo stream `agentTerminal` só
+quando a tela muda de fato. O tamanho do pane sai de `pane.layout` uma vez por segundo, não a cada
+quadro. Sem leitor, nenhuma tela é serializada. Na prática o teto é a própria TUI: Claude e Codex
+redesenham perto de 9 Hz, e o laço captura tudo.
+
+No cliente, a tela chega inteira mas só as linhas que mudaram são repintadas, endereçadas por
+posição absoluta com autowrap desligado — reescrever o grid a cada quadro era o que fazia o espelho
+piscar. O `pane.read` não reporta linha e coluna do cursor, e Claude e Codex desenham o caret com o
+cursor real do terminal; quem sabe onde ele está é o stream do controller (abaixo). Cada frame do
+daemon termina com `ESC[r;cH` e `ESC[?25h`/`l`, então a ponte lê só a cauda do frame
+(`frameCursor`), publica `cursor` junto com a tela e o cliente posiciona o cursor depois do patch.
+Sem controller, ou com o espelho rolado no histórico, o cursor fica escondido. A fonte é fixa (a
+mesma do alacritty/kw-terminal da máquina: Noto Sans Mono a 16px, `lib/terminal-look.ts`).
+
+O tamanho do grid não é mais da TUI: com a visão Terminal aberta, o backend vira o **controller do
+PTY** — um `kw-terminal terminal session control <paneId> --cols N --rows N --takeover` por pane
+(`agent-radar/pane-control.ts`). O attach redimensiona o PTY para o grid medido do frame do app e
+trava o resize do layout (`direct_attach_resize_locks` no daemon); resizes seguintes vão como
+`terminal.resize` no stdin do mesmo processo, coalescidos em um pedido por quadro no cliente. O
+grid publicado no stream é o do controller — o `pane.layout` continua com o retângulo da TUI, e
+publicá-lo recortava a largura do espelho na janela do kw-terminal. Ao fechar a visão (último
+leitor do stream sai), o controller recebe `terminal.release` e cai, e o daemon remove o lock e
+devolve o pane ao tamanho do layout. Resize que o daemon recusar (versão velha, pane morto) não
+derruba o espelho: ele segue em leitura, centrado no grid que o pane tiver. O stdout do controller
+(linhas `terminal.frame`) é drenado sempre, porque pipe cheio trava o processo; dele só sai o
+cursor.
+
+O wheel do espelho é dono dele mesmo. Com `scrollback: 0`, o xterm convertia cada rolagem em seta
+↑/↓ pro pane (`!buffer.hasScrollback` dispara a emulação de alternate scroll dele) — o transcript
+do TUI scrollava sozinho entre prompts antigos e o prompt do shell ciclava comando. O handler
+customizado (`attachCustomWheelEventHandler`) devolve `false` e manda o delta em linhas para
+`agentTerminal.scroll`, que tem dois destinos. Com histórico de terminal disponível, a ponte
+(`terminal-screen.ts`) guarda `offset` por pane e publica a janela do `pane.read --source recent`
+terminando `offset` linhas antes do fim — o wheel rola o histórico real do pane, com clamp no topo;
+qualquer tecla devolve o espelho ao vivo, e um chip "histórico do pane" marca a janela rolada. Sem
+histórico — pane de TUI em alt screen não tem scrollback no daemon (`max_offset_from_bottom` 0) —
+a ponte responde `mode: "forward"` e manda a roda ao programa pelo controller do pane
+(`terminal.scroll`, um por linha, no meio do grid). O daemon roteia pelo modo do pane: com mouse
+reporting vira evento de roda SGR cru, em alt screen sem mouse viraria seta (alternate scroll). Como
+a API não expõe o modo, só vão pelo daemon os agents que ligam SGR mouse no alt screen (claude,
+codex, opencode); os outros ficam parados, porque seta navegaria o histórico de prompt. A decisão
+vive numa sonda com TTL (`decideWheel` + leitura curta de `recent` no primeiro wheel pra
+cima). No shell embutido o handler só bloqueia a conversão em setas do alt screen sem mouse
+reporting; claude e codex ligam alt screen com SGR mouse (`?1049h` + `?1000h`/`?1006h`) e recebem a
+roda pelo caminho de mouse do xterm, que consulta o mesmo handler; pi fica no buffer normal, onde o
+scroll local é o scrollback de 10k linhas do próprio xterm.
+
+O teclado é o outro lado do espelho. `pane.send_input` **digita texto e só texto**: todo byte de
+controle é descartado no caminho, e era por isso que backspace, enter, seta e ctrl+c não chegavam ao
+agent — não dava nem para apagar o que estava escrito no input. Tecla viaja por um vocabulário
+nomeado do daemon (`backspace`, `enter`, `tab`, `esc`, `up`/`down`/`left`/`right`, `shift+tab`,
+`ctrl+<letra>`, `alt+<tecla>`) e texto e tecla no mesmo pacote saem fora de ordem. `translatePaneInput`
+(`terminal/pane-input.ts`) quebra o fluxo cru do xterm numa fila de operações e cada uma é despachada
+em sequência. Sequência de escape que o daemon não conhece (Delete, Home, End, PageUp) é descartada:
+mandá-la como texto imprimiria lixo no input do agent.
+
 `sessionStart` e `sessionResumeLast` instalam a integração oficial do Claude ou Codex antes de subir
 o processo. Isso mantém o reporte nativo nas sessões seguintes; a resolução por processo cobre panes
 que já estavam abertos ou integrações que reportam apenas o ID.
@@ -199,25 +295,64 @@ de uma frase só sobram as skills. `Tab` e clique completam e devolvem o cursor;
 despacha quando a barra está na primeira coluna, e uma linha única começando com `/` também vai com
 `Enter` seco. Comando é texto comum no `agentRadar.send`: quem o interpreta é a CLI do outro lado.
 
-Texto enviado pelo app usa `agent send` seguido de `Enter`, mas só aparece quando o transcript nativo
-o devolver. `working` bloqueia envio e oferece interrupção explícita por `C-c`. Em `blocked`, o campo
-continua aceitando respostas e o controle do prompt envia somente as teclas de navegação, confirmação
-e cancelamento admitidas pelo schema; permissões e perguntas nativas podem ser respondidas pelo PWA
-mesmo quando o transcript não contém o texto do seletor da CLI.
+Texto enviado pelo app vai ao PTY (bracketed paste, ou Shift+Enter por linha no claude) seguido de
+`Enter`, e só vira fala na conversa quando o transcript nativo o registra. Até lá a mensagem fica no
+fim da conversa como bolha tracejada (`OutgoingPrompts`, estado em `stores/pending-prompts.ts` e regra
+em `lib/agent-prompt-receipt.ts`): "Enviando…", "Aguardando o agente" enquanto ele trabalha (a
+mensagem entra na fila de steering de Codex e Pi, ou na fila do Claude) e, com o agente parado e nada
+registrado depois de 15s, um alerta para conferir o terminal. A fila do Claude é lida do próprio
+arquivo (`queue-operation` enqueue/dequeue/remove) e viaja em `queued` no envelope de
+`agentRadarTranscript`, então mensagens enfileiradas direto no terminal também aparecem; a absorvida
+no meio do turno chega como `attachment` `queued_command` e vira fala do usuário. Editar a fila é no
+terminal: ↑ no Claude, Alt+↑ no Codex e no Pi.
 
-A pergunta estruturada do claude (`AskUserQuestion`) vira bloco `question` na conversa, com as opções
-completas, porque o `tool_use` dela já está no transcript antes da resposta; a resposta chega pelo
-`tool_result` do mesmo id e fecha o bloco com o que foi escolhido. Com o pane em `blocked`, clicar
-numa opção de escolha única dirige o seletor do CLI às cegas (N `Down` + `Enter`, cursor na primeira
-opção); seleção múltipla e texto livre ficam nos controles manuais. O menu de permissão nunca é
-gravado no arquivo, então ele não tem bloco — por isso sessões nascidas do PWA sobem em bypass por
-padrão (`--dangerously-skip-permissions` no claude, `--dangerously-bypass-approvals-and-sandbox` no
-codex), com os modos restritivos ainda disponíveis nas opções avançadas.
+O composer só trava quando o agente espera resposta de verdade: `awaitingInput` do radar (status
+`blocked` cru do daemon, porque `done` também é normalizado para `blocked`), o status `blocked` do
+shell embutido (marcadores de diálogo de permissão, seletor ou confirmação no fim da tela do PTY) ou
+uma pergunta bloqueante ainda sem resposta no transcript. Texto seguido de `Enter` num diálogo desses
+aprovaria a opção padrão.
 
-O modelo em uso na sessão sai do próprio transcript (`message.model` das linhas `assistant` no
-claude, `turn_context.payload.model` no codex) e viaja no envelope de `agentRadarTranscript` e no
-`transcriptPreviews`: a faixa do pane e o cartão da lista mostram o modelo real, não o que o spawn
-pediu — um `/model` no meio da conversa aparece na próxima resposta.
+A pergunta estruturada vira bloco `question` com as opções completas: `AskUserQuestion` no claude,
+`request_user_input` no codex (resposta pelo `function_call_output`) e `request_user_input_async`, a
+pergunta assíncrona do codex, que o TUI abre com Alt+↑ enquanto o agente segue trabalhando. A
+assíncrona é respondida pelo próprio chat, que envia `> <pergunta>\n\n<resposta>`, o mesmo formato que
+o TUI grava; as bloqueantes mostram as opções e pedem a resposta no terminal. Pergunta recusada fecha
+como "encerrada sem resposta". O menu de permissão nunca é gravado no arquivo, então ele não tem
+bloco — por isso sessões nascidas do PWA sobem em bypass por padrão
+(`--dangerously-skip-permissions` no claude, `--dangerously-bypass-approvals-and-sandbox` no codex),
+com os modos restritivos ainda disponíveis nas opções avançadas.
+
+Outros marcos do transcript viram blocos próprios em vez de fala crua: `<task-notification>` de
+tarefa em segundo plano, saída de comando local (`/model`, `!comando`), erro da API, turno
+interrompido (`[Request interrupted by user]`, `turn_aborted`, `stopReason: aborted`) e o fim do turno
+com duração (`turn_duration`, `task_complete`, `stopReason: stop`).
+
+O Pi grava em `~/.pi/agent/sessions/--<cwd>--/<timestamp>_<id>.jsonl` só depois da primeira resposta
+do modelo. No kw-terminal a extensão `herdr-agent-state` reporta o caminho; no shell embutido a sessão
+sai da linha de comando (`--session`, `--session-id`) ou, sem ela, do arquivo da pasta do projeto
+gravado por último desde que o processo começou. Dois Pi na mesma pasta em shells embutidos podem
+trocar de conversa entre si.
+
+O modelo e o esforço em uso na sessão saem do próprio transcript (`message.model` e `effort` das
+linhas `assistant` no claude, `turn_context`/`thread_settings_applied` no codex, `model_change`/
+`thinking_level_change` no pi) e viajam no envelope de
+`agentRadarTranscript` e no `transcriptPreviews`: a faixa do pane e o cartão da lista mostram o
+modelo real, não o que o spawn pediu — um `/model` no meio da conversa aparece na próxima resposta.
+
+O seletor de modelo da conversa (`components/agent-session/model-picker.tsx`, popover no desktop e
+sheet inferior no celular) escolhe CLI, modelo e esforço para a **próxima mensagem**; a troca só
+acontece no envio, e só o que difere do transcript viaja (`lib/model-target.ts`). O backend
+(`helpers/agent-radar/model-switch.ts`) tem duas estratégias. Mesma CLI: a conversa reabre em outro
+pane pelo id da sessão com as flags novas (`claude --resume … --model --effort`, `codex resume -m …
+-c model_reasoning_effort=…`), porque `/model` e `/effort` do claude persistem como padrão global e o
+codex não troca por texto; o que não mudou vem do transcript aberto. CLI diferente é migração: o
+agent atual recebe um pedido de resumo de passagem (a compactação nativa do codex é cifrada e a do
+claude é opaca ao app), o turno é esperado pelo status do daemon, e o resumo abre uma sessão nova na
+CLI escolhida (mesma pasta, mesma tarefa quando havia). Nos dois casos a mensagem não vai no argv (o
+codex corta o prompt inicial na primeira linha em branco): o CLI sobe sem prompt, o app espera ele
+reportar a sessão ao daemon e cola a mensagem pelo mesmo caminho do composer. O pane antigo fecha
+por último. A UI registra a conversa em trânsito em `stores/pane-moves.ts`: a página `/shells`
+segura a aba enquanto o pane antigo some e só navega quando o novo entra no snapshot.
 
 O `done` do daemon entra no radar como `blocked` (`normalizeAgentRadarStatus`): agent que devolveu a vez
 cobra a mesma coisa que agent travado, então o koworker tem um estado só de "esperando você". Isso vale
@@ -235,7 +370,7 @@ Enquanto há agents abertos, o radar grava um retrato de `workspaceLabel`, `tabL
 do daemon e o encerramento do backend preservam esse retrato; fechar panes normalmente atualiza ou
 limpa a lista, para não reaparecer no próximo boot.
 
-Quando o radar volta vazio e existe um retrato pendente de uma execução anterior, `/terminals` mostra
+Quando o radar volta vazio e existe um retrato pendente de uma execução anterior, `/shells` mostra
 "Reabrir terminais". A ação recria workspaces e tabs idempotentemente, confirma cada criação pela
 leitura do daemon e abre o cliente TUI. Os panes ficam no shell do diretório original: nenhum CLI é
 iniciado, nenhuma conversa é retomada e nenhum comando ou prompt é enviado.
@@ -274,7 +409,7 @@ varredura é do arquivo inteiro, e só das conversas que vão aparecer na págin
 
 Retomar (`agentHistory.resume`) cria uma tab no workspace do projeto que cobre a pasta da sessão —
 ou no grupo `kw_sem-projeto`, quando nenhum a cobre —, na pasta onde a sessão rodou,
-rodando `claude --resume <id>` ou `codex resume <id>`, e leva para `/terminals/$paneId`. Se aquela
+rodando `claude --resume <id>` ou `codex resume <id>`, e leva para `/shells?tab=agent:<paneId>`. Se aquela
 mesma sessão já está viva num pane (o radar conhece o `sessionId`), nada sobe: o botão vira "Ir para
 o terminal" e navega direto.
 
@@ -294,7 +429,7 @@ porque push já entregue aponta para lá.
 
 ## JOBS E ARQUIVO /executar
 
-`/executar` redireciona para `/terminals`. `/executar/$id` preserva sessões e runs antigos em modo
+`/executar` redireciona para `/shells`. `/executar/$id` preserva sessões e runs antigos em modo
 somente leitura. Runs novos existem apenas para jobs `merge_action` e `automation`, sempre unattended,
 sem `parent_run_id`, sessão continuável ou composer.
 
@@ -303,8 +438,8 @@ Jobs rodam no workspace dedicado `kw_execucoes`, uma tab por run
 por `tee` para `$TMPDIR/kowork-executions/<runId>.log`; o backend acompanha esse log
 (`readNewLogBytes`) e mantém o rastreamento do run (status, passos, output) exatamente como no modo
 headless. Exit code sai em `<runId>.exit`. Cancelamento fecha a tab; fechar a tab por fora encerra o
-run como cancelado. Fallback: multiplexador diferente de kw-terminal ou falha ao abrir a tab caem no
-spawn headless. O watcher do radar exclui esse workspace, portanto o job não ganha entrada
+run como cancelado. Sem kw-terminal (ou falha ao abrir a tab) o job roda headless: a tab era só o
+espelho da saída, que continua visível na própria execução. O watcher do radar exclui esse workspace, portanto o job não ganha entrada
 conversacional, preview de transcript ou composer. Implementação: `src/api/helpers/execution-terminal.ts`
 e `runViaKwTerminal` em `src/api/helpers/prompt-run.ts`.
 
@@ -332,17 +467,16 @@ Maps por `projectId` / `taskId`; `handleEvent` reage aos quatro tipos de evento.
 - O daemon `kw-terminal server` é dono do próprio ciclo de vida: o backend o lança FORA do seu cgroup (`spawnDetachedFromService`, unidade transitória do systemd), porque filho direto morre no restart de `kowork-backend.service` e arrasta todas as panes e agents junto. Nunca spawne processos de longa vida como filhos diretos do serviço
 - Build/deploy não pode usar kill por padrão largo (`pkill`/`killall`): morte de processo é por PID, com padrão ancorado ao binário exato; só `kowork-backend.service` e unidades de redeploy/kw-terminal podem ser reiniciadas. Guarda automatizada em `scripts/desktop/deploy-guard.test.ts`
 - Foco de janela WM suporta Wayland (kdotool) e X11 (xdotool); no kw-terminal é best-effort após focus CLI, casando o título fixo "kw-terminal - Kowork"
-- Sessões tmux/kw-terminal são monitoradas a cada 3s para detectar fechamento externo
-- Modo kw-terminal auto-inicia o server headless (`kw-terminal server`) quando não está rodando e abre o cliente TUI (`kw-terminal session attach default`) num emulador quando nenhum está aberto, detectado por `pgrep`
-- Sem migração automática entre multiplexadores; sessões antigas permanecem no modo original
+- Workspaces e tabs abertos pelo Kowork são monitorados a cada 3s para detectar fechamento externo
+- O backend auto-inicia o server headless (`kw-terminal server`) quando não está rodando e abre o cliente TUI (`kw-terminal session attach default`) numa janela quando nenhum está aberto, detectado por `pgrep`
 
 ## FLUXO DE EXECUÇÃO
 
 1. Frontend chama `executeInTerminal` → ORPC `openForTask`
-2. Backend lê `TerminalConfig` (template + multiplexador)
-3. Cria ou reutiliza sessão/workspace e tab/window conforme labels
-4. Envia comando ao pane (`kw-terminal pane run` / `tmux send-keys` / argv no emulador)
-5. Se `background: false`, foca workspace/tab e garante um emulador atachado (tmux) ou um cliente TUI aberto (kw-terminal), depois foco WM
+2. Backend garante o `kw-terminal server` (falha com "Terminal externo indisponível" sem kw-terminal)
+3. Cria ou reutiliza workspace e tab conforme labels
+4. Envia comando ao pane (`kw-terminal pane run`)
+5. Se `background: false`, foca workspace/tab e garante um cliente TUI aberto, depois foco WM
 6. Publica eventos no PubSub
 7. Frontend atualiza store via WebSocket
 
@@ -350,15 +484,14 @@ Maps por `projectId` / `taskId`; `handleEvent` reage aos quatro tipos de evento.
 
 **Runtime:**
 
-- `tmux` (modo tmux)
-- `kw-terminal` com server rodando (modo kw-terminal)
-- Emulador configurado no template (modo tmux/none/kw-terminal)
+- `kw-terminal` no PATH (Linux ou macOS)
+- Alacritty no Linux para a janela do cliente TUI (Terminal.app no macOS)
 - `kdotool`/`xdotool` (foco WM, best-effort)
 
 ## ANTI-PATTERNS
 
 | Proibido | Correto |
 |----------|---------|
-| Chamar tmux/kw-terminal direto do frontend | Usar funções de `terminal.ts` |
+| Chamar o kw-terminal direto do frontend | Usar funções de `terminal.ts` |
 | Assumir ID volátil kw-terminal após restart | Lookup por label (`sessionName` / `windowName`) |
 | Ignorar erros | Sempre tratar e mostrar toast |

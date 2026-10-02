@@ -1,4 +1,4 @@
-import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 import { sortRadarAgents } from "@/lib/agent-radar-status";
 
 export type AgentGroup = {

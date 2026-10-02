@@ -1,8 +1,8 @@
-import type { TaskCreateInput } from "../schemas/tasks";
 import { dbProjects } from "../db/projects";
 import { dbTaskGroups } from "../db/task-groups";
 import { dbTasks } from "../db/tasks";
 import { PubSub } from "../pubsub";
+import type { TaskCreateInput } from "../schemas/tasks";
 import { createTaskFolder, quarantineCreatedTaskFolder } from "./task-folder";
 import { withProjectStorageLock } from "./task-storage-coordinator";
 import {
@@ -74,9 +74,6 @@ export async function createTaskStorage(input: TaskCreateInput) {
 					storage_key: storageKey,
 					storage_slug: storageSlug,
 					title: input.title,
-					priority_id: input.priorityId,
-					category_id: input.categoryId,
-					complexity: input.complexity,
 					group_id: input.groupId,
 				});
 			} catch (error) {

@@ -94,7 +94,6 @@ beforeAll(async () => {
 				project_id: projectId,
 				title: row.storage_slug,
 				group_id: "bbbbbbbb-0000-4000-8000-000000000031",
-				complexity: "medio",
 				display_order: 0,
 				done: 0,
 				created_at: 1,

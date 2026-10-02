@@ -1,7 +1,7 @@
 import { PanelLeft } from "lucide-react";
 import type { ReactNode } from "react";
 
-import type { RadarAgent } from "@/api/helpers/agent-radar/state";
+import type { RadarAgent } from "@/api/schemas/terminal-workspace";
 import { AgentList } from "@/components/agent-radar/agent-list";
 import { SidebarTooltip } from "@/components/layout/sidebar-tooltip";
 import { Text } from "@/components/typography";
@@ -44,7 +44,7 @@ export function AgentSidebar({
 			data-component="agent-sidebar"
 			data-compact={compact || undefined}
 			className={cn(
-				"flex min-h-0 w-full flex-1 flex-col bg-chrome/60 transition-[width] duration-200 md:w-80 md:flex-none md:shrink-0 md:border-r md:border-border",
+				"flex min-h-0 w-full flex-1 flex-col bg-sidebar transition-[width] duration-200 md:w-80 md:flex-none md:shrink-0 md:border-r md:border-border",
 				compact && "md:w-16",
 			)}
 		>

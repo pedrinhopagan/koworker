@@ -2,29 +2,35 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createLazyFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import {
 	ArrowLeft,
+	Check,
 	File,
 	FileCode2,
 	FileText,
 	ListChecks,
-	type LucideIcon,
 	Loader2,
+	MoreHorizontal,
+	PencilLine,
+	RotateCcw,
+	Trash2,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
+import {
+	DocMobileActionsDrawer,
+	DocSheetActionButton,
+	DocSheetDivider,
+} from "@/components/doc-mobile-actions-drawer";
 import { DocShareControls } from "@/components/doc-share-controls";
 import { FileContextMenu } from "@/components/file-context-menu";
 import {
-	TASK_SELECT_CONTENT_SELECTOR,
 	TaskEditControls,
-	TaskMetaSelects,
 	TaskTitleInput,
 	taskTitlePlaceholder,
-} from "@/components/tasks/task-meta-controls";
+} from "@/components/tasks/task-edit-controls";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -32,21 +38,21 @@ import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { useRemoveTaskMutation, useUpdateTaskMutation } from "@/hooks/use-task-mutations";
 import { copyToClipboard } from "@/lib/build-prompt";
-import { joinPath } from "@/lib/os-share";
+import { isPreviewDocument } from "@/lib/file-preview";
+import { joinPath, revealFileInOs } from "@/lib/os-share";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
-import { FlowRunButton } from "./-components/flow-run-button";
+import { FeatureTaskPage } from "../-components/feature-task-page";
+import { canonicalTaskRoute } from "../-utils/task-route-resolution";
 import {
 	markdownHeadings,
 	markdownSummary,
 	markdownTitle,
 	TaskFileCard,
 } from "./-components/task-file-card";
-import { TaskOverviewContextMenu } from "./-components/task-overview-context-menu";
 import { TaskMergeAction } from "./-components/task-merge-action";
+import { TaskOverviewContextMenu } from "./-components/task-overview-context-menu";
 import { useTaskShare } from "./-components/use-task-share";
-import { FeatureTaskPage } from "../-components/feature-task-page";
-import { canonicalTaskRoute } from "../-utils/task-route-resolution";
 
 export const Route = createLazyFileRoute("/_app/tarefas/$taskId/")({
 	component: TaskOverviewRoute,
@@ -102,16 +108,6 @@ function TaskOverviewRoute() {
 	);
 }
 
-function artifactIcon(mime: string): LucideIcon {
-	if (mime === "application/pdf") {
-		return FileText;
-	}
-	if (mime === "text/html") {
-		return FileCode2;
-	}
-	return File;
-}
-
 // Divisor de seção: rótulo em caixa alta seguido de uma linha fina até a borda. Separa o card do
 // index da grade de arquivos e nomeia a seção de artefatos.
 function SectionDivider({ label }: { label: string }) {
@@ -136,11 +132,12 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 	const [renamingFile, setRenamingFile] = useState<string | null>(null);
 	const [renameValue, setRenameValue] = useState("");
 	const [deletingFile, setDeletingFile] = useState<string | null>(null);
+	const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+	const [deletingTask, setDeletingTask] = useState(false);
 	const headerRef = useRef<HTMLDivElement>(null);
 
 	useClickOutside(headerRef, () => setEditing(false), {
 		enabled: editing,
-		ignoreSelector: TASK_SELECT_CONTENT_SELECTOR,
 	});
 
 	const setDoneMutation = useSetDoneMutation(task?.projectId);
@@ -195,6 +192,12 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 	});
 
 	const share = useTaskShare(task);
+	const revealFile = (name: string) => {
+		if (!share.folderAbs) {
+			return;
+		}
+		void revealFileInOs(joinPath(share.folderAbs, name));
+	};
 
 	if (taskQuery.isLoading) {
 		return (
@@ -271,6 +274,25 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 
 	const indexFile = task.files[0]?.name === "index.md" ? task.files[0] : null;
 	const gridFiles = indexFile ? task.files.slice(1) : task.files;
+	const attachmentSections = [
+		{
+			label: "PDFs",
+			icon: FileText,
+			attachments: task.attachments.filter((attachment) => attachment.mime === "application/pdf"),
+		},
+		{
+			label: "HTML",
+			icon: FileCode2,
+			attachments: task.attachments.filter((attachment) => attachment.mime === "text/html"),
+		},
+		{
+			label: "Artefatos",
+			icon: File,
+			attachments: task.attachments.filter(
+				(attachment) => attachment.mime !== "application/pdf" && attachment.mime !== "text/html",
+			),
+		},
+	].filter((section) => section.attachments.length > 0);
 
 	const lastEditMs = Math.max(
 		0,
@@ -301,9 +323,9 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 				<div className="w-full border-b border-border">
 					<div
 						ref={headerRef}
-						className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3"
+						className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between md:gap-4"
 					>
-						<div className="flex min-w-0 flex-1 items-center gap-3">
+						<div className="flex min-w-0 w-full flex-1 items-center gap-3 md:w-auto">
 							<Link
 								to="/tarefas/$taskId"
 								params={{ taskId: canonical.featureId }}
@@ -313,7 +335,9 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 							>
 								<ArrowLeft className="size-4" />
 							</Link>
-							<Icon icon={ListChecks} color="var(--project-accent, var(--primary))" size="md" />
+							<span className="hidden sm:block">
+								<Icon icon={ListChecks} color="var(--project-accent, var(--primary))" size="md" />
+							</span>
 							<div className="min-w-0 flex-1">
 								{editing ? (
 									<TaskTitleInput
@@ -337,38 +361,46 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 									{headerDescription}
 								</Text>
 							</div>
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon"
+								className="size-11 md:hidden"
+								onClick={() => setMobileActionsOpen(true)}
+								aria-label="Mais ações da tarefa"
+							>
+								<MoreHorizontal className="size-5" />
+							</Button>
 						</div>
-						<div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-							<Checkbox
-								checked={task.done}
-								onCheckedChange={(checked) =>
-									setDoneMutation.mutate({ id: task.id, done: checked === true })
-								}
+						<Button
+							type="button"
+							variant={task.done ? "outline" : "default"}
+							className="h-11 w-full md:hidden"
+							onClick={() => setDoneMutation.mutate({ id: task.id, done: !task.done })}
+							disabled={isMutating}
+						>
+							{task.done ? <RotateCcw className="size-4" /> : <Check className="size-4" />}
+							{task.done ? "Desconcluir tarefa" : "Concluir tarefa"}
+						</Button>
+						<div className="hidden min-w-0 flex-wrap items-center justify-end gap-2 md:flex">
+							<Button
+								type="button"
+								variant={task.done ? "outline" : "default"}
+								size="sm"
+								onClick={() => setDoneMutation.mutate({ id: task.id, done: !task.done })}
 								disabled={isMutating}
-								aria-label={task.done ? "Marcar como não concluída" : "Marcar como concluída"}
-							/>
-							<TaskMetaSelects
-								categoryId={task.categoryId ?? null}
-								priorityId={task.priorityId ?? null}
-								complexity={task.complexity}
-								interactive={editing}
-								onCategoryChange={(categoryId) =>
-									updateMutation.mutate({ id: task.id, categoryId })
-								}
-								onPriorityChange={(priorityId) =>
-									updateMutation.mutate({ id: task.id, priorityId })
-								}
-								onComplexityChange={(complexity) =>
-									updateMutation.mutate({ id: task.id, complexity })
-								}
-							/>
+							>
+								{task.done ? <RotateCcw className="size-4" /> : <Check className="size-4" />}
+								{task.done ? "Desconcluir" : "Concluir"}
+							</Button>
+
 							<TaskEditControls
 								editing={editing}
 								disabled={isMutating}
 								onToggleEdit={() => setEditing((value) => !value)}
 								onDelete={() => removeTaskMutation.mutate({ id: task.id })}
 							/>
-							<FlowRunButton taskId={taskId} />
+
 							{share.folderAbs ? (
 								<DocShareControls
 									onOpenInOs={share.openInOs}
@@ -379,6 +411,43 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 						</div>
 					</div>
 				</div>
+
+				<DocMobileActionsDrawer
+					open={mobileActionsOpen}
+					onClose={() => setMobileActionsOpen(false)}
+					title="Ações da tarefa"
+				>
+					<DocSheetActionButton
+						icon={<PencilLine className="size-[18px]" />}
+						label={editing ? "Concluir edição" : "Editar tarefa"}
+						onClick={() => {
+							setMobileActionsOpen(false);
+							setEditing((value) => !value);
+						}}
+						disabled={isMutating}
+					/>
+
+					{share.folderAbs ? (
+						<DocShareControls
+							layout="stacked"
+							onAction={() => setMobileActionsOpen(false)}
+							onOpenInOs={share.openInOs}
+							onCopyContent={() => void share.copyContent()}
+							onCopyZip={() => void share.copyZip()}
+						/>
+					) : null}
+					<DocSheetDivider />
+					<DocSheetActionButton
+						icon={<Trash2 className="size-[18px]" />}
+						label="Excluir tarefa"
+						className="text-destructive hover:bg-destructive/10"
+						onClick={() => {
+							setMobileActionsOpen(false);
+							setDeletingTask(true);
+						}}
+						disabled={isMutating}
+					/>
+				</DocMobileActionsDrawer>
 
 				<div className="min-h-0 flex-1 overflow-y-auto pb-24">
 					<div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
@@ -392,7 +461,7 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 										absolutePath={
 											share.folderAbs ? joinPath(share.folderAbs, indexFile.name) : undefined
 										}
-										onOpenFolder={share.openInOs}
+										onOpenFolder={share.folderAbs ? () => revealFile(indexFile.name) : undefined}
 										onRename={() => startRename(indexFile.name)}
 										onDelete={() => setDeletingFile(indexFile.name)}
 									>
@@ -416,7 +485,7 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 								) : null}
 								{gridFiles.length > 0 ? (
 									<div className="flex flex-col gap-3">
-										{indexFile ? <SectionDivider label="Arquivos" /> : null}
+										{indexFile ? <SectionDivider label="Markdown" /> : null}
 										<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 											{gridFiles.map((file) => (
 												<FileContextMenu
@@ -427,7 +496,7 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 													absolutePath={
 														share.folderAbs ? joinPath(share.folderAbs, file.name) : undefined
 													}
-													onOpenFolder={share.openInOs}
+													onOpenFolder={share.folderAbs ? () => revealFile(file.name) : undefined}
 													onRename={() => startRename(file.name)}
 													onDelete={() => setDeletingFile(file.name)}
 												>
@@ -468,7 +537,7 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 											}
 										}}
 										placeholder="index.md"
-										className="h-9 min-w-0 flex-1 rounded-md border border-border bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground focus:border-ring"
+										className="h-10 min-w-0 flex-1 rounded-md border border-input bg-card px-3 text-sm outline-none placeholder:text-muted-foreground/65 focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring"
 									/>
 									<Button size="sm" onClick={createFile} disabled={writeFileMutation.isPending}>
 										{writeFileMutation.isPending ? (
@@ -481,11 +550,11 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 							</div>
 						)}
 
-						{task.attachments.length > 0 ? (
-							<div className="flex flex-col gap-3">
-								<SectionDivider label="Artefatos" />
-								<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-									{task.attachments.map((attachment) => (
+						{attachmentSections.map((section) => (
+							<div key={section.label} className="flex flex-col gap-3">
+								<SectionDivider label={section.label} />
+								<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+									{section.attachments.map((attachment) => (
 										<FileContextMenu
 											key={attachment.name}
 											name={attachment.name}
@@ -493,24 +562,41 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 											absolutePath={
 												share.folderAbs ? joinPath(share.folderAbs, attachment.name) : undefined
 											}
-											onOpenFolder={share.openInOs}
+											onOpenFolder={share.folderAbs ? () => revealFile(attachment.name) : undefined}
 											onRename={() => startRename(attachment.name)}
 											onDelete={() => setDeletingFile(attachment.name)}
 										>
 											<TaskFileCard
-												icon={artifactIcon(attachment.mime)}
+												icon={section.icon}
 												name={attachment.name}
 												size={attachment.size}
 												timestamp={attachment.mtime}
-												onClick={() =>
-													openArtifactMutation.mutate({ id: taskId, name: attachment.name })
-												}
+												onClick={(event) => {
+													if (
+														event.altKey ||
+														!share.folderAbs ||
+														!isPreviewDocument(attachment.name)
+													) {
+														openArtifactMutation.mutate({ id: taskId, name: attachment.name });
+														return;
+													}
+													void navigate({
+														to: "/arquivo",
+														search: { path: joinPath(share.folderAbs, attachment.name) },
+													});
+												}}
+												onAuxClick={(event) => {
+													if (event.button === 1) {
+														event.preventDefault();
+														openArtifactMutation.mutate({ id: taskId, name: attachment.name });
+													}
+												}}
 											/>
 										</FileContextMenu>
 									))}
 								</div>
 							</div>
-						) : null}
+						))}
 					</div>
 				</div>
 
@@ -546,6 +632,17 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 						placeholder="index.md"
 					/>
 				</ConfirmDialog>
+
+				<ConfirmDialog
+					open={deletingTask}
+					onClose={() => setDeletingTask(false)}
+					onConfirm={() => removeTaskMutation.mutate({ id: task.id })}
+					title="Excluir tarefa"
+					description={`“${task.displayTitle}” será excluída.`}
+					confirmLabel="Excluir"
+					variant="danger"
+					loading={removeTaskMutation.isPending}
+				/>
 
 				<ConfirmDialog
 					open={deletingFile !== null}

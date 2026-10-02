@@ -1,6 +1,6 @@
 # KOWORK KNOWLEDGE BASE
 
-**Atualizado:** 2026-07-27 (seção de entidades derivada de `src/api/db/connection.ts`)
+**Atualizado:** 2026-09-22 (seção de entidades derivada de `src/api/db/connection.ts`)
 
 ## VISÃO GERAL
 
@@ -13,14 +13,14 @@ src/
 ├── api/                 # ORPC (router.ts, routers/, schemas/), auth, config, db, helpers, pubsub
 ├── routes/              # TanStack Router (file-based)
 ├── components/          # Componentes de UI (shadcn + base)
-├── constants/           # Conjuntos finitos de domínio (complexidade, categorias, release...)
+├── constants/           # Conjuntos finitos de domínio (invocação, projetos, release...)
 ├── hooks/
 ├── lib/
 ├── stores/              # Zustand
 ├── types/
 ├── cli/                 # CLI kw-cli (acesso direto ao DB)
 scripts/                 # setup, seed, test runner, build/deploy do desktop
-src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem plugin global-shortcut: o tray só anuncia o rótulo do atalho, que é registrado no WM
+electron/                # Wrapper desktop Electron: janela, tray, preload e backend sidecar
 ```
 
 ## ONDE PROCURAR
@@ -33,7 +33,7 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 | **PubSub** | `src/api/pubsub/` | Eventos em tempo real |
 | **Rotas** | `src/routes/` | TanStack Router |
 | **UI base** | `src/components/ui/` | shadcn (preset Lyra) |
-| **Constantes de domínio** | `src/constants/` | Complexidade, categorias default, templates de prompt |
+| **Constantes de domínio** | `src/constants/` | Invocação, projetos, categorias de agents, release |
 | **CLI** | `src/cli/` | Comandos que atualizam tasks |
 
 ## ALIASES
@@ -52,7 +52,7 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - **UI**: usar `<Title>` e `<Text>` ao invés de `<h1>`/`<p>`
 - **Condição**: usar `&&` em vez de ternário para render condicional
 - **Ícones**: somente `lucide-react`
-- **Sombras**: o app roda no WebKitGTK com `WEBKIT_DISABLE_COMPOSITING_MODE=1` (`src-tauri/src/lib.rs`), então tudo que está visível é rasterizado no CPU a cada quadro e sombra com blur é o item mais caro da conta. `shadow-xs` e `shadow-sm` foram redefinidos em `src/index.css` para blur 0 e são os únicos degraus permitidos em superfície que rola (card, input, botão, turno de conversa). Blur (`shadow-md` pra cima) só em overlay flutuante — popover, dropdown, sheet, dialog, toast. Medido em `/terminals/$paneId` com 5.4k nós: p95 de 65ms por quadro com o `shadow-sm` borrado do Tailwind contra 14ms com o rente.
+- **Sombras**: o desktop atual roda em Electron/Chromium. `shadow-xs` e `shadow-sm` foram redefinidos em `src/index.css` para blur 0 e são os únicos degraus permitidos em superfície que rola (card, input, botão, turno de conversa). Blur (`shadow-md` pra cima) só em overlay flutuante — popover, dropdown, sheet, dialog, toast. O orçamento permanece apoiado na medição do workspace de terminal com 5.4k nós: p95 de 65ms por quadro com o `shadow-sm` borrado contra 14ms com o rente.
 - **Selects**: SEMPRE `CustomSelect` (`@/components/ui/custom-select`). Nunca recriar o Select do shadcn nem usar `<select>` nativo. Motivo: as vars de tema (`--popover`, `--card`...) vivem em `.light`/`.dark` aplicados no `[data-theme-root]` (div interna em `__root.tsx`), não no `:root` — qualquer overlay Radix portado para o `document.body` fica fora do tema e renderiza transparente/preto. Todo primitivo com Portal (popover, dropdown, sheet, context-menu, custom-select) porta para `document.querySelector("[data-theme-root]")`; novos overlays devem fazer o mesmo.
 - **Markdown**: um motor só, em `src/lib/markdown-engine.ts` (parser CommonMark+GFM com a grifa `==` do app, cores de sintaxe e resolução de linguagem de fence). Duas superfícies o consomem: `MarkdownEditor` (`components/markdown-doc.tsx`), o leitor/editor de `.md` com live preview no CodeMirror, e `MarkdownView` (`components/markdown-view.tsx`), a leitura estática usada em toda fala de agent (conversa do terminal, turno de execução, rastro aberto). O visual é compartilhado pelas classes `cm-md-*` em `src/styles/markdown.css`; o `baseTheme` do live preview só guarda mecânica de editor. Nunca interpretar markdown na mão (splitter de crases, `whitespace-pre-wrap` fingindo formatação) — use `MarkdownView`.
 
@@ -77,7 +77,7 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - **Booleanos**: não existem; são `INTEGER` 0/1 (`done`, `hide_terminal`, `quick_invoke`)
 - **JSON**: colunas JSON são `TEXT` com `JSON.stringify/parse` (`tasks.file_order`, `task_storage_runs.manifest`, `agent_events.payload`)
 - **Soft delete**: `projects`, `tasks`, `execution_runs` e `agent_sessions` possuem `deleted_at`
-- **Conjuntos finitos**: só `user_type`, `task_storage_runs.status`, `prompt_history.kind`, `execution_runs.kind`, `execution_runs.status`, `agent_sessions.status` e `agent_events.kind` são enums no DSL. Complexidade, stage, tool e scope são texto livre no DB e o conjunto é garantido em `src/constants/` + boundary Zod.
+- **Conjuntos finitos**: só `user_type`, `task_storage_runs.status`, `prompts.source`, `execution_runs.kind`, `execution_runs.status`, `agent_sessions.status` e `agent_events.kind` são enums no DSL. Stage, tool e scope são texto livre no DB e o conjunto é garantido em `src/constants/` + boundary Zod.
 
 ## ENTIDADES
 
@@ -94,18 +94,10 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - `hide_terminal` (0/1), `task_layout_version` (default 1)
 - `created_at`, `updated_at?`, `deleted_at?`
 
-### categories (seed default: feature, fix, doc, study)
-- `id` (uuid), `name`, `color` (hex, default `#000000`)
-- `structure_slug?` (slug em `constants/prompt-templates.ts`)
-- `display_order` (default 0), `created_at`, `updated_at?`
-
-### priorities
-- `id` (uuid), `name`, `level` (default 1), `color` (hex, default `#000000`)
-- `display_order` (default 0), `created_at`, `updated_at?`
-
 ### project_routes
 - `id` (uuid), `project_id` (FK projects.id, cascade)
 - `name`, `route`, `icon?`, `command?`
+- `background` (0/1, default 0): no painel do projeto o clique roda o comando sem terminal e mostra o resultado
 - `display_order` (default 0), `created_at`, `updated_at?`
 
 ### task_groups (as "features" da UI e da CLI)
@@ -119,15 +111,14 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - `folder_path`: pasta da task relativa a `projects.main_route`. O conteúdo canônico vive nos `.md` dessa pasta; a linha é só índice.
 - `storage_key?`, `storage_slug?`: identidade congelada de storage
 - `title?`: nullable. Sem título, o display cai no primeiro `.md` (`resolveDisplayTitle`)
-- `priority_id?` (FK priorities.id, restrict), `category_id?` (FK categories.id, restrict): ambas opcionais
-- `complexity` (default `medio`): conjunto em `constants/complexity.ts`
 - `group_id?` (FK task_groups.id, set null): nulo = pseudo-grupo "Sem grupo"
-- `display_order` (default 0): ordem manual dentro do bucket `group_id` + `category_id`
+- `display_order` (default 0): ordem manual dentro do grupo
 - `file_order?`: JSON array de nomes de `.md` para ordenar as abas
 - `merge_ready_at?`, `worktree_branch?`, `merge_target_branch?`, `worktree_path?`, `worktree_pr_url?`: entrega em worktree
 - `done` (0/1, default 0), `completed_at?`
 - `created_at`, `updated_at?`, `deleted_at?`
 - **Não existem** `description`, `notes`, `ai_metadata`, `status` nem `acceptance_criteria`. Esse conteúdo mora nos `.md` da pasta.
+- A classificação antiga (`priority_id`, `category_id`, `complexity` e as tabelas `categories`/`priorities`) saiu na migração de 22/09/2026. `ensureDbSchema` grava um backup `<banco>.bak-classificacao-<data>` antes de reconstruir `tasks`; restaurar é copiar esse arquivo sobre o banco com o servidor parado.
 
 ### task_storage_runs
 - `id` (uuid), `project_id` (FK projects.id, restrict)
@@ -152,20 +143,30 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - `scope` (default `custom`; `global` = root default semeado por plataforma)
 - `created_at`
 
+### agent_categories
+- `id` (uuid), `name`, `color` (hex, default `#000000`)
+- `display_order` (default 0), `created_at`, `updated_at?`
+
 ### agent_settings
 - `slug` (PK, nome do arquivo `.md` do agent)
 - `label?`, `icon?`, `color?`, `created_at`, `updated_at?`
+- `category_id?` (FK agent_categories.id, set null)
 
 ### agent_source_paths
 - `id` (uuid), `tool`, `path`, `scope` (default `custom`), `created_at`
 
-### prompt_history
-- `id` (uuid), `kind`: `copy | agent | skill`
-- `text` (instrução crua) e `prompt` (texto final despachado)
-- `target?`, `agent_slug?`, `skill_slug?`
-- `project_id?`, `project_name?`: **sem FK**, o histórico sobrevive à exclusão do projeto
-- `route_path?`, `model?`, `effort?`, `created_at`
-- Deduplicado na entrada: reenviar prompt idêntico rebumpa `created_at` em vez de duplicar
+### prompts
+- `id` (uuid), `source`: `claude | codex | copy`
+- `prompt` (texto como foi enviado), `norm` (chave de dedup: grafia de skill unificada `$kw`/`[$kw](…)` → `/kw` e espaço colapsado; `normalizePrompt` em `api/helpers/agent-history/prompt-text.ts`)
+- `session_id?`, `transcript_path?`: a conversa da CLI de onde a linha foi lida (`copy` não tem)
+- `cwd?`, `project_id?`, `project_name?`: **sem FK**, o histórico sobrevive à exclusão do projeto
+- `sent_at`, `created_at`
+- Histórico legado: nada mais grava aqui. A página Prompts, o indexador dos transcripts e o registro
+  de cópia da barra saíram; o histórico mora nas conversas dos agentes. As linhas antigas ficam.
+
+### prompt_transcripts
+- `path` (PK), `size_bytes`, `indexed_at`
+- Legado do indexador de prompts (até onde cada transcript tinha sido lido). Preservado, sem escrita.
 
 ### agent_sessions
 - `id` (uuid): no claude é também o `--session-id`, então retomar é `--resume <id>` na mesma linha
@@ -206,15 +207,6 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 - Retrato único do que estava aberto no kw-terminal: reescrito inteiro a cada mudança do radar e nunca
   com a lista vazia, porque a queda do daemon (ou o desligamento da máquina) apagaria o retrato
 
-### agent_session_snapshots
-- `id` (uuid), `pane_id`, `workspace_label`, `tab_label`, `agent`, `cwd`
-- `project_id?`, `project_name?`: **sem FK**, o retrato é histórico e sobrevive à exclusão do projeto
-- `status`: status do radar no instante da captura; `working` é o que faz a restauração disparar `continue`
-- `session_id?`, `session_path?`: a sessão do CLI, quando o agent a reportou ao daemon
-- `title?`, `task_id?`, `task_title?`, `captured_at`, `restored_at?`
-- Retrato único do que estava aberto no kw-terminal: reescrito inteiro a cada mudança do radar e nunca
-  com a lista vazia, porque a queda do daemon (ou o desligamento da máquina) apagaria o retrato
-
 ### push_subscriptions
 - `id` (uuid), `user_id` (FK users.id, cascade)
 - `endpoint`, `p256dh`, `auth`, `expiration_time?`
@@ -229,17 +221,17 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 
 ### settings
 - `key` (PK), `value` (string), `updated_at?`
-- Chave-valor de SO: pasta base de projetos, template de emulador, multiplexador. O shape tipado e os defaults por plataforma vivem em `api/helpers/system-settings.ts`.
+- Chave-valor de SO: pasta base de projetos e endereço do celular. O shape tipado e os defaults vivem em `api/helpers/system-settings.ts`. As chaves antigas `terminal_multiplexer` e `terminal_template` são apagadas no boot (Linux/macOS): o terminal externo é sempre o kw-terminal.
 
 ## STATUS E CONCLUSÃO
 
+- Tarefas nascem só pelos agentes (`kw-cli create`/`task create`, `tasks.create`, execuções). A UI renomeia, move e conclui, mas não cria. Nota nova também nasce dentro de uma tarefa; o Vault só edita as notas soltas que já existem.
 - `tasks` não tem coluna de status. Só `done` (0/1) e `completed_at`.
 - Execução é rastreada em `execution_runs`, que é outra entidade: uma tarefa pode ter N runs (ou nenhum).
 - Claude e Codex são sessão (`agent_sessions`) com N turnos, cada turno um `execution_runs`. No Claude
   o processo fica vivo entre turnos; no Codex cada turno é um `codex exec resume <thread>` e o id da
   thread mora em `agent_sessions.cli_session_id`. A execução de chamada única sobrou só na barra de
   prompt (`prompt.execute`). Detalhe em `docs/SESSOES.md`.
-- A etapa do fluxo (`grill`, `plano`, `execucao`, `execucao-fases`, `revisao`) é **inferida dos artefatos da pasta** (`inferTaskStage`), nunca persistida na task. A ordem por complexidade vive em `COMPLEXITY_FLOWS` (`execucao-fases` só no fluxo `extremo`) e cada etapa tem agente próprio em `STAGE_AGENT`.
 - O estado visual do progresso é derivado por função em `src/lib/` (não é coluna).
 
 ## STORAGE DE TAREFAS
@@ -269,19 +261,30 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 ## REALTIME
 
 - Canais do PubSub (`src/api/pubsub/index.ts`): `tasks`, `flow`, `promptRun`, `agentSession`,
-  `agentRadar`, `agentRadarTranscript`, `shells`, `notification`, `navigate` e `terminal`
+  `agentRadar`, `agentRadarTranscript`, `agentTerminalScreen`, `shells`, `terminalWorkspace`,
+  `modelCatalog`, `notification`, `navigate` e `terminal`
 - `wsRouter` expõe `auth.me`, `notifications`, `tasks`, `navigate`, `flow`, `promptRun`,
-  `agentSession`, `agentRadar`, `agentRadarTranscript` e `terminal`
+  `agentSession`, `agentRadar`, `agentRadarTranscript`, `agentTerminal`, `terminalWorkspace`,
+  `modelCatalog` e `terminal`
+- `modelCatalog` abre com o catálogo de modelos e esforços dos CLIs e reenvia quando o cache que o
+  próprio CLI grava muda (`~/.claude/cache/model-catalog/*-cc.json`, `~/.codex/models_cache.json`).
+  A troca de modelo numa conversa vai ao CLI vivo pelo `/model` (e `/effort`), sempre só na sessão;
+  o valor em vigor vem da tela do CLI, relida quando o transcript avisa de um `/model` ou `/effort`
+- `terminalWorkspace` abre com snapshot versionado do catálogo unificado de shells e agents; revisões
+  monotônicas conciliam metadata concorrente e reconexão sem polling da listagem
 - `shells` entrega por `shellId` os bytes do PTY em base64, o título publicado pelo CLI e o desfecho;
   o replay do scrollback não passa pelo canal — o stream abre com ele
 - `agentSession` entrega os blocos da conversa (por `seq`), o `busy` do agente e a mudança de
   `status` da sessão; a assinatura começa com o histórico inteiro para a reconexão não perder nada
-- `agentRadarTranscript` é por `paneId` e entrega a conversa que o CLI aberto no kw-terminal grava em
-  disco (`~/.claude/projects`, `~/.codex/sessions`), nos mesmos blocos de `agentSession`. Lote com
+- `agentRadarTranscript` é por `paneId` e entrega a conversa que o CLI aberto no kw-terminal ou num
+  shell embutido grava em disco (`~/.claude/projects`, `~/.codex/sessions`, `~/.pi/agent/sessions`),
+  nos mesmos blocos de `agentSession`, mais a fila de mensagens do Claude em `queued`. Lote com
   `reset` é a conversa inteira de novo: o arquivo virou outro e os `seq` recomeçaram
 - Uma assinatura de `agentRadarTranscript` por vez, só para a conversa que está na tela: a lista
   lateral usa `agentRadar.transcriptPreviews`, que lê a cauda de cada transcript e devolve só a
   última fala. Assinar a conversa por cartão baixava o histórico completo de cada agent aberto
+- `agentTerminalScreen` é por `paneId` e entrega snapshots ANSI da tela oficial somente enquanto a
+  visão Terminal está aberta; o teclado retorna ao mesmo PTY por `pane.send_input`
 - Origem do evento de task é marcada em `source`: `api`, `cli` ou `fs` (watcher de disco)
 - `promptRun` carrega o desfecho (`done`, `failed`…), a cauda de saída (`output`) e os passos do agente
   já interpretados (`step`, com ferramenta, alvo e resultado)
@@ -303,6 +306,6 @@ src-tauri/               # Wrapper desktop (janela, tray, backend sidecar). Sem 
 | `src/routes/ROUTES_MAP.md` | Referência humana de navegação e layout |
 | `src/components/AGENTS.md` | Componentes base |
 | `src/cli/AGENTS.md` | CLI para AI Agents |
-| `src-tauri/AGENTS.md` | Wrapper desktop Tauri |
-| `docs/TERMINAL.md` | Sistema de terminais (tmux / kw-terminal / none + ORPC PubSub) |
+| `electron/AGENTS.md` | Wrapper desktop Electron |
+| `docs/TERMINAL.md` | Terminal externo (kw-terminal) e ORPC PubSub |
 | `docs/SESSOES.md` | Sessões de agente: processo vivo, protocolo do CLI, permissão e pergunta |

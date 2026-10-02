@@ -30,6 +30,37 @@ async function waitFor(check: () => boolean, timeoutMs = 10_000) {
 	return check();
 }
 
+test("desktop conecta ao websocket local mesmo com navegador offline", async () => {
+	const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+	const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+	const browser = Object.assign(new EventTarget(), { kowork: {} });
+	Object.defineProperty(globalThis, "window", { configurable: true, value: browser });
+	Object.defineProperty(globalThis, "navigator", { configurable: true, value: { onLine: false } });
+	const server = serve(0);
+	const socket = createResilientWebSocket(`ws://localhost:${server.port}/ws`);
+
+	try {
+		expect(await waitFor(() => socket.readyState === WebSocket.OPEN)).toBe(true);
+		browser.dispatchEvent(new Event("offline"));
+		expect(socket.readyState).toBe(WebSocket.OPEN);
+		socket.send("desktop sem internet");
+		expect(await waitFor(() => received.includes("desktop sem internet"))).toBe(true);
+	} finally {
+		server.stop(true);
+		for (const [key, descriptor] of [
+			["window", originalWindow],
+			["navigator", originalNavigator],
+		] as const) {
+			if (descriptor) {
+				Object.defineProperty(globalThis, key, descriptor);
+			} else {
+				Reflect.deleteProperty(globalThis, key);
+			}
+		}
+		opened = 0;
+	}
+});
+
 test("reconecta e entrega o que foi enviado enquanto estava fora do ar", async () => {
 	const server = serve(0);
 	const port = server.port;
@@ -54,3 +85,59 @@ test("reconecta e entrega o que foi enviado enquanto estava fora do ar", async (
 
 	expect(recovered).toBe(true);
 }, 30_000);
+
+test("offline invalida socket aberto, online conecta de novo e close antigo não derruba o novo", async () => {
+	const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+	const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+	const browser = new EventTarget();
+	const network = { onLine: true };
+	Object.defineProperty(globalThis, "window", { configurable: true, value: browser });
+	Object.defineProperty(globalThis, "navigator", { configurable: true, value: network });
+	const server = serve(0);
+	const socket = createResilientWebSocket(`ws://localhost:${server.port}/ws`);
+	let closes = 0;
+	socket.addEventListener("close", () => {
+		closes += 1;
+	});
+	try {
+		expect(await waitFor(() => socket.readyState === WebSocket.OPEN)).toBe(true);
+		network.onLine = false;
+		browser.dispatchEvent(new Event("offline"));
+		expect(socket.readyState).toBe(WebSocket.CLOSED);
+		expect(closes).toBe(1);
+		network.onLine = true;
+		browser.dispatchEvent(new Event("online"));
+		expect(await waitFor(() => socket.readyState === WebSocket.OPEN)).toBe(true);
+		const closeCount = closes;
+		let openedOnce = 0;
+		socket.addEventListener(
+			"open",
+			() => {
+				openedOnce += 1;
+			},
+			{ once: true },
+		);
+		socket.forceReconnect();
+		expect(await waitFor(() => socket.readyState === WebSocket.OPEN)).toBe(true);
+		expect(closes).toBe(closeCount + 1);
+		socket.forceReconnect();
+		expect(await waitFor(() => socket.readyState === WebSocket.OPEN)).toBe(true);
+		expect(openedOnce).toBe(1);
+		socket.send("rede recuperada");
+		expect(await waitFor(() => received.includes("rede recuperada"))).toBe(true);
+	} finally {
+		network.onLine = false;
+		browser.dispatchEvent(new Event("offline"));
+		server.stop(true);
+		if (originalWindow) {
+			Object.defineProperty(globalThis, "window", originalWindow);
+		} else {
+			Reflect.deleteProperty(globalThis, "window");
+		}
+		if (originalNavigator) {
+			Object.defineProperty(globalThis, "navigator", originalNavigator);
+		} else {
+			Reflect.deleteProperty(globalThis, "navigator");
+		}
+	}
+});

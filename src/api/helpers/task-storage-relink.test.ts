@@ -76,7 +76,6 @@ beforeAll(async () => {
 				storage_slug: task.slug,
 				title: task.slug,
 				group_id: groupA,
-				complexity: "medio",
 				display_order: 0,
 				done: 0,
 				created_at: 1,

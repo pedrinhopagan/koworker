@@ -3,12 +3,10 @@ import {
 	CircleCheck,
 	CircleDot,
 	ClipboardCopy,
-	FileArchive,
 	EyeOff,
-	Flame,
+	FileArchive,
 	FolderOpen,
 	FolderSymlink,
-	LayoutGrid,
 	Layers,
 	Link as LinkIcon,
 	Pencil,
@@ -34,23 +32,17 @@ import { cn } from "@/lib/utils";
 type ColorOption = { id: string; name: string; color: string };
 type ProjectOption = { id: string; name: string; color: string };
 
-// Listas dos submenus do menu de tarefa: projetos (já filtrados pelo caller, sem o da tarefa),
-// prioridades e categorias.
 export type TaskMenuData = {
 	projects: ProjectOption[];
-	priorities: ColorOption[];
-	categories: ColorOption[];
 	features?: ColorOption[];
 };
 
-// Só os campos que o menu lê. TaskFolder (vault) e TaskWithMeta (lista) mapeiam aqui.
+// Só os campos que o menu lê. TaskFolder (vault) e Task (lista) mapeiam aqui.
 export type TaskMenuTarget = {
 	id: string;
 	label: string;
 	done: boolean;
 	folderPath?: string;
-	priorityId?: string | null;
-	categoryId?: string | null;
 	groupId?: string | null;
 };
 
@@ -63,8 +55,6 @@ export type TaskMenuActions = {
 	onShareZip: (target: TaskMenuTarget) => void;
 	onOpenInOs: (target: TaskMenuTarget) => void;
 	onRename: (target: TaskMenuTarget) => void;
-	onSetPriority: (target: TaskMenuTarget, priorityId: string) => void;
-	onSetCategory: (target: TaskMenuTarget, categoryId: string) => void;
 	onToggleDone: (target: TaskMenuTarget) => void;
 	onIgnoreRecency?: (target: TaskMenuTarget) => void;
 	onMoveToProject: (target: TaskMenuTarget, projectId: string) => void;
@@ -72,59 +62,6 @@ export type TaskMenuActions = {
 	onDelete: (target: TaskMenuTarget) => void;
 };
 
-// Submenu de seleção colorida (prioridade/categoria): marca o item ativo e despacha o id.
-function PickSub({
-	label,
-	icon: Icon,
-	items,
-	activeId,
-	emptyLabel,
-	onPick,
-}: {
-	label: string;
-	icon: typeof Flame;
-	items: ColorOption[];
-	activeId?: string | null;
-	emptyLabel: string;
-	onPick: (id: string) => void;
-}) {
-	return (
-		<ContextMenuSub>
-			<ContextMenuSubTrigger className="px-3 py-2">
-				<Icon className="mr-2 size-4" />
-				{label}
-			</ContextMenuSubTrigger>
-			<ContextMenuSubContent className="max-h-72 w-[220px] overflow-y-auto">
-				{items.length === 0 ? (
-					<ContextMenuItem disabled className="px-3 py-2">
-						{emptyLabel}
-					</ContextMenuItem>
-				) : (
-					items.map((item) => {
-						const active = item.id === activeId;
-						return (
-							<ContextMenuItem
-								key={item.id}
-								onSelect={() => onPick(item.id)}
-								className={cn("gap-2 px-3 py-2", active && "font-medium")}
-							>
-								<span
-									className="size-2 shrink-0 rounded-full"
-									style={{ backgroundColor: item.color }}
-								/>
-								<span className="min-w-0 flex-1 truncate">{item.name}</span>
-								{active && <Check className="size-4 shrink-0 text-muted-foreground" />}
-							</ContextMenuItem>
-						);
-					})
-				)}
-			</ContextMenuSubContent>
-		</ContextMenuSub>
-	);
-}
-
-// Itens do menu de uma tarefa: copiar caminho, abrir, compartilhar, renomear, prioridade/categoria,
-// concluir, migrar de projeto e excluir. Puro — o wrapper (ou o vault) decide onde renderiza.
 export function taskMenuItems(
 	target: TaskMenuTarget,
 	data: TaskMenuData,
@@ -167,22 +104,6 @@ export function taskMenuItems(
 				<Pencil className="mr-2 size-4" />
 				Renomear
 			</ContextMenuItem>
-			<PickSub
-				label="Prioridade"
-				icon={Flame}
-				items={data.priorities}
-				activeId={target.priorityId}
-				emptyLabel="Nenhuma prioridade"
-				onPick={(id) => actions.onSetPriority(target, id)}
-			/>
-			<PickSub
-				label="Categoria"
-				icon={LayoutGrid}
-				items={data.categories}
-				activeId={target.categoryId}
-				emptyLabel="Nenhuma categoria"
-				onPick={(id) => actions.onSetCategory(target, id)}
-			/>
 			<ContextMenuItem onSelect={() => actions.onToggleDone(target)} className="px-3 py-2">
 				{target.done ? (
 					<CircleDot className="mr-2 size-4" />
@@ -308,7 +229,7 @@ export function TaskContextMenu({
 		<ContextMenu onOpenChange={setOpen}>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
 			{open && (
-				<ContextMenuContent className="w-[220px] rounded-none">
+				<ContextMenuContent className="w-[220px]">
 					<ContextMenuLabel className="truncate px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
 						{target.label}
 					</ContextMenuLabel>

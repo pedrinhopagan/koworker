@@ -3,20 +3,26 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join } from "node:path";
 
 import { getSystemSettings } from "./system-settings";
+import { kwTerminalAvailable } from "./terminal/kw-terminal";
+import { spawnEnv } from "./spawn";
+import { runSystemOpen } from "./system-open";
 import { zipDirectory } from "./zip";
 
 const HOME = homedir();
 
 // O comando que abre uma pasta no gerenciador de arquivos do SO — o mesmo que o Rust fazia por
 // #[cfg], agora no backend para funcionar também no browser (o backend roda na máquina do usuário).
-function fileManagerOpener(): string {
+function systemOpenCommands(target: string, env: Record<string, string | undefined>): string[][] {
 	switch (process.platform) {
 		case "darwin":
-			return "open";
+			return [["open", target]];
 		case "win32":
-			return "explorer";
+			return [["explorer", target]];
 		default:
-			return "xdg-open";
+			return [
+				...(Bun.which("gio", { PATH: env.PATH }) ? [["gio", "open", target]] : []),
+				["xdg-open", target],
+			];
 	}
 }
 
@@ -40,9 +46,36 @@ function resolveInput(raw: string, base: string): string {
 	return isAbsolute(expanded) ? expanded : join(base, expanded);
 }
 
-export function openInFileManager(path: string): void {
+async function openWithSystem(path: string): Promise<void> {
 	const target = expandTilde(path);
-	Bun.spawn([fileManagerOpener(), target], { stdout: "ignore", stderr: "ignore" });
+	const env = spawnEnv();
+	await runSystemOpen(systemOpenCommands(target, env), env);
+}
+
+export async function openInFileManager(path: string): Promise<void> {
+	await openWithSystem(path);
+}
+
+export async function revealInFileManager(path: string): Promise<void> {
+	const target = expandTilde(path);
+	const env = spawnEnv();
+
+	if (process.platform === "darwin") {
+		await runSystemOpen([["open", "-R", target]], env);
+		return;
+	}
+
+	if (process.platform === "win32") {
+		await runSystemOpen([["explorer", `/select,${target}`]], env);
+		return;
+	}
+
+	const commands = [
+		...(Bun.which("dolphin", { PATH: env.PATH }) ? [["dolphin", "--select", target]] : []),
+		...(Bun.which("nautilus", { PATH: env.PATH }) ? [["nautilus", "--select", target]] : []),
+		...systemOpenCommands(dirname(target), env),
+	];
+	await runSystemOpen(commands, env);
 }
 
 const MIME_BY_EXTENSION: Record<string, string> = {
@@ -92,13 +125,13 @@ async function focusDefaultApp(ext: string): Promise<void> {
 		Bun.spawn(["kdotool", "search", "--class", windowClass, "windowactivate"], {
 			stdout: "ignore",
 			stderr: "ignore",
-		});
+		}).unref();
 	} catch {}
 }
 
 export async function openFileInDefaultApp(path: string): Promise<void> {
 	const target = expandTilde(path);
-	Bun.spawn([fileManagerOpener(), target], { stdout: "ignore", stderr: "ignore" });
+	await openWithSystem(target);
 
 	await focusDefaultApp(extname(target).toLowerCase());
 }
@@ -151,6 +184,7 @@ async function copyFileToClipboard(zipPath: string): Promise<boolean> {
 		return false;
 	}
 
+	const env = spawnEnv();
 	const uri = `file://${encodeUriPath(zipPath)}`;
 	const desktop = (process.env.XDG_CURRENT_DESKTOP ?? "").toLowerCase();
 	const gnomeFamily = ["gnome", "cinnamon", "mate", "unity"].some((name) => desktop.includes(name));
@@ -159,7 +193,7 @@ async function copyFileToClipboard(zipPath: string): Promise<boolean> {
 		? ["x-special/gnome-copied-files", `copy\n${uri}`]
 		: ["text/uri-list", `${uri}\r\n`];
 
-	const argv = process.env.WAYLAND_DISPLAY
+	const argv = env.WAYLAND_DISPLAY
 		? ["wl-copy", "--type", mime]
 		: ["xclip", "-selection", "clipboard", "-t", mime];
 
@@ -168,6 +202,7 @@ async function copyFileToClipboard(zipPath: string): Promise<boolean> {
 			stdin: new TextEncoder().encode(payload),
 			stdout: "ignore",
 			stderr: "ignore",
+			env,
 		});
 
 		return (await proc.exited) === 0;
@@ -177,11 +212,9 @@ async function copyFileToClipboard(zipPath: string): Promise<boolean> {
 }
 
 // Capacidades do host que a UI precisa conhecer, mas que só o backend sabe (ele roda na máquina do
-// usuário). A primeira versão Windows sai sem terminal — decisão do plano de portabilidade: a UI de
-// tarefas fica completa, a invocação por terminal chega depois. Nas demais plataformas o terminal é
-// um serviço do backend e está sempre disponível.
+// usuário). O terminal externo é o kw-terminal: sem ele instalado, ou no Windows, não há terminal.
 export function systemCapabilities(): { canOpenTerminal: boolean } {
-	return { canOpenTerminal: process.platform !== "win32" };
+	return { canOpenTerminal: kwTerminalAvailable() };
 }
 
 export type DirectorySuggestion = { name: string; path: string };

@@ -26,7 +26,7 @@ const PopoverContent = React.forwardRef<
 				align={align}
 				sideOffset={sideOffset}
 				className={cn(
-					"z-50 border border-border bg-card shadow-xl outline-none",
+					"z-50 rounded-xl border border-border bg-popover text-popover-foreground shadow-xl outline-none",
 					"data-[state=open]:animate-in data-[state=closed]:animate-out",
 					// Sem fill-mode, ao terminar a animação de saída o elemento volta ao estado base
 					// (visível) por um frame antes do Radix desmontá-lo — daí o piscar. `forwards`

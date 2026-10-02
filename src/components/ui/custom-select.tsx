@@ -12,7 +12,7 @@ import { Text } from "../typography";
 // ============================================================================
 
 const customSelectTriggerVariants = tv({
-	base: "flex items-center justify-between gap-2 min-w-0 whitespace-nowrap transition-all outline-none disabled:cursor-not-allowed disabled:opacity-50",
+	base: "flex items-center justify-between gap-2 min-w-0 whitespace-nowrap rounded-[var(--control-radius)] transition-colors outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
 	variants: {
 		variant: {
 			default:
@@ -35,7 +35,7 @@ const customSelectTriggerVariants = tv({
 const customSelectContentVariants = tv({
 	base: [
 		// Keep content width stable and never exceed the available popper width.
-		"bg-card text-card-foreground border border-border shadow-xl z-50 overflow-hidden rounded-md min-w-[var(--radix-select-trigger-width)] max-w-[var(--radix-popper-available-width)] flex flex-col",
+		"bg-popover text-popover-foreground border border-border p-1 shadow-xl z-50 overflow-hidden rounded-xl min-w-[var(--radix-select-trigger-width)] max-w-[var(--radix-popper-available-width)] flex flex-col",
 		"data-[state=open]:animate-in data-[state=closed]:animate-out",
 		"data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
 		"data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -47,10 +47,10 @@ const customSelectContentVariants = tv({
 const customSelectItemVariants = tv({
 	base: cn(
 		"outline-none cursor-pointer min-w-0",
-		"px-3 py-2 text-sm",
-		"bg-background text-muted-foreground",
-		"data-[highlighted]:bg-muted data-[highlighted]:text-foreground",
-		"data-[state=checked]:bg-muted data-[state=checked]:text-foreground",
+		"rounded-md px-2.5 py-1.5 text-sm",
+		"bg-transparent text-foreground",
+		"data-[highlighted]:bg-accent data-[highlighted]:text-foreground",
+		"data-[state=checked]:bg-accent data-[state=checked]:text-foreground",
 		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 	),
 });
@@ -134,8 +134,8 @@ function CustomSelect<T extends { id: string }>({
 	const isEmpty = items.length === 0;
 	const portalContainer = useThemeRootContainer();
 	const contentStyle: React.CSSProperties = {
-		backgroundColor: "var(--card)",
-		color: "var(--card-foreground)",
+		backgroundColor: "var(--popover)",
+		color: "var(--popover-foreground)",
 	};
 
 	return (
@@ -169,7 +169,7 @@ function CustomSelect<T extends { id: string }>({
 								className="min-w-0 flex-1 truncate text-left"
 							/>
 							<SelectPrimitive.Icon asChild>
-								<ChevronDown className="size-4 opacity-50" />
+								<ChevronDown className="size-4 text-muted-foreground" />
 							</SelectPrimitive.Icon>
 						</>
 					)}
@@ -200,23 +200,23 @@ function CustomSelect<T extends { id: string }>({
 					>
 						{(label || error) && (
 							<div className="px-3 py-2 border-b border-border">
-								{label && (
-									<div className="text-xs text-muted-foreground uppercase tracking-wider">
-										{label}
-									</div>
-								)}
+								{label && <div className="text-xs text-muted-foreground font-medium">{label}</div>}
 								{error && <div className="mt-1 text-xs text-destructive">{error}</div>}
 							</div>
 						)}
 
 						<SelectPrimitive.Viewport
-							className="max-h-48 w-full min-w-0 overflow-y-auto bg-card text-card-foreground"
+							className="max-h-48 w-full min-w-0 overflow-y-auto bg-popover text-popover-foreground"
 							style={contentStyle}
 						>
 							{loading ? (
-								<div className="px-3 py-2 text-sm text-muted-foreground">Carregando...</div>
+								<div className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground">
+									Carregando...
+								</div>
 							) : isEmpty ? (
-								<div className="px-3 py-2 text-sm text-muted-foreground">{emptyMessage}</div>
+								<div className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground">
+									{emptyMessage}
+								</div>
 							) : (
 								items.map((item) => (
 									<SelectPrimitive.Item

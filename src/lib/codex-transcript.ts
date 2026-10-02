@@ -23,14 +23,87 @@ const RolloutLineSchema = z.object({
 		arguments: z.string().optional(),
 		input: z.string().optional(),
 		output: z.unknown().optional(),
+		duration_ms: z.number().optional(),
 		item: z
 			.object({
 				type: z.string(),
+				id: z.string().optional(),
 				content: TranscriptContentSchema.optional(),
+				questions: z.unknown().optional(),
 			})
 			.optional(),
 	}),
 });
+
+const QuestionListSchema = z.array(
+	z.object({
+		id: z.string().optional(),
+		title: z.string().optional(),
+		question: z.string().optional(),
+		options: z
+			.array(
+				z.union([z.string(), z.object({ label: z.string(), description: z.string().optional() })]),
+			)
+			.optional(),
+	}),
+);
+
+const QuestionArgumentsSchema = z.object({ questions: QuestionListSchema });
+
+const AnswersOutputSchema = z.object({
+	answers: z.record(z.string(), z.object({ answers: z.array(z.string()) })),
+});
+
+const ASYNC_QUESTION_TOOL = "request_user_input_async";
+const BLOCKING_QUESTION_TOOL = "request_user_input";
+
+function parseJson(raw: unknown) {
+	if (typeof raw !== "string") {
+		return null;
+	}
+
+	try {
+		return JSON.parse(raw) as unknown;
+	} catch {
+		return null;
+	}
+}
+
+function questionPatches(
+	toolUseId: string,
+	questions: z.infer<typeof QuestionListSchema>,
+	async: boolean,
+) {
+	return questions.flatMap((entry, index) => {
+		const question = (entry.question ?? entry.title)?.trim();
+		if (!question) {
+			return [];
+		}
+
+		const questionId = questions.length === 1 ? toolUseId : `${toolUseId}#${index}`;
+
+		return [
+			{
+				entry,
+				question,
+				questionId,
+				patch: {
+					type: "append",
+					payload: {
+						kind: "question",
+						questionId,
+						question,
+						options: (entry.options ?? []).map((option) =>
+							typeof option === "string" ? { label: option } : option,
+						),
+						multiSelect: false,
+						...(async ? { async: true } : {}),
+					},
+				} satisfies TranscriptPatch,
+			},
+		];
+	});
+}
 
 const TOOL_LABELS: Record<string, string> = {
 	exec: "Terminal",
@@ -142,16 +215,45 @@ function outputPatch(payload: z.infer<typeof RolloutLineSchema>["payload"]): Tra
 // conversa aparece no turno seguinte.
 const CodexModelLineSchema = z.object({
 	type: z.string(),
-	payload: z.object({ model: z.string().optional() }).optional(),
+	payload: z
+		.object({
+			type: z.string().optional(),
+			model: z.string().optional(),
+			effort: z.string().optional(),
+			thread_settings: z
+				.object({ model: z.string().optional(), reasoning_effort: z.string().optional() })
+				.optional(),
+		})
+		.optional(),
 });
 
-export function codexTranscriptModel(raw: unknown): string | null {
+function codexModelSettings(raw: unknown) {
 	const parsed = CodexModelLineSchema.safeParse(raw);
-	if (!parsed.success || parsed.data.type !== "turn_context") {
+	if (!parsed.success) {
 		return null;
 	}
 
-	return parsed.data.payload?.model?.trim() || null;
+	const { type, payload } = parsed.data;
+	if (type === "turn_context") {
+		return { model: payload?.model, effort: payload?.effort };
+	}
+
+	if (type === "event_msg" && payload?.type === "thread_settings_applied") {
+		return {
+			model: payload.thread_settings?.model,
+			effort: payload.thread_settings?.reasoning_effort,
+		};
+	}
+
+	return null;
+}
+
+export function codexTranscriptModel(raw: unknown): string | null {
+	return codexModelSettings(raw)?.model?.trim() || null;
+}
+
+export function codexTranscriptEffort(raw: unknown): string | null {
+	return codexModelSettings(raw)?.effort?.trim() || null;
 }
 
 // O rollout anuncia a fala de dois jeitos conforme a versão do codex: os novos usam `item_completed`
@@ -160,6 +262,56 @@ export function codexTranscriptModel(raw: unknown): string | null {
 // ignorado até o fim da leitura. O estado vive por arquivo e morre no reset da leitura.
 export function createCodexTranscriptTranslator() {
 	let itemMessagesSeen = false;
+	let asyncCalls = new Set<string>();
+	let pendingAsync = new Map<string, { toolUseId: string; questionId: string }>();
+	let blockingCalls = new Map<string, Map<string, string>>();
+
+	function asyncAnswers(text: string) {
+		const answers = new Map<string, string[]>();
+		const rest: string[] = [];
+		let current: string | null = null;
+
+		for (const line of text.split("\n")) {
+			const title = line.startsWith("> ") ? line.slice(2).trim() : null;
+			if (title !== null && pendingAsync.has(title)) {
+				current = title;
+				answers.set(title, []);
+				continue;
+			}
+
+			(current ? (answers.get(current) ?? []) : rest).push(line);
+		}
+
+		const patches = [...answers].flatMap(([title, lines]): TranscriptPatch[] => {
+			const answer = lines.join("\n").trim();
+			const pending = pendingAsync.get(title);
+			if (!answer || !pending) {
+				return [];
+			}
+
+			pendingAsync.delete(title);
+
+			return [{ type: "answer", ...pending, text: answer }];
+		});
+
+		return { patches, rest: patches.length > 0 ? rest.join("\n").trim() : text };
+	}
+
+	function blockingAnswers(callId: string, output: unknown): TranscriptPatch[] {
+		const ids = blockingCalls.get(callId);
+		blockingCalls.delete(callId);
+		const parsed = AnswersOutputSchema.safeParse(parseJson(output));
+		if (!ids || !parsed.success) {
+			return [];
+		}
+
+		return Object.entries(parsed.data.answers).flatMap(([id, entry]): TranscriptPatch[] => {
+			const questionId = ids.get(id);
+			const text = entry.answers.join(", ");
+
+			return questionId && text ? [{ type: "answer", toolUseId: callId, questionId, text }] : [];
+		});
+	}
 
 	function translate(raw: unknown): TranscriptPatch[] {
 		const parsed = RolloutLineSchema.safeParse(raw);
@@ -183,6 +335,22 @@ export function createCodexTranscriptTranslator() {
 		}
 
 		if (type === "event_msg") {
+			// O `/model` do TUI grava a troca na hora; virar aviso é o que faz a conversa (e o seletor)
+			// saber dela antes do próximo turno.
+			const settings = payload.type === "thread_settings_applied" ? codexModelSettings(raw) : null;
+			if (settings?.model) {
+				return [
+					{
+						type: "append",
+						payload: {
+							kind: "notice",
+							label: "Modelo trocado",
+							detail: [settings.model, settings.effort].filter(Boolean).join(" · "),
+							tone: "info",
+						},
+					},
+				];
+			}
 			if (payload.type === "item_completed" && payload.item) {
 				const text = payload.item.content
 					?.filter((block) => block.text?.trim())
@@ -192,17 +360,40 @@ export function createCodexTranscriptTranslator() {
 
 				if (payload.item.type === "UserMessage" && (text || images > 0)) {
 					itemMessagesSeen = true;
+					const { patches, rest } = text?.startsWith("> ")
+						? asyncAnswers(text)
+						: { patches: [], rest: text };
+					if (patches.length > 0 && !rest && images === 0) {
+						return patches;
+					}
 
 					return [
+						...patches,
 						{
 							type: "append",
 							payload: {
 								kind: "user",
-								text: text || (images === 1 ? "Imagem enviada" : `${images} imagens enviadas`),
+								text: rest || (images === 1 ? "Imagem enviada" : `${images} imagens enviadas`),
 								...(images > 0 ? { images } : {}),
 							},
 						},
 					];
+				}
+
+				const asyncQuestions = QuestionListSchema.safeParse(payload.item.questions);
+				if (
+					payload.item.type === "AgentMessage" &&
+					payload.item.id &&
+					asyncQuestions.success &&
+					asyncQuestions.data.length > 0
+				) {
+					itemMessagesSeen = true;
+					const questions = questionPatches(payload.item.id, asyncQuestions.data, true);
+					for (const { question, questionId } of questions) {
+						pendingAsync.set(question, { toolUseId: payload.item.id, questionId });
+					}
+
+					return questions.map(({ patch }) => patch);
 				}
 
 				if (payload.item.type === "AgentMessage" && text) {
@@ -226,8 +417,14 @@ export function createCodexTranscriptTranslator() {
 				return [{ type: "append", payload: { kind: "thinking", text: payload.text } }];
 			}
 
-			if (payload.type === "task_complete") {
-				return [{ type: "result", status: "done" }];
+			if (payload.type === "task_complete" || payload.type === "turn_aborted") {
+				return [
+					{
+						type: "result",
+						status: payload.type === "task_complete" ? "done" : "cancelled",
+						...(payload.duration_ms ? { durationMs: payload.duration_ms } : {}),
+					},
+				];
 			}
 
 			if (payload.type === "error") {
@@ -243,8 +440,43 @@ export function createCodexTranscriptTranslator() {
 			return [];
 		}
 
+		if (payload.type === "function_call" && payload.call_id) {
+			if (payload.name === ASYNC_QUESTION_TOOL) {
+				asyncCalls.add(payload.call_id);
+
+				return [];
+			}
+
+			if (payload.name === BLOCKING_QUESTION_TOOL) {
+				const parsedArguments = QuestionArgumentsSchema.safeParse(parseJson(payload.arguments));
+				const questions = parsedArguments.success
+					? questionPatches(payload.call_id, parsedArguments.data.questions, false)
+					: [];
+				blockingCalls.set(
+					payload.call_id,
+					new Map(
+						questions.flatMap(({ entry, questionId }) =>
+							entry.id ? [[entry.id, questionId] as const] : [],
+						),
+					),
+				);
+
+				return questions.map(({ patch }) => patch);
+			}
+		}
+
 		if (payload.type === "function_call" || payload.type === "custom_tool_call") {
 			return toolPatch(payload);
+		}
+
+		if (payload.type === "function_call_output" && payload.call_id) {
+			if (asyncCalls.delete(payload.call_id)) {
+				return [];
+			}
+
+			if (blockingCalls.has(payload.call_id)) {
+				return blockingAnswers(payload.call_id, payload.output);
+			}
 		}
 
 		if (payload.type === "function_call_output" || payload.type === "custom_tool_call_output") {
@@ -258,6 +490,9 @@ export function createCodexTranscriptTranslator() {
 		translate,
 		reset() {
 			itemMessagesSeen = false;
+			asyncCalls = new Set();
+			pendingAsync = new Map();
+			blockingCalls = new Map();
 		},
 	};
 }

@@ -32,7 +32,13 @@ async function root() {
 async function addRoot(tool: string, path: string, scope = "global") {
 	await db
 		.insertInto("skill_source_paths")
-		.values({ id: crypto.randomUUID(), tool, path, scope, created_at: Date.now() })
+		.values({
+			id: crypto.randomUUID(),
+			tool,
+			path,
+			scope,
+			created_at: Date.now(),
+		})
 		.execute();
 }
 
@@ -75,7 +81,7 @@ describe("previewSkillSyncInFs", () => {
 	test("não marca conflito quando só as permissões diferem", async () => {
 		const opencode = await root();
 		const claude = await root();
-		await addRoot("opencode", opencode);
+		await addRoot("agents", opencode);
 		await addRoot("claude-code", claude);
 		await writeSkill(opencode, "same", "mesmo corpo", "mesmo guia");
 		await writeSkill(claude, "same", "mesmo corpo", "mesmo guia");
@@ -86,7 +92,7 @@ describe("previewSkillSyncInFs", () => {
 		expect(plan.skills[0].conflict).toBe(false);
 		expect(plan.totals.conflicts).toBe(0);
 		expect(plan.totals.toCreate).toBe(0);
-		expect(plan.totals.toUpdate).toBe(0);
+		expect(plan.totals.toUpdate).toBe(1);
 	});
 
 	test("rejeita symlink interno antes do backup", async () => {
@@ -111,7 +117,7 @@ describe("previewSkillSyncInFs", () => {
 });
 
 describe("applySkillSyncInFs", () => {
-	test("replica a versão escolhida para todas as CLIs sem apagar as fontes", async () => {
+	test("centraliza a versão escolhida, cria links e remove duplicatas nativas com backup", async () => {
 		const opencode = await root();
 		const claude = await root();
 		const agents = await root();
@@ -138,9 +144,9 @@ describe("applySkillSyncInFs", () => {
 			tempDirs.push(result.backupPath);
 		}
 
-		expect(result.updated).toBe(2);
+		expect(result.updated).toBe(4);
 		expect(result.created).toBe(2);
-		for (const dir of [opencode, claude, agents]) {
+		for (const dir of [claude, agents]) {
 			expect(await readFile(join(dir, "shared", "references", "guide.md"), "utf8")).toBe(
 				"guia claude",
 			);
@@ -179,7 +185,7 @@ describe("applySkillSyncInFs", () => {
 		);
 	});
 
-	test("preserva symlink com conteúdo igual e materializa a cópia nas CLIs sem a skill", async () => {
+	test("materializa link externo na central e remove a entrada nativa redundante", async () => {
 		const opencode = await root();
 		const agents = await root();
 		const source = await root();
@@ -193,14 +199,17 @@ describe("applySkillSyncInFs", () => {
 		expect(linked?.sources[0].entryType).toBe("symlink");
 		expect(linked?.conflict).toBe(false);
 
-		const result = await applySkillSyncInFs({ planHash: plan.planHash, choices: [] });
+		const result = await applySkillSyncInFs({
+			planHash: plan.planHash,
+			choices: [],
+		});
 		if (result.backupPath) {
 			tempDirs.push(result.backupPath);
 		}
 
 		expect(result.created).toBe(1);
-		expect(result.updated).toBe(0);
-		expect((await lstat(join(opencode, "linked"))).isSymbolicLink()).toBe(true);
+		expect(result.updated).toBe(1);
+		expect(await Bun.file(join(opencode, "linked", "SKILL.md")).exists()).toBe(false);
 		expect((await lstat(join(agents, "linked"))).isDirectory()).toBe(true);
 		expect(await readFile(join(agents, "linked", "SKILL.md"), "utf8")).toContain("corpo");
 	});
@@ -214,12 +223,46 @@ describe("applySkillSyncInFs", () => {
 		await writeSkill(opencode, "create-root", "corpo");
 		const plan = await previewSkillSyncInFs();
 
-		const result = await applySkillSyncInFs({ planHash: plan.planHash, choices: [] });
+		const result = await applySkillSyncInFs({
+			planHash: plan.planHash,
+			choices: [],
+		});
 		if (result.backupPath) {
 			tempDirs.push(result.backupPath);
 		}
 
 		expect(result.created).toBe(1);
 		expect(await readFile(join(missing, "create-root", "SKILL.md"), "utf8")).toContain("corpo");
+	});
+});
+
+test("edições na central chegam ao Claude, e a segunda sincronização não altera nada", async () => {
+	const agents = await root();
+	const claude = await root();
+	const codex = await root();
+	await addRoot("agents", agents);
+	await addRoot("claude-code", claude);
+	await addRoot("codex", codex);
+	await writeSkill(agents, "live", "primeira versão");
+	await mkdir(join(codex, ".system"));
+	await writeFile(join(codex, ".system", "preservado"), "sistema");
+	const plan = await previewSkillSyncInFs();
+	const result = await applySkillSyncInFs({
+		planHash: plan.planHash,
+		choices: [],
+	});
+	if (result.backupPath) tempDirs.push(result.backupPath);
+	expect((await lstat(join(claude, "live"))).isSymbolicLink()).toBe(true);
+	await writeSkill(agents, "live", "edição compartilhada");
+	expect(await readFile(join(claude, "live", "SKILL.md"), "utf8")).toContain(
+		"edição compartilhada",
+	);
+	expect(await readFile(join(codex, ".system", "preservado"), "utf8")).toBe("sistema");
+	const current = await previewSkillSyncInFs();
+	expect(current.totals.toUpdate + current.totals.toCreate).toBe(0);
+	expect(await applySkillSyncInFs({ planHash: current.planHash, choices: [] })).toEqual({
+		backupPath: null,
+		created: 0,
+		updated: 0,
 	});
 });

@@ -13,6 +13,7 @@ export async function subscribeWithRetry<T>(input: {
 	subscribe: (signal: AbortSignal) => Promise<AsyncIterable<T>>;
 	onEvent: (event: T) => void;
 	onReconnect?: () => void;
+	onConnectionChange?: (connected: boolean) => void;
 }) {
 	let retryDelay = RETRY_MIN_MS;
 	let attempts = 0;
@@ -20,6 +21,7 @@ export async function subscribeWithRetry<T>(input: {
 	while (!input.signal.aborted) {
 		try {
 			const events = await input.subscribe(input.signal);
+			let connected = false;
 			retryDelay = RETRY_MIN_MS;
 
 			if (attempts > 0) {
@@ -27,6 +29,13 @@ export async function subscribeWithRetry<T>(input: {
 			}
 
 			for await (const event of events) {
+				if (input.signal.aborted) {
+					return;
+				}
+				if (!connected) {
+					connected = true;
+					input.onConnectionChange?.(true);
+				}
 				input.onEvent(event);
 			}
 		} catch (error) {
@@ -42,6 +51,7 @@ export async function subscribeWithRetry<T>(input: {
 		}
 
 		attempts += 1;
+		input.onConnectionChange?.(false);
 		await wait(retryDelay);
 		retryDelay = Math.min(retryDelay * 2, RETRY_MAX_MS);
 	}

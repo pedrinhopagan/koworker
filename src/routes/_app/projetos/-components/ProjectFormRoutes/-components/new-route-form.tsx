@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { IconSelector } from "@/components/ui/icon-selector";
 import { Input } from "@/components/ui/input";
 import { resolveProjectRouteCli } from "@/constants/projects";
+import { BackgroundToggle } from "./route-item";
 import type { ProjectFormValues } from "../../project-form";
 
 type NewRouteFormProps = {
@@ -19,6 +20,7 @@ type NewRouteFormProps = {
 		route: string;
 		icon?: string;
 		command?: string;
+		background?: boolean;
 	}) => void;
 	isCreating: boolean;
 };
@@ -32,6 +34,7 @@ export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormPr
 	const [route, setRoute] = useState(mainRoute || "");
 	const [icon, setIcon] = useState<string>("FolderOpen");
 	const [command, setCommand] = useState("");
+	const [background, setBackground] = useState(false);
 	const cli = resolveProjectRouteCli({ name });
 
 	function handleSubmit() {
@@ -46,6 +49,7 @@ export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormPr
 			route: trimmedRoute,
 			icon: icon || undefined,
 			command: command.trim() || undefined,
+			background: !cli && command.trim() ? background : undefined,
 		});
 
 		// Reset form
@@ -53,6 +57,7 @@ export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormPr
 		setRoute(mainRoute || "");
 		setIcon("FolderOpen");
 		setCommand("");
+		setBackground(false);
 	}
 
 	return (
@@ -100,6 +105,9 @@ export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormPr
 						}
 					}}
 				/>
+				{!cli && command.trim() && (
+					<BackgroundToggle checked={background} onChange={setBackground} />
+				)}
 				<Button
 					type="button"
 					onClick={handleSubmit}

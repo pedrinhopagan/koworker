@@ -1,12 +1,7 @@
 import { z } from "zod";
 
-import { INVOKE_CLIS } from "@/constants/invoke";
+import { INVOKE_CLIS, WORKING_CLIS } from "@/constants/invoke";
 import { SKILL_SLUG_PATTERN } from "@/constants/skill-slug";
-
-const ProjectRefSchema = z.object({
-	id: z.string(),
-	name: z.string(),
-});
 
 const PermissionModeSchema = z.enum([
 	"bypass",
@@ -29,7 +24,7 @@ const EffortSchema = z
 // Foco da sessão já aberta do CLI ativo. Sem `projectId` (nenhum projeto em foco na UI) qualquer
 // sessão daquele CLI serve.
 export const FocusAgentSchema = z.object({
-	cli: z.enum(INVOKE_CLIS),
+	cli: z.enum(WORKING_CLIS),
 	projectId: z.string().optional(),
 });
 
@@ -62,8 +57,4 @@ export const CloseProjectSessionSchema = z.object({
 export const CloseTaskWindowSchema = z.object({
 	projectId: z.string(),
 	taskId: z.string(),
-});
-
-export const InvocationSessionsSchema = z.object({
-	projects: ProjectRefSchema.array(),
 });

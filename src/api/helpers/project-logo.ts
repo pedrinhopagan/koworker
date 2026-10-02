@@ -1,5 +1,6 @@
 import { readdir } from "node:fs/promises";
-import { basename, extname, join, relative, resolve } from "node:path";
+import { basename, dirname, extname, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const IMAGE_EXTENSIONS = new Set([".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"]);
 const SKIPPED_DIRECTORIES = new Set([
@@ -18,6 +19,12 @@ const SKIPPED_DIRECTORIES = new Set([
 	"vendor",
 ]);
 const MAX_SCAN_DEPTH = 5;
+const helpersDir = dirname(fileURLToPath(import.meta.url));
+const BUNDLED_PROJECT_LOGOS = resolve(helpersDir, "../../../static/project-logos");
+
+const PROJECT_NAME_LOGO_OVERRIDES: Record<string, string> = {
+	"dogama vault": "dogama.png",
+};
 
 const PROJECT_LOGO_OVERRIDES: Record<string, string> = {
 	"aab-arquitetura": "src/assets/Logos/logo-almond.svg",
@@ -106,6 +113,11 @@ async function findLogoCandidates(projectRoot: string) {
 	await scan(projectRoot, 0);
 
 	return candidates.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
+}
+
+export function resolveProjectLogoByName(projectName: string) {
+	const logo = PROJECT_NAME_LOGO_OVERRIDES[projectName.trim().toLowerCase()];
+	return logo ? join(BUNDLED_PROJECT_LOGOS, logo) : null;
 }
 
 export async function resolveProjectLogo(projectRoute: string) {

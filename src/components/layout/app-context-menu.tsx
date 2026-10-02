@@ -76,8 +76,8 @@ export function AppContextMenu({ children }: { children: ReactNode }) {
 			<ContextMenuTrigger asChild>
 				<div className="contents">{children}</div>
 			</ContextMenuTrigger>
-			<ContextMenuContent className="w-[220px] rounded-none">
-				<ContextMenuLabel className="truncate px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
+			<ContextMenuContent className="w-[220px]">
+				<ContextMenuLabel className="truncate px-2.5 py-2 text-xs font-medium text-muted-foreground">
 					Navegação
 				</ContextMenuLabel>
 				<ContextMenuItem disabled={!canGoBack} onSelect={goBack} className="px-3 py-2">

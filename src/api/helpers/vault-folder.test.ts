@@ -113,8 +113,18 @@ describe("contenção de path do vault", () => {
 });
 
 describe("operações legítimas do vault", () => {
-	test("escreve, lê e renomeia uma nota comum", async () => {
+	test("não cria nota solta nova", async () => {
 		const root = await createProjectRoot();
+
+		await expect(
+			writeVaultFile({ projectRoute: root, name: "nova.md", content: "# Nova\n" }),
+		).rejects.toThrow();
+		expect(await Bun.file(join(root, ".koworker", "nova.md")).exists()).toBe(false);
+	});
+
+	test("edita, lê e renomeia uma nota existente", async () => {
+		const root = await createProjectRoot();
+		await Bun.write(join(root, ".koworker", "nota.md"), "# Rascunho\n");
 
 		await writeVaultFile({ projectRoute: root, name: "nota.md", content: "# Minha nota\n" });
 

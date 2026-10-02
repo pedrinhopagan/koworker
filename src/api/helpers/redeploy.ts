@@ -60,6 +60,7 @@ export async function acquireRedeployLock(): Promise<void> {
 			throw new ORPCError("CONFLICT", { message: "redeploy em andamento" });
 		}
 
+		stopStaleRedeployUnit();
 		await rm(lockPath, { force: true });
 	}
 
@@ -88,6 +89,14 @@ export async function acquireRedeployLock(): Promise<void> {
 		await rm(lockPath, { force: true });
 		throw error;
 	}
+}
+
+function stopStaleRedeployUnit() {
+	if (!Bun.which("systemctl")) return;
+	Bun.spawnSync(["systemctl", "--user", "stop", REDEPLOY_UNIT], {
+		stdout: "ignore",
+		stderr: "ignore",
+	});
 }
 
 export async function releaseRedeployLock(): Promise<void> {

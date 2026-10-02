@@ -12,6 +12,12 @@ import {
 import type { ReactNode } from "react";
 
 import {
+	type TaskMenuActions,
+	type TaskMenuData,
+	type TaskMenuTarget,
+	taskMenuItems,
+} from "@/components/tasks/task-context-menu";
+import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
@@ -22,12 +28,6 @@ import {
 	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import {
-	type TaskMenuActions,
-	type TaskMenuData,
-	type TaskMenuTarget,
-	taskMenuItems,
-} from "@/components/tasks/task-context-menu";
 import type { TaskFolder, TreeNode } from "../-utils/build-vault-tree";
 
 export type { TaskMenuData };
@@ -51,8 +51,6 @@ export type TreeActions = {
 	// Ações da pasta de tarefa (kind === "taskFolder"). O dono despacha pra mutation pelo taskId.
 	onOpenTask: (node: TaskFolder) => void;
 	onRenameTask: (node: TaskFolder) => void;
-	onSetTaskPriority: (node: TaskFolder, priorityId: string) => void;
-	onSetTaskCategory: (node: TaskFolder, categoryId: string) => void;
 	onToggleTaskDone: (node: TaskFolder) => void;
 	onMoveTaskToProject: (node: TaskFolder, projectId: string) => void;
 	onDeleteTask: (node: TaskFolder) => void;
@@ -105,8 +103,6 @@ function taskFolderItems(node: TaskFolder, data: TaskMenuData, actions: TreeActi
 		id: node.taskId,
 		label: node.label,
 		done: node.done,
-		priorityId: node.priorityId,
-		categoryId: node.categoryId,
 	};
 	const taskActions: TaskMenuActions = {
 		onOpen: () => actions.onOpenTask(node),
@@ -114,8 +110,6 @@ function taskFolderItems(node: TaskFolder, data: TaskMenuData, actions: TreeActi
 		onShareZip: () => actions.onShareZip(node),
 		onOpenInOs: () => actions.onOpenInOs(node),
 		onRename: () => actions.onRenameTask(node),
-		onSetPriority: (_t, id) => actions.onSetTaskPriority(node, id),
-		onSetCategory: (_t, id) => actions.onSetTaskCategory(node, id),
 		onToggleDone: () => actions.onToggleTaskDone(node),
 		onMoveToProject: (_t, projectId) => actions.onMoveTaskToProject(node, projectId),
 		onDelete: () => actions.onDeleteTask(node),
@@ -281,7 +275,7 @@ export function TreeNodeMenu({
 	return (
 		<ContextMenu onOpenChange={onOpenChange}>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-			<ContextMenuContent className="w-[220px] rounded-none">
+			<ContextMenuContent className="w-[220px]">
 				<ContextMenuLabel className="truncate px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
 					{node.label}
 				</ContextMenuLabel>
@@ -314,7 +308,7 @@ export function TreeBatchMenu({
 	return (
 		<ContextMenu onOpenChange={onOpenChange}>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-			<ContextMenuContent className="w-[220px] rounded-none">
+			<ContextMenuContent className="w-[220px]">
 				<ContextMenuLabel className="px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
 					{count} selecionada{count > 1 ? "s" : ""}
 				</ContextMenuLabel>

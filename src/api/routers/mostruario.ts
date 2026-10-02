@@ -3,7 +3,7 @@ import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
 import { listTaskArtifacts, type TaskArtifactMeta } from "../helpers/koworker-assets";
 import { MostruarioListSchema } from "../schemas";
-import { mapTasks } from "./tasks";
+import { mapTasks } from "../helpers/task-display";
 
 function latestArtifact(artifacts: TaskArtifactMeta[]): number {
 	return artifacts.reduce((max, artifact) => Math.max(max, artifact.mtime), 0);

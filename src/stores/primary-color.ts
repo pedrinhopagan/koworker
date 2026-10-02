@@ -8,8 +8,7 @@ type PrimaryColorPreset = {
 };
 
 export const primaryColorPresets: PrimaryColorPreset[] = [
-	// Dourado do Tokyo Night (#e0af68). Dark rende a cor exata; light desce a luminância pra manter
-	// contraste com o texto quase-branco do foreground.
+	{ name: "T3", light: "oklch(0.488 0.217 264)", dark: "oklch(0.571 0.21 264)" },
 	{ name: "Tokyo", light: "oklch(0.62 0.11 75)", dark: "oklch(0.78 0.11 75)" },
 	{ name: "Nord", light: "oklch(0.55 0.08 251)", dark: "oklch(0.70 0.06 251)" },
 	{ name: "Olive", light: "oklch(0.56 0.049 132)", dark: "oklch(0.67 0.081 119)" },
@@ -31,11 +30,11 @@ interface PrimaryColorState {
 export const usePrimaryColorStore = create<PrimaryColorState>()(
 	persist(
 		(set, get) => ({
-			presetName: "Tokyo",
+			presetName: "T3",
 			setPresetName: (name) => set({ presetName: name }),
 			getColors: () => primaryColorPresets.find((p) => p.name === get().presetName),
 		}),
-		// version 2: descarta o preset persistido antigo pra o novo default "Tokyo" valer.
-		{ name: "primary-color-storage", version: 2 },
+
+		{ name: "primary-color-storage", version: 3 },
 	),
 );

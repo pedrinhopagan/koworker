@@ -318,13 +318,14 @@ export async function deleteVaultFile(params: {
 	invalidateFolderPrefix(root);
 }
 
+// Só edita nota solta que já existe: nota nova nasce dentro de uma tarefa.
 export async function writeVaultFile(params: {
 	projectRoute: string;
 	name: string;
 	content: string;
 }): Promise<void> {
-	const dir = await ensureVaultRoot(params.projectRoute);
-	await Bun.write(await resolveVaultFileDestination(dir, params.name), params.content);
+	const dir = await resolveVaultRoot(params.projectRoute);
+	await Bun.write(await resolveVaultFile(dir, params.name), params.content);
 	invalidateFolderPrefix(dir);
 }
 

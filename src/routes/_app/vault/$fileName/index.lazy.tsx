@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowUpRight, Link2, Loader2, MoreVertical, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { DocEditorPane, type DocEditorPaneHandle } from "@/components/doc-editor-pane";
@@ -16,11 +16,10 @@ import { DocToolbar } from "@/components/doc-toolbar";
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { useProjectFocus } from "@/hooks/use-project-focus";
-import { useRecordDocSession } from "@/hooks/use-record-doc-session";
 import { joinPath, openFolderInOs } from "@/lib/os-share";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
-import { LinkTaskPopover, type NewTaskPayload } from "../-components/link-task-popover";
+import { LinkTaskPopover } from "../-components/link-task-popover";
 
 export const Route = createLazyFileRoute("/_app/vault/$fileName/")({
 	component: VaultFilePage,
@@ -51,20 +50,6 @@ function VaultFilePage() {
 	});
 
 	const file = fileQuery.data ?? null;
-
-	const { pinned, togglePin } = useRecordDocSession(
-		file
-			? {
-					key: docSessionKey({ kind: "vault", projectId, fileName }),
-					kind: "vault",
-					title: file.title,
-					subtitle: file.name,
-					projectName: selectedProject?.name,
-					projectId,
-					nav: { to: "/vault/$fileName", params: { fileName } },
-				}
-			: null,
-	);
 
 	const taskOptions = (tasksQuery.data ?? []).map((task) => ({
 		id: task.id,
@@ -104,23 +89,9 @@ function VaultFilePage() {
 		onError: (err) => toast.error(err instanceof Error ? err.message : "Não foi possível vincular"),
 	});
 
-	const createTaskMutation = useMutation(orpc.tasks.create.mutationOptions());
-
 	async function link(taskId: string, targetName?: string) {
 		await paneRef.current?.flush();
 		linkMutation.mutate({ projectId, taskId, files: [{ name: fileName, targetName }] });
-	}
-
-	// Cria a tarefa de destino vazia (seed: false) e arquiva a nota nela no mesmo passo.
-	async function linkNew(payload: NewTaskPayload, targetName?: string) {
-		await paneRef.current?.flush();
-		try {
-			const task = await createTaskMutation.mutateAsync({ projectId, ...payload, seed: false });
-			if (!task) throw new Error("Não foi possível criar a tarefa");
-			linkMutation.mutate({ projectId, taskId: task.id, files: [{ name: fileName, targetName }] });
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Não foi possível criar a tarefa");
-		}
 	}
 
 	async function promote() {
@@ -138,8 +109,6 @@ function VaultFilePage() {
 		onCopyContent: () => void paneRef.current?.copyContent(),
 		onCopyPath: () => void paneRef.current?.copyPath(),
 		onReading: () => setReading(true),
-		pinned,
-		onTogglePin: togglePin,
 		share: selectedProject
 			? {
 					onOpenInOs: () => void openFolderInOs(joinPath(selectedProject.mainRoute, ".koworker")),
@@ -206,9 +175,8 @@ function VaultFilePage() {
 								tasks={taskOptions}
 								loading={tasksQuery.isLoading}
 								fileNames={[file.name]}
-								pending={linkMutation.isPending || createTaskMutation.isPending}
+								pending={linkMutation.isPending}
 								onConfirm={(taskId, targetName) => void link(taskId, targetName)}
-								onConfirmNew={(payload, targetName) => void linkNew(payload, targetName)}
 							>
 								<Button variant="outline" size="sm" disabled={linkMutation.isPending}>
 									{linkMutation.isPending ? (
@@ -249,9 +217,8 @@ function VaultFilePage() {
 					tasks={taskOptions}
 					loading={tasksQuery.isLoading}
 					fileNames={[file.name]}
-					pending={linkMutation.isPending || createTaskMutation.isPending}
+					pending={linkMutation.isPending}
 					onConfirm={(taskId, targetName) => void link(taskId, targetName)}
-					onConfirmNew={(payload, targetName) => void linkNew(payload, targetName)}
 				>
 					<button type="button" disabled={linkMutation.isPending} className={docSheetAction()}>
 						<span className="flex size-[18px] shrink-0 items-center justify-center">
@@ -293,6 +260,7 @@ function VaultFilePage() {
 					sessionKey={docSessionKey({ kind: "vault", projectId, fileName })}
 					content={file.content}
 					folderPath=".koworker"
+					linkCwd={selectedProject ? joinPath(selectedProject.mainRoute, ".koworker") : undefined}
 					writeFile={(payload) => writeMutation.mutateAsync({ projectId, ...payload })}
 					reading={reading}
 					onExitReading={() => setReading(false)}

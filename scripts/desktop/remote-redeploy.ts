@@ -10,6 +10,7 @@ const REPO_DIR = process.env.KOWORK_REPO_DIR ?? process.cwd();
 const dataDir = koworkerDataDir();
 const logPath = join(dataDir, "redeploy.log");
 const lockPath = join(dataDir, "redeploy.lock");
+const STEP_TIMEOUT_MS = 10 * 60 * 1000;
 const worktreeDir = await mkdtemp(join(tmpdir(), "kowork-remote-deploy-"));
 let worktreeMounted = false;
 let snapshot: { commit: string; label: string; dirty: boolean } | null = null;
@@ -91,11 +92,26 @@ async function runCommand(label: string, command: string[], cwd = REPO_DIR) {
 		stdout: "pipe",
 		stderr: "pipe",
 		stdin: "ignore",
+		detached: true,
 	});
+
+	let timedOut = false;
+	const timer = setTimeout(() => {
+		timedOut = true;
+		try {
+			process.kill(-proc.pid, "SIGKILL");
+		} catch {
+			proc.kill("SIGKILL");
+		}
+	}, STEP_TIMEOUT_MS);
 
 	await Promise.all([drainStream(proc.stdout, ""), drainStream(proc.stderr, "[stderr] ")]);
 
 	const exitCode = await proc.exited;
+	clearTimeout(timer);
+	if (timedOut) {
+		throw new Error(`${label} passou de ${STEP_TIMEOUT_MS / 60_000} minutos e foi interrompido`);
+	}
 	if (exitCode !== 0) {
 		throw new Error(`Comando falhou (exit ${exitCode}): ${command.join(" ")}`);
 	}

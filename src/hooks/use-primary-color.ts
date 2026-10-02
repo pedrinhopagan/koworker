@@ -8,11 +8,12 @@ export function usePrimaryColor() {
 
 	useEffect(() => {
 		const colors = primaryColorPresets.find((p) => p.name === presetName);
-		if (!colors) return;
+		if (!colors) {
+			return;
+		}
 
 		const color = theme === "dark" ? colors.dark : colors.light;
-		document.documentElement.style.setProperty("--primary", color);
-		document.documentElement.style.setProperty("--ring", color);
-		document.documentElement.style.setProperty("--success", color);
+		document.querySelector<HTMLElement>("[data-theme-root]")?.style.setProperty("--primary", color);
+		document.querySelector<HTMLElement>("[data-theme-root]")?.style.setProperty("--ring", color);
 	}, [theme, presetName]);
 }

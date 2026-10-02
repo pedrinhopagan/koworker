@@ -1,28 +1,22 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { ChevronsUpDown } from "lucide-react";
 import { tv } from "tailwind-variants";
 
+import { AgentWaitingBadge, AgentWorkingPulse } from "@/components/layout/agent-nav-indicators";
 import {
 	formatSidebarShortcut,
 	isSidebarRouteActive,
 	sidebarNavGroups,
 	sidebarSelectProjectItem,
-	type SidebarNavActionItem,
 	type SidebarNavItem,
 	type SidebarNavRouteItem,
 } from "@/components/layout/sidebar-nav-config";
-import { SidebarAgentPulse } from "@/components/layout/sidebar-agent-pulse";
 import { SidebarTooltip } from "@/components/layout/sidebar-tooltip";
+import { Text } from "@/components/typography";
 import { useProjectFocus } from "@/hooks";
 import { useAgentRadarAttention } from "@/hooks/use-agent-radar";
-import { useNavActionDialogsStore } from "@/hooks/use-nav-action-dialogs";
 import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
-import { hideWindow, isDesktop } from "@/lib/desktop";
-import { sweepAllActiveTerminals } from "@/lib/terminal";
-import { getWindowToggleShortcutTooltip } from "@/lib/window-shortcut";
 import { cn } from "@/lib/utils";
-import { useDocSessionsStore } from "@/stores/doc-sessions";
-import { useDocSwitcherStore } from "@/stores/doc-switcher";
-import { useSplitViewStore } from "@/stores/split-view";
 
 type SidebarNavContentProps = {
 	variant: "sidebar" | "drawer";
@@ -31,79 +25,22 @@ type SidebarNavContentProps = {
 };
 
 const sidebarItem = tv({
-	base: "w-full transition-colors cursor-pointer",
+	base: "w-full rounded-[var(--control-radius)] text-left text-sm transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 	variants: {
 		active: {
-			true: "text-foreground font-medium bg-[var(--project-accent-soft)] shadow-[inset_2px_0_0_var(--project-accent,var(--primary))]",
-			false: "text-muted-foreground hover:text-foreground hover:bg-muted/30",
+			true: "text-sidebar-foreground font-medium bg-sidebar-row-selected shadow-xs",
+			false:
+				"text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-row-hover",
 		},
 		layout: {
-			compact: "flex items-center justify-center p-2.5",
-			expanded: "flex items-center gap-3 px-3 py-2.5",
-			drawer: "flex min-h-12 items-center gap-3 px-5 py-3 text-base",
-		},
-		danger: {
-			true: "hover:text-destructive",
+			compact: "flex h-9 items-center justify-center px-2",
+			expanded: "flex h-8 items-center gap-2.5 px-2.5",
+			drawer: "flex min-h-12 items-center gap-3 px-3 py-3 text-base",
 		},
 	},
 });
 
 type SidebarLayout = "compact" | "expanded" | "drawer";
-
-type CountTone = "accent" | "warning";
-
-const COUNT_TONE: Record<CountTone, { overlay: string; inline: string }> = {
-	accent: {
-		overlay:
-			"bg-[var(--project-accent,var(--primary))]/30 text-[var(--project-accent,var(--primary))]",
-		inline: "bg-muted text-foreground",
-	},
-	warning: {
-		overlay: "bg-warning/35 text-warning",
-		inline: "bg-warning/20 text-warning",
-	},
-};
-
-// Carimbo de contagem do item da sidebar: sobre o ícone quando a barra está estreita ou expandida, e
-// ao fim da linha no drawer, onde há largura sobrando.
-function SidebarCountBadge({
-	count,
-	layout,
-	tone,
-}: {
-	count: number;
-	layout: SidebarLayout;
-	tone: CountTone;
-}) {
-	if (count <= 0) {
-		return null;
-	}
-
-	if (layout === "drawer") {
-		return (
-			<span
-				className={cn(
-					"ml-auto min-w-5 rounded px-1.5 text-center text-xs font-semibold",
-					COUNT_TONE[tone].inline,
-				)}
-			>
-				{count}
-			</span>
-		);
-	}
-
-	return (
-		<span
-			className={cn(
-				"absolute z-10 min-w-3 rounded-[3px] px-0.5 text-center font-semibold text-[8px] leading-[11px]",
-				COUNT_TONE[tone].overlay,
-				layout === "compact" ? "-top-1.5 -right-1.5" : "-top-2 -right-2",
-			)}
-		>
-			{count}
-		</span>
-	);
-}
 
 export function SidebarNavContent({
 	variant,
@@ -113,7 +50,6 @@ export function SidebarNavContent({
 	const location = useLocation();
 	const navigate = useNavigate();
 	const currentPath = location.pathname;
-	const toggleShortcutTooltip = getWindowToggleShortcutTooltip();
 
 	const { selectedProjectId, selectedProject, accent, loading } = useProjectFocus();
 	const openProjectDialog = useProjectSelectDialogStore((s) => s.openDialog);
@@ -123,75 +59,18 @@ export function SidebarNavContent({
 			? "Todos os projetos"
 			: (selectedProject?.name ?? (loading ? "Carregando..." : "Selecionar projeto"));
 
-	const openSwitcher = useDocSwitcherStore((s) => s.open);
-	const recents = useDocSessionsStore((s) => s.recents);
-	const sessionCount = recents.length;
-	const currentKey = useDocSwitcherStore((s) => s.current?.key ?? null);
-	const currentInList = currentKey !== null && recents.some((r) => r.key === currentKey);
-
-	const openActionDialog = useNavActionDialogsStore((s) => s.open);
 	const radar = useAgentRadarAttention();
 
-	const splitLeft = useSplitViewStore((s) => s.left);
-	const pinPane = useSplitViewStore((s) => s.pin);
-	const unpinPane = useSplitViewStore((s) => s.unpin);
-
 	const layout: SidebarLayout = variant === "drawer" ? "drawer" : compact ? "compact" : "expanded";
-	const iconSize = variant === "drawer" ? 18 : 15;
+	const iconSize = variant === "drawer" ? 18 : 16;
 
 	function handleRouteNavigate(path: string) {
 		onNavigate?.();
 		navigate({ to: path });
 	}
 
-	function handleAction(action: SidebarNavActionItem) {
-		switch (action.id) {
-			case "openSwitcher":
-				onNavigate?.();
-				openSwitcher();
-				break;
-			case "newVaultNote":
-				onNavigate?.();
-				openActionDialog("newVaultNote");
-				break;
-			case "newTask":
-				onNavigate?.();
-				openActionDialog("newTask");
-				break;
-			case "refreshPage":
-				onNavigate?.();
-				window.location.reload();
-				break;
-			case "sweepInvocations":
-				onNavigate?.();
-				openActionDialog("sweepInvocations");
-				break;
-			case "sweepAll":
-				onNavigate?.();
-				void sweepAllActiveTerminals();
-				break;
-			case "toggleSplit": {
-				onNavigate?.();
-				const current = `${location.pathname}${location.searchStr}`;
-				if (splitLeft === current) {
-					unpinPane();
-				} else {
-					pinPane(current);
-				}
-				break;
-			}
-			case "hideWindow":
-				onNavigate?.();
-				hideWindow();
-				break;
-		}
-	}
-
 	function getTooltipLabel(item: SidebarNavItem): string | undefined {
-		const shortcut =
-			item.kind === "selectProject"
-				? formatSidebarShortcut(item.altKey)
-				: formatSidebarShortcut(item.kind === "route" ? item.altKey : item.altKey);
+		const shortcut = formatSidebarShortcut(item.altKey);
 
 		if (variant === "drawer") {
 			return undefined;
@@ -202,18 +81,11 @@ export function SidebarNavContent({
 		}
 
 		if (compact) {
-			if (item.kind === "action" && item.id === "hideWindow") {
-				return `${item.label} (${toggleShortcutTooltip})`;
-			}
 			return shortcut ? `${item.label} (${shortcut})` : item.label;
 		}
 
 		if (shortcut) {
 			return shortcut;
-		}
-
-		if (item.kind === "action" && item.id === "hideWindow") {
-			return toggleShortcutTooltip;
 		}
 
 		return undefined;
@@ -222,7 +94,11 @@ export function SidebarNavContent({
 	function renderSelectProjectItem() {
 		const item = sidebarSelectProjectItem;
 		const isCompact = layout === "compact";
-		const className = cn(sidebarItem({ active: false, layout }), isCompact && "h-10");
+		const className = cn(
+			sidebarItem({ active: false, layout }),
+			"border border-border bg-sidebar-row-selected text-sidebar-foreground",
+			layout !== "drawer" && "h-10 py-0",
+		);
 		const Icon = item.icon;
 		const tooltip = getTooltipLabel(item);
 		const accentColor = accent?.color ?? null;
@@ -238,7 +114,10 @@ export function SidebarNavContent({
 					<Icon size={iconSize} />
 				)}
 				{layout === "compact" ? null : (
-					<span className="min-w-0 truncate text-sm">{projectLabel}</span>
+					<>
+						<span className="min-w-0 flex-1 truncate text-sm">{projectLabel}</span>
+						<ChevronsUpDown className="size-3.5 shrink-0 text-sidebar-muted-foreground" />
+					</>
 				)}
 				{layout === "drawer" ? (
 					<span className="ml-auto text-xs text-muted-foreground">Alt+{item.altKey}</span>
@@ -280,28 +159,26 @@ export function SidebarNavContent({
 		const working = isShells ? radar.working : 0;
 		const tooltip =
 			waiting > 0
-				? `${item.label} — ${waiting} esperando você`
+				? `${item.label}: ${waiting} esperando você`
 				: working > 0
-					? `${item.label} — ${working} trabalhando`
+					? `${item.label}: ${working} trabalhando`
 					: getTooltipLabel(item);
 
 		const content = (
 			<>
 				<span className={cn("relative inline-flex", layout === "compact" && "justify-center")}>
 					<Icon size={iconSize} className={waiting > 0 ? "text-warning" : undefined} />
-					{layout !== "drawer" && (
-						<SidebarCountBadge count={waiting} layout={layout} tone="warning" />
-					)}
-					{layout === "compact" && <SidebarAgentPulse layout={layout} count={working} />}
+					{layout !== "drawer" && <AgentWaitingBadge count={waiting} layout={layout} />}
+					{layout === "compact" && <AgentWorkingPulse layout={layout} count={working} />}
 				</span>
 				{layout !== "compact" && (
 					<span className="flex min-w-0 items-center gap-2">
 						<span className="truncate text-sm">{item.label}</span>
-						<SidebarAgentPulse layout={layout} count={working} />
+						<AgentWorkingPulse layout={layout} count={working} />
 					</span>
 				)}
 				{layout === "drawer" && waiting > 0 ? (
-					<SidebarCountBadge count={waiting} layout={layout} tone="warning" />
+					<AgentWaitingBadge count={waiting} layout={layout} />
 				) : layout === "drawer" && item.altKey ? (
 					<span className="ml-auto text-xs text-muted-foreground">Alt+{item.altKey}</span>
 				) : null}
@@ -322,7 +199,13 @@ export function SidebarNavContent({
 		}
 
 		const link = (
-			<Link key={item.path} to={item.path} className={className} aria-label={item.label}>
+			<Link
+				key={item.path}
+				to={item.path}
+				className={className}
+				aria-label={item.label}
+				aria-current={active ? "page" : undefined}
+			>
 				{content}
 			</Link>
 		);
@@ -338,87 +221,41 @@ export function SidebarNavContent({
 		);
 	}
 
-	function renderActionItem(item: SidebarNavActionItem) {
-		if (item.desktopOnly && !isDesktop()) {
-			return null;
-		}
-
-		const isSwitcher = item.id === "openSwitcher";
-		const active = isSwitcher && currentInList;
-		const className = cn(
-			sidebarItem({ active: false, layout, danger: item.id === "hideWindow" }),
-			active && "text-[var(--project-accent,var(--primary))]",
-		);
-		const Icon = item.icon;
-		const tooltip = getTooltipLabel(item);
-
-		const content = (
-			<>
-				<span className={cn("relative inline-flex", layout === "compact" && "justify-center")}>
-					<Icon
-						size={iconSize}
-						className={active ? "text-[var(--project-accent,var(--primary))]" : undefined}
-					/>
-					{isSwitcher && layout !== "drawer" ? (
-						<SidebarCountBadge count={sessionCount} layout={layout} tone="accent" />
-					) : null}
-				</span>
-				{layout === "compact" ? null : <span className="truncate text-sm">{item.label}</span>}
-				{layout === "drawer" && isSwitcher ? (
-					sessionCount > 0 ? (
-						<SidebarCountBadge count={sessionCount} layout={layout} tone="accent" />
-					) : item.altKey ? (
-						<span className="ml-auto text-xs text-muted-foreground">Alt+{item.altKey}</span>
-					) : null
-				) : null}
-			</>
-		);
-
-		const button = (
-			<button
-				key={item.id}
-				type="button"
-				onClick={() => handleAction(item)}
-				className={className}
-				aria-label={item.label}
-			>
-				{content}
-			</button>
-		);
-
-		if (!tooltip) {
-			return button;
-		}
-
-		return (
-			<SidebarTooltip key={item.id} label={tooltip} triggerClassName="flex w-full">
-				{button}
-			</SidebarTooltip>
-		);
-	}
-
 	function renderItem(item: SidebarNavItem) {
 		if (item.kind === "selectProject") {
 			return renderSelectProjectItem();
 		}
-		if (item.kind === "route") {
-			return renderRouteItem(item);
-		}
-		return renderActionItem(item);
+		return renderRouteItem(item);
 	}
 
 	return (
-		<>
-			<nav className={cn(variant === "drawer" && "-mx-5 -mt-5 flex flex-col")}>
-				{renderSelectProjectItem()}
-				<div className="mb-2 border-t border-border" />
-				{sidebarNavGroups.map((group, groupIndex) => (
-					<div key={groupIndex}>
-						{groupIndex > 0 ? <div className="my-2 border-t border-border" /> : null}
+		<nav
+			aria-label="Navegação principal"
+			className={cn("flex flex-col gap-4 px-2", variant === "drawer" && "-mx-3")}
+		>
+			{renderSelectProjectItem()}
+			<div className="flex flex-col gap-4">
+				{sidebarNavGroups.map((group) => (
+					<div key={group.label} className="flex flex-col gap-0.5">
+						{layout === "compact" ? (
+							<div className="h-1.5" />
+						) : (
+							<Text
+								as="div"
+								size="xs"
+								tone="muted"
+								className={cn(
+									"pb-1.5 text-sidebar-muted-foreground font-medium select-none",
+									layout === "drawer" ? "px-3" : "px-2.5",
+								)}
+							>
+								{group.label}
+							</Text>
+						)}
 						{group.items.map(renderItem)}
 					</div>
 				))}
-			</nav>
-		</>
+			</div>
+		</nav>
 	);
 }
