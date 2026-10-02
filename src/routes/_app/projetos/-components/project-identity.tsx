@@ -32,7 +32,7 @@ export function ProjectIdentity({
 				<div className="flex min-w-0 items-start gap-3">
 					<ProjectLogo project={project} className="size-10" />
 					<div className="min-w-0">
-						<Text size="xs" tone="faint" className="font-mono uppercase tracking-[0.14em]">
+						<Text size="xs" tone="muted" className="font-medium">
 							Resumo
 						</Text>
 						<Title size="lg" className="mt-1 truncate">
@@ -75,11 +75,11 @@ export function ProjectIdentity({
 					style={{ width: `${progress}%`, backgroundColor: project.color }}
 				/>
 			</div>
-			<Text size="xs" tone="faint" className="mt-1 text-right font-mono tabular-nums">
+			<Text size="xs" tone="muted" className="mt-1 text-right tabular-nums">
 				{progress}% concluído
 			</Text>
 
-			<label className="mt-5 flex cursor-pointer items-center justify-between gap-3 border border-border bg-muted/20 px-3 py-3">
+			<label className="mt-5 flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-3 py-3">
 				<span className="flex items-center gap-2">
 					<TerminalSquare className="size-4 text-muted-foreground" />
 					<Text as="span" size="xs" className="font-semibold">
@@ -99,15 +99,10 @@ export function ProjectIdentity({
 function Metric({ label, value, color }: { label: string; value: number; color?: string }) {
 	return (
 		<div className="px-2 py-3 text-center">
-			<Title
-				as="div"
-				size="lg"
-				className="font-mono tabular-nums"
-				style={color ? { color } : undefined}
-			>
+			<Title as="div" size="lg" className="tabular-nums" style={color ? { color } : undefined}>
 				{value}
 			</Title>
-			<Text size="xs" tone="faint" className="mt-0.5">
+			<Text size="xs" tone="muted" className="mt-0.5">
 				{label}
 			</Text>
 		</div>

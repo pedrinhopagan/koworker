@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { ChevronsUpDown } from "lucide-react";
 import { tv } from "tailwind-variants";
 
 import { AgentWaitingBadge, AgentWorkingPulse } from "@/components/layout/agent-nav-indicators";
@@ -24,16 +25,17 @@ type SidebarNavContentProps = {
 };
 
 const sidebarItem = tv({
-	base: "w-full transition-colors cursor-pointer",
+	base: "w-full rounded-[var(--control-radius)] text-left text-sm transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 	variants: {
 		active: {
-			true: "text-foreground font-medium bg-[var(--project-accent-soft)] shadow-[inset_2px_0_0_var(--project-accent,var(--primary))]",
-			false: "text-muted-foreground hover:text-foreground hover:bg-muted/30",
+			true: "text-sidebar-foreground font-medium bg-sidebar-row-selected shadow-xs",
+			false:
+				"text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-row-hover",
 		},
 		layout: {
-			compact: "flex items-center justify-center p-2.5",
-			expanded: "flex items-center gap-3 px-3 py-2.5",
-			drawer: "flex min-h-12 items-center gap-3 px-5 py-3 text-base",
+			compact: "flex h-9 items-center justify-center px-2",
+			expanded: "flex h-8 items-center gap-2.5 px-2.5",
+			drawer: "flex min-h-12 items-center gap-3 px-3 py-3 text-base",
 		},
 	},
 });
@@ -60,7 +62,7 @@ export function SidebarNavContent({
 	const radar = useAgentRadarAttention();
 
 	const layout: SidebarLayout = variant === "drawer" ? "drawer" : compact ? "compact" : "expanded";
-	const iconSize = variant === "drawer" ? 18 : 15;
+	const iconSize = variant === "drawer" ? 18 : 16;
 
 	function handleRouteNavigate(path: string) {
 		onNavigate?.();
@@ -94,8 +96,8 @@ export function SidebarNavContent({
 		const isCompact = layout === "compact";
 		const className = cn(
 			sidebarItem({ active: false, layout }),
-			"border-b border-border",
-			layout !== "drawer" && "h-shell-bar py-0",
+			"border border-border bg-sidebar-row-selected text-sidebar-foreground",
+			layout !== "drawer" && "h-10 py-0",
 		);
 		const Icon = item.icon;
 		const tooltip = getTooltipLabel(item);
@@ -112,7 +114,10 @@ export function SidebarNavContent({
 					<Icon size={iconSize} />
 				)}
 				{layout === "compact" ? null : (
-					<span className="min-w-0 truncate text-sm">{projectLabel}</span>
+					<>
+						<span className="min-w-0 flex-1 truncate text-sm">{projectLabel}</span>
+						<ChevronsUpDown className="size-3.5 shrink-0 text-sidebar-muted-foreground" />
+					</>
 				)}
 				{layout === "drawer" ? (
 					<span className="ml-auto text-xs text-muted-foreground">Alt+{item.altKey}</span>
@@ -194,7 +199,13 @@ export function SidebarNavContent({
 		}
 
 		const link = (
-			<Link key={item.path} to={item.path} className={className} aria-label={item.label}>
+			<Link
+				key={item.path}
+				to={item.path}
+				className={className}
+				aria-label={item.label}
+				aria-current={active ? "page" : undefined}
+			>
 				{content}
 			</Link>
 		);
@@ -218,32 +229,33 @@ export function SidebarNavContent({
 	}
 
 	return (
-		<>
-			<nav className={cn(variant === "drawer" && "-mx-5 -mt-5 flex flex-col")}>
-				{renderSelectProjectItem()}
-				<div className="divide-y divide-border">
-					{sidebarNavGroups.map((group) => (
-						<div key={group.label} className="pb-1">
-							{layout === "compact" ? (
-								<div className="h-1.5" />
-							) : (
-								<Text
-									as="div"
-									size="xs"
-									tone="faint"
-									className={cn(
-										"pt-3 pb-1 font-semibold uppercase tracking-[0.14em] select-none",
-										layout === "drawer" ? "px-5" : "px-3",
-									)}
-								>
-									{group.label}
-								</Text>
-							)}
-							{group.items.map(renderItem)}
-						</div>
-					))}
-				</div>
-			</nav>
-		</>
+		<nav
+			aria-label="Navegação principal"
+			className={cn("flex flex-col gap-4 px-2", variant === "drawer" && "-mx-3")}
+		>
+			{renderSelectProjectItem()}
+			<div className="flex flex-col gap-4">
+				{sidebarNavGroups.map((group) => (
+					<div key={group.label} className="flex flex-col gap-0.5">
+						{layout === "compact" ? (
+							<div className="h-1.5" />
+						) : (
+							<Text
+								as="div"
+								size="xs"
+								tone="muted"
+								className={cn(
+									"pb-1.5 text-sidebar-muted-foreground font-medium select-none",
+									layout === "drawer" ? "px-3" : "px-2.5",
+								)}
+							>
+								{group.label}
+							</Text>
+						)}
+						{group.items.map(renderItem)}
+					</div>
+				))}
+			</div>
+		</nav>
 	);
 }

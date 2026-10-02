@@ -26,7 +26,7 @@ export function WorkspaceTabs({
 	return (
 		<div
 			data-component="workspace-tabs"
-			className="no-scrollbar flex h-10 shrink-0 items-stretch overflow-x-auto border-b border-border bg-chrome/60"
+			className="no-scrollbar flex h-11 shrink-0 items-center gap-1 px-2 overflow-x-auto border-b border-border bg-background"
 		>
 			{entries.map((entry) => {
 				const selected = entry.key === activeKey;
@@ -39,16 +39,16 @@ export function WorkspaceTabs({
 						data-selected={selected || undefined}
 						data-agent={entry.agent ?? undefined}
 						className={cn(
-							"group flex shrink-0 items-center gap-1.5 border-r border-border px-2 transition-colors",
+							"group flex shrink-0 items-center h-8 gap-1.5 rounded-lg border border-transparent px-2 transition-colors",
 							selected
-								? "bg-background text-foreground shadow-[inset_0_2px_0_var(--project-accent,var(--primary))]"
-								: "bg-chrome/40 text-muted-foreground hover:bg-card hover:text-foreground",
+								? "border-border bg-card text-foreground shadow-xs"
+								: "text-muted-foreground hover:bg-accent hover:text-foreground",
 						)}
 					>
 						<button
 							type="button"
 							onClick={() => onSelect(entry.key)}
-							className="flex h-full min-w-0 items-center gap-1.5 px-1 focus-visible:outline-none"
+							className="flex h-full min-w-0 items-center gap-1.5 px-1 rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 							aria-current={selected ? "true" : undefined}
 						>
 							{entry.agent ? (
@@ -76,7 +76,7 @@ export function WorkspaceTabs({
 								type="button"
 								aria-label={`Fechar ${title}`}
 								onClick={() => actions.close(entry)}
-								className="flex size-5 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-warning/15 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+								className="flex size-5 shrink-0 rounded-md items-center justify-center text-muted-foreground transition-colors hover:bg-warning/15 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 							>
 								<X className="size-3" />
 							</button>

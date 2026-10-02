@@ -116,7 +116,7 @@ export function InvokePanel({
 					/>
 				) : (
 					<Tooltip label="Agents (--agent) são um recurso do claude">
-						<span className="flex h-8 cursor-not-allowed items-center gap-1.5 border border-border bg-card px-2.5 text-sm text-muted-foreground opacity-40">
+						<span className="flex h-8 cursor-not-allowed items-center gap-1.5 rounded-xl border border-border bg-card px-2.5 text-sm text-muted-foreground opacity-40">
 							<Bot className="h-3.5 w-3.5" />
 							Agent
 						</span>

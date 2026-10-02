@@ -28,7 +28,7 @@ export function PushNotificationsCard() {
 	const subscribed = !!push.subscription;
 
 	return (
-		<div className="flex flex-col gap-4 border border-border bg-card p-4 shadow-xs sm:p-5">
+		<div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 shadow-xs sm:p-5">
 			<div className="flex min-w-0 flex-1 items-start gap-3">
 				<Icon icon={subscribed ? BellRing : Bell} size="sm" className="mt-0.5 shrink-0" />
 				<div className="min-w-0 space-y-1">

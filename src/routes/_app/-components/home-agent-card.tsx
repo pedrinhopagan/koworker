@@ -61,7 +61,7 @@ export function HomeAgentCard({
 					data-project-id={agent.projectId ?? undefined}
 					data-status={agent.status}
 					className={cn(
-						"group animate-stagger-fade-in relative border border-border bg-card shadow-xs transition-[background-color,transform] hover:-translate-y-px hover:bg-muted/40",
+						"group animate-stagger-fade-in relative rounded-xl border border-border bg-card shadow-xs transition-colors hover:bg-muted/40",
 					)}
 					style={{ animationDelay: `${index * 45}ms` }}
 					{...(live ? { onPointerMove: trackBorderGlow } : {})}

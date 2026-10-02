@@ -507,7 +507,7 @@ export function AgentConversationView({
 						data-component="model-apply-status"
 						data-status={model.status}
 						className={cn(
-							"mx-auto flex w-full max-w-3xl items-center gap-2 border border-border bg-card px-3 py-2 text-xs shadow-sm animate-in fade-in-0 slide-in-from-bottom-1 duration-200",
+							"mx-auto flex w-full max-w-3xl items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs shadow-sm animate-in fade-in-0 slide-in-from-bottom-1 duration-200",
 							model.status === "failed" && "border-destructive/40 text-destructive",
 						)}
 					>
@@ -524,7 +524,7 @@ export function AgentConversationView({
 					<div
 						role="status"
 						data-component="model-switch-status"
-						className="mx-auto flex w-full max-w-3xl items-center gap-2 border border-border bg-card px-3 py-2 text-xs shadow-sm"
+						className="mx-auto flex w-full max-w-3xl items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs shadow-sm"
 					>
 						<Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
 						<span className="min-w-0 truncate">{switchingHint}</span>

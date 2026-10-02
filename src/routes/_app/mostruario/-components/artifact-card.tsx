@@ -28,7 +28,7 @@ export function ArtifactCard({ artifact, onOpen, onAuxClick }: ArtifactCardProps
 			onClick={onOpen}
 			onAuxClick={onAuxClick}
 			className={cn(
-				"group relative flex flex-col overflow-hidden border border-border bg-card text-left transition-colors hover:border-[var(--project-accent,var(--primary))] hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+				"group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card text-left transition-colors hover:border-[var(--project-accent,var(--primary))] hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 				hasContext ? "min-h-64" : "min-h-44",
 			)}
 		>

@@ -44,7 +44,7 @@ function ActionButton({ onClick, label, icon: Icon, disabled }: ActionButtonProp
 			type="button"
 			onClick={onClick}
 			disabled={disabled}
-			className="h-6 px-2 inline-flex items-center gap-1 text-[11px] border border-border/70 bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors disabled:opacity-40"
+			className="h-6 rounded-md px-2 inline-flex items-center gap-1 text-[11px] border border-border/70 bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors disabled:opacity-40"
 		>
 			<Icon size={12} />
 			{label}
@@ -126,7 +126,7 @@ export function StatusBar() {
 			<div className="min-w-0 flex items-center gap-2 truncate">
 				<div
 					className={cn(
-						"shrink-0 border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+						"shrink-0 rounded-sm border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
 						isDev
 							? "border-warning/40 bg-warning/10 text-warning"
 							: "border-success/40 bg-success/10 text-success",
@@ -229,7 +229,7 @@ function ProjectSelectTrigger({ projectFocus }: { projectFocus: UseProjectFocusR
 			<button
 				type="button"
 				onClick={openDialog}
-				className="inline-flex h-6 max-w-[180px] items-center gap-1 border border-border/70 bg-muted/40 px-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+				className="inline-flex h-6 max-w-[180px] rounded-md items-center gap-1 border border-border/70 bg-muted/40 px-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
 				style={accent ? { borderColor: accent.border } : undefined}
 			>
 				{accentColor ? (

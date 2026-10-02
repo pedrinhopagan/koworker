@@ -1,138 +1,121 @@
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { Menu } from "lucide-react";
+import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { ArrowLeft, ChevronRight, Menu, Search } from "lucide-react";
 import { useEffect, useState } from "react";
-import { tv } from "tailwind-variants";
+
 import { getActiveTabLabel, MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
+import { NavigationDialog } from "@/components/layout/navigation-dialog";
 import { RoutePathButton } from "@/components/layout/route-path-button";
-import { isTabActive, tabs, topTabs } from "@/components/layout/tab-nav-config";
+import { tabs } from "@/components/layout/tab-nav-config";
 import { WindowControls } from "@/components/layout/window-controls";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useProjectFocus } from "@/hooks/use-project-focus";
-import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
 import { isDesktop } from "@/lib/desktop";
 import { cn } from "@/lib/utils";
 import { useSidebarNavStore } from "@/stores/sidebar-nav";
 
-const tabItem = tv({
-	base: "flex items-center px-4 text-sm transition-colors cursor-pointer shadow-[inset_0_-2px_0_transparent]",
-	variants: {
-		active: {
-			true: "text-foreground font-medium shadow-[inset_0_-2px_0_var(--project-accent,var(--primary))]",
-			false: "text-muted-foreground hover:text-foreground",
-		},
-	},
-});
-
 export function TabBar({ compact = false }: { compact?: boolean }) {
 	const location = useLocation();
 	const navigate = useNavigate();
-	const currentPath = location.pathname;
+	const router = useRouter();
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
-	const openProjectDialog = useProjectSelectDialogStore((s) => s.openDialog);
-	const sidebarMode = useSidebarNavStore((s) => s.mode);
-	const { selectedProjectId, selectedProject, accent, loading } = useProjectFocus();
-	const projectLabel =
-		selectedProjectId === undefined
-			? "Todos os projetos"
-			: (selectedProject?.name ?? (loading ? "Carregando..." : "Selecionar projeto"));
+	const [navigationOpen, setNavigationOpen] = useState(false);
+	const toggleSidebar = useSidebarNavStore((state) => state.toggleMode);
+	const { selectedProject, loading } = useProjectFocus();
+	const pageLabel = getActiveTabLabel(location.pathname);
+	const projectLabel = selectedProject?.name ?? (loading ? "Carregando..." : "Todos os projetos");
 
 	useEffect(() => {
-		function handleKeyDown(e: KeyboardEvent) {
-			if (!e.altKey || e.key < "0" || e.key > "9") {
+		function handleKeyDown(event: KeyboardEvent) {
+			if (event.defaultPrevented) {
 				return;
 			}
 
-			e.preventDefault();
+			if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey) {
+				if (event.key.toLowerCase() === "k") {
+					event.preventDefault();
+					setNavigationOpen((open) => !open);
+				}
+				if (event.key.toLowerCase() === "b") {
+					event.preventDefault();
+					toggleSidebar();
+				}
+				return;
+			}
 
-			const tab = tabs.find((t) => t.altKey === e.key);
+			if (!event.altKey || event.key < "0" || event.key > "9") {
+				return;
+			}
+
+			const tab = tabs.find((item) => item.altKey === event.key);
 			if (tab) {
-				navigate({ to: tab.path });
+				event.preventDefault();
+				void navigate({ to: tab.path });
 			}
 		}
 
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [navigate]);
-
-	const mobileOnly = cn("flex md:hidden", compact && "md:flex");
-	const desktopOnly = cn("hidden md:flex", compact && "md:hidden");
+	}, [navigate, toggleSidebar]);
 
 	return (
 		<>
-			<nav
+			<header
+				data-component="workspace-header"
 				className={cn(
-					"flex h-12 items-center border-b border-border bg-chrome select-none md:h-shell-bar",
-					isDesktop() && "desktop-drag-region cursor-grab active:cursor-grabbing",
+					"flex h-shell-bar shrink-0 items-center gap-2 border-b border-border bg-background px-3 select-none sm:px-4",
+					isDesktop() && "desktop-drag-region",
 				)}
 			>
 				<Button
-					variant="ghost"
-					size="icon"
+					variant="ghost-muted"
+					size="icon-sm"
 					onClick={() => setMobileNavOpen(true)}
-					className={cn(mobileOnly, "size-12 text-muted-foreground hover:text-foreground")}
+					className={cn("md:hidden", compact && "md:inline-flex")}
 					aria-label="Abrir menu de navegação"
 					aria-expanded={mobileNavOpen}
 				>
 					<Menu className="size-5" />
 				</Button>
-
-				<div className={cn(mobileOnly, "min-w-0 flex-1 flex-col justify-center")}>
-					<span className="truncate text-sm font-semibold text-foreground">
-						{getActiveTabLabel(currentPath)}
-					</span>
-					<span className="flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-muted-foreground">
-						{accent?.color && (
-							<span
-								aria-hidden
-								className="size-1.5 shrink-0 rounded-full"
-								style={{ backgroundColor: accent.color }}
-							/>
-						)}
-						<span className="truncate">{projectLabel}</span>
-					</span>
-				</div>
-
-				{sidebarMode === "compact" && !compact && (
-					<button
-						type="button"
-						onClick={openProjectDialog}
-						aria-label={`Selecionar projeto: ${projectLabel}`}
-						className="hidden min-w-0 cursor-pointer items-center gap-2 self-stretch border-r border-border px-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring md:flex"
+				<Tooltip label="Voltar">
+					<Button
+						variant="ghost-muted"
+						size="icon-sm"
+						onClick={() => router.history.back()}
+						disabled={!router.history.canGoBack()}
+						aria-label="Voltar à página anterior"
+						className={cn("hidden md:inline-flex", compact && "md:hidden")}
 					>
-						{accent?.color && (
-							<span
-								aria-hidden
-								className="size-2 shrink-0 rounded-sm"
-								style={{ backgroundColor: accent.color }}
-							/>
-						)}
-						<span className="max-w-44 truncate text-sm font-medium text-foreground">
-							{projectLabel}
-						</span>
-					</button>
-				)}
-
-				<div className={cn(desktopOnly, "self-stretch")}>
-					{topTabs.map((tab) => (
-						<Link
-							key={tab.path}
-							to={tab.path}
-							className={tabItem({ active: isTabActive(currentPath, tab.path) })}
-							title={`${tab.label} (Alt+${tab.altKey})`}
-						>
-							{tab.label}
-						</Link>
-					))}
+						<ArrowLeft className="size-4" />
+					</Button>
+				</Tooltip>
+				<div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+					<span className="hidden max-w-48 truncate text-muted-foreground lg:block">
+						{projectLabel}
+					</span>
+					<ChevronRight className="hidden size-3.5 shrink-0 text-muted-foreground/60 lg:block" />
+					<span className="truncate font-medium">{pageLabel}</span>
 				</div>
-
-				<div className={cn(desktopOnly, "flex-1 items-center justify-center")}>
+				<div className="hidden items-center gap-3 xl:flex">
 					<RoutePathButton />
 				</div>
-
+				<Tooltip label="Navegar (Ctrl+K)">
+					<Button
+						variant="ghost-muted"
+						size="icon-sm"
+						onClick={() => setNavigationOpen(true)}
+						aria-label="Buscar página"
+						aria-haspopup="dialog"
+					>
+						<Search className="size-4" />
+					</Button>
+				</Tooltip>
+				<ThemeToggle />
 				<WindowControls />
-			</nav>
-
+			</header>
 			<MobileNavDrawer open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+			<NavigationDialog open={navigationOpen} onClose={() => setNavigationOpen(false)} />
 		</>
 	);
 }

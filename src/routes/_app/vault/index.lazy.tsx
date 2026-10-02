@@ -930,7 +930,7 @@ function VaultPage() {
 					</div>
 
 					{selection.keys.size > 0 && (
-						<div className="mb-2 flex items-center justify-between border border-border bg-card px-3 py-1.5">
+						<div className="mb-2 flex items-center justify-between rounded-xl border border-border bg-card px-3 py-1.5">
 							<Text size="sm" className="font-mono tabular-nums">
 								{selection.keys.size} selecionada{selection.keys.size > 1 ? "s" : ""} · botão
 								direito para ações

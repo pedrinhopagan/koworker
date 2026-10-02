@@ -19,7 +19,7 @@ const ContextMenuSub = ContextMenuPrimitive.Sub;
 const ContextMenuRadioGroup = ContextMenuPrimitive.RadioGroup;
 
 const contextMenuSubTriggerVariants = tv({
-	base: "flex cursor-default select-none items-center gap-2 rounded-sm px-3 py-1.5 text-sm outline-none focus:bg-muted focus:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	base: "flex cursor-default select-none items-center gap-2 rounded-sm px-3 py-1.5 text-sm outline-none focus:bg-muted focus:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 	variants: {
 		inset: {
 			true: "pl-8",
@@ -48,7 +48,7 @@ ContextMenuSubTrigger.displayName = ContextMenuPrimitive.SubTrigger.displayName;
 // irmão do menu pai, então precisa pintar por cima na faixa de sobreposição — senão o ponteiro
 // cruzando do trigger pro submenu atinge o menu pai e o submenu pisca abrindo/fechando.
 const contextMenuSubContentVariants = tv({
-	base: "z-[110] min-w-[8rem] overflow-hidden rounded-md border border-border bg-card p-1 text-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
+	base: "z-[110] min-w-[8rem] overflow-hidden rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
 });
 
 // Portado pra mesma raiz de tema do ContextMenuContent: sem portal, o SubContent renderiza dentro
@@ -61,8 +61,8 @@ const ContextMenuSubContent = React.forwardRef<
 	const portalContainer = useThemeRootContainer();
 
 	const contentStyle: React.CSSProperties = {
-		backgroundColor: "var(--card)",
-		color: "var(--card-foreground)",
+		backgroundColor: "var(--popover)",
+		color: "var(--popover-foreground)",
 		...style,
 	};
 
@@ -80,7 +80,7 @@ const ContextMenuSubContent = React.forwardRef<
 ContextMenuSubContent.displayName = ContextMenuPrimitive.SubContent.displayName;
 
 const contextMenuContentVariants = tv({
-	base: "z-[100] min-w-[160px] overflow-hidden rounded-md border border-border bg-card py-1 text-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
+	base: "z-[100] min-w-[160px] overflow-hidden rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
 });
 
 const ContextMenuContent = React.forwardRef<
@@ -90,8 +90,8 @@ const ContextMenuContent = React.forwardRef<
 	const portalContainer = useThemeRootContainer();
 
 	const contentStyle: React.CSSProperties = {
-		backgroundColor: "var(--card)",
-		color: "var(--card-foreground)",
+		backgroundColor: "var(--popover)",
+		color: "var(--popover-foreground)",
 		...style,
 	};
 

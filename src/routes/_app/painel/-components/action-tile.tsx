@@ -33,7 +33,7 @@ export function ActionTile({
 		(primary === "background" && running) || (primary === "terminal" && !canOpenTerminal);
 
 	return (
-		<div className="group/tile flex min-w-0 items-stretch border border-border bg-card transition-colors hover:border-foreground/25">
+		<div className="group/tile flex min-w-0 items-stretch rounded-xl border border-border bg-card transition-colors hover:border-foreground/25">
 			<button
 				type="button"
 				onClick={() => onRun(primary)}

@@ -4,7 +4,7 @@ import { tv, type VariantProps } from "tailwind-variants";
 import { cn } from "@/lib/utils";
 
 const chipVariants = tv({
-	base: "inline-flex items-center justify-center border transition-colors focus:outline-none focus:ring-1 focus:ring-ring",
+	base: "inline-flex items-center justify-center border transition-colors focus-visible:outline-none focus-visible:ring-1 focus:ring-ring",
 	variants: {
 		variant: {
 			default: "bg-muted text-muted-foreground border-border",
@@ -23,7 +23,7 @@ const chipVariants = tv({
 		},
 		shape: {
 			square: "rounded-none",
-			rounded: "rounded",
+			rounded: "rounded-sm",
 			pill: "rounded-full",
 		},
 		fill: {
@@ -78,7 +78,7 @@ const chipVariants = tv({
 	defaultVariants: {
 		variant: "default",
 		size: "sm",
-		shape: "square",
+		shape: "rounded",
 		fill: false,
 	},
 });

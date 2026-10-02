@@ -275,7 +275,7 @@ export function TreeNodeMenu({
 	return (
 		<ContextMenu onOpenChange={onOpenChange}>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-			<ContextMenuContent className="w-[220px] rounded-none">
+			<ContextMenuContent className="w-[220px]">
 				<ContextMenuLabel className="truncate px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
 					{node.label}
 				</ContextMenuLabel>
@@ -308,7 +308,7 @@ export function TreeBatchMenu({
 	return (
 		<ContextMenu onOpenChange={onOpenChange}>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-			<ContextMenuContent className="w-[220px] rounded-none">
+			<ContextMenuContent className="w-[220px]">
 				<ContextMenuLabel className="px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
 					{count} selecionada{count > 1 ? "s" : ""}
 				</ContextMenuLabel>

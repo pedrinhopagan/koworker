@@ -53,7 +53,7 @@ function PairingPage() {
 					</div>
 				)}
 
-				<div className="space-y-3 border border-border bg-card p-4">
+				<div className="space-y-3 rounded-xl border border-border bg-card p-4">
 					<Title as="h2" size="sm">
 						Acesso rápido
 					</Title>
@@ -80,7 +80,7 @@ function PairingPage() {
 				</div>
 
 				{pairing.data && (
-					<div className="space-y-3 border border-border bg-card p-4">
+					<div className="space-y-3 rounded-xl border border-border bg-card p-4">
 						<div
 							className="mx-auto w-full max-w-64 bg-white p-3 [&_svg]:h-auto [&_svg]:w-full"
 							dangerouslySetInnerHTML={{ __html: pairing.data.qrSvg }}

@@ -114,7 +114,7 @@ function DeviceRow({ device, canManage, busy, onApprove, onBlock, onRevoke }: De
 	const status = STATUS_BADGE[device.status];
 
 	return (
-		<div className="flex flex-col gap-4 border border-border bg-card p-4 sm:flex-row sm:items-start sm:justify-between">
+		<div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-start sm:justify-between">
 			<div className="flex min-w-0 items-start gap-3">
 				<Icon icon={MonitorSmartphone} size="sm" className="mt-0.5 shrink-0" />
 

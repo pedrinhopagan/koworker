@@ -51,10 +51,8 @@ export const ShellSessionItem = memo(function ShellSessionItem({
 			data-status={entry.status}
 			data-selected={selected || undefined}
 			className={cn(
-				"group relative mx-2 border border-transparent transition-colors",
-				selected
-					? "border-border bg-card shadow-[inset_3px_0_0_var(--project-accent,var(--primary))]"
-					: "hover:border-border/60 hover:bg-card/60",
+				"group relative mx-2 rounded-lg border border-transparent transition-colors",
+				selected ? "border-transparent bg-sidebar-row-selected" : "hover:bg-sidebar-row-hover",
 				entry.status === "exited" && !selected && "opacity-60",
 			)}
 		>
@@ -67,7 +65,7 @@ export const ShellSessionItem = memo(function ShellSessionItem({
 				<button
 					type="button"
 					onClick={() => onSelect(entry.key)}
-					className="block w-full px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+					className="block w-full rounded-lg px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
 					aria-current={selected ? "page" : undefined}
 				>
 					<div className="flex min-w-0 items-center gap-2">
@@ -81,7 +79,7 @@ export const ShellSessionItem = memo(function ShellSessionItem({
 						</Text>
 						<span
 							className={cn(
-								"flex shrink-0 items-center gap-1 font-mono text-[9px] font-bold uppercase tracking-wider",
+								"flex shrink-0 items-center gap-1 text-[11px] font-medium",
 								visual?.tone,
 								!visual && entry.status === "exited" && "text-destructive",
 							)}
@@ -93,7 +91,7 @@ export const ShellSessionItem = memo(function ShellSessionItem({
 					<Text size="xs" tone="muted" className="mt-1 line-clamp-2 leading-snug">
 						{description}
 					</Text>
-					<Text size="xs" tone="faint" className="mt-1 truncate font-mono text-[9px]">
+					<Text size="xs" tone="muted" className="mt-1 truncate text-[11px]">
 						{[
 							preview?.model && modelDisplayLabel(preview.model),
 							entry.agent && agentRadarAgentLabel(entry.agent),
@@ -110,7 +108,7 @@ export const ShellSessionItem = memo(function ShellSessionItem({
 					type="button"
 					onClick={() => actions.focusExternal(entry)}
 					aria-label="Focar no terminal externo"
-					className="absolute right-1 bottom-1 hidden size-6 items-center justify-center bg-card text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 md:flex [@media(pointer:coarse)]:hidden"
+					className="absolute right-1 bottom-1 hidden size-6 items-center justify-center rounded-md bg-card text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 md:flex [@media(pointer:coarse)]:hidden"
 				>
 					<Target className="size-3" />
 				</button>
@@ -120,7 +118,7 @@ export const ShellSessionItem = memo(function ShellSessionItem({
 					type="button"
 					onClick={() => actions.close(entry)}
 					aria-label={`Fechar ${title}`}
-					className="absolute top-1 right-1 hidden size-6 items-center justify-center bg-card text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100 md:flex [@media(pointer:coarse)]:hidden"
+					className="absolute top-1 right-1 hidden size-6 items-center justify-center rounded-md bg-card text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100 md:flex [@media(pointer:coarse)]:hidden"
 				>
 					<X className="size-3" />
 				</button>

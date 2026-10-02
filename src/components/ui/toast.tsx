@@ -113,7 +113,7 @@ function SwipeToast({ entry }: { entry: ToastEntry }) {
 			dragSnapToOrigin
 			dragElastic={0.6}
 			onDragEnd={handleDragEnd}
-			className="relative flex min-h-[60px] touch-pan-y cursor-grab items-center gap-2.5 overflow-hidden border border-border bg-popover py-3 pr-12 pl-3.5 text-[13px] text-popover-foreground shadow-[0_6px_24px_rgb(0_0_0/0.16),0_1px_2px_rgb(0_0_0/0.12)] active:cursor-grabbing max-sm:pr-[54px]"
+			className="relative flex min-h-[60px] touch-pan-y cursor-grab items-center gap-2.5 overflow-hidden rounded-xl border border-border bg-popover py-3 pr-12 pl-3.5 text-[13px] text-popover-foreground shadow-[0_6px_24px_rgb(0_0_0/0.16),0_1px_2px_rgb(0_0_0/0.12)] active:cursor-grabbing max-sm:pr-[54px]"
 		>
 			{TOAST_ICONS[entry.kind]}
 			<div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-[1.4]">

@@ -17,7 +17,7 @@ export function ProjectLogo({ project, className }: ProjectLogoProps) {
 
 	return (
 		<div
-			className={cn("relative size-8 shrink-0 overflow-hidden bg-muted", className)}
+			className={cn("relative size-8 shrink-0 overflow-hidden rounded-md bg-muted", className)}
 			style={{ backgroundColor: project.color }}
 			aria-hidden
 		>

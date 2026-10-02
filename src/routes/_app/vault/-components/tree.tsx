@@ -114,7 +114,7 @@ const TreeRow = memo(function TreeRow({
 			title={node.kind === "fileLeaf" ? node.title : undefined}
 			onClick={activate}
 			className={cn(
-				"group flex h-12 w-full items-center gap-2 rounded-none px-2 text-left transition-colors active:bg-secondary sm:h-9",
+				"group flex h-12 w-full items-center gap-2 rounded-md px-2 text-left transition-colors active:bg-secondary sm:h-9",
 				selected ? "bg-primary/15 hover:bg-primary/20" : "hover:bg-secondary/60",
 				node.kind === "fileLeaf" && draggable.isDragging && "opacity-40",
 				inert && !selected && "cursor-default",

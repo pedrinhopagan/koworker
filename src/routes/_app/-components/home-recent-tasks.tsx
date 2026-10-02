@@ -52,7 +52,7 @@ export function HomeRecentTasks({ projectId }: { projectId: string }) {
 				/>
 			)}
 			{tasks.length > 0 && (
-				<div className="divide-y divide-border border border-border bg-card shadow-xs">
+				<div className="overflow-hidden rounded-xl divide-y divide-border border border-border bg-card shadow-xs">
 					{tasks.map((task) => (
 						<div
 							key={task.id}

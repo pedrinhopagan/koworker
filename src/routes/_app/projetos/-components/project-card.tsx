@@ -19,7 +19,7 @@ export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 		<ProjectContextMenu project={project}>
 			<div
 				className={cn(
-					"relative w-full border border-border px-4 py-3 transition-colors",
+					"relative w-full rounded-lg border border-border px-4 py-3 transition-colors",
 					isSelected ? "bg-muted/50" : "bg-card hover:bg-muted/25",
 				)}
 				style={isSelected ? { boxShadow: `inset 3px 0 0 ${project.color}` } : undefined}
@@ -28,7 +28,7 @@ export function ProjectCard({ project, isSelected }: ProjectCardProps) {
 					to="/projetos"
 					search={{ projetoId: project.id }}
 					aria-label={project.name}
-					className="absolute inset-0 z-0 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+					className="absolute inset-0 z-0 rounded-lg cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
 				/>
 				<div className="pointer-events-none relative z-10 flex items-center gap-3">
 					<ProjectLogo project={project} />

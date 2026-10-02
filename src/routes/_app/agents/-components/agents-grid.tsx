@@ -302,7 +302,7 @@ function AgentTile({ agent, index, categories, onAppearance }: AgentTileProps) {
 			<div
 				className={cn(
 					"group relative flex min-w-0 flex-col p-4",
-					"border border-border border-t-2 bg-card transition-colors",
+					"rounded-xl border border-border border-t-2 bg-card transition-colors",
 					"hover:bg-secondary/50",
 					"animate-in fade-in-0 slide-in-from-bottom-2 fill-mode-both",
 				)}

@@ -336,7 +336,7 @@ function Summary({
 	warning?: boolean;
 }) {
 	return (
-		<div className="border border-border bg-card p-3">
+		<div className="rounded-xl border border-border bg-card p-3">
 			<Text size="xs" tone="muted" className="uppercase tracking-[0.12em]">
 				{label}
 			</Text>

@@ -161,7 +161,7 @@ export function TaskListControls({
 		);
 	}
 
-	const sectionLabel = "font-semibold uppercase tracking-[0.12em]";
+	const sectionLabel = "font-medium";
 
 	const controls = (
 		<div className="space-y-4">
@@ -222,7 +222,7 @@ export function TaskListControls({
 				type="button"
 				variant={search.value.includeCompleted ? "secondary" : "outline"}
 				size="icon-sm"
-				className="size-9 shrink-0"
+				className="shrink-0"
 				aria-label={search.value.includeCompleted ? "Ocultar concluídas" : "Mostrar concluídas"}
 				aria-pressed={!!search.value.includeCompleted}
 				onClick={() =>
@@ -320,10 +320,10 @@ function FeatureContextMenu({
 			{/* Renomear mostra um input com autoFocus; sem isto o menu devolve o foco ao trigger ao
 			    fechar, o input perde foco e o onBlur cancela a edição num flash. */}
 			<ContextMenuContent
-				className="w-[200px] rounded-none"
+				className="w-[200px] rounded-md"
 				onCloseAutoFocus={(e) => e.preventDefault()}
 			>
-				<ContextMenuLabel className="truncate px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
+				<ContextMenuLabel className="truncate px-2.5 py-2 text-xs font-medium text-muted-foreground">
 					{group.name}
 				</ContextMenuLabel>
 				<ContextMenuItem onSelect={onRename} className="px-3 py-2">

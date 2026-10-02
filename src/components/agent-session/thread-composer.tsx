@@ -87,13 +87,10 @@ function ThreadComposerContent({
 	}
 
 	return (
-		<div
-			data-component="thread-composer"
-			className="z-20 shrink-0 border-t border-border bg-background py-2"
-		>
+		<div data-component="thread-composer" className="z-20 shrink-0 bg-background px-3 py-3 sm:px-5">
 			<div
 				className={cn(
-					"mx-auto w-full border border-border bg-card p-2 shadow-sm",
+					"mx-auto w-full rounded-2xl border border-input bg-card p-3 shadow-sm",
 					!edgeToEdge && "max-w-3xl",
 				)}
 			>
@@ -147,24 +144,24 @@ function ThreadComposerContent({
 									)}
 									<Button
 										type="button"
-										variant="outline"
+										variant="ghost-muted"
 										size="icon"
 										aria-label="Abrir skills e comandos"
 										onClick={openSlashMenu}
 										disabled={disabled || pending}
-										className="size-12 shrink-0 sm:size-10"
+										className="size-11 shrink-0 sm:size-8"
 									>
 										<Command className="size-4" />
 									</Button>
 									{accessory}
 									<Button
 										type="button"
-										variant="outline"
+										variant="ghost-muted"
 										size="icon"
 										aria-label="Ditar continuação"
 										onClick={() => setDictating(true)}
 										disabled={disabled || pending}
-										className="size-12 shrink-0 sm:size-10"
+										className="size-11 shrink-0 sm:size-8"
 									>
 										<Mic className="size-4" />
 									</Button>
@@ -174,7 +171,7 @@ function ThreadComposerContent({
 										data-slot="send"
 										onClick={() => void submit()}
 										disabled={disabled || pending || !draft.text.trim()}
-										className="size-12 shrink-0 sm:size-10 p-0"
+										className="size-11 shrink-0 rounded-full sm:size-8 p-0"
 									>
 										{pending ? (
 											<Loader2 className="size-4 animate-spin" />

@@ -33,7 +33,7 @@ export const EmptyFeedback = memo(function EmptyFeedback({
 }: EmptyFeedbackProps) {
 	return (
 		<div className={cn("flex flex-col items-center justify-center py-8 text-center", className)}>
-			<div className="p-3 bg-secondary/30 mb-3">
+			<div className="mb-3 rounded-xl bg-secondary p-3">
 				<Icon className={cn("size-5 text-muted-foreground", iconClassName)} />
 			</div>
 			<Text size="sm" className="mb-1 font-medium">

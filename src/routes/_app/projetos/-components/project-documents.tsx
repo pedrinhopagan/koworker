@@ -34,14 +34,14 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
 	return (
 		<section className="flex min-w-0 flex-col lg:h-full">
 			<div className="border-b border-border pb-4">
-				<Text size="xs" tone="faint" className="font-mono uppercase tracking-[0.14em]">
+				<Text size="xs" tone="muted" className="font-medium">
 					Documentos
 				</Text>
 				<div className="mt-1 flex items-baseline justify-between gap-3">
 					<Title as="h2" size="lg">
 						Base do projeto
 					</Title>
-					<Text size="xs" tone="faint" className="font-mono tabular-nums">
+					<Text size="xs" tone="muted" className="tabular-nums">
 						{docs.length} arquivos
 					</Text>
 				</div>
@@ -57,7 +57,7 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
 					</Text>
 				)}
 				{!docsQuery.isLoading && docs.length === 0 && (
-					<div className="border-l-2 border-border bg-muted/15 px-4 py-5">
+					<div className="rounded-lg border border-border bg-muted/15 px-4 py-5">
 						<FileText className="size-5 text-muted-foreground" />
 						<Title as="div" size="sm" className="mt-3">
 							Nenhum documento-base

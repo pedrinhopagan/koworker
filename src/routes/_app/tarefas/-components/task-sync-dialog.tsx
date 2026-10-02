@@ -230,7 +230,7 @@ export function TaskSyncAction({
 				)}
 
 				{journal && journal.status !== "completed" && journal.status !== "rolled_back" && (
-					<div className="mt-4 flex flex-wrap items-center justify-between gap-3 border border-border bg-card p-4">
+					<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
 						<div>
 							<Text className="font-medium">Journal {journal.status}</Text>
 							<Text size="xs" tone="muted" className="mt-0.5 font-mono">

@@ -5,7 +5,7 @@ import { MarkdownView } from "@/components/markdown-view";
 export function SessionUserMessage({ text }: { text: string }) {
 	return (
 		<div className="flex justify-end">
-			<div className="min-w-0 max-w-[92%] rounded-xl rounded-br-sm bg-primary/10 px-3.5 py-2.5 sm:max-w-[80%]">
+			<div className="min-w-0 max-w-[92%] rounded-2xl bg-message px-3.5 py-2.5 sm:max-w-[80%]">
 				<MarkdownView text={text} className="text-[15px]" />
 			</div>
 		</div>

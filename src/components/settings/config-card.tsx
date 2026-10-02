@@ -30,7 +30,7 @@ export function ConfigCard({
 			onClick={onClick}
 			disabled={disabled}
 			className={cn(
-				"group flex min-h-22 w-full items-start gap-3 border border-border bg-card p-4 text-left shadow-xs sm:p-5",
+				"group flex min-h-22 w-full items-start gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-xs sm:p-5",
 				"transition-colors duration-200 hover:border-primary/40 hover:bg-muted/40",
 				"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 				"disabled:pointer-events-none disabled:opacity-70",
@@ -92,7 +92,7 @@ export function UpdateCallChip({ status, startedAt, label, className }: UpdateCa
 			role="status"
 			aria-live="polite"
 			className={cn(
-				"relative inline-flex min-h-9 max-w-full items-center gap-2 overflow-hidden border px-3 py-1.5 text-xs font-medium shadow-xs",
+				"relative inline-flex min-h-9 max-w-full items-center gap-2 overflow-hidden rounded-md border px-3 py-1.5 text-xs font-medium shadow-xs",
 				"border-border bg-background text-muted-foreground",
 				status === "running" && "border-primary/40 text-foreground",
 				status === "done" && "border-success/40 bg-success/10 text-success",

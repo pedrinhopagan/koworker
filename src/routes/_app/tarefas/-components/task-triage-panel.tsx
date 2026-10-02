@@ -196,7 +196,7 @@ export function TaskTriagePanel(props: Props) {
 		</div>
 	);
 
-	const sectionLabel = "font-semibold uppercase tracking-[0.12em]";
+	const sectionLabel = "font-medium";
 
 	const controls = (
 		<div className="space-y-4 [&_[data-slot=button]]:text-foreground [&_[data-slot=button]]:transition-none [&_[data-slot=button]]:active:scale-100">
@@ -253,7 +253,7 @@ export function TaskTriagePanel(props: Props) {
 			<Button
 				size="icon-sm"
 				variant={props.search.includeCompleted ? "secondary" : "outline"}
-				className="size-9 shrink-0"
+				className="shrink-0"
 				aria-label={props.search.includeCompleted ? "Ocultar concluídas" : "Mostrar concluídas"}
 				aria-pressed={!!props.search.includeCompleted}
 				onClick={() =>

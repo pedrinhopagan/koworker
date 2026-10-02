@@ -254,7 +254,7 @@ function SectionTrigger({
 				onClick={onToggle}
 				aria-expanded={open}
 				className={cn(
-					"flex h-12 items-center gap-1 border px-3 text-xs transition-colors md:h-7 md:px-2",
+					"flex h-12 items-center gap-1 rounded-md border px-3 text-xs transition-colors md:h-7 md:px-2",
 					"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 					open
 						? "border-primary/40 bg-primary/10 text-foreground"
@@ -299,7 +299,9 @@ function SectionBulkButton({
 function CollapsibleSection({ open, children }: { open: boolean; children: React.ReactNode }) {
 	return (
 		<Collapse open={open}>
-			<div className="mt-2 border border-border/60 bg-muted/20 px-3 py-2.5">{children}</div>
+			<div className="mt-2 rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5">
+				{children}
+			</div>
 		</Collapse>
 	);
 }

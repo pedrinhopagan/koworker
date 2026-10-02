@@ -152,7 +152,7 @@ export function TaskFileCard({
 	onAuxClick,
 }: TaskFileCardProps) {
 	const className = cn(
-		"group flex w-full flex-col gap-2 border border-border text-left transition-colors hover:border-[var(--project-accent,var(--primary))] hover:bg-muted/30 rounded-none",
+		"group flex w-full flex-col gap-2 border border-border text-left transition-colors hover:border-[var(--project-accent,var(--primary))] hover:bg-muted/30 rounded-md",
 		hero ? "gap-3 p-5" : "p-3",
 	);
 

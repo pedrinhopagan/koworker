@@ -5,7 +5,7 @@ import { tv, type VariantProps } from "tailwind-variants";
 import { cn } from "@/lib/utils";
 
 const switchVariants = tv({
-	base: "peer inline-flex shrink-0 cursor-pointer select-none items-center rounded-none border border-input bg-transparent shadow-xs transition-all outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:cursor-default disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:border-muted data-[state=unchecked]:bg-input/30 dark:data-[state=unchecked]:bg-input/50",
+	base: "peer inline-flex shrink-0 cursor-pointer select-none items-center rounded-full border border-input bg-transparent shadow-xs transition-all outline-none focus-visible:border-ring focus-visible:ring-ring focus-visible:ring-1 disabled:cursor-default disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:border-muted data-[state=unchecked]:bg-input/30 dark:data-[state=unchecked]:bg-input/50",
 	variants: {
 		size: {
 			default: "h-5 w-9",
@@ -19,7 +19,7 @@ const switchVariants = tv({
 });
 
 const thumbVariants = tv({
-	base: "pointer-events-none block bg-foreground shadow-sm ring-0 transition-transform data-[state=unchecked]:translate-x-0.5 dark:data-[state=checked]:bg-primary-foreground",
+	base: "pointer-events-none block rounded-full bg-white shadow-sm ring-0 transition-transform data-[state=unchecked]:translate-x-0.5 data-[state=checked]:bg-white",
 	variants: {
 		size: {
 			default: "size-3.5 data-[state=checked]:translate-x-[15px]",

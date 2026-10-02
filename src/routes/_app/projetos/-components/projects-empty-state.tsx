@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export function ProjectsEmptyState() {
 	return (
-		<section className="grid min-h-[26rem] overflow-hidden border border-border bg-card/30 shadow-xs md:grid-cols-[minmax(0,3fr)_minmax(18rem,2fr)]">
+		<section className="grid min-h-[26rem] overflow-hidden rounded-xl border border-border bg-card/30 shadow-xs md:grid-cols-[minmax(0,3fr)_minmax(18rem,2fr)]">
 			<div className="flex flex-col justify-center px-6 py-10 sm:px-10 md:py-14">
 				<div className="flex size-12 items-center justify-center border border-border bg-muted/40">
 					<FolderKanban className="size-6 text-primary" />

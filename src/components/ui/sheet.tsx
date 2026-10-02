@@ -25,7 +25,7 @@ const sheetOverlayVariants = tv({
 });
 
 const sheetContentVariants = tv({
-	base: "fixed z-50 flex touch-none flex-col bg-background shadow-xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fill-mode-forwards data-[state=open]:duration-300 data-[state=closed]:duration-200 [animation-timing-function:cubic-bezier(0.32,0.72,0,1)]",
+	base: "fixed z-50 flex touch-none flex-col bg-popover text-popover-foreground shadow-xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fill-mode-forwards data-[state=open]:duration-200 data-[state=closed]:duration-150 [animation-timing-function:cubic-bezier(0.32,0.72,0,1)]",
 	variants: {
 		side: {
 			top: "inset-x-0 top-0 border-b border-border data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
@@ -184,7 +184,7 @@ const SheetContent = React.forwardRef<
 				)}
 				{children}
 				{showClose && (
-					<SheetPrimitive.Close className="absolute top-3 right-3 flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none">
+					<SheetPrimitive.Close className="absolute top-3 right-3 flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none sm:size-8">
 						<X className="size-4" />
 						<span className="sr-only">Fechar</span>
 					</SheetPrimitive.Close>

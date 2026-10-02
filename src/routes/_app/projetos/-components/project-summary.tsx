@@ -38,7 +38,7 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 
 	if (!project) {
 		return (
-			<div className="flex min-h-56 items-center justify-center border border-dashed border-border bg-card/20 px-6 text-center">
+			<div className="flex min-h-56 items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 text-center">
 				<div>
 					<Title size="sm" as="div">
 						Selecione um projeto na prateleira
@@ -52,7 +52,7 @@ export function ProjectSummary({ project }: ProjectSummaryProps) {
 	}
 
 	return (
-		<div className="min-w-0 border border-border bg-card/20 shadow-xs lg:h-full lg:min-h-0 lg:overflow-y-auto">
+		<div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card shadow-xs lg:h-full lg:min-h-0 lg:overflow-y-auto">
 			<div className="min-w-0 border-b border-border p-4 sm:p-5">
 				<ProjectIdentity
 					project={project}

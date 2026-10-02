@@ -20,5 +20,8 @@ export function getActiveTabLabel(currentPath: string): string {
 	if (!active && isTabActive(currentPath, "/arquivo")) {
 		return "Arquivo";
 	}
+	if (currentPath === "/configuracoes") {
+		return "Configurações";
+	}
 	return active?.label ?? "Menu";
 }

@@ -65,7 +65,10 @@ export function RubberSegment<T extends string>({
 		<div
 			role="radiogroup"
 			aria-label={ariaLabel}
-			className={cn("relative flex shrink-0 items-stretch gap-0.5 bg-muted p-0.5", className)}
+			className={cn(
+				"relative flex shrink-0 items-stretch gap-0.5 rounded-lg bg-muted p-0.5",
+				className,
+			)}
 		>
 			{options.map((option, index) => {
 				const selected = option.value === value;
@@ -84,7 +87,7 @@ export function RubberSegment<T extends string>({
 						onClick={() => onValueChange(option.value)}
 						onKeyDown={(event) => onKeyDown(event, index)}
 						className={cn(
-							"relative flex cursor-pointer items-center justify-center gap-1.5 px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50",
+							"relative flex cursor-pointer items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring",
 							selected ? "text-foreground" : "text-muted-foreground hover:text-foreground",
 							itemClassName,
 						)}
@@ -93,7 +96,7 @@ export function RubberSegment<T extends string>({
 							<motion.span
 								layoutId={layoutId}
 								aria-hidden
-								className="absolute inset-0 bg-background shadow-xs"
+								className="absolute inset-0 rounded-md bg-background shadow-xs"
 								transition={reduceMotion ? { duration: 0 } : RUBBER_SEGMENT_SPRING}
 							/>
 						)}

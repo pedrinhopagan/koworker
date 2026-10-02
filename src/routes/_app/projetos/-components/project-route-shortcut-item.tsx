@@ -120,7 +120,7 @@ export function ProjectRouteShortcutItem({
 	return (
 		<div
 			className={cn(
-				"flex min-w-0 cursor-pointer items-stretch border border-border bg-card transition-colors hover:border-foreground/25 hover:bg-accent/50",
+				"flex min-w-0 cursor-pointer items-stretch rounded-lg border border-border bg-card transition-colors hover:border-foreground/25 hover:bg-accent/50",
 				sortable?.isDragging && "opacity-60",
 			)}
 		>

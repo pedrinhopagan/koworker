@@ -12,7 +12,7 @@ export function HomeEmptyState() {
 	const hasProjects = projects.length > 0;
 
 	return (
-		<section className="animate-stagger-fade-in border border-border bg-card p-6 shadow-xs sm:p-9">
+		<section className="animate-stagger-fade-in rounded-xl border border-border bg-card p-6 shadow-xs sm:p-9">
 			<div className="flex items-center gap-2">
 				<Target className="size-4 text-muted-foreground" aria-hidden />
 				<Text size="xs" tone="muted" className="uppercase tracking-[0.16em]">

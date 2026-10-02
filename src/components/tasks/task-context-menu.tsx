@@ -229,7 +229,7 @@ export function TaskContextMenu({
 		<ContextMenu onOpenChange={setOpen}>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
 			{open && (
-				<ContextMenuContent className="w-[220px] rounded-none">
+				<ContextMenuContent className="w-[220px]">
 					<ContextMenuLabel className="truncate px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
 						{target.label}
 					</ContextMenuLabel>

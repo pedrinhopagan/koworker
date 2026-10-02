@@ -30,7 +30,7 @@ export function TaskOverviewContextMenu({
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-			<ContextMenuContent className="w-[220px] rounded-none">
+			<ContextMenuContent className="w-[220px]">
 				<ContextMenuLabel className="truncate px-3 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
 					{label}
 				</ContextMenuLabel>

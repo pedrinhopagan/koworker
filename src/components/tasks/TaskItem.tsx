@@ -46,7 +46,7 @@ import { TaskEditControls, TaskTitleInput, taskTitlePlaceholder } from "./task-e
 import { TaskMobileActionsDrawer } from "./task-mobile-actions-drawer";
 
 export const taskItemVariants = tv({
-	base: "flex items-center justify-between gap-4 border border-transparent bg-card transition-all duration-200 hover:border-border hover:bg-secondary/30 animate-fade-in w-full min-w-0 overflow-hidden",
+	base: "flex items-center justify-between gap-4 rounded-lg border border-transparent bg-card transition-colors duration-150 hover:border-border hover:bg-secondary/30 animate-fade-in w-full min-w-0 overflow-hidden",
 	variants: {
 		variant: {
 			default: "px-3 py-2",

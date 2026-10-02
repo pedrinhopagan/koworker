@@ -25,20 +25,16 @@ export function HomeMasthead({ project }: { project: HomeProject }) {
 	return (
 		<section
 			aria-label="Resumo do projeto"
-			className="animate-stagger-fade-in border border-border bg-card shadow-xs"
+			className="animate-stagger-fade-in overflow-hidden rounded-xl border border-border bg-card shadow-xs"
 		>
 			<div className="grid gap-8 p-6 sm:p-9 lg:grid-cols-12 lg:items-end">
 				<div className="min-w-0 lg:col-span-7">
-					<Text
-						size="xs"
-						tone="muted"
-						className="font-mono uppercase tracking-[0.18em] tabular-nums"
-					>
+					<Text size="xs" tone="muted" className="tabular-nums">
 						{dateFmt.format(new Date())}
 					</Text>
 					<Title
 						as="h1"
-						className="mt-3 break-words text-4xl leading-tight tracking-[-0.045em] sm:text-6xl"
+						className="mt-3 break-words text-3xl leading-tight tracking-tight sm:text-4xl"
 					>
 						{project.name}
 					</Title>

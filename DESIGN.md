@@ -1,72 +1,61 @@
-# Sistema visual do Kowork
+# Sistema visual do Koworker
 
-## Tema: Oficina editorial
+A interface segue a base visual do [T3 Code](https://github.com/pingdotgg/t3code), adaptada aos componentes Radix existentes.
+A referência é a revisão `8bc40b4e07bb7b4b0f71876d59520360c9bf958c`.
+Os tokens vêm de `apps/web/src/index.css`; controles e navegação vêm de `apps/web/src/components/ui/`.
+A atribuição está em `third-party/T3-CODE-LICENSE`.
 
-O Kowork é uma bancada de trabalho para projetos, tarefas, documentos e agents. O visual combina a clareza editorial dos melhores painéis do Collect UI com a linguagem utilitária de um terminal: quente, preciso, denso onde há dados e espaçoso onde há decisão.
+## Paleta e tipografia
 
-O elemento memorável é o contraste entre uma estrutura monocromática, de linhas retas, e uma única assinatura de cor herdada do projeto em foco.
+O tema claro usa canvas zinc quase branco, cards brancos e navegação zinc-50.
+O tema escuro usa canvas neutral-950, superfícies discretamente elevadas e sidebar preta.
+As bordas separam superfícies; a seleção usa um fundo neutro.
 
-## Direção
+O azul do T3 é a cor primária nos dois temas.
+As cores dos projetos continuam identificando projetos e seus conteúdos.
+Sucesso, alerta e erro possuem cores próprias, independentes da cor primária.
 
-- **Densidade:** confortável no shell e nos formulários; compacta apenas em listas, tabelas, terminais e barras de status.
-- **Paleta:** papel mineral no claro e grafite quente no escuro. A cor primária e a cor do projeto não decoram: indicam ação, seleção e progresso.
-- **Geometria:** cantos retos. Círculos ficam reservados a status, presença, avatares e controles que realmente giram.
-- **Profundidade:** superfícies roláveis usam borda e `shadow-xs`/`shadow-sm` rente. Blur começa somente em overlays.
-- **Tipografia:** a fonte da interface carrega títulos e corpo; a fonte de leitura fica nos documentos. Código, paths, ids e números operacionais usam mono e algarismos tabulares.
-- **Movimento:** 150–250 ms, apenas cor, opacidade e transform. Uma entrada discreta por página; nenhum movimento ambiente sem estado real.
+A interface usa a fonte do sistema. Código, caminhos e identificadores usam uma fonte monoespaçada.
+Títulos usam caixa normal. Metadata tem menos contraste que o conteúdo.
 
-## Hierarquia de tinta
+## Geometria e controles
 
-Há três intensidades:
+Os raios vêm de `src/index.css`: 6 px em detalhes, 8 px em controles, 10 px em campos e 14 px em cards.
+Dialogs e compositores usam o próximo degrau, de 18 px.
+Círculos ficam em status, avatares, switches e ações circulares.
 
-1. `foreground`: título, valor e ação principal.
-2. `muted-foreground`: corpo, rótulo e controle secundário.
-3. `muted-foreground/60`: metadata, atalho e detalhe auxiliar.
+Botões de desktop medem 32 px; botões compactos medem 28 px.
+No celular, os botões comuns e os ícones mantêm alvos de 44 px.
+Ações principais usam azul. Ações secundárias usam `outline`, `ghost` ou `ghost-muted`.
 
-Cor saturada só aparece em ação primária, seleção, status semântico e assinatura do projeto.
+Campos usam superfície neutra, borda discreta e foco visível.
+Selects usam `CustomSelect`, com itens arredondados dentro de uma superfície de popover.
+Todos os ícones de interface vêm de Lucide.
 
-## Anatomias
+## Navegação
 
-### Shell
+A sidebar reúne projeto em foco e páginas agrupadas.
+A seleção possui fundo neutro e texto destacado.
+A sidebar mantém o modo compacto escolhido pelo usuário.
 
-A sidebar tem marca, projeto em foco, navegação agrupada e controle de recolhimento. A barra superior é chrome de janela e contexto, não uma segunda navegação. Prompt e status fecham o quadro sem competir com a página.
+O topo mostra projeto e página atual, voltar, busca de páginas e troca de tema.
+A busca abre com Ctrl+K ou Cmd+K e aceita setas, Enter e Escape.
+Ctrl+B ou Cmd+B recolhe a sidebar. Os atalhos Alt+0 a Alt+9 continuam disponíveis.
+Alt+P abre o seletor de projetos.
 
-As linhas do shell atravessam a janela sem degrau. A barra de abas e a linha do projeto na sidebar medem `h-shell-bar`; a status bar e o "Recolher" medem `h-shell-foot`. Os dois tokens ficam em `src/index.css` em px, porque o rem de 15 px deixa alturas fracionárias e a borda cai entre dois pixels. Colunas lado a lado dentro da página (lista e detalhe) usam headers da mesma altura, e banner transitório entra acima das duas colunas, nunca dentro de uma só.
+O workspace de terminais usa os mesmos fundos de seleção e os mesmos controles.
+Suas abas diferenciam a conversa ativa com borda e superfície.
 
-### Página
+## Superfícies
 
-O `PageShell` possui header estável, com ícone em bloco, eyebrow “Workspace”, título, descrição e uma área de ações. O conteúdo começa depois de um único intervalo vertical e ocupa até `82rem`.
+Cards usam uma borda, fundo `card` e raio `xl`.
+Listas agrupadas possuem uma moldura externa; linhas internas compartilham separadores.
+A conversa usa mensagens neutras e um compositor arredondado com ações compactas.
 
-### Card
+Dialog, sheet, popover, select e menus portam para `[data-theme-root]`.
+Dialogs possuem header, corpo rolável e footer com ações à direita.
+Menus possuem padding externo e itens com raio menor que a superfície.
 
-Card padrão: `bg-card`, uma borda, sombra rente e padding de 20–24 px. Header, conteúdo e footer seguem o mesmo eixo. Card clicável muda borda e superfície no hover; não salta mais de 1 px.
-
-### Listas e tabelas
-
-Uma moldura externa possui o fundo e a borda; linhas internas usam `divide-y`. Headers são pequenos, em caixa alta e com tracking. Valores ficam mais fortes que labels. Números alinham e usam tabular.
-
-### Formulários
-
-Labels sempre visíveis. Inputs têm 40 px no fluxo confortável e 36 px no compacto. Placeholder é exemplo, não label. Foco usa uma única ring de 1 px. Erro aparece junto ao campo.
-
-### Overlays
-
-Dialog, sheet, popover, select e menus portam para `[data-theme-root]`. Usam superfície `popover`, borda nítida e sombra com blur. Dialog: header fixo, corpo rolável, footer fixo e ações à direita.
-
-### Estados vazios
-
-Ícone em bloco, título curto, uma frase de orientação e, quando existe próximo passo, uma única ação.
-
-## Regras de consistência
-
-- Um conceito tem uma anatomia compartilhada; variantes mudam tokens, não estrutura.
-- Um separador é desenhado por um único elemento.
-- Ícones Lucide usam 16 px em controles, 18–20 px em navegação e 20–24 px em empty states.
-- Ações primárias são únicas por tela. As demais são `outline` ou `ghost`.
-- `primary` nunca substitui cor semântica de sucesso, alerta ou erro.
-- Hex e famílias de cor Tailwind não entram em componentes de produto; exceções são cores persistidas pelo usuário/projeto.
-- Mobile preserva alvos de toque de 44 px, mesmo quando o desktop é compacto.
-
-## Referência Collect UI
-
-Do Collect UI, o Kowork adota a composição clara por blocos, headers com hierarquia inequívoca, cards com uma função por superfície, filtros alinhados e vazios orientados à ação. Não copia uma tela específica: aplica essa gramática ao fluxo real do produto e mantém a identidade quente, quadrada e operacional do Kowork.
+Superfícies roláveis usam apenas `shadow-xs` ou `shadow-sm`, ambas sem blur.
+Sombras com blur ficam nos overlays, conforme a medição de desempenho do desktop.
+Movimento respeita `prefers-reduced-motion`.

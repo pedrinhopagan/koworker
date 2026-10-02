@@ -78,7 +78,7 @@ export function TaskSyncRow({
 	return (
 		<div
 			className={cn(
-				"border border-border bg-card p-4 transition-opacity",
+				"rounded-xl border border-border bg-card p-4 transition-opacity",
 				!draft.selected && "opacity-55",
 			)}
 		>

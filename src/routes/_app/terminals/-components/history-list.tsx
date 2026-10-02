@@ -82,7 +82,7 @@ export function HistoryList({
 						{group.label}
 					</Text>
 
-					<div className={cn(!compact && "border border-border bg-card shadow-xs")}>
+					<div className={cn(!compact && "rounded-xl border border-border bg-card shadow-xs")}>
 						{group.sessions.map((session) => (
 							<HistorySessionCard
 								key={`${session.cli}:${session.sessionId}`}

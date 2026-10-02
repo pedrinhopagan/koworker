@@ -182,7 +182,7 @@ function ProjectPickerOption({
 			}}
 			onFocus={onActivate}
 			onMouseEnter={onActivate}
-			className="group flex min-h-16 cursor-pointer items-center gap-3 border border-border bg-card px-4 py-3 text-left outline-none transition-colors hover:bg-muted/30 focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 md:min-h-12 md:gap-2 md:px-3 md:py-2"
+			className="group flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left outline-none transition-colors hover:bg-muted/30 focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 md:min-h-12 md:gap-2 md:px-3 md:py-2"
 		>
 			<span
 				className="flex size-9 shrink-0 items-center justify-center border border-border bg-background md:size-7"

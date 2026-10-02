@@ -75,7 +75,7 @@ export function ShellSidebar({
 			data-collapsed={collapsed || undefined}
 			data-mobile={mobile || undefined}
 			className={cn(
-				"flex h-full min-h-0 w-[300px] shrink-0 flex-col border-r border-border bg-chrome/75 transition-[width] duration-150",
+				"flex h-full min-h-0 w-72 shrink-0 flex-col border-r border-border bg-sidebar transition-[width] duration-150",
 				mobile && "h-auto w-full flex-1 shrink border-r-0 bg-background",
 				collapsed && "w-0 overflow-hidden border-r-0",
 			)}
@@ -111,7 +111,7 @@ export function ShellSidebar({
 				</div>
 			)}
 
-			<div className="border-b border-border p-2">
+			<div className="p-2">
 				<div className="relative">
 					<Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
 					<Input
@@ -152,11 +152,11 @@ export function ShellSidebar({
 								<Text
 									as="span"
 									size="xs"
-									className="min-w-0 flex-1 truncate font-bold uppercase tracking-wider"
+									className="min-w-0 flex-1 truncate font-medium text-sidebar-muted-foreground"
 								>
 									{group.label}
 								</Text>
-								<Text as="span" size="xs" tone="faint" className="font-mono text-[9px]">
+								<Text as="span" size="xs" tone="muted" className="tabular-nums">
 									{group.entries.length}
 								</Text>
 							</div>

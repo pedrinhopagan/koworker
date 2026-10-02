@@ -6,7 +6,7 @@ import { tv, type VariantProps } from "tailwind-variants";
 import { cn } from "@/lib/utils";
 
 const checkboxVariants = tv({
-	base: "peer size-4 shrink-0 rounded-none border border-input bg-transparent shadow-xs transition-all duration-200 outline-none hover:border-primary/60 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary data-[state=checked]:scale-110 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:data-[state=checked]:bg-primary",
+	base: "peer size-4 shrink-0 rounded-sm border border-input bg-transparent shadow-xs transition-colors duration-150 outline-none hover:border-primary/60 focus-visible:border-ring focus-visible:ring-ring focus-visible:ring-1 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:data-[state=checked]:bg-primary",
 	variants: {
 		size: {
 			default: "size-4",
