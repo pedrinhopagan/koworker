@@ -383,12 +383,13 @@ describe("updateSkillInFs", () => {
 		await addRow("agents", global, "global", 1);
 		await addRow("opencode", custom, "custom", 2);
 		const projectId = crypto.randomUUID();
+		const projectName = `Projeto de skills ${projectId}`;
 		projectIds.push(projectId);
 		await db
 			.insertInto("projects")
 			.values({
 				id: projectId,
-				name: "Projeto",
+				name: projectName,
 				color: "#000000",
 				display_order: 0,
 				main_route: project,
@@ -399,7 +400,7 @@ describe("updateSkillInFs", () => {
 			.execute();
 
 		for (const marker of ["global", "custom", "projeto"]) {
-			const skill = await getSkillFromFs("editable", "Projeto");
+			const skill = await getSkillFromFs("editable", projectName);
 			const variant = skill?.variants.find((candidate) => candidate.description === marker);
 			if (!variant) {
 				throw new Error(`Variante ${marker} não encontrada`);
@@ -407,7 +408,7 @@ describe("updateSkillInFs", () => {
 
 			await updateSkillInFs({
 				slug: "editable",
-				projectName: "Projeto",
+				projectName,
 				variantPath: variant.path,
 				description: `editada ${marker}`,
 				content: `conteúdo ${marker}`,
