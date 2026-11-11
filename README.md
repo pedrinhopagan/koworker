@@ -1,176 +1,102 @@
+<div align="center">
+
+<img src="static/logo.svg" width="96" alt="Koworker logo">
+
 # Koworker
 
-ERP full-stack brasileiro focado em projetos e tarefas com AI Coding Agents.
+**A local workspace for projects, tasks, and AI coding agents.**<br>
+Keep your code, context, and conversations in one place.
 
-## Requisitos
+![TypeScript](https://img.shields.io/badge/TypeScript-1d1f25?style=flat-square&logo=typescript&logoColor=white)
+![Bun](https://img.shields.io/badge/Bun-1d1f25?style=flat-square&logo=bun&logoColor=white)
+![React 19](https://img.shields.io/badge/React-19-1d1f25?style=flat-square&logo=react&logoColor=white)
+![Electron](https://img.shields.io/badge/Electron-1d1f25?style=flat-square&logo=electron&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-1d1f25?style=flat-square&logo=sqlite&logoColor=white)
 
-### Runtime
+[Run locally](#run-locally) · [Under the hood](#under-the-hood) · [Documentation](#documentation)
 
-- [Bun](https://bun.sh) (runtime e package manager)
+<br>
 
-## Setup
+<img src="docs/screenshots/tasks.png" alt="Koworker task workspace with a feature index, grouped tasks, and project navigation">
 
-O comando `bun setup` prepara tudo de uma vez:
+<sub>Built with Koworker, managed in Koworker. Screenshots show the current Portuguese interface.</sub>
+
+</div>
+
+## Highlights
+
+- **One workspace per project.** Open coding CLIs, run project commands, and find context files from a single launchpad.
+- **Tasks backed by Markdown.** Plans, notes, and deliverables live in your project folder, readable by you and your agents.
+- **Conversations with context.** Chat with Codex, import CLI history, and follow terminal agents with their tools and results.
+- **A shared skill library.** Browse, edit, and organize reusable instructions across coding CLIs.
+- **Local data.** SQLite stores the app state. Project files stay on disk; coding agents use their configured providers.
+
+## Follow the work
+
+Read agent output as a conversation. Inspect tool activity, choose a model and reasoning effort, and respond to questions or approvals.
+
+<p align="center">
+  <img src="docs/screenshots/conversation.png" alt="A real Codex conversation in Koworker, with expandable tool activity, project history, and message controls">
+  <br>
+  <sub>A conversation from Koworker's own development, continued inside the app.</sub>
+</p>
+
+## Keep instructions close
+
+Skills turn your workflow into reusable instructions. Group them by category and edit their files without leaving the workspace.
+
+<p align="center">
+  <img src="docs/screenshots/skills.png" alt="Koworker skill library with search, categories, and cards for reusable agent instructions">
+</p>
+
+## Run locally
+
+Requires [Bun](https://bun.sh). Agent features also need the corresponding coding CLI installed and authenticated.
 
 ```bash
-bun setup
+git clone https://github.com/pedrinhopagan/koworker.git
+cd koworker
+cp .env.example .env
 ```
 
-O que ele faz:
-
-1. Copia `.env.example` → `.env` (se não existir)
-2. Instala dependências (`bun install`)
-3. Cria o banco SQLite e roda migrações
-4. Roda seed (usuário admin via env, categorias, prioridades, skills)
-5. Builda o frontend em `dist/`
-6. Compila o backend em `electron/bin/kowork-backend`
-7. Compila o processo principal e o preload do Electron
-
-Após o setup, rode:
+In `.env`, set `DATABASE_URL` to a local SQLite path, such as `db.sqlite`. Set a unique `JWT_SECRET`, `KOWORK_ADMIN_USER`, and `KOWORK_ADMIN_PASSWORD`.
 
 ```bash
+bun run setup
 bun dev
 ```
 
-## Banco de dados
+Setup installs dependencies, prepares SQLite, creates the configured admin account, and builds the frontend, backend, and Electron shell.
 
-O Koworker usa **SQLite** como banco local via `@lobomfz/db` + **Kysely** (query builder).
+For the browser interface, use `bun run dev:web` and open [localhost:2841](http://localhost:2841). The same credentials apply.
 
-- O arquivo do banco é definido pela variável `DATABASE_URL` no `.env` (padrão: `db.sqlite` na raiz do projeto)
-- O schema é declarado com **Arktype** em `src/api/db/connection.ts`
-- Migrações são idempotentes e rodam automaticamente ao iniciar o servidor (`src/api/db/migrate.ts`)
-- Não precisa de servidor de banco — é um arquivo local
+## Under the hood
 
-### Tabelas
+| Layer | Built with |
+| --- | --- |
+| Interface | React 19, TanStack Router & Query, Zustand |
+| Styling | Tailwind CSS 4, Radix UI |
+| API & live updates | Bun, ORPC, WebSockets |
+| Storage | SQLite, Kysely, Markdown files |
+| Desktop | Electron with a local Bun backend |
+| Agent CLI | `kw-cli`, with direct database access and storage locks |
 
-| Tabela           | Descrição                           |
-| ---------------- | ----------------------------------- |
-| `users`          | Usuários (admin/user)               |
-| `projects`       | Projetos com rotas e cor            |
-| `project_routes` | Rotas/abas dentro de cada projeto   |
-| `tasks`          | Tarefas vinculadas a projeto        |
-| `subtasks`       | Subtarefas de uma task              |
-| `categories`     | Categorias (feature, fix, test, doc)|
-| `priorities`     | Prioridades (Alta, Media, Baixa)    |
-| `skills`         | Skills para AI agents               |
+<details>
+<summary>Development commands</summary>
 
-### Seed
+| Command | Purpose |
+| --- | --- |
+| `bun dev` | Start the desktop app in development mode |
+| `bun run dev:web` | Start the browser interface and backend |
+| `bun run typecheck` | Check TypeScript |
+| `bun run oxlint` | Run the linter |
+| `bun test` | Run the existing test suite |
+| `bun run desktop:pack` | Build an unpacked desktop app |
+| `bun run desktop:build` | Build desktop packages for the host platform |
+| `bun run cli` | Show the agent CLI commands |
 
-O seed (`bun seed`) cria:
+</details>
 
-- Usuário admin (se `KOWORK_ADMIN_USER` e `KOWORK_ADMIN_PASSWORD` estiverem definidas no `.env`)
-- Categorias padrão: feature, fix, test, doc
-- Prioridades padrão: Alta, Media, Baixa
-- Skills builtin importadas de `~/.config/opencode/skills/` ou `static/skills/`
+## Documentation
 
-### Resetar o banco
-
-Para resetar o banco completamente:
-
-```bash
-rm db.sqlite && bun seed
-```
-
-O servidor recria as tabelas automaticamente ao iniciar.
-
-## Stack
-
-### Frontend
-
-- **React 19** + **TanStack Router** (file-based) + **TanStack Query**
-- **Zustand** (state management)
-- **Tailwind 4** + **Radix UI + shadcn**
-
-### Backend
-
-- **Bun** (runtime + server)
-- **ORPC** (HTTP em `/rpc` + WebSocket em `/ws`)
-- **Kysely** + **SQLite** via `@lobomfz/db`
-
-### Validação
-
-- **Zod** — validação geral (schemas de API, CLI)
-- **Arktype** — schema do banco de dados
-
-### Desktop
-
-- **Electron** — janela, tray, instância única e empacotamento
-
-## Estrutura
-
-```
-src/
-├── api/           # ORPC routers, auth, schemas, db, pubsub
-├── routes/        # TanStack Router (file-based)
-├── components/    # UI (shadcn + base)
-├── hooks/         # Custom React hooks
-├── lib/           # Utilitários
-├── stores/        # Zustand stores
-├── types/         # TypeScript types
-├── cli/           # CLI Kowork (acesso direto ao DB)
-├── server.ts      # Entry point do backend Bun
-└── main.tsx       # Entry point do frontend React
-
-electron/          # Main process, preload, ícones e artefatos desktop
-scripts/           # Setup, seed, build, deploy
-docs/              # Documentação adicional
-```
-
-## Comandos
-
-### Desenvolvimento
-
-```bash
-bun setup          # Prepara tudo (env, db, builds)
-bun dev            # Dev completo (frontend + backend + Electron)
-bun dev:web        # Apenas frontend + backend
-```
-
-### Build e deploy
-
-```bash
-bun run desktop:pack     # Pasta executável do host
-bun run desktop:build    # Pacotes do host (AppImage/deb/rpm, NSIS ou DMG)
-bun run deploy           # Deploy com bump de versão interativo
-bun run desktop:update   # Atualiza do remoto e rebuilda
-```
-
-### Qualidade
-
-```bash
-bun run oxlint     # Lint
-bun check          # Type check
-bun test           # Testes
-```
-
-### CLI (para AI agents)
-
-```bash
-bun cli create-task '{"title": "...", "projectName": "Kowork", "categoryName": "feature", "priorityName": "Media"}'
-bun cli read-task '{"taskId": "uuid"}'
-bun cli update-task '{"taskId": "uuid", "status": "executed"}'
-```
-
-## Variáveis de ambiente
-
-| Variável       | Obrigatória | Descrição                              | Default          |
-| -------------- | ----------- | -------------------------------------- | ---------------- |
-| `DATABASE_URL` | sim         | Caminho do arquivo SQLite              | `db.sqlite`      |
-| `JWT_SECRET`   | sim         | Secret para assinatura de tokens JWT   | —                |
-| `NODE_ENV`     | não         | `development` ou `production`          | `development`    |
-| `KOWORK_ADMIN_USER` | não    | Nome do usuário admin inicial          | —                |
-| `KOWORK_ADMIN_PASSWORD` | não | Senha do usuário admin inicial         | —                |
-
-## Conexão Front ↔ API
-
-- O front usa ORPC em `/rpc` (HTTP) e `/ws` (WebSocket) na mesma origem
-- Rotas do app (`/_app`) exigem sessão válida via `auth.me`
-- Credenciais de login vêm de `KOWORK_ADMIN_USER` / `KOWORK_ADMIN_PASSWORD` no `.env` (sem defaults hardcoded)
-- Em dev, o backend roda em `http://localhost:2841`; em produção/desktop, em `http://localhost:2842` (ou via `window.__KOWORK_API_URL__`)
-
-## Documentação
-
-- `docs/desktop/README.md` — Arquitetura e deploy desktop
-- `docs/TERMINAL.md`: terminal externo (ORPC + kw-terminal)
-- `AGENTS.md` — Knowledge base para AI coding agents
-- `ROADMAP.md` — Roadmap de desenvolvimento
+[Desktop architecture](docs/desktop/README.md) · [Terminal integration](docs/TERMINAL.md) · [Agent sessions](docs/SESSOES.md) · [Skills](docs/skills.md)
