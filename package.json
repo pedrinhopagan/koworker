@@ -2,7 +2,7 @@
 	"name": "koworker",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Koworker - ERP full-stack brasileiro com projetos e tarefas para AI Coding Agents",
+	"description": "A local workspace for projects, tasks, and AI coding agents.",
 	"homepage": "https://github.com/pedrinhopagan/koworker",
 	"license": "UNLICENSED",
 	"author": {
