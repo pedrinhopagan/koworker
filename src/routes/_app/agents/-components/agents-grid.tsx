@@ -187,7 +187,7 @@ export function AgentsGrid({ agents, categories, loading }: AgentsGridProps) {
 						<>
 							<span className="flex min-w-0 flex-1 items-center gap-2 text-left">
 								<span
-									className="size-2 shrink-0 rounded-full"
+									className="size-2 shrink-0"
 									style={{
 										backgroundColor: selectedOption?.color ?? "var(--muted-foreground)",
 									}}
@@ -203,7 +203,7 @@ export function AgentsGrid({ agents, categories, loading }: AgentsGridProps) {
 					renderItem={(option) => (
 						<div className="flex w-full items-center gap-2">
 							<span
-								className="size-2 shrink-0 rounded-full"
+								className="size-2 shrink-0"
 								style={{
 									backgroundColor: option.color ?? "var(--muted-foreground)",
 								}}
@@ -229,7 +229,7 @@ export function AgentsGrid({ agents, categories, loading }: AgentsGridProps) {
 
 			{!loading && (
 				<div className="min-h-0 flex-1 transform-gpu overflow-y-auto overscroll-contain pr-1">
-					<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pb-5">
+					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pb-5">
 						<AgentCreateTile />
 					</div>
 
@@ -246,7 +246,7 @@ export function AgentsGrid({ agents, categories, loading }: AgentsGridProps) {
 									/>
 
 									{!isCollapsed && (
-										<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+										<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
 											{sectionAgents.map((agent, index) => (
 												<AgentTile
 													key={agent.slug}
@@ -302,7 +302,7 @@ function AgentTile({ agent, index, categories, onAppearance }: AgentTileProps) {
 			<div
 				className={cn(
 					"group relative flex min-w-0 flex-col p-4",
-					"rounded-xl border border-border border-t-2 bg-card transition-colors",
+					"border border-border border-t-2 bg-card transition-colors",
 					"hover:bg-secondary/50",
 					"animate-in fade-in-0 slide-in-from-bottom-2 fill-mode-both",
 				)}
@@ -343,7 +343,7 @@ function AgentTile({ agent, index, categories, onAppearance }: AgentTileProps) {
 							type="button"
 							aria-label="Ações do agent"
 							title="Ações do agent"
-							className="absolute right-2 top-2 z-10 flex size-7 items-center justify-center border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-background hover:text-foreground data-[state=open]:border-border data-[state=open]:bg-background"
+							className="absolute right-2 top-2 z-10 flex size-11 sm:size-7 items-center justify-center border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-background hover:text-foreground data-[state=open]:border-border data-[state=open]:bg-background"
 						>
 							<SlidersHorizontal className="size-3.5" />
 						</button>
@@ -358,7 +358,7 @@ function AgentTile({ agent, index, categories, onAppearance }: AgentTileProps) {
 						>
 							<LucideIcon name={agent.icon} className="size-5" />
 						</div>
-						<div className="min-w-0 flex-1">
+						<div className="min-w-0 flex-1 pr-10 sm:pr-7">
 							<div className="truncate font-display text-sm font-semibold leading-tight">
 								{agent.label}
 							</div>

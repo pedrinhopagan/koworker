@@ -495,7 +495,7 @@ function AgentEditor({
 											>
 												<span
 													className={cn(
-														"size-1.5 shrink-0 rounded-full",
+														"size-1.5 shrink-0",
 														GROUP_DOT[variant.group % GROUP_DOT.length],
 													)}
 													aria-hidden

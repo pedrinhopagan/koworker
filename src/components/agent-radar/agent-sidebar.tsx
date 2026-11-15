@@ -31,7 +31,7 @@ export function AgentSidebar({
 			onClick={toggleMode}
 			aria-label={compact ? "Expandir sidebar de agents" : "Recolher sidebar de agents"}
 			className={cn(
-				"hidden size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:flex",
+				"hidden size-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:flex",
 				compact && "mx-auto",
 			)}
 		>
@@ -59,7 +59,7 @@ export function AgentSidebar({
 						<Text as="span" size="xs" className="font-semibold">
 							Conversas
 						</Text>
-						<span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+						<span className="bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
 							{agents.length}
 						</span>
 						<span className="flex-1" />

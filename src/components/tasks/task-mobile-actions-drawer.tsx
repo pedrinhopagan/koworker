@@ -61,10 +61,7 @@ function ColorPickList({
 						onClick={() => onPick(item.id)}
 						className={pickItem({ class: active ? "font-medium" : undefined })}
 					>
-						<span
-							className="size-2.5 shrink-0 rounded-full"
-							style={{ backgroundColor: item.color }}
-						/>
+						<span className="size-2.5 shrink-0" style={{ backgroundColor: item.color }} />
 						<span className="min-w-0 flex-1 truncate text-left">{item.name}</span>
 						{active && <Check className="size-4 shrink-0 text-muted-foreground" />}
 					</button>
@@ -205,7 +202,7 @@ export function TaskMobileActionsDrawer({
 						onClick={() => runAction(() => actions.onMoveToFeature?.(target, null))}
 						className={pickItem({ class: target.groupId ? undefined : "font-medium" })}
 					>
-						<span className="size-2.5 shrink-0 rounded-full bg-muted-foreground" />
+						<span className="size-2.5 shrink-0 bg-muted-foreground" />
 						<span className="min-w-0 flex-1 truncate text-left">Sem feature</span>
 						{!target.groupId && <Check className="size-4 shrink-0 text-muted-foreground" />}
 					</button>
@@ -219,10 +216,7 @@ export function TaskMobileActionsDrawer({
 								onClick={() => runAction(() => actions.onMoveToFeature?.(target, feature.id))}
 								className={pickItem({ class: active ? "font-medium" : undefined })}
 							>
-								<span
-									className="size-2.5 shrink-0 rounded-full"
-									style={{ backgroundColor: feature.color }}
-								/>
+								<span className="size-2.5 shrink-0" style={{ backgroundColor: feature.color }} />
 								<span className="min-w-0 flex-1 truncate text-left">{feature.name}</span>
 								{active && <Check className="size-4 shrink-0 text-muted-foreground" />}
 							</button>

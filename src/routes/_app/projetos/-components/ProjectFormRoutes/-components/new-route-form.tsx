@@ -65,7 +65,7 @@ export function NewRouteForm({ projectId, onCreate, isCreating }: NewRouteFormPr
 			<Title as="div" size="sm">
 				Nova rota
 			</Title>
-			<div className="flex flex-col gap-2 rounded-md border border-border bg-card/50 px-3 py-3">
+			<div className="flex flex-col gap-2 border border-border bg-card/50 px-3 py-3">
 				<div className="flex items-center gap-2">
 					{cli ? (
 						<div className="flex h-9 w-12 shrink-0 items-center justify-center border border-border bg-background">

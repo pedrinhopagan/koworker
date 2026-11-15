@@ -5,7 +5,7 @@ import { tv, type VariantProps } from "tailwind-variants";
 import { cn } from "@/lib/utils";
 
 const switchVariants = tv({
-	base: "peer inline-flex shrink-0 cursor-pointer select-none items-center rounded-full border border-input bg-transparent shadow-xs transition-all outline-none focus-visible:border-ring focus-visible:ring-ring focus-visible:ring-1 disabled:cursor-default disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:border-muted data-[state=unchecked]:bg-input/30 dark:data-[state=unchecked]:bg-input/50",
+	base: "peer inline-flex shrink-0 cursor-pointer select-none items-center border shadow-xs transition-colors duration-150 outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=unchecked]:border-input data-[state=unchecked]:bg-input data-[state=unchecked]:hover:border-muted-foreground/60 dark:data-[state=unchecked]:bg-input/70",
 	variants: {
 		size: {
 			default: "h-5 w-9",
@@ -19,12 +19,12 @@ const switchVariants = tv({
 });
 
 const thumbVariants = tv({
-	base: "pointer-events-none block rounded-full bg-white shadow-sm ring-0 transition-transform data-[state=unchecked]:translate-x-0.5 data-[state=checked]:bg-white",
+	base: "pointer-events-none block shadow-xs ring-0 transition-transform duration-150 ease-out motion-reduce:transition-none data-[state=unchecked]:translate-x-0.5 data-[state=unchecked]:bg-background dark:data-[state=unchecked]:bg-foreground/80 data-[state=checked]:bg-primary-foreground",
 	variants: {
 		size: {
-			default: "size-3.5 data-[state=checked]:translate-x-[15px]",
-			sm: "size-2.5 data-[state=checked]:translate-x-[11px]",
-			lg: "size-4.5 data-[state=checked]:translate-x-[19px]",
+			default: "size-3.5 data-[state=checked]:translate-x-[18px]",
+			sm: "size-2.5 data-[state=checked]:translate-x-[14px]",
+			lg: "size-4.5 data-[state=checked]:translate-x-[22px]",
 		},
 	},
 	defaultVariants: {

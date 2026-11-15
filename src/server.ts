@@ -18,6 +18,8 @@ import { isNotifyAuthorized } from "./api/helpers/notify-auth";
 import { resolveProjectLogo, resolveProjectLogoByName } from "./api/helpers/project-logo";
 import { assertSingleTenantRuntime } from "./api/helpers/terminal-access";
 import { PubSub } from "./api/pubsub";
+import { conversationsRuntime } from "./api/helpers/conversations";
+import { DbConversations } from "./api/db/conversations";
 import { TaskNotifySchema } from "./api/schemas";
 import { KwTerminalNavigateSchema } from "./api/schemas/kw-terminal";
 import homepage from "./index.html";
@@ -165,6 +167,7 @@ assertSingleTenantRuntime(await DbUsers.listIds());
 // Keep local DB schema compatible with current code (idempotent).
 const { ensureDbSchema } = await import("./api/db/migrate");
 ensureDbSchema();
+await DbConversations.recover();
 
 // Semeia settings de SO e roots default de agents/skills por plataforma (primeira execução).
 const { ensureDefaultSettings, ensureDefaultAgentCategories, migrateLegacyTerminalSettings } =
@@ -203,6 +206,7 @@ async function shutdown(signal: string) {
 		return;
 	}
 	shuttingDown = true;
+	conversationsRuntime.close();
 
 	const aborted = await abortActiveRuns();
 	if (aborted > 0) {

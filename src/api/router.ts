@@ -1,4 +1,7 @@
 import { ORPCError } from "@orpc/server";
+import { conversationsRouter } from "@/api/routers/conversations";
+import { ConversationSchemas } from "@/api/schemas/conversations";
+import { conversationsRuntime } from "@/api/helpers/conversations";
 
 import { protectedProcedure, publicProcedure } from "./auth/context";
 import { isLocalRequest } from "./auth/device";
@@ -40,6 +43,7 @@ import { vaultRouter } from "./routers/vault";
 import { AgentRadarPaneSchema, EndpointSchemas, PromptRunIdSchema, ShellIdSchema } from "./schemas";
 
 export const router = {
+	conversations: conversationsRouter,
 	auth: {
 		login: publicProcedure.input(EndpointSchemas.authLogin).handler(({ input, context }) =>
 			Auth.login({
@@ -109,6 +113,21 @@ export const router = {
 };
 
 export const wsRouter = {
+	conversationPane: protectedProcedure
+		.input(ConversationSchemas.pane)
+		.handler(({ input, signal }) => conversationsRuntime.watchPane(input.paneId, signal)),
+	conversations: protectedProcedure.handler(({ context, signal }) =>
+		PubSub.subscribe("conversations", String(context.user.id), signal),
+	),
+	conversation: protectedProcedure.input(ConversationSchemas.id).handler(async function* ({
+		input,
+		context,
+		signal,
+	}) {
+		const events = PubSub.subscribe("conversation", input.id, signal);
+		yield await conversationsRuntime.get(input.id, context.user.id);
+		yield* events;
+	}),
 	auth: {
 		me: protectedProcedure.handler(({ context }) => ({
 			id: context.user.id,

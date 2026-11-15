@@ -58,7 +58,7 @@ export function RouteItem({ item, props, onUpdate, onDelete, isDeleting }: Route
 	return (
 		<div
 			className={cn(
-				"flex flex-col gap-2 rounded-md border border-border bg-card px-3 py-3",
+				"flex flex-col gap-2 border border-border bg-card px-3 py-3",
 				props.isDragging && "opacity-60",
 			)}
 		>

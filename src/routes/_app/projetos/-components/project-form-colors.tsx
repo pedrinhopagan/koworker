@@ -12,9 +12,9 @@ export function ProjectFormColors() {
 	const selectedLabel = projectColorOptions.find((color) => color.value === selectedColor)?.label;
 
 	return (
-		<section className="rounded-lg border border-border bg-card/40 p-4">
+		<section className="border border-border bg-card/40 p-4">
 			<div className="flex items-center gap-3">
-				<div className="size-10 rounded-md bg-muted/50 flex items-center justify-center">
+				<div className="size-10 bg-muted/50 flex items-center justify-center">
 					<Sparkles className="size-5 text-muted-foreground" />
 				</div>
 				<div>
@@ -41,7 +41,7 @@ export function ProjectFormColors() {
 									title={color.label}
 									onClick={() => setValue("color", color.value, { shouldDirty: true })}
 									className={cn(
-										"relative h-8 flex-1 rounded-md transition",
+										"relative h-8 flex-1 transition",
 										selectedColor === color.value
 											? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
 											: "hover:ring-1 hover:ring-foreground/40",

@@ -67,15 +67,11 @@
 .cm-md-code-block-first {
 	position: relative;
 	border-top: 1px solid var(--border);
-	border-top-left-radius: 6px;
-	border-top-right-radius: 6px;
 	padding-top: 0.9em !important;
 }
 
 .cm-md-code-block-last {
 	border-bottom: 1px solid var(--border);
-	border-bottom-left-radius: 6px;
-	border-bottom-right-radius: 6px;
 	padding-bottom: 0.9em !important;
 }
 
@@ -89,7 +85,6 @@
 	color: var(--foreground);
 	background: color-mix(in oklab, var(--muted) 70%, transparent);
 	border: 1px solid var(--border);
-	border-radius: 4px;
 	cursor: text;
 	transition:
 		background-color 0.15s ease,
@@ -109,7 +104,6 @@
 
 .cm-md-highlight {
 	padding: 0.05em 0.15em;
-	border-radius: 3px;
 	/* Grifa âmbar translúcida — funciona sobre o fundo escuro mantendo o texto legível. */
 	background: color-mix(in oklab, #facc15 30%, transparent);
 	color: var(--foreground);
@@ -136,7 +130,6 @@
 	margin: 0 0.5rem 0 0;
 	overflow-x: auto;
 	border: 1px solid var(--border);
-	border-radius: 6px;
 	cursor: text;
 }
 
@@ -196,7 +189,6 @@
 	font-size: 0.9em;
 	background: color-mix(in oklab, var(--muted) 70%, transparent);
 	border: 1px solid var(--border);
-	border-radius: 4px;
 }
 
 /* ============================================================================
@@ -263,7 +255,6 @@
 .md-view .cm-md-blockquote {
 	margin: 0.7em 0;
 	padding: 0.5em 0.9em;
-	border-radius: 0 6px 6px 0;
 }
 
 .md-view pre.cm-md-code-block {
@@ -285,7 +276,6 @@
 
 .md-view img {
 	max-width: 100%;
-	border-radius: 6px;
 }
 
 /* Lista apertada: o `<p>` que o parser cria dentro do item não deve abrir o mesmo respiro de um

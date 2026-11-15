@@ -21,7 +21,7 @@ import { ShellSidebar } from "./-components/shell-sidebar";
 import { ShellWorkspace } from "./-components/shell-workspace";
 import { TerminalWorkspaceViewport } from "./-components/terminal-workspace-viewport";
 import { resolveTerminalWorkspaceSelection } from "./-utils/terminal-workspace-state";
-import { usePaneMove } from "./-utils/use-pane-move";
+import { usePaneMove } from "@/hooks/use-pane-move";
 import { useTerminalWorkspace } from "./-utils/use-terminal-workspace";
 
 const MISSING_TAB_GRACE_MS = 3_000;

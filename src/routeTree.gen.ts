@@ -16,6 +16,7 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as ParearTokenRouteImport } from './routes/parear.$token'
 import { Route as AppParearRouteImport } from './routes/_app/parear'
 import { Route as AppDispositivosRouteImport } from './routes/_app/dispositivos'
+import { Route as AppConversaRouteImport } from './routes/_app/conversa'
 import { Route as AppConfiguracoesRouteImport } from './routes/_app/configuracoes'
 import { Route as AppVaultIndexRouteImport } from './routes/_app/vault/index'
 import { Route as AppTerminalsIndexRouteImport } from './routes/_app/terminals/index'
@@ -28,6 +29,7 @@ import { Route as AppPainelIndexRouteImport } from './routes/_app/painel/index'
 import { Route as AppMostruarioIndexRouteImport } from './routes/_app/mostruario/index'
 import { Route as AppMediaIndexRouteImport } from './routes/_app/media/index'
 import { Route as AppExecutarIndexRouteImport } from './routes/_app/executar/index'
+import { Route as AppChatIndexRouteImport } from './routes/_app/chat/index'
 import { Route as AppArquivoIndexRouteImport } from './routes/_app/arquivo/index'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents/index'
 import { Route as AppPainelProjetoIdRouteImport } from './routes/_app/painel/$projetoId'
@@ -84,6 +86,11 @@ const AppDispositivosRoute = AppDispositivosRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_app/dispositivos.lazy').then((d) => d.Route),
 )
+const AppConversaRoute = AppConversaRouteImport.update({
+  id: '/conversa',
+  path: '/conversa',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppConfiguracoesRoute = AppConfiguracoesRouteImport.update({
   id: '/configuracoes',
   path: '/configuracoes',
@@ -152,6 +159,13 @@ const AppExecutarIndexRoute = AppExecutarIndexRouteImport.update({
   path: '/executar/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppChatIndexRoute = AppChatIndexRouteImport.update({
+  id: '/chat/',
+  path: '/chat/',
+  getParentRoute: () => AppRoute,
+} as any).lazy(() =>
+  import('./routes/_app/chat/index.lazy').then((d) => d.Route),
+)
 const AppArquivoIndexRoute = AppArquivoIndexRouteImport.update({
   id: '/arquivo/',
   path: '/arquivo/',
@@ -291,12 +305,14 @@ export interface FileRoutesByFullPath {
   '/dispositivo': typeof DispositivoRoute
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
+  '/conversa': typeof AppConversaRoute
   '/dispositivos': typeof AppDispositivosRoute
   '/parear': typeof AppParearRoute
   '/parear/$token': typeof ParearTokenRoute
   '/painel/$projetoId': typeof AppPainelProjetoIdRoute
   '/agents/': typeof AppAgentsIndexRoute
   '/arquivo/': typeof AppArquivoIndexRoute
+  '/chat/': typeof AppChatIndexRoute
   '/executar/': typeof AppExecutarIndexRoute
   '/media/': typeof AppMediaIndexRoute
   '/mostruario/': typeof AppMostruarioIndexRoute
@@ -329,6 +345,7 @@ export interface FileRoutesByTo {
   '/dispositivo': typeof DispositivoRoute
   '/login': typeof LoginRoute
   '/configuracoes': typeof AppConfiguracoesRoute
+  '/conversa': typeof AppConversaRoute
   '/dispositivos': typeof AppDispositivosRoute
   '/parear': typeof AppParearRoute
   '/parear/$token': typeof ParearTokenRoute
@@ -336,6 +353,7 @@ export interface FileRoutesByTo {
   '/painel/$projetoId': typeof AppPainelProjetoIdRoute
   '/agents': typeof AppAgentsIndexRoute
   '/arquivo': typeof AppArquivoIndexRoute
+  '/chat': typeof AppChatIndexRoute
   '/executar': typeof AppExecutarIndexRoute
   '/media': typeof AppMediaIndexRoute
   '/mostruario': typeof AppMostruarioIndexRoute
@@ -370,6 +388,7 @@ export interface FileRoutesById {
   '/dispositivo': typeof DispositivoRoute
   '/login': typeof LoginRoute
   '/_app/configuracoes': typeof AppConfiguracoesRoute
+  '/_app/conversa': typeof AppConversaRoute
   '/_app/dispositivos': typeof AppDispositivosRoute
   '/_app/parear': typeof AppParearRoute
   '/parear/$token': typeof ParearTokenRoute
@@ -377,6 +396,7 @@ export interface FileRoutesById {
   '/_app/painel/$projetoId': typeof AppPainelProjetoIdRoute
   '/_app/agents/': typeof AppAgentsIndexRoute
   '/_app/arquivo/': typeof AppArquivoIndexRoute
+  '/_app/chat/': typeof AppChatIndexRoute
   '/_app/executar/': typeof AppExecutarIndexRoute
   '/_app/media/': typeof AppMediaIndexRoute
   '/_app/mostruario/': typeof AppMostruarioIndexRoute
@@ -412,12 +432,14 @@ export interface FileRouteTypes {
     | '/dispositivo'
     | '/login'
     | '/configuracoes'
+    | '/conversa'
     | '/dispositivos'
     | '/parear'
     | '/parear/$token'
     | '/painel/$projetoId'
     | '/agents/'
     | '/arquivo/'
+    | '/chat/'
     | '/executar/'
     | '/media/'
     | '/mostruario/'
@@ -450,6 +472,7 @@ export interface FileRouteTypes {
     | '/dispositivo'
     | '/login'
     | '/configuracoes'
+    | '/conversa'
     | '/dispositivos'
     | '/parear'
     | '/parear/$token'
@@ -457,6 +480,7 @@ export interface FileRouteTypes {
     | '/painel/$projetoId'
     | '/agents'
     | '/arquivo'
+    | '/chat'
     | '/executar'
     | '/media'
     | '/mostruario'
@@ -490,6 +514,7 @@ export interface FileRouteTypes {
     | '/dispositivo'
     | '/login'
     | '/_app/configuracoes'
+    | '/_app/conversa'
     | '/_app/dispositivos'
     | '/_app/parear'
     | '/parear/$token'
@@ -497,6 +522,7 @@ export interface FileRouteTypes {
     | '/_app/painel/$projetoId'
     | '/_app/agents/'
     | '/_app/arquivo/'
+    | '/_app/chat/'
     | '/_app/executar/'
     | '/_app/media/'
     | '/_app/mostruario/'
@@ -584,6 +610,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDispositivosRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/conversa': {
+      id: '/_app/conversa'
+      path: '/conversa'
+      fullPath: '/conversa'
+      preLoaderRoute: typeof AppConversaRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/configuracoes': {
       id: '/_app/configuracoes'
       path: '/configuracoes'
@@ -666,6 +699,13 @@ declare module '@tanstack/react-router' {
       path: '/executar'
       fullPath: '/executar/'
       preLoaderRoute: typeof AppExecutarIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/chat/': {
+      id: '/_app/chat/'
+      path: '/chat'
+      fullPath: '/chat/'
+      preLoaderRoute: typeof AppChatIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/arquivo/': {
@@ -806,12 +846,14 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppConfiguracoesRoute: typeof AppConfiguracoesRoute
+  AppConversaRoute: typeof AppConversaRoute
   AppDispositivosRoute: typeof AppDispositivosRoute
   AppParearRoute: typeof AppParearRoute
   AppIndexRoute: typeof AppIndexRoute
   AppPainelProjetoIdRoute: typeof AppPainelProjetoIdRoute
   AppAgentsIndexRoute: typeof AppAgentsIndexRoute
   AppArquivoIndexRoute: typeof AppArquivoIndexRoute
+  AppChatIndexRoute: typeof AppChatIndexRoute
   AppExecutarIndexRoute: typeof AppExecutarIndexRoute
   AppMediaIndexRoute: typeof AppMediaIndexRoute
   AppMostruarioIndexRoute: typeof AppMostruarioIndexRoute
@@ -843,12 +885,14 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppConfiguracoesRoute: AppConfiguracoesRoute,
+  AppConversaRoute: AppConversaRoute,
   AppDispositivosRoute: AppDispositivosRoute,
   AppParearRoute: AppParearRoute,
   AppIndexRoute: AppIndexRoute,
   AppPainelProjetoIdRoute: AppPainelProjetoIdRoute,
   AppAgentsIndexRoute: AppAgentsIndexRoute,
   AppArquivoIndexRoute: AppArquivoIndexRoute,
+  AppChatIndexRoute: AppChatIndexRoute,
   AppExecutarIndexRoute: AppExecutarIndexRoute,
   AppMediaIndexRoute: AppMediaIndexRoute,
   AppMostruarioIndexRoute: AppMostruarioIndexRoute,

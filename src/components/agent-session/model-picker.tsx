@@ -48,7 +48,7 @@ const STATUS_TEXT: Record<ModelApplyStatus, string> = {
 };
 
 const CHIP =
-	"relative inline-flex h-12 min-w-0 shrink-0 cursor-pointer touch-manipulation select-none items-center gap-1.5 rounded-md border-0 bg-transparent px-2.5 text-xs font-medium text-muted-foreground shadow-none transition-[background-color,color,transform] duration-150 [-webkit-tap-highlight-color:transparent] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 data-[open]:bg-muted data-[open]:text-foreground motion-reduce:active:scale-100 sm:h-10";
+	"relative inline-flex h-12 min-w-0 shrink-0 cursor-pointer touch-manipulation select-none items-center gap-1.5 border-0 bg-transparent px-2.5 text-xs font-medium text-muted-foreground shadow-none transition-[background-color,color,transform] duration-150 [-webkit-tap-highlight-color:transparent] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 data-[open]:bg-muted data-[open]:text-foreground motion-reduce:active:scale-100 sm:h-10";
 
 // Os toques no seletor não tiram o foco do campo: no celular isso fecharia o teclado a cada escolha.
 function keepFocus(event: { preventDefault: () => void }) {
@@ -304,7 +304,7 @@ function EffortPanel({
 				{efforts.map((effort, step) => (
 					<i
 						key={effort}
-						className="absolute -ml-0.5 size-1 rounded-full bg-foreground/30"
+						className="absolute -ml-0.5 size-1 bg-foreground/30"
 						style={{ left: stepAt(step) }}
 					/>
 				))}
@@ -455,10 +455,7 @@ export function ModelPicker({
 						{status === "failed" && <AlertCircle className="size-3.5 shrink-0 text-destructive" />}
 						{status === "idle" && <ChevronDown className="size-3.5 shrink-0 opacity-60" />}
 						{pending && (
-							<span
-								aria-hidden
-								className="absolute top-1.5 right-1 size-1.5 rounded-full bg-primary"
-							/>
+							<span aria-hidden className="absolute top-1.5 right-1 size-1.5 bg-primary" />
 						)}
 					</button>
 				</PopoverTrigger>

@@ -1,5 +1,8 @@
-export function isPreviewDocument(path: string) {
-	return /\.(html?|pdf)$/i.test(path);
+import { ARTIFACT_MIME_BY_EXT } from "@/constants/koworker";
+
+export function isPreviewFile(path: string) {
+	const extension = path.slice(path.lastIndexOf(".")).toLowerCase();
+	return !!ARTIFACT_MIME_BY_EXT[extension];
 }
 
 export function filePreviewUrl(path: string, token: string) {

@@ -39,7 +39,7 @@ export function WorkspaceTabs({
 						data-selected={selected || undefined}
 						data-agent={entry.agent ?? undefined}
 						className={cn(
-							"group flex shrink-0 items-center h-8 gap-1.5 rounded-lg border border-transparent px-2 transition-colors",
+							"group flex shrink-0 items-center h-8 gap-1.5 border border-transparent px-2 transition-colors",
 							selected
 								? "border-border bg-card text-foreground shadow-xs"
 								: "text-muted-foreground hover:bg-accent hover:text-foreground",
@@ -48,7 +48,7 @@ export function WorkspaceTabs({
 						<button
 							type="button"
 							onClick={() => onSelect(entry.key)}
-							className="flex h-full min-w-0 items-center gap-1.5 px-1 rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+							className="flex h-full min-w-0 items-center gap-1.5 px-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 							aria-current={selected ? "true" : undefined}
 						>
 							{entry.agent ? (
@@ -57,7 +57,7 @@ export function WorkspaceTabs({
 								<span
 									aria-hidden
 									className={cn(
-										"size-1.5 shrink-0 rounded-full",
+										"size-1.5 shrink-0",
 										entry.status === "live" ? "bg-primary" : "bg-muted-foreground/40",
 									)}
 								/>
@@ -76,7 +76,7 @@ export function WorkspaceTabs({
 								type="button"
 								aria-label={`Fechar ${title}`}
 								onClick={() => actions.close(entry)}
-								className="flex size-5 shrink-0 rounded-md items-center justify-center text-muted-foreground transition-colors hover:bg-warning/15 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+								className="flex size-5 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-warning/15 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 							>
 								<X className="size-3" />
 							</button>

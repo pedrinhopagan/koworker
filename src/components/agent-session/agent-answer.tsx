@@ -144,7 +144,7 @@ export const AgentAnswer = memo(function AgentAnswer({
 							<div className="flex min-w-0 items-start gap-3">
 								<span
 									className={cn(
-										"flex size-9 shrink-0 items-center justify-center rounded-full",
+										"flex size-9 shrink-0 items-center justify-center",
 										cli ? cn("bg-muted", cli.tone) : "bg-primary/10 text-primary",
 									)}
 								>

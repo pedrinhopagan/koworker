@@ -45,6 +45,7 @@ export const MediaRenameSchema = z.object({
 // projeto; ausente ("Todos os projetos") agrega todos.
 export const MostruarioListSchema = z.object({
 	projectId: z.string().trim().min(1).optional(),
+	query: z.string().trim().max(200).optional(),
 });
 
 // Abre um artefato (.html/.pdf) da pasta da tarefa no app padrão do SO. O path absoluto nasce e morre

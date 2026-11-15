@@ -1,25 +1,17 @@
 import { sweepAllActiveTerminals } from "@/lib/terminal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import {
-	ArrowRight,
-	Brush,
-	MonitorSmartphone,
-	Palette,
-	QrCode,
-	RefreshCw,
-	Settings,
-} from "lucide-react";
+import { ArrowRight, Brush, MonitorSmartphone, QrCode, RefreshCw, Settings } from "lucide-react";
 import { useEffect } from "react";
 import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { ConfigCard, UpdateCallChip } from "@/components/settings/config-card";
 import { PushNotificationsCard } from "@/components/settings/push-notifications-card";
+import { ThemePicker } from "@/components/settings/theme-picker";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useDevices } from "@/hooks/use-devices";
 import { activateLatestPwa } from "@/lib/register-sw";
 import { PageShell } from "../../components/layout/page-shell";
@@ -120,7 +112,7 @@ function RedeployAppCard() {
 
 	return (
 		<section
-			className="overflow-hidden rounded-xl border border-border bg-card shadow-xs"
+			className="overflow-hidden border border-border bg-card shadow-xs"
 			aria-labelledby="update-title"
 		>
 			<div className="flex flex-col gap-6 p-5 sm:p-7 lg:flex-row lg:items-start lg:justify-between">
@@ -219,23 +211,7 @@ function ConfiguracoesPage() {
 						</Text>
 					</div>
 					<div className="grid gap-3 lg:grid-cols-2">
-						<div className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-4 shadow-xs sm:p-5">
-							<div className="flex min-w-0 items-start gap-3">
-								<Icon icon={Palette} size="sm" className="mt-0.5 shrink-0" />
-								<div className="min-w-0 space-y-1">
-									<Title as="h3" size="sm" className="text-sm font-semibold">
-										Tema
-									</Title>
-									<Text size="sm" tone="muted">
-										Escolha entre a aparência clara e a escura.
-									</Text>
-								</div>
-							</div>
-							<ThemeToggle
-								className="size-11 shrink-0 rounded-lg border border-border bg-background transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-								iconClassName="size-4"
-							/>
-						</div>
+						<ThemePicker />
 						<PushNotificationsCard />
 					</div>
 				</section>

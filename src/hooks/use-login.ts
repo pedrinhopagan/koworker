@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { FormProvider, type SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "@/components/ui/toast";
 import { orpc, reconnectRealtime } from "@/client";
@@ -9,6 +9,7 @@ import { loginSchema } from "@/lib/schemas";
 import type { LoginInput } from "@/types/auth";
 
 export function useLogin() {
+	const { redirect } = getRouteApi("/login").useSearch();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { mutateAsync } = useMutation(orpc.auth.login.mutationOptions());
@@ -27,7 +28,7 @@ export function useLogin() {
 
 			if (session.device.status !== "approved") {
 				queryClient.clear();
-				await navigate({ to: "/dispositivo" });
+				await navigate({ to: "/dispositivo", search: { redirect } });
 
 				return;
 			}
@@ -42,7 +43,7 @@ export function useLogin() {
 		queryClient.clear();
 		reconnectRealtime();
 
-		await navigate({ to: "/" });
+		await navigate({ href: redirect ?? "/", replace: true });
 	};
 
 	return {

@@ -2,7 +2,7 @@ import { isAbsolute, join, relative } from "node:path";
 
 import type { dbProjects } from "../db/projects";
 import type { dbTasks } from "../db/tasks";
-import { isPreviewDocument } from "@/lib/file-preview";
+import { isPreviewFile } from "@/lib/file-preview";
 
 function isInside(path: string, directory: string) {
 	const child = relative(directory, path);
@@ -32,7 +32,7 @@ export function resolveRegisteredFile({
 	const match = matches[0];
 
 	if (match) {
-		if (isPreviewDocument(path)) {
+		if (isPreviewFile(path)) {
 			return {
 				kind: "file" as const,
 				path,

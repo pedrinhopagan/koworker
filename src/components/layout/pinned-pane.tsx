@@ -32,7 +32,7 @@ export function PinnedPane() {
 	const lastPushed = useRef<string | null>(null);
 
 	const router = useRef<ReturnType<typeof createPinnedRouter> | null>(null);
-	router.current ??= getPinnedRouter(left ?? "/shells");
+	router.current ??= getPinnedRouter(left ?? "/chat");
 
 	useEffect(() => {
 		const current = router.current;

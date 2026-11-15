@@ -21,7 +21,7 @@ export function ShellCockpitEmpty({
 	const recent = entries.slice(0, 3);
 
 	return (
-		<div className="mx-auto flex w-full max-w-2xl flex-col rounded-xl border border-border bg-card/50">
+		<div className="mx-auto flex w-full max-w-2xl flex-col border border-border bg-card/50">
 			<div className="border-b border-border px-5 py-5 sm:px-6">
 				<Text size="xs" tone="muted" className="font-medium">
 					Agent workspace
@@ -40,7 +40,7 @@ export function ShellCockpitEmpty({
 					<Text size="xs" tone="muted" className="mb-2 px-2 font-medium">
 						Sessões disponíveis
 					</Text>
-					<div className="overflow-hidden rounded-lg divide-y divide-border border border-border">
+					<div className="overflow-hidden divide-y divide-border border border-border">
 						{recent.map((entry) => (
 							<button
 								key={entry.key}
@@ -48,7 +48,7 @@ export function ShellCockpitEmpty({
 								onClick={() => onSelect(entry.key)}
 								className="flex w-full items-center gap-3 bg-background px-3 py-3 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
 							>
-								<span className="grid size-8 shrink-0 place-items-center rounded-md border border-border text-primary">
+								<span className="grid size-8 shrink-0 place-items-center border border-border text-primary">
 									{entry.kind === "agent" ? (
 										<Bot className="size-4" />
 									) : (

@@ -12,15 +12,9 @@ const iconVariants = tv({
 			md: "size-9",
 			lg: "size-10",
 		},
-		shape: {
-			square: "rounded-md",
-			rounded: "rounded-lg",
-			pill: "rounded-full",
-		},
 	},
 	defaultVariants: {
 		size: "sm",
-		shape: "square",
 	},
 });
 
@@ -52,7 +46,7 @@ const withBorder = (value: string, alpha: string) => {
 	return `color-mix(in oklab, ${value} 35%, transparent)`;
 };
 
-export function Icon({ icon: IconComp, color, size, shape, className, iconClassName }: IconProps) {
+export function Icon({ icon: IconComp, color, size, className, iconClassName }: IconProps) {
 	const resolvedColor = color ?? "var(--project-accent, var(--primary))";
 	const background = withAlpha(resolvedColor, "1a");
 	const border = withBorder(resolvedColor, "33");
@@ -60,7 +54,7 @@ export function Icon({ icon: IconComp, color, size, shape, className, iconClassN
 
 	return (
 		<span
-			className={cn(iconVariants({ size, shape }), className)}
+			className={cn(iconVariants({ size }), className)}
 			style={{ background, boxShadow: `inset 0 0 0 1px ${border}` }}
 		>
 			<IconComp size={iconSize} className={iconClassName} style={{ color: resolvedColor }} />

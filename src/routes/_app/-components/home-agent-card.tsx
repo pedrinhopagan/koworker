@@ -50,7 +50,7 @@ export function HomeAgentCard({
 	onClose,
 }: HomeAgentCardProps) {
 	const visual = AGENT_RADAR_VISUALS[agent.status];
-	const destination = { tab: `agent:${agent.paneId}` };
+	const destination = { paneId: agent.paneId };
 	const live = agent.status === "working";
 
 	return (
@@ -61,7 +61,7 @@ export function HomeAgentCard({
 					data-project-id={agent.projectId ?? undefined}
 					data-status={agent.status}
 					className={cn(
-						"group animate-stagger-fade-in relative rounded-xl border border-border bg-card shadow-xs transition-colors hover:bg-muted/40",
+						"group animate-stagger-fade-in relative border border-border bg-card shadow-xs transition-colors hover:bg-muted/40",
 					)}
 					style={{ animationDelay: `${index * 45}ms` }}
 					{...(live ? { onPointerMove: trackBorderGlow } : {})}
@@ -74,7 +74,7 @@ export function HomeAgentCard({
 						/>
 					)}
 					<Link
-						to="/shells"
+						to="/chat"
 						search={destination}
 						aria-label={`Abrir conversa de ${agent.agent}`}
 						className="absolute inset-0 z-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
@@ -131,7 +131,7 @@ export function HomeAgentCard({
 					<Target className="size-4" /> Focar no kw-terminal
 				</ContextMenuItem>
 				<ContextMenuItem asChild>
-					<Link to="/shells" search={destination}>
+					<Link to="/chat" search={destination}>
 						<MessagesSquare className="size-4" /> Ver conversa
 					</Link>
 				</ContextMenuItem>

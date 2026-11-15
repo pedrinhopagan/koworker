@@ -62,7 +62,7 @@ function HistorySessionPage() {
 			if (!result.reused) {
 				toast.success("Conversa retomada em um pane novo");
 			}
-			await navigate({ to: "/shells", search: { tab: `agent:${result.paneId}` } });
+			await navigate({ to: "/chat", search: { paneId: result.paneId } });
 		},
 	});
 	const openDiff = useMutation({

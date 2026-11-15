@@ -54,10 +54,7 @@ export function CompleteTaskFeatureDialog({
 							onClick={() => onComplete(feature.id)}
 							className="flex items-center gap-2 border border-transparent px-3 py-2 text-left transition-colors hover:border-border hover:bg-secondary/40 disabled:pointer-events-none disabled:opacity-50"
 						>
-							<span
-								className="size-2.5 shrink-0 rounded-full"
-								style={{ backgroundColor: feature.color }}
-							/>
+							<span className="size-2.5 shrink-0" style={{ backgroundColor: feature.color }} />
 							<span className="truncate text-sm">{feature.name}</span>
 						</button>
 					))}

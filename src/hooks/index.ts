@@ -2,7 +2,6 @@ export { type FocusTask, useFocusTask } from "./use-focus-task";
 export { useIsMobileViewport } from "./use-is-mobile-viewport";
 export { useLogin } from "./use-login";
 export { useLogout } from "./use-logout";
-export { usePrimaryColor } from "./use-primary-color";
 export { type UseProjectFocusReturn, useProjectFocus } from "./use-project-focus";
 export { useSkillsQuery } from "./use-skills";
 export { type TasksSearchFilters, useTasksData } from "./use-tasks-data";

@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
 				<Card className="border-destructive/50 bg-destructive/5">
 					<CardContent className="p-6 sm:p-8">
 						<div className="flex flex-col items-center text-center gap-4">
-							<div className="flex size-12 items-center justify-center rounded-full bg-destructive/10">
+							<div className="flex size-12 items-center justify-center bg-destructive/10">
 								<AlertCircle className="size-6 text-destructive" />
 							</div>
 							<div className="space-y-2">

@@ -31,31 +31,33 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
 | `src/routes/_app/tarefas/$taskId/$file.tsx` | `/_app/tarefas/$taskId/$file` | `/tarefas/$featureId/$taskId` | Overview canônico; arquivo legado redireciona ao canônico |
 | `src/routes/_app/tarefas/$taskId/$file_/$canonicalFile.tsx` | `/_app/tarefas/$taskId/$file_/$canonicalFile` | `/tarefas/$featureId/$taskId/$file` | Editor canônico desaninhado com header próprio |
 | `src/routes/_app/vault/index.tsx` | `/_app/vault/` | `/vault` | `__root` + `AppShell` + `PageShell` |
-| `src/routes/_app/vault/$fileName/index.tsx` | `/_app/vault/$fileName/` | `/vault/$fileName` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
+| `src/routes/_app/vault/$fileName/index.tsx` | `/_app/vault/$fileName/` | `/vault/$fileName` | `__root` + `AppShell` (cabeçalho compacto dentro da área rolável, sem `PageShell`) |
 | `src/routes/_app/media/index.tsx` | `/_app/media/` | `/media` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/media/$fileName/index.tsx` | `/_app/media/$fileName/` | `/media/$fileName` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
 | `src/routes/_app/mostruario/index.tsx` | `/_app/mostruario/` | `/mostruario` | `__root` + `AppShell` + `PageShell` (lista tarefas com artefatos `.html`/`.pdf`; clicar no artefato abre no SO) |
 | `src/routes/_app/projetos/index.tsx` | `/_app/projetos/` | `/projetos` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/projetos/novo/index.tsx` | `/_app/projetos/novo/` | `/projetos/novo` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/projetos/$projetoId/index.tsx` | `/_app/projetos/$projetoId/` | `/projetos/$projetoId` | `__root` + `AppShell` + `PageShell` |
-| `src/routes/_app/painel/index.tsx` | `/_app/painel/` | `/painel` | Redirect para o painel do projeto selecionado (sem projeto: `/projetos`) |
-| `src/routes/_app/painel/$projetoId.tsx` | `/_app/painel/$projetoId` | `/painel/$projetoId` | `__root` + `AppShell` + `PageShell` (painel de controle: agentes, rotas cadastradas, docker, git e scripts do `package.json`; ação em background mostra o resultado num chip e a saída na coluna Atividade; trocar de projeto no seletor troca o painel) |
+| `src/routes/_app/painel/index.tsx` | `/_app/painel/` | `/painel` | Redirect legado para `/projetos` |
+| `src/routes/_app/painel/$projetoId.tsx` | `/_app/painel/$projetoId` | `/painel/$projetoId` | Redirect legado para `/projetos/$projetoId` |
 | `src/routes/_app/sistema.tsx` | `/_app/sistema` | `/sistema` | `__root` + `AppShell` + `PageShell` (subpágina de `/configuracoes`) |
 | `src/routes/_app/skills/index.tsx` | `/_app/skills/` | `/skills` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/skills/$slug/index.tsx` | `/_app/skills/$slug/` | `/skills/$slug` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
 | `src/routes/_app/agents/index.tsx` | `/_app/agents/` | `/agents` | `__root` + `AppShell` + `PageShell` |
 | `src/routes/_app/agents/$slug/index.tsx` | `/_app/agents/$slug/` | `/agents/$slug` | `__root` + `AppShell` (header próprio, sem `PageShell`) |
-| `src/routes/_app/terminals/index.tsx` | `/_app/terminals/` | `/terminals` | Redirect legado (replace) para `/shells` |
-| `src/routes/_app/terminals/$paneId/index.tsx` | `/_app/terminals/$paneId/` | `/terminals/$paneId` | Redirect legado (replace) para `/shells?tab=agent:<paneId>` |
+| `src/routes/_app/terminals/index.tsx` | `/_app/terminals/` | `/terminals` | Redirect legado (replace) para `/chat` |
+| `src/routes/_app/terminals/$paneId/index.tsx` | `/_app/terminals/$paneId/` | `/terminals/$paneId` | Redirect legado (replace) para `/chat?paneId=<paneId>` |
 | `src/routes/_app/terminals/history/index.tsx` | `/_app/terminals/history/` | `/terminals/history` | `__root` + `AppShell` + `PageShell` (histórico das conversas que Claude e Codex gravaram em disco; filtros de projeto, CLI e busca no search) |
 | `src/routes/_app/terminals/history/$cli/$sessionId/index.tsx` | `/_app/terminals/history/$cli/$sessionId/` | `/terminals/history/$cli/$sessionId` | `__root` + `AppShell` + `PageShell` (histórico + conversa antiga somente leitura; retomar abre um pane novo) |
-| `src/routes/_app/shells/index.tsx` | `/_app/shells/` | `/shells` | `__root` + `AppShell` sem `PageShell` (workspace único: sidebar com shells + conversas de agent agrupados por projeto, faixa de abas, xterm.js; aba ativa em `?tab=`) |
-| `src/routes/_app/shells/$shellId/index.tsx` | `/_app/shells/$shellId/` | `/shells/$shellId` | Redirect (replace) para `/shells?tab=<id>` |
+| `src/routes/_app/shells/index.tsx` | `/_app/shells/` | `/shells` | Redirect legado para `/chat`, preservando `?tab=agent:<paneId>` como `?paneId=<paneId>` |
+| `src/routes/_app/shells/$shellId/index.tsx` | `/_app/shells/$shellId/` | `/shells/$shellId` | Redirect legado para `/chat` |
+| `src/routes/_app/conversa.tsx` | `/_app/conversa` | `/conversa` | Redirect para `/chat`, preservando a conversa ou o pane selecionado |
+| `src/routes/_app/chat/index.tsx` | `/_app/chat/` | `/chat`, `/chat?view=new`, `/chat?id=<uuid>` ou `/chat?paneId=<id>` | `__root` + `AppShell` sem `PageShell` (agents abertos no topo, conversas recentes por projeto e histórico expansível; importação do Codex por conta, apresentação por itens nativos ou adapter de CLI; sidebar no desktop e páginas de lista, criação e conversa no mobile) |
 | `src/routes/_app/arquivo/index.tsx` | `/_app/arquivo/` | `/arquivo?path=&line=` | `__root` + `AppShell` sem `PageShell` (leitor de arquivo citado em conversa: markdown renderizado ou código com numeração e linha destacada; destino dos links de arquivo quando o cliente não está na máquina do backend; no celular sem a barra do app, e rolar o conteúdo recolhe o cabeçalho) |
-| `src/routes/_app/executar/index.tsx` | `/_app/executar/` | `/executar` | Redirect para `/shells` |
+| `src/routes/_app/executar/index.tsx` | `/_app/executar/` | `/executar` | Redirect para `/chat` |
 | `src/routes/_app/executar/$executionId/index.tsx` | `/_app/executar/$executionId/` | `/executar/$executionId` | Arquivo somente leitura de sessão/run legado; jobs atuais mantêm cancelamento e repetição |
-| `src/routes/_app/radar/index.tsx` | `/_app/radar/` | `/radar` | Redirect legado para `/shells` |
-| `src/routes/_app/radar/$paneId/index.tsx` | `/_app/radar/$paneId/` | `/radar/$paneId` | Redirect legado para `/shells?tab=agent:<paneId>` |
+| `src/routes/_app/radar/index.tsx` | `/_app/radar/` | `/radar` | Redirect legado para `/chat` |
+| `src/routes/_app/radar/$paneId/index.tsx` | `/_app/radar/$paneId/` | `/radar/$paneId` | Redirect legado para `/chat?paneId=<paneId>` |
 | `src/routes/_app/configuracoes.tsx` | `/_app/configuracoes` | `/configuracoes` | `__root` + `AppShell` + `PageShell` |
 
 ## Estrutura de pastas em `src/routes`
@@ -70,7 +72,8 @@ Fonte de verdade para paths públicos: `src/routeTree.gen.ts` (`FileRoutesByTo` 
   - `/tarefas/$taskId` e `/tarefas/$taskId/$file` permanecem como links legados e redirecionam por `replace`.
   - `/vault/$fileName` (`$fileName` é o nome do `.md` solto, ex. `notas.md` — não é uma task)
   - `/media/$fileName` (`$fileName` é o asset em `.koworker/medias/`; `?projectId` no search identifica o projeto)
-  - `/skills/$slug` (`$slug` é o slug da skill, ex. `commit` — edita o `SKILL.md` e os demais arquivos de texto da pasta dona, escolhidos na faixa de arquivos)
+  - `/skills/$slug` (`$slug` é o slug da skill, ex. `commit` — edita o `SKILL.md` e os demais arquivos de texto da pasta dona, escolhidos na faixa de arquivos. Salvar regrava toda cópia idêntica da skill em qualquer root, inclusive de outros projetos; o seletor de locais mostra onde ela vive e quais versões divergem)
+  - `/skills` busca primeiro pelo nome (título e slug), depois descrição e conteúdo; aceita soltar ou colar SKILL.md, .md, .zip, pasta, caminho ou o texto de "Copiar skill completa" para importar
   - `/agents/$slug` (`$slug` é o slug do agent, ex. `planner` — edita o `.md` da pasta dona)
   - `/terminals/$paneId` permanece como deep link legado e redireciona para `?tab=agent:<paneId>`.
   - `/terminals/history/$cli/$sessionId` (`$cli` é `claude` ou `codex`; `$sessionId` é o id que a própria CLI gravou no transcript)

@@ -2,6 +2,7 @@ import { basename, extname } from "node:path";
 
 import { ORPCError } from "@orpc/server";
 
+import { ARTIFACT_MIME_BY_EXT } from "@/constants/koworker";
 import {
 	PREVIEW_COPY_MESSAGE,
 	PREVIEW_COPY_RESULT_MESSAGE,
@@ -43,7 +44,7 @@ export async function serveFilePreview(request: Request, roots: string[]) {
 		const file = Bun.file(target);
 		const extension = extname(target).toLowerCase();
 		const headers = new Headers({
-			"Content-Type": file.type,
+			"Content-Type": ARTIFACT_MIME_BY_EXT[extension] ?? file.type,
 			"Content-Length": String(info.size),
 			"Cache-Control": "private, no-cache",
 			ETag: `W/"${info.size}-${info.mtimeMs}"`,
@@ -63,6 +64,12 @@ export async function serveFilePreview(request: Request, roots: string[]) {
 			headers.set("Content-Security-Policy", "frame-ancestors 'self'");
 		} else if (extension === ".html" || extension === ".htm") {
 			headers.set("Content-Type", "text/html; charset=utf-8");
+		}
+		if (new URL(request.url).searchParams.has("download")) {
+			headers.set(
+				"Content-Disposition",
+				`attachment; filename*=UTF-8''${encodeURIComponent(basename(target))}`,
+			);
 		}
 
 		if (request.headers.get("if-none-match") === headers.get("etag")) {

@@ -117,7 +117,7 @@ function sameGroup(left: GroupProps, right: GroupProps) {
 
 function AgentNarration({ events }: { events: AgentSessionEvent[] }) {
 	return (
-		<section className="min-w-0 rounded-lg border border-border/50 bg-card/40 px-3 py-2.5">
+		<section className="min-w-0 border border-border/50 bg-card/40 px-3 py-2.5">
 			<header className="mb-1.5 flex items-center gap-1.5 text-muted-foreground">
 				<Bot className="size-3" />
 				<Text as="span" className="text-[10px] font-bold uppercase tracking-[0.1em]">
@@ -164,12 +164,12 @@ const TimelineGroupView = memo(function TimelineGroupView({
 		return (
 			<section
 				ref={answerSection}
-				className="min-w-0 rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm md:p-4"
+				className="min-w-0 border border-border/70 bg-card/80 p-3 shadow-sm md:p-4"
 			>
 				<header className="mb-2 flex items-center gap-2">
 					<span
 						className={cn(
-							"flex size-7 shrink-0 items-center justify-center rounded-full",
+							"flex size-7 shrink-0 items-center justify-center",
 							cli ? cn("bg-muted", cli.tone) : "bg-primary/10 text-primary",
 						)}
 					>
@@ -295,7 +295,7 @@ export function SessionTimeline({
 					onClick={() =>
 						setFirstVisibleKey(groups[Math.max(0, hiddenCount - FOLD_KEEP_VISIBLE)].key)
 					}
-					className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2.5 text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+					className="flex w-full cursor-pointer items-center justify-center gap-1.5 border border-dashed border-border px-3 py-2.5 text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 				>
 					<ChevronUp className="size-3.5 shrink-0" />
 					<Text as="span" size="xs">

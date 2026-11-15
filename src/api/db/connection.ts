@@ -387,6 +387,37 @@ const pushSubscriptionsSchema = type({
 	updated_at: "number.integer",
 });
 
+const conversationsSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	user_id: type("number.integer").configure({ references: "users.id", onDelete: "cascade" }),
+	project_id: type("string").configure({ references: "projects.id", onDelete: "restrict" }),
+	profile_id: "string",
+	"thread_id?": "string",
+	title: "string",
+	cwd: "string",
+	"model?": "string",
+	"effort?": "string",
+	permission_mode: "string",
+	projection: "string",
+	revision: "number.integer",
+	created_at: "number.integer",
+	updated_at: "number.integer",
+});
+
+const conversationMessagesSchema = type({
+	id: type("string").configure({ primaryKey: true }),
+	conversation_id: type("string").configure({
+		references: "conversations.id",
+		onDelete: "cascade",
+	}),
+	text: "string",
+	status: "string",
+	"turn_id?": "string",
+	"error?": "string",
+	created_at: "number.integer",
+	updated_at: "number.integer",
+});
+
 const database = new Database({
 	path: envVariables.DATABASE_URL,
 	tables: {
@@ -411,6 +442,8 @@ const database = new Database({
 		push_subscriptions: pushSubscriptionsSchema,
 		devices: devicesSchema,
 		settings: settingsSchema,
+		conversations: conversationsSchema,
+		conversation_messages: conversationMessagesSchema,
 	},
 });
 

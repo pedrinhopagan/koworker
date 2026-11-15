@@ -1,4 +1,4 @@
-import { Check, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 import type { RouterOutputs } from "@/client";
 import { Text } from "@/components/typography";
@@ -45,7 +45,7 @@ function ColoredSelect({
 				<>
 					<span className="flex min-w-0 items-center gap-2">
 						<span
-							className="size-2 shrink-0 rounded-full"
+							className="size-2 shrink-0"
 							style={{ backgroundColor: selected?.color ?? "#6b7280" }}
 						/>
 						<span className="truncate">{selected?.name ?? label}</span>
@@ -55,9 +55,8 @@ function ColoredSelect({
 			)}
 			renderItem={(item, isSelected) => (
 				<div className={cn("flex items-center gap-2", isSelected && "font-medium")}>
-					<span className="size-2 rounded-full" style={{ backgroundColor: item.color }} />
+					<span className="size-2" style={{ backgroundColor: item.color }} />
 					<span className="flex-1 truncate">{item.name}</span>
-					{isSelected && <Check className="size-4" />}
 				</div>
 			)}
 		/>
@@ -78,7 +77,7 @@ export function TaskSyncRow({
 	return (
 		<div
 			className={cn(
-				"rounded-xl border border-border bg-card p-4 transition-opacity",
+				"border border-border bg-card p-4 transition-opacity",
 				!draft.selected && "opacity-55",
 			)}
 		>

@@ -25,8 +25,8 @@ export function LiveDot({ className }: { className?: string }) {
 			title="Aberta agora"
 			className={cn("relative inline-flex size-2 shrink-0", className)}
 		>
-			<span className="absolute inset-0 animate-ping rounded-full bg-success/60" />
-			<span className="relative inline-flex size-2 rounded-full bg-success" />
+			<span className="absolute inset-0 animate-ping bg-success/60" />
+			<span className="relative inline-flex size-2 bg-success" />
 		</span>
 	);
 }

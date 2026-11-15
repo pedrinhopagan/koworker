@@ -4,14 +4,14 @@ import { tv, type VariantProps } from "tailwind-variants";
 import { cn } from "@/lib/utils";
 
 const titleVariants = tv({
-	base: "font-display text-foreground font-semibold tracking-tight",
+	base: "font-display text-foreground font-semibold",
 	variants: {
 		size: {
 			xs: "text-xs",
 			sm: "text-sm",
-			md: "text-base",
-			lg: "text-lg",
-			xl: "text-xl",
+			md: "text-base tracking-tight",
+			lg: "text-lg leading-tight tracking-tight",
+			xl: "text-xl leading-tight tracking-tight",
 		},
 	},
 	defaultVariants: {

@@ -59,7 +59,7 @@ export function GlobalPromptBar() {
 		<div
 			ref={rootRef}
 			className={cn(
-				"border-t border-border bg-chrome",
+				"border-t border-border bg-background",
 				// Na leitura a rota vira um overlay `fixed inset-0 z-50`; o footer precisa sair do fluxo
 				// e encostar no fim da janela (sobre o lugar da StatusBar), com z acima do overlay.
 				reading && "fixed inset-x-0 bottom-0 z-[60] pb-[env(safe-area-inset-bottom)]",
@@ -87,7 +87,7 @@ export function GlobalPromptBar() {
 						{!expanded &&
 							(hasText ? (
 								<span className="flex min-w-0 items-center gap-2">
-									<span className="size-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
+									<span className="size-1.5 shrink-0 bg-primary" aria-hidden />
 									<span className="min-w-0 flex-1 truncate text-muted-foreground/80">
 										{collapsedText}
 									</span>

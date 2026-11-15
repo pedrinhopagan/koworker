@@ -19,13 +19,17 @@ export function isShellsPath(path: string): boolean {
 	return clean === "/shells" || clean.startsWith("/shells/");
 }
 
+export function isChatPath(path: string): boolean {
+	return rootOf(path) === "/chat";
+}
+
 export function clampSplitPaneWidth(width: number, available: number): number {
 	const max = Math.max(SPLIT_PANE_MIN, Math.round(available) - SPLIT_MAIN_MIN);
 	return Math.min(Math.max(Math.round(width), SPLIT_PANE_MIN), max);
 }
 
 function normalizePinnedPath(path?: string): string {
-	return path && path.startsWith("/") ? path : "/shells";
+	return path && path.startsWith("/") ? path : "/chat";
 }
 
 interface SplitViewState {

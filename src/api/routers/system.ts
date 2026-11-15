@@ -111,7 +111,7 @@ export const systemRouter = {
 
 	readFile: protectedProcedure.input(OsPathSchema).handler(async ({ input, context }) => {
 		const file = await readViewableFile(input.path, await fileViewRoots());
-		if (file.kind !== "document") {
+		if (file.kind !== "document" && file.kind !== "media") {
 			return file;
 		}
 		const token = await createFilePreviewToken({

@@ -3,7 +3,7 @@ import { Check, MonitorSmartphone, ShieldBan } from "lucide-react";
 
 import { PageShell } from "@/components/layout/page-shell";
 import { Text, Title } from "@/components/typography";
-import { Badge } from "@/components/ui/badge";
+import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { HoldButton } from "@/components/ui/hold-button";
 import { Icon } from "@/components/ui/icon";
@@ -114,7 +114,7 @@ function DeviceRow({ device, canManage, busy, onApprove, onBlock, onRevoke }: De
 	const status = STATUS_BADGE[device.status];
 
 	return (
-		<div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-start sm:justify-between">
+		<div className="flex flex-col gap-4 border border-border bg-card p-4 sm:flex-row sm:items-start sm:justify-between">
 			<div className="flex min-w-0 items-start gap-3">
 				<Icon icon={MonitorSmartphone} size="sm" className="mt-0.5 shrink-0" />
 
@@ -124,9 +124,9 @@ function DeviceRow({ device, canManage, busy, onApprove, onBlock, onRevoke }: De
 							{device.name}
 						</Title>
 
-						<Badge variant={status.variant}>{status.label}</Badge>
+						<Chip variant={status.variant}>{status.label}</Chip>
 
-						{device.current && <Badge variant="muted">Este aparelho</Badge>}
+						{device.current && <Chip>Este aparelho</Chip>}
 					</div>
 
 					<Text size="sm" tone="muted" className="break-words">

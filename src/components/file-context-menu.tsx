@@ -77,7 +77,7 @@ export function FileContextMenu({
 				{path ? (
 					<ContextMenuItem
 						onSelect={() => void handleCopyPath()}
-						className="rounded-md px-3 py-2 text-muted-foreground focus:text-foreground"
+						className="px-3 py-2 text-muted-foreground focus:text-foreground"
 					>
 						<LinkIcon className="mr-2 size-4" />
 						Copiar caminho
@@ -86,7 +86,7 @@ export function FileContextMenu({
 				{absolutePath ? (
 					<ContextMenuItem
 						onSelect={() => void handleCopyAbsolutePath()}
-						className="rounded-md px-3 py-2 text-muted-foreground focus:text-foreground"
+						className="px-3 py-2 text-muted-foreground focus:text-foreground"
 					>
 						<HardDrive className="mr-2 size-4" />
 						Copiar caminho no PC
@@ -95,7 +95,7 @@ export function FileContextMenu({
 				{route ? (
 					<ContextMenuItem
 						onSelect={() => void handleCopyRoute()}
-						className="rounded-md px-3 py-2 text-muted-foreground focus:text-foreground"
+						className="px-3 py-2 text-muted-foreground focus:text-foreground"
 					>
 						<RouteIcon className="mr-2 size-4" />
 						Copiar rota
@@ -104,7 +104,7 @@ export function FileContextMenu({
 				{onOpenFolder ? (
 					<ContextMenuItem
 						onSelect={onOpenFolder}
-						className="rounded-md px-3 py-2 text-muted-foreground focus:text-foreground"
+						className="px-3 py-2 text-muted-foreground focus:text-foreground"
 					>
 						<FolderOpen className="mr-2 size-4" />
 						Abrir na pasta
@@ -113,7 +113,7 @@ export function FileContextMenu({
 				<ContextMenuSeparator />
 				<ContextMenuItem
 					onSelect={onRename}
-					className="rounded-md px-3 py-2 text-muted-foreground focus:text-foreground"
+					className="px-3 py-2 text-muted-foreground focus:text-foreground"
 				>
 					<Pencil className="mr-2 size-4" />
 					Renomear
@@ -121,7 +121,7 @@ export function FileContextMenu({
 				<ContextMenuSeparator />
 				<ContextMenuItem
 					onSelect={onDelete}
-					className="rounded-md px-3 py-2 text-destructive focus:text-destructive"
+					className="px-3 py-2 text-destructive focus:text-destructive"
 				>
 					<Trash2 className="mr-2 size-4" />
 					Deletar

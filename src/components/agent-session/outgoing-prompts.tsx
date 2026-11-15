@@ -45,7 +45,7 @@ export function OutgoingPrompts({
 					<div key={item.key} className="flex justify-end">
 						<div
 							className={cn(
-								"min-w-0 max-w-[92%] rounded-xl rounded-br-sm border border-dashed border-primary/40 bg-primary/5 px-3.5 py-2.5 sm:max-w-[80%]",
+								"min-w-0 max-w-[92%] border border-dashed border-primary/40 bg-primary/5 px-3.5 py-2.5 sm:max-w-[80%]",
 								item.state === "unconfirmed" && "border-warning/60 bg-warning/5",
 							)}
 						>

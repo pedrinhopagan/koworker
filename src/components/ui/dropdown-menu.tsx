@@ -19,7 +19,7 @@ const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
 const dropdownMenuSubTriggerVariants = tv({
-	base: "flex cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-1.5 text-sm outline-none bg-transparent text-foreground data-[highlighted]:bg-accent data-[highlighted]:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	base: "flex cursor-pointer select-none items-center gap-2 px-2.5 py-1.5 text-sm outline-none bg-transparent text-foreground data-[highlighted]:bg-accent data-[highlighted]:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 	variants: {
 		inset: {
 			true: "pl-8",
@@ -45,7 +45,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
 DropdownMenuSubTrigger.displayName = DropdownMenuPrimitive.SubTrigger.displayName;
 
 const dropdownMenuSubContentVariants = tv({
-	base: "z-50 min-w-[8rem] overflow-hidden rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
+	base: "z-50 min-w-[8rem] overflow-hidden border border-border bg-popover p-1 text-popover-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
 });
 
 const DropdownMenuSubContent = React.forwardRef<
@@ -70,7 +70,7 @@ const DropdownMenuSubContent = React.forwardRef<
 DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName;
 
 const dropdownMenuContentVariants = tv({
-	base: "z-50 min-w-[160px] overflow-hidden rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
+	base: "z-50 min-w-[160px] overflow-hidden border border-border bg-popover p-1 text-popover-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
 });
 
 const DropdownMenuContent = React.forwardRef<
@@ -100,7 +100,7 @@ const DropdownMenuContent = React.forwardRef<
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
 const dropdownMenuItemVariants = tv({
-	base: "relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-1.5 text-sm outline-none transition-colors bg-transparent text-foreground data-[highlighted]:bg-accent data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	base: "relative flex cursor-pointer select-none items-center gap-2 px-2.5 py-1.5 text-sm outline-none transition-colors bg-transparent text-foreground data-[highlighted]:bg-accent data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 	variants: {
 		inset: {
 			true: "pl-8",
@@ -123,7 +123,7 @@ const DropdownMenuItem = React.forwardRef<
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 
 const dropdownMenuCheckboxItemVariants = tv({
-	base: "relative flex cursor-pointer select-none items-center gap-2 rounded-md py-1.5 pr-2.5 pl-8 text-sm outline-none transition-colors bg-transparent text-foreground data-[highlighted]:bg-accent data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	base: "relative flex cursor-pointer select-none items-center gap-2 py-1.5 pr-2.5 pl-8 text-sm outline-none transition-colors bg-transparent text-foreground data-[highlighted]:bg-accent data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 });
 
 const DropdownMenuCheckboxItem = React.forwardRef<
@@ -138,7 +138,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
 	>
 		<span className="absolute left-2 flex size-3.5 items-center justify-center">
 			<DropdownMenuPrimitive.ItemIndicator>
-				<Check className="size-4" />
+				<Check className="size-3.5" />
 			</DropdownMenuPrimitive.ItemIndicator>
 		</span>
 		{children}
@@ -147,7 +147,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
 DropdownMenuCheckboxItem.displayName = DropdownMenuPrimitive.CheckboxItem.displayName;
 
 const dropdownMenuRadioItemVariants = tv({
-	base: "relative flex cursor-pointer select-none items-center gap-2 rounded-md py-1.5 pr-2.5 pl-8 text-sm outline-none transition-colors bg-transparent text-foreground data-[highlighted]:bg-accent data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	base: "relative flex cursor-pointer select-none items-center gap-2 py-1.5 pr-2.5 pl-8 text-sm outline-none transition-colors bg-transparent text-foreground data-[highlighted]:bg-accent data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 });
 
 const DropdownMenuRadioItem = React.forwardRef<

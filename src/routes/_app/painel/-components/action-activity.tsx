@@ -54,10 +54,7 @@ export function ActionActivity({ runs, selectedId, onSelect, onClear }: ActionAc
 					return (
 						<div
 							key={run.id}
-							className={cn(
-								"rounded-xl border border-border bg-card",
-								open && "border-foreground/25",
-							)}
+							className={cn("border border-border bg-card", open && "border-foreground/25")}
 						>
 							<button
 								type="button"

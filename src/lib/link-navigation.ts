@@ -3,7 +3,7 @@ import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
 import { isDesktop } from "@/lib/desktop";
-import { isPreviewDocument } from "@/lib/file-preview";
+import { isPreviewFile } from "@/lib/file-preview";
 import { fileViewerHref, linkLine, opensFilesInApp } from "@/lib/link-paths";
 
 const LINK_PATTERN =
@@ -41,7 +41,7 @@ export async function openLinkTarget(
 	if (result.kind === "file") {
 		if (
 			!external &&
-			(isPreviewDocument(result.path) || opensFilesInApp(window.location.hostname, isDesktop()))
+			(isPreviewFile(result.path) || opensFilesInApp(window.location.hostname, isDesktop()))
 		) {
 			navigate(fileViewerHref(result.path, linkLine(target)));
 			return;

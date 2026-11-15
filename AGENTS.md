@@ -1,6 +1,6 @@
 # KOWORK KNOWLEDGE BASE
 
-**Atualizado:** 2026-09-22 (seção de entidades derivada de `src/api/db/connection.ts`)
+**Atualizado:** 2026-09-29 (seção de entidades derivada de `src/api/db/connection.ts`)
 
 ## VISÃO GERAL
 
@@ -75,13 +75,13 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 - **snake_case** no DB, `camelCase` no TS
 - **Datas**: todas as colunas `*_at` são epoch em ms (`number.integer`), nunca texto ISO
 - **Booleanos**: não existem; são `INTEGER` 0/1 (`done`, `hide_terminal`, `quick_invoke`)
-- **JSON**: colunas JSON são `TEXT` com `JSON.stringify/parse` (`tasks.file_order`, `task_storage_runs.manifest`, `agent_events.payload`)
+- **JSON**: colunas JSON são `TEXT` com `JSON.stringify/parse` (`tasks.file_order`, `task_storage_runs.manifest`, `agent_events.payload`, `conversations.projection`)
 - **Soft delete**: `projects`, `tasks`, `execution_runs` e `agent_sessions` possuem `deleted_at`
 - **Conjuntos finitos**: só `user_type`, `task_storage_runs.status`, `prompts.source`, `execution_runs.kind`, `execution_runs.status`, `agent_sessions.status` e `agent_events.kind` são enums no DSL. Stage, tool e scope são texto livre no DB e o conjunto é garantido em `src/constants/` + boundary Zod.
 
 ## ENTIDADES
 
-21 tabelas, na ordem de registro em `connection.ts`. `?` marca coluna opcional (nullable).
+23 tabelas, na ordem de registro em `connection.ts`. `?` marca coluna opcional (nullable).
 
 ### users
 - `id` (integer, autoincrement), `name`, `password`
@@ -169,6 +169,7 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 - Legado do indexador de prompts (até onde cada transcript tinha sido lido). Preservado, sem escrita.
 
 ### agent_sessions
+- Arquivo do executor anterior, somente leitura. Contrato de compatibilidade em `docs/SESSOES.md`.
 - `id` (uuid): no claude é também o `--session-id`, então retomar é `--resume <id>` na mesma linha
 - `user_id` (FK users.id, cascade), `project_id` (FK projects.id, restrict), `task_id?` (set null)
 - `title`, `cli`, `cwd` (congelado no start; sessão retomada nunca troca de diretório)
@@ -223,15 +224,33 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 - `key` (PK), `value` (string), `updated_at?`
 - Chave-valor de SO: pasta base de projetos e endereço do celular. O shape tipado e os defaults vivem em `api/helpers/system-settings.ts`. As chaves antigas `terminal_multiplexer` e `terminal_template` são apagadas no boot (Linux/macOS): o terminal externo é sempre o kw-terminal.
 
+### conversations
+- `id` (uuid), `user_id` (FK users.id, cascade), `project_id` (FK projects.id, restrict)
+- `profile_id`: `default | personal`; `thread_id?`: identidade nativa do Codex
+- `title`, `cwd` (diretório congelado na criação), `model?`, `effort?`
+- `permission_mode`: `workspace | full`
+- `projection`: JSON validado em `src/lib/conversation.ts`, com turnos, itens, execução ativa, pedidos, diff e erro
+- `revision`: versão monotônica do snapshot entregue ao frontend
+- `created_at`, `updated_at`
+- Índice único parcial em `(profile_id, thread_id)` quando `thread_id` não é nulo
+
+### conversation_messages
+- `id` (uuid): `clientMessageId` do envio, correlacionado com `userMessage.clientId` do Codex
+- `conversation_id` (FK conversations.id, cascade), `text`
+- `status`: `sending | accepted | confirmed | uncertain | failed`
+- `turn_id?`, `error?`, `created_at`, `updated_at`
+- Outbox persistente: um envio incerto aguarda conferência do histórico; a confirmação usa o ID nativo
+
 ## STATUS E CONCLUSÃO
 
 - Tarefas nascem só pelos agentes (`kw-cli create`/`task create`, `tasks.create`, execuções). A UI renomeia, move e conclui, mas não cria. Nota nova também nasce dentro de uma tarefa; o Vault só edita as notas soltas que já existem.
 - `tasks` não tem coluna de status. Só `done` (0/1) e `completed_at`.
 - Execução é rastreada em `execution_runs`, que é outra entidade: uma tarefa pode ter N runs (ou nenhum).
-- Claude e Codex são sessão (`agent_sessions`) com N turnos, cada turno um `execution_runs`. No Claude
-  o processo fica vivo entre turnos; no Codex cada turno é um `codex exec resume <thread>` e o id da
-  thread mora em `agent_sessions.cli_session_id`. A execução de chamada única sobrou só na barra de
-  prompt (`prompt.execute`). Detalhe em `docs/SESSOES.md`.
+- `/chat?id=<uuid>` usa `conversations` e Codex App Server em stdio, com um processo por perfil.
+  `src/api/helpers/conversations/` governa protocolo, projeção e ciclo de vida. Identidade durável é
+  `(profile_id, thread_id)`; turnos novos usam `turn/start` e orientação usa `turn/steer` com o ID esperado.
+- `agent_sessions` e `agent_events` são arquivo legado. Conversas do terminal ficam em `/chat?paneId=<id>`,
+  vinculadas ao pane. Jobs atuais usam `execution_runs`. Detalhe em `docs/SESSOES.md`.
 - O estado visual do progresso é derivado por função em `src/lib/` (não é coluna).
 
 ## STORAGE DE TAREFAS
@@ -260,11 +279,11 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
 
 ## REALTIME
 
-- Canais do PubSub (`src/api/pubsub/index.ts`): `tasks`, `flow`, `promptRun`, `agentSession`,
+- Canais do PubSub (`src/api/pubsub/index.ts`): `tasks`, `promptRun`, `conversation`, `conversations`,
   `agentRadar`, `agentRadarTranscript`, `agentTerminalScreen`, `shells`, `terminalWorkspace`,
   `modelCatalog`, `notification`, `navigate` e `terminal`
-- `wsRouter` expõe `auth.me`, `notifications`, `tasks`, `navigate`, `flow`, `promptRun`,
-  `agentSession`, `agentRadar`, `agentRadarTranscript`, `agentTerminal`, `terminalWorkspace`,
+- `wsRouter` expõe `auth.me`, `notifications`, `tasks`, `navigate`, `promptRun`,
+  `conversation`, `conversations`, `conversationPane`, `agentRadar`, `agentRadarTranscript`, `agentTerminal`, `terminalWorkspace`,
   `modelCatalog` e `terminal`
 - `modelCatalog` abre com o catálogo de modelos e esforços dos CLIs e reenvia quando o cache que o
   próprio CLI grava muda (`~/.claude/cache/model-catalog/*-cc.json`, `~/.codex/models_cache.json`).
@@ -274,11 +293,15 @@ electron/                # Wrapper desktop Electron: janela, tray, preload e bac
   monotônicas conciliam metadata concorrente e reconexão sem polling da listagem
 - `shells` entrega por `shellId` os bytes do PTY em base64, o título publicado pelo CLI e o desfecho;
   o replay do scrollback não passa pelo canal — o stream abre com ele
-- `agentSession` entrega os blocos da conversa (por `seq`), o `busy` do agente e a mudança de
-  `status` da sessão; a assinatura começa com o histórico inteiro para a reconexão não perder nada
+- `conversation` entrega o snapshot persistido da conversa nativa por ID, incluindo outbox e revisão.
+  A assinatura autoriza o dono e abre com o histórico. `conversations` invalida a listagem por usuário;
+  a sidebar consulta só metadados. Aprovações e perguntas usam `requestId` e `runtimeId`.
+- `conversationPane` lê a sessão do Codex aberta na CLI por `thread/read` no CODEX_HOME do
+  rollout, sem retomar o processo. Publica snapshots apenas quando os itens mudam. `/chat`
+  renderiza itens nativos na ordem do turno, com adapters de apresentação para outras CLIs.
 - `agentRadarTranscript` é por `paneId` e entrega a conversa que o CLI aberto no kw-terminal ou num
   shell embutido grava em disco (`~/.claude/projects`, `~/.codex/sessions`, `~/.pi/agent/sessions`),
-  nos mesmos blocos de `agentSession`, mais a fila de mensagens do Claude em `queued`. Lote com
+  em blocos validados pelo leitor de sessões, mais a fila de mensagens do Claude em `queued`. Lote com
   `reset` é a conversa inteira de novo: o arquivo virou outro e os `seq` recomeçaram
 - Uma assinatura de `agentRadarTranscript` por vez, só para a conversa que está na tela: a lista
   lateral usa `agentRadar.transcriptPreviews`, que lê a cauda de cada transcript e devolve só a

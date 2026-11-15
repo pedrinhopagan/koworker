@@ -6,14 +6,17 @@ import {
 	File,
 	FileCode2,
 	FileText,
+	FileImage,
+	Film,
 	ListChecks,
 	Loader2,
 	MoreHorizontal,
+	Music2,
 	PencilLine,
 	RotateCcw,
 	Trash2,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useState, type MouseEventHandler } from "react";
 import { toast } from "@/components/ui/toast";
 
 import { orpc } from "@/client";
@@ -37,7 +40,7 @@ import { useClickOutside } from "@/hooks/use-click-outside";
 import { useSetDoneMutation } from "@/hooks/use-set-done-mutation";
 import { useRemoveTaskMutation, useUpdateTaskMutation } from "@/hooks/use-task-mutations";
 import { copyToClipboard } from "@/lib/build-prompt";
-import { isPreviewDocument } from "@/lib/file-preview";
+import { isPreviewFile } from "@/lib/file-preview";
 import { joinPath, revealFileInOs } from "@/lib/os-share";
 import { relativeTimeFrom } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
@@ -49,6 +52,7 @@ import {
 	markdownTitle,
 	TaskFileCard,
 } from "./-components/task-file-card";
+import { HtmlArtifactCard } from "@/components/artifacts/html-artifact-card";
 import { TaskMergeAction } from "./-components/task-merge-action";
 import { TaskOverviewContextMenu } from "./-components/task-overview-context-menu";
 import { useTaskShare } from "./-components/use-task-share";
@@ -271,27 +275,42 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 		setRenamingFile(null);
 	};
 
-	const indexFile = task.files[0]?.name === "index.md" ? task.files[0] : null;
-	const gridFiles = indexFile ? task.files.slice(1) : task.files;
-	const attachmentSections = [
-		{
-			label: "PDFs",
-			icon: FileText,
-			attachments: task.attachments.filter((attachment) => attachment.mime === "application/pdf"),
-		},
+	const indexFile = task.files.find((file) => file.name === "index.md");
+	const gridFiles = task.files.filter((file) => file !== indexFile);
+	const [htmlSection, pdfSection, ...attachmentSections] = [
 		{
 			label: "HTML",
 			icon: FileCode2,
 			attachments: task.attachments.filter((attachment) => attachment.mime === "text/html"),
 		},
 		{
+			label: "PDFs",
+			icon: FileText,
+			attachments: task.attachments.filter((attachment) => attachment.mime === "application/pdf"),
+		},
+		{
+			label: "Vídeos",
+			icon: Film,
+			attachments: task.attachments.filter((attachment) => attachment.mime.startsWith("video/")),
+		},
+		{
+			label: "Áudios",
+			icon: Music2,
+			attachments: task.attachments.filter((attachment) => attachment.mime.startsWith("audio/")),
+		},
+		{
+			label: "Imagens",
+			icon: FileImage,
+			attachments: task.attachments.filter((attachment) => attachment.mime.startsWith("image/")),
+		},
+		{
 			label: "Artefatos",
 			icon: File,
 			attachments: task.attachments.filter(
-				(attachment) => attachment.mime !== "application/pdf" && attachment.mime !== "text/html",
+				(attachment) => !isPreviewFile(attachment.name) && !attachment.mime.startsWith("image/"),
 			),
 		},
-	].filter((section) => section.attachments.length > 0);
+	];
 
 	const lastEditMs = Math.max(
 		0,
@@ -307,6 +326,73 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 	]
 		.filter(Boolean)
 		.join(" · ");
+
+	const renderAttachmentSection = (section: (typeof attachmentSections)[number]) => {
+		if (section.attachments.length === 0) {
+			return null;
+		}
+
+		return (
+			<div key={section.label} className="flex flex-col gap-3">
+				<SectionDivider label={section.label} />
+				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+					{section.attachments.map((attachment) => {
+						const path = share.folderAbs ? joinPath(share.folderAbs, attachment.name) : undefined;
+						const isHtml = attachment.mime === "text/html";
+						const onClick: MouseEventHandler<HTMLButtonElement> = (event) => {
+							if (
+								event.altKey ||
+								!path ||
+								(!isPreviewFile(attachment.name) && !attachment.mime.startsWith("image/"))
+							) {
+								openArtifactMutation.mutate({ id: taskId, name: attachment.name });
+								return;
+							}
+
+							void navigate({ to: "/arquivo", search: { path } });
+						};
+						const onAuxClick: MouseEventHandler<HTMLButtonElement> = (event) => {
+							if (event.button === 1) {
+								event.preventDefault();
+								openArtifactMutation.mutate({ id: taskId, name: attachment.name });
+							}
+						};
+
+						return (
+							<FileContextMenu
+								key={attachment.name}
+								name={attachment.name}
+								path={`${task.folderPath}/${attachment.name}`}
+								absolutePath={path}
+								onOpenFolder={path ? () => revealFile(attachment.name) : undefined}
+								onRename={() => startRename(attachment.name)}
+								onDelete={() => setDeletingFile(attachment.name)}
+							>
+								{isHtml && (
+									<HtmlArtifactCard
+										artifact={attachment}
+										path={path}
+										onClick={onClick}
+										onAuxClick={onAuxClick}
+									/>
+								)}
+								{!isHtml && (
+									<TaskFileCard
+										icon={section.icon}
+										name={attachment.name}
+										size={attachment.size}
+										timestamp={attachment.mtime}
+										onClick={onClick}
+										onAuxClick={onAuxClick}
+									/>
+								)}
+							</FileContextMenu>
+						);
+					})}
+				</div>
+			</div>
+		);
+	};
 
 	return (
 		<TaskOverviewContextMenu
@@ -329,7 +415,7 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 								to="/tarefas/$taskId"
 								params={{ taskId: canonical.featureId }}
 								search={{ projectId: task.projectId }}
-								className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+								className="flex size-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 								aria-label="Voltar para tarefas"
 							>
 								<ArrowLeft className="size-4" />
@@ -450,76 +536,74 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 
 				<div className="min-h-0 flex-1 overflow-y-auto pb-24">
 					<div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
-						{task.files.length > 0 ? (
+						{indexFile && (
+							<FileContextMenu
+								name={indexFile.name}
+								route={`/tarefas/${canonical.featureId}/${canonical.taskId}/${indexFile.name}`}
+								path={`${task.folderPath}/${indexFile.name}`}
+								absolutePath={
+									share.folderAbs ? joinPath(share.folderAbs, indexFile.name) : undefined
+								}
+								onOpenFolder={share.folderAbs ? () => revealFile(indexFile.name) : undefined}
+								onRename={() => startRename(indexFile.name)}
+								onDelete={() => setDeletingFile(indexFile.name)}
+							>
+								<TaskFileCard
+									hero
+									icon={FileText}
+									name={indexFile.name}
+									title={markdownTitle(indexFile.content) ?? "Arquivo sem header"}
+									summary={markdownSummary(indexFile.content)}
+									headings={markdownHeadings(indexFile.content)}
+									size={indexFile.size}
+									timestamp={indexFile.editedAt}
+									to="/tarefas/$taskId/$file/$canonicalFile"
+									params={{
+										taskId: canonical.featureId,
+										file: canonical.taskId,
+										canonicalFile: indexFile.name,
+									}}
+								/>
+							</FileContextMenu>
+						)}
+						{renderAttachmentSection(htmlSection)}
+						{gridFiles.length > 0 && (
 							<div className="flex flex-col gap-3">
-								{indexFile ? (
-									<FileContextMenu
-										name={indexFile.name}
-										route={`/tarefas/${canonical.featureId}/${canonical.taskId}/${indexFile.name}`}
-										path={`${task.folderPath}/${indexFile.name}`}
-										absolutePath={
-											share.folderAbs ? joinPath(share.folderAbs, indexFile.name) : undefined
-										}
-										onOpenFolder={share.folderAbs ? () => revealFile(indexFile.name) : undefined}
-										onRename={() => startRename(indexFile.name)}
-										onDelete={() => setDeletingFile(indexFile.name)}
-									>
-										<TaskFileCard
-											hero
-											icon={FileText}
-											name={indexFile.name}
-											title={markdownTitle(indexFile.content) ?? "Arquivo sem header"}
-											summary={markdownSummary(indexFile.content)}
-											headings={markdownHeadings(indexFile.content)}
-											size={indexFile.size}
-											timestamp={indexFile.editedAt}
-											to="/tarefas/$taskId/$file/$canonicalFile"
-											params={{
-												taskId: canonical.featureId,
-												file: canonical.taskId,
-												canonicalFile: indexFile.name,
-											}}
-										/>
-									</FileContextMenu>
-								) : null}
-								{gridFiles.length > 0 ? (
-									<div className="flex flex-col gap-3">
-										{indexFile ? <SectionDivider label="Markdown" /> : null}
-										<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-											{gridFiles.map((file) => (
-												<FileContextMenu
-													key={file.name}
-													name={file.name}
-													route={`/tarefas/${canonical.featureId}/${canonical.taskId}/${file.name}`}
-													path={`${task.folderPath}/${file.name}`}
-													absolutePath={
-														share.folderAbs ? joinPath(share.folderAbs, file.name) : undefined
-													}
-													onOpenFolder={share.folderAbs ? () => revealFile(file.name) : undefined}
-													onRename={() => startRename(file.name)}
-													onDelete={() => setDeletingFile(file.name)}
-												>
-													<TaskFileCard
-														icon={FileText}
-														name={file.name}
-														title={markdownTitle(file.content) ?? "Arquivo sem header"}
-														summary={markdownSummary(file.content)}
-														size={file.size}
-														timestamp={file.editedAt}
-														to="/tarefas/$taskId/$file/$canonicalFile"
-														params={{
-															taskId: canonical.featureId,
-															file: canonical.taskId,
-															canonicalFile: file.name,
-														}}
-													/>
-												</FileContextMenu>
-											))}
-										</div>
-									</div>
-								) : null}
+								<SectionDivider label="Markdown" />
+								<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+									{gridFiles.map((file) => (
+										<FileContextMenu
+											key={file.name}
+											name={file.name}
+											route={`/tarefas/${canonical.featureId}/${canonical.taskId}/${file.name}`}
+											path={`${task.folderPath}/${file.name}`}
+											absolutePath={
+												share.folderAbs ? joinPath(share.folderAbs, file.name) : undefined
+											}
+											onOpenFolder={share.folderAbs ? () => revealFile(file.name) : undefined}
+											onRename={() => startRename(file.name)}
+											onDelete={() => setDeletingFile(file.name)}
+										>
+											<TaskFileCard
+												icon={FileText}
+												name={file.name}
+												title={markdownTitle(file.content) ?? "Arquivo sem header"}
+												summary={markdownSummary(file.content)}
+												size={file.size}
+												timestamp={file.editedAt}
+												to="/tarefas/$taskId/$file/$canonicalFile"
+												params={{
+													taskId: canonical.featureId,
+													file: canonical.taskId,
+													canonicalFile: file.name,
+												}}
+											/>
+										</FileContextMenu>
+									))}
+								</div>
 							</div>
-						) : (
+						)}
+						{task.files.length === 0 && (
 							<div className="flex flex-col items-center gap-4 py-10">
 								<Text size="sm" tone="muted">
 									Nenhum arquivo markdown nesta tarefa.
@@ -536,7 +620,7 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 											}
 										}}
 										placeholder="index.md"
-										className="h-10 min-w-0 flex-1 rounded-md border border-input bg-card px-3 text-sm outline-none placeholder:text-muted-foreground/65 focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring"
+										className="h-10 min-w-0 flex-1 border border-input bg-card px-3 text-sm outline-none placeholder:text-muted-foreground/65 focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring"
 									/>
 									<Button size="sm" onClick={createFile} disabled={writeFileMutation.isPending}>
 										{writeFileMutation.isPending ? (
@@ -549,53 +633,8 @@ export function TaskOverviewPage({ taskId }: { taskId: string }) {
 							</div>
 						)}
 
-						{attachmentSections.map((section) => (
-							<div key={section.label} className="flex flex-col gap-3">
-								<SectionDivider label={section.label} />
-								<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-									{section.attachments.map((attachment) => (
-										<FileContextMenu
-											key={attachment.name}
-											name={attachment.name}
-											path={`${task.folderPath}/${attachment.name}`}
-											absolutePath={
-												share.folderAbs ? joinPath(share.folderAbs, attachment.name) : undefined
-											}
-											onOpenFolder={share.folderAbs ? () => revealFile(attachment.name) : undefined}
-											onRename={() => startRename(attachment.name)}
-											onDelete={() => setDeletingFile(attachment.name)}
-										>
-											<TaskFileCard
-												icon={section.icon}
-												name={attachment.name}
-												size={attachment.size}
-												timestamp={attachment.mtime}
-												onClick={(event) => {
-													if (
-														event.altKey ||
-														!share.folderAbs ||
-														!isPreviewDocument(attachment.name)
-													) {
-														openArtifactMutation.mutate({ id: taskId, name: attachment.name });
-														return;
-													}
-													void navigate({
-														to: "/arquivo",
-														search: { path: joinPath(share.folderAbs, attachment.name) },
-													});
-												}}
-												onAuxClick={(event) => {
-													if (event.button === 1) {
-														event.preventDefault();
-														openArtifactMutation.mutate({ id: taskId, name: attachment.name });
-													}
-												}}
-											/>
-										</FileContextMenu>
-									))}
-								</div>
-							</div>
-						))}
+						{renderAttachmentSection(pdfSection)}
+						{attachmentSections.map(renderAttachmentSection)}
 					</div>
 				</div>
 

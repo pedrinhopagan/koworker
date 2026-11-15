@@ -79,7 +79,7 @@ export function ProjectIdentity({
 				{progress}% concluído
 			</Text>
 
-			<label className="mt-5 flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-3 py-3">
+			<label className="mt-5 flex cursor-pointer items-center justify-between gap-3 border border-border bg-muted/20 px-3 py-3">
 				<span className="flex items-center gap-2">
 					<TerminalSquare className="size-4 text-muted-foreground" />
 					<Text as="span" size="xs" className="font-semibold">

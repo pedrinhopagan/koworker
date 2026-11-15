@@ -53,11 +53,11 @@ const CompactAgentListItem = memo(function CompactAgentListItem({
 				triggerClassName="flex"
 			>
 				<Link
-					to="/shells"
-					search={{ tab: `agent:${agent.paneId}` }}
+					to="/chat"
+					search={{ paneId: agent.paneId }}
 					aria-label={`Abrir conversa de ${label}`}
 					className={cn(
-						"relative flex size-11 items-center justify-center rounded-lg border border-transparent transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+						"relative flex size-11 items-center justify-center border border-transparent transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 						selected && "border-primary/30 bg-primary/10 text-primary",
 					)}
 				>
@@ -97,15 +97,15 @@ const AgentListItem = memo(function AgentListItem({
 			data-status={agent.status}
 			data-selected={selected || undefined}
 			className={cn(
-				"group relative rounded-lg border border-transparent transition-colors",
+				"group relative border border-transparent transition-colors",
 				selected ? "border-primary/20 bg-primary/10" : "hover:bg-muted/50 active:bg-muted/70",
 			)}
 		>
 			<Link
-				to="/shells"
-				search={{ tab: `agent:${agent.paneId}` }}
+				to="/chat"
+				search={{ paneId: agent.paneId }}
 				data-slot="open-conversation"
-				className="block min-w-0 rounded-lg px-3 py-2.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+				className="block min-w-0 px-3 py-2.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 			>
 				<div className="flex min-w-0 items-center justify-between gap-2">
 					<div className="flex min-w-0 items-center gap-1.5">
@@ -199,12 +199,12 @@ export function AgentSwitcherStrip({
 				return (
 					<Link
 						key={agent.paneId}
-						to="/shells"
-						search={{ tab: `agent:${agent.paneId}` }}
+						to="/chat"
+						search={{ paneId: agent.paneId }}
 						{...(selected ? { ref: selectedRef } : {})}
 						aria-current={selected ? "page" : undefined}
 						className={cn(
-							"flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 transition-colors",
+							"flex min-h-10 shrink-0 items-center gap-1.5 border px-3 transition-colors",
 							selected
 								? "border-primary/30 bg-primary/10 text-primary"
 								: "border-border bg-background text-muted-foreground active:bg-muted",

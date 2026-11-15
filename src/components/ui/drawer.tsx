@@ -68,7 +68,7 @@ export function Drawer({
 					</Button>
 				</SheetHeader>
 
-				<div className="flex-1 overflow-y-auto p-5">{children}</div>
+				<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">{children}</div>
 			</SheetContent>
 		</Sheet>
 	);

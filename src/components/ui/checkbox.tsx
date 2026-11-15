@@ -6,14 +6,14 @@ import { tv, type VariantProps } from "tailwind-variants";
 import { cn } from "@/lib/utils";
 
 const checkboxVariants = tv({
-	base: "peer size-4 shrink-0 rounded-sm border border-input bg-transparent shadow-xs transition-colors duration-150 outline-none hover:border-primary/60 focus-visible:border-ring focus-visible:ring-ring focus-visible:ring-1 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:data-[state=checked]:bg-primary",
+	base: "peer size-4 shrink-0 border border-input bg-transparent shadow-xs transition-colors duration-150 outline-none hover:border-primary/60 focus-visible:border-ring focus-visible:ring-ring focus-visible:ring-1 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:data-[state=checked]:bg-primary",
 	variants: {
 		size: {
 			default: "size-4",
 			sm: "size-3.5",
 			lg: "size-5",
 			// Acompanha o font-size da linha (em): encaixa em qualquer tamanho de texto.
-			em: "size-[0.95em] rounded-[0.12em]",
+			em: "size-[0.95em]",
 		},
 	},
 	defaultVariants: {

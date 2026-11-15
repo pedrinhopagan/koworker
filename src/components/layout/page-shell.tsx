@@ -36,8 +36,8 @@ export function PageShell({
 		<div className="flex flex-col min-h-0 w-full h-full overflow-hidden">
 			{header && <>{header}</>}
 			{!header && (
-				<div className={cn("mb-5 border-b border-border bg-background", headerClassName)}>
-					<div className="mx-auto flex w-full max-w-6xl flex-col items-stretch gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6">
+				<div className={cn("mb-2", headerClassName)}>
+					<div className="mx-auto flex w-full max-w-6xl flex-col items-stretch gap-3 px-5 pt-6 pb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:pt-7">
 						<div className="flex min-w-0 items-center gap-3">
 							{onBack && (
 								<Button
@@ -50,13 +50,13 @@ export function PageShell({
 									<ArrowLeft className="size-4" />
 								</Button>
 							)}
-							{Icon && <Icon className="size-5 shrink-0 text-muted-foreground" />}
+							{Icon && <Icon className="size-5 shrink-0 text-primary" />}
 							<div className="min-w-0">
-								<Title size="lg" className="truncate">
+								<Title size="xl" className="truncate sm:text-[22px]">
 									{title}
 								</Title>
 								{description && (
-									<Text size="xs" tone="muted">
+									<Text size="sm" tone="muted" className="mt-0.5">
 										{description}
 									</Text>
 								)}

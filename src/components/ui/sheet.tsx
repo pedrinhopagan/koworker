@@ -25,15 +25,15 @@ const sheetOverlayVariants = tv({
 });
 
 const sheetContentVariants = tv({
-	base: "fixed z-50 flex touch-none flex-col bg-popover text-popover-foreground shadow-xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fill-mode-forwards data-[state=open]:duration-200 data-[state=closed]:duration-150 [animation-timing-function:cubic-bezier(0.32,0.72,0,1)]",
+	base: "fixed z-50 flex flex-col bg-popover text-popover-foreground shadow-xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fill-mode-forwards data-[state=open]:duration-200 data-[state=closed]:duration-150 [animation-timing-function:cubic-bezier(0.32,0.72,0,1)]",
 	variants: {
 		side: {
 			top: "inset-x-0 top-0 border-b border-border data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
 			bottom:
-				"inset-x-0 bottom-[calc(100dvh_-_var(--app-viewport-top,0px)_-_var(--app-viewport-height,100dvh))] max-h-[calc(var(--app-viewport-height,100dvh)_*_0.85)] rounded-t-xl border-t border-border pb-[env(safe-area-inset-bottom)] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
-			left: "inset-y-0 left-0 h-full border-r border-border data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
+				"inset-x-0 bottom-[calc(100dvh_-_var(--app-viewport-top,0px)_-_var(--app-viewport-height,100dvh))] max-h-[calc(var(--app-viewport-height,100dvh)_*_0.85)] border-t border-border pb-[env(safe-area-inset-bottom)] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+			left: "left-0 top-[var(--app-viewport-top,0px)] h-[var(--app-viewport-height,100dvh)] touch-pan-y border-r border-border pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
 			right:
-				"inset-y-0 right-0 h-full border-l border-border data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+				"right-0 top-[var(--app-viewport-top,0px)] h-[var(--app-viewport-height,100dvh)] touch-pan-y border-l border-border pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
 		},
 	},
 	defaultVariants: {
@@ -179,12 +179,12 @@ const SheetContent = React.forwardRef<
 			>
 				{side === "bottom" && (
 					<div className="flex shrink-0 justify-center pt-2 pb-1">
-						<div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
+						<div className="h-1 w-10 bg-muted-foreground/30" />
 					</div>
 				)}
 				{children}
 				{showClose && (
-					<SheetPrimitive.Close className="absolute top-3 right-3 flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none sm:size-8">
+					<SheetPrimitive.Close className="absolute top-3 right-3 flex size-11 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none sm:size-8">
 						<X className="size-4" />
 						<span className="sr-only">Fechar</span>
 					</SheetPrimitive.Close>

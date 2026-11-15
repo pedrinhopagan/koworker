@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { FolderOpen, Gauge, GitBranch, Pencil, Search, SquareTerminal } from "lucide-react";
 import { useState } from "react";
 
@@ -18,7 +18,9 @@ import { ActionTile } from "./-components/action-tile";
 import { useActionRuns } from "./-utils/use-action-runs";
 
 export const Route = createFileRoute("/_app/painel/$projetoId")({
-	beforeLoad: ({ params }) => ({ routeProjectId: params.projetoId }),
+	beforeLoad: ({ params }) => {
+		throw redirect({ to: "/projetos/$projetoId", params, replace: true });
+	},
 	component: PainelPage,
 });
 

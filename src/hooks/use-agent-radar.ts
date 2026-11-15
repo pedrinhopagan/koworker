@@ -14,11 +14,16 @@ import { subscribeWithRetry } from "@/lib/realtime-subscription";
 type RadarStore = {
 	agents: RadarAgent[] | null;
 	focus: RadarFocus;
+	connected: boolean;
 };
 
 const EMPTY_FOCUS: RadarFocus = { workspaceId: null, tabId: null, paneId: null };
 
-const useRadarStore = create<RadarStore>(() => ({ agents: null, focus: EMPTY_FOCUS }));
+const useRadarStore = create<RadarStore>(() => ({
+	agents: null,
+	focus: EMPTY_FOCUS,
+	connected: false,
+}));
 
 function sameAgent(left: RadarAgent, right: RadarAgent) {
 	return (Object.keys(left) as (keyof RadarAgent)[]).every((key) => left[key] === right[key]);
@@ -66,6 +71,7 @@ function acquire() {
 
 	subscribeWithRetry({
 		label: "Agent Radar",
+		onConnectionChange: (connected) => useRadarStore.setState({ connected }),
 		signal: controller.signal,
 		subscribe: (signal) => orpcWs.agentRadar.call(undefined, { signal }),
 		onEvent: function (event) {
@@ -88,7 +94,7 @@ function release() {
 
 	controller?.abort();
 	controller = null;
-	useRadarStore.setState({ agents: null, focus: EMPTY_FOCUS });
+	useRadarStore.setState({ agents: null, focus: EMPTY_FOCUS, connected: false });
 }
 
 export function useAgentRadar() {
@@ -98,13 +104,14 @@ export function useAgentRadar() {
 	const focus = useRadarStore(function (state) {
 		return state.focus;
 	});
+	const connected = useRadarStore((state) => state.connected);
 
 	useEffect(function () {
 		acquire();
 		return release;
 	}, []);
 
-	return { agents: agents ?? [], focus, loading: agents === null };
+	return { agents: agents ?? [], focus, loading: agents === null, connected };
 }
 
 // Quantos agents andam e quantos pararam esperando resposta. É o que a sidebar mostra no item Terminais.

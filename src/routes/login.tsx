@@ -10,8 +10,10 @@ import { Label } from "@/components/ui/label";
 import { PageShell } from "@/components/layout/page-shell";
 import { useLogin } from "@/hooks/use-login";
 import type { LoginInput } from "@/types/auth";
+import { AuthRedirectSearchSchema } from "@/lib/auth-redirect";
 
 export const Route = createFileRoute("/login")({
+	validateSearch: AuthRedirectSearchSchema,
 	component: LoginPage,
 });
 

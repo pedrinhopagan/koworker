@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { ChevronsUpDown } from "lucide-react";
 import { tv } from "tailwind-variants";
 
@@ -14,7 +14,8 @@ import {
 import { SidebarTooltip } from "@/components/layout/sidebar-tooltip";
 import { Text } from "@/components/typography";
 import { useProjectFocus } from "@/hooks";
-import { useAgentRadarAttention } from "@/hooks/use-agent-radar";
+import { useChatAttention } from "@/hooks/use-chat-attention";
+import { ProjectLogo } from "@/components/project-logo";
 import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
 import { cn } from "@/lib/utils";
 
@@ -25,10 +26,10 @@ type SidebarNavContentProps = {
 };
 
 const sidebarItem = tv({
-	base: "w-full rounded-[var(--control-radius)] text-left text-sm transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+	base: "w-full text-left text-sm transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:bg-sidebar-row-hover",
 	variants: {
 		active: {
-			true: "text-sidebar-foreground font-medium bg-sidebar-row-selected shadow-xs",
+			true: "text-sidebar-foreground font-medium bg-sidebar-row-selected",
 			false:
 				"text-sidebar-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-row-hover",
 		},
@@ -48,7 +49,6 @@ export function SidebarNavContent({
 	onNavigate,
 }: SidebarNavContentProps) {
 	const location = useLocation();
-	const navigate = useNavigate();
 	const currentPath = location.pathname;
 
 	const { selectedProjectId, selectedProject, accent, loading } = useProjectFocus();
@@ -59,15 +59,10 @@ export function SidebarNavContent({
 			? "Todos os projetos"
 			: (selectedProject?.name ?? (loading ? "Carregando..." : "Selecionar projeto"));
 
-	const radar = useAgentRadarAttention();
+	const attention = useChatAttention();
 
 	const layout: SidebarLayout = variant === "drawer" ? "drawer" : compact ? "compact" : "expanded";
 	const iconSize = variant === "drawer" ? 18 : 16;
-
-	function handleRouteNavigate(path: string) {
-		onNavigate?.();
-		navigate({ to: path });
-	}
 
 	function getTooltipLabel(item: SidebarNavItem): string | undefined {
 		const shortcut = formatSidebarShortcut(item.altKey);
@@ -96,7 +91,7 @@ export function SidebarNavContent({
 		const isCompact = layout === "compact";
 		const className = cn(
 			sidebarItem({ active: false, layout }),
-			"border border-border bg-sidebar-row-selected text-sidebar-foreground",
+			"border border-border bg-background text-sidebar-foreground shadow-xs hover:border-input hover:bg-background",
 			layout !== "drawer" && "h-10 py-0",
 		);
 		const Icon = item.icon;
@@ -105,10 +100,10 @@ export function SidebarNavContent({
 
 		const content = (
 			<>
-				{accentColor ? (
-					<span
-						className={cn("shrink-0 rounded-sm", isCompact ? "size-3.5" : "size-2.5")}
-						style={{ backgroundColor: accentColor }}
+				{selectedProject && accentColor ? (
+					<ProjectLogo
+						project={{ id: selectedProject.id, color: accentColor }}
+						className={isCompact ? "size-5" : "size-4"}
 					/>
 				) : (
 					<Icon size={iconSize} />
@@ -119,9 +114,6 @@ export function SidebarNavContent({
 						<ChevronsUpDown className="size-3.5 shrink-0 text-sidebar-muted-foreground" />
 					</>
 				)}
-				{layout === "drawer" ? (
-					<span className="ml-auto text-xs text-muted-foreground">Alt+{item.altKey}</span>
-				) : null}
 			</>
 		);
 
@@ -154,20 +146,20 @@ export function SidebarNavContent({
 		const active = isSidebarRouteActive(currentPath, item.path);
 		const className = sidebarItem({ active, layout });
 		const Icon = item.icon;
-		const isShells = item.path === "/shells";
-		const waiting = isShells ? radar.waiting : 0;
-		const working = isShells ? radar.working : 0;
-		const tooltip =
-			waiting > 0
-				? `${item.label}: ${waiting} esperando você`
-				: working > 0
-					? `${item.label}: ${working} trabalhando`
-					: getTooltipLabel(item);
+		const isChat = item.path === "/chat";
+		const waiting = isChat ? attention.waiting : 0;
+		const working = isChat ? attention.working : 0;
+		const statusLabel =
+			isChat && attention.label ? `${item.label}: ${attention.label}` : item.label;
+		const tooltip = isChat && attention.label ? statusLabel : getTooltipLabel(item);
 
 		const content = (
 			<>
 				<span className={cn("relative inline-flex", layout === "compact" && "justify-center")}>
-					<Icon size={iconSize} className={waiting > 0 ? "text-warning" : undefined} />
+					<Icon
+						size={iconSize}
+						className={cn(active && "text-primary", waiting > 0 && "text-warning")}
+					/>
 					{layout !== "drawer" && <AgentWaitingBadge count={waiting} layout={layout} />}
 					{layout === "compact" && <AgentWorkingPulse layout={layout} count={working} />}
 				</span>
@@ -179,31 +171,17 @@ export function SidebarNavContent({
 				)}
 				{layout === "drawer" && waiting > 0 ? (
 					<AgentWaitingBadge count={waiting} layout={layout} />
-				) : layout === "drawer" && item.altKey ? (
-					<span className="ml-auto text-xs text-muted-foreground">Alt+{item.altKey}</span>
 				) : null}
 			</>
 		);
-
-		if (variant === "drawer") {
-			return (
-				<button
-					key={item.path}
-					type="button"
-					onClick={() => handleRouteNavigate(item.path)}
-					className={className}
-				>
-					{content}
-				</button>
-			);
-		}
 
 		const link = (
 			<Link
 				key={item.path}
 				to={item.path}
+				onClick={onNavigate}
 				className={className}
-				aria-label={item.label}
+				aria-label={statusLabel}
 				aria-current={active ? "page" : undefined}
 			>
 				{content}

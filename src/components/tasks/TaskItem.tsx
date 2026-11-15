@@ -46,7 +46,7 @@ import { TaskEditControls, TaskTitleInput, taskTitlePlaceholder } from "./task-e
 import { TaskMobileActionsDrawer } from "./task-mobile-actions-drawer";
 
 export const taskItemVariants = tv({
-	base: "flex items-center justify-between gap-4 rounded-lg border border-transparent bg-card transition-colors duration-150 hover:border-border hover:bg-secondary/30 animate-fade-in w-full min-w-0 overflow-hidden",
+	base: "flex items-center justify-between gap-1 sm:gap-4 border border-transparent bg-card transition-colors duration-150 hover:border-border hover:bg-secondary/30 animate-fade-in w-full min-w-0 overflow-hidden",
 	variants: {
 		variant: {
 			default: "px-3 py-2",
@@ -323,7 +323,7 @@ function TaskItemImpl({
 					<span
 						aria-hidden
 						className={cn(
-							"pointer-events-none absolute inset-y-0 left-0 z-10 w-1 rounded-r-sm",
+							"pointer-events-none absolute inset-y-0 left-0 z-10 w-1",
 							recencyLevelClass(highlight),
 						)}
 					/>
@@ -338,24 +338,27 @@ function TaskItemImpl({
 					/>
 				)}
 
-				<div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-3">
+				<div className="pointer-events-none relative z-10 grid min-w-0 flex-1 grid-cols-[44px_minmax(0,1fr)] items-center gap-x-2 gap-y-1 sm:flex sm:gap-3">
 					<SpringCheck
-						className="pointer-events-auto"
+						className="pointer-events-auto row-span-2 sm:row-auto"
 						checked={isDone}
 						onCheckedChange={handleToggleDone}
 						disabled={isMutating}
 						aria-label={isDone ? "Marcar como não concluída" : "Marcar como concluída"}
 					/>
 					{totalFileCount > 0 && (
-						<Tooltip label={fileBadgeLabel}>
-							<span className="pointer-events-auto inline-flex items-center gap-1 rounded-md border border-border bg-secondary/40 px-1.5 py-0.5 text-muted-foreground text-xs">
+						<Tooltip
+							label={fileBadgeLabel}
+							triggerClassName="col-start-2 row-start-2 inline-flex w-fit sm:col-auto sm:row-auto"
+						>
+							<span className="pointer-events-auto inline-flex items-center gap-1 border border-border bg-secondary/40 px-1.5 py-0.5 text-muted-foreground text-xs">
 								{hasArtifacts ? <FileStack className="size-3" /> : <FileText className="size-3" />}
 								{totalFileCount}
 							</span>
 						</Tooltip>
 					)}
 					{editing ? (
-						<div className="pointer-events-auto min-w-0 flex-1">
+						<div className="pointer-events-auto col-start-2 row-start-1 min-w-0 flex-1">
 							<TaskTitleInput
 								initialValue={task.title ?? ""}
 								placeholder={taskTitlePlaceholder(task)}
@@ -368,7 +371,7 @@ function TaskItemImpl({
 							as="span"
 							size="sm"
 							className={cn(
-								"relative block truncate text-base font-normal tracking-wide transition-colors duration-200",
+								"relative col-start-2 row-start-1 min-w-0 line-clamp-2 whitespace-normal break-words text-base font-normal tracking-wide transition-colors duration-200 sm:block sm:truncate",
 								isDone && "text-muted-foreground",
 							)}
 						>

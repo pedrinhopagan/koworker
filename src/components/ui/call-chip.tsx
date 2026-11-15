@@ -62,7 +62,7 @@ export function CallChip({
 					transition={transition}
 					aria-live="polite"
 					className={cn(
-						"inline-flex h-6 shrink-0 items-center gap-1.5 overflow-hidden rounded-full border px-2 font-mono text-[11px] tabular-nums transition-colors duration-200",
+						"inline-flex h-6 shrink-0 items-center gap-1.5 overflow-hidden border px-2 font-mono text-[11px] tabular-nums transition-colors duration-200",
 						CALL_CHIP_TONES[state.status],
 						className,
 					)}

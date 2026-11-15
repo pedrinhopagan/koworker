@@ -112,10 +112,7 @@ export function LinkTaskPopover({
 								type="button"
 								disabled={pending}
 								onClick={() => pick(task.id)}
-								className={cn(
-									customSelectItemVariants(),
-									"group flex w-full items-center gap-2 rounded-sm",
-								)}
+								className={cn(customSelectItemVariants(), "group flex w-full items-center gap-2")}
 							>
 								<Link2 className="size-3.5 shrink-0 opacity-40 group-hover:opacity-100" />
 								<span className="min-w-0 flex-1 truncate text-left">{task.displayTitle}</span>

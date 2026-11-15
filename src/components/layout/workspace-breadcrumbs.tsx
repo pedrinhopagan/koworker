@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 
 import { orpc } from "@/client";
 import { getActiveTabLabel } from "@/components/layout/mobile-nav-drawer";
+import { useProjectSelectDialogStore } from "@/hooks/use-project-select-dialog";
 import { cn } from "@/lib/utils";
 import {
 	canonicalTaskRoute,
@@ -37,7 +38,7 @@ function BreadcrumbItems({ items, current }: { items: Breadcrumb[]; current: str
 				aria-current={current === item.to ? "page" : undefined}
 				title={item.label}
 				className={cn(
-					"truncate rounded-sm py-3 text-muted-foreground transition-colors hover:text-foreground sm:py-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+					"truncate py-3 text-muted-foreground transition-colors hover:text-foreground sm:py-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 					index === items.length - 1 && "max-w-80 font-medium text-foreground",
 				)}
 			>
@@ -114,23 +115,35 @@ function PageBreadcrumbs() {
 	return <BreadcrumbItems items={items} current={pathname.replace(/\/$/, "")} />;
 }
 
-export function WorkspaceBreadcrumbs() {
+export function WorkspaceBreadcrumbs({ projectLabel }: { projectLabel: string }) {
 	const { pathname } = useLocation();
+	const openProjectDialog = useProjectSelectDialogStore((state) => state.openDialog);
+	const home = pathname === "/";
 	const tasks = pathname === "/tarefas" || pathname.startsWith("/tarefas/");
+	const projectClassName =
+		"block max-w-full truncate py-3 text-muted-foreground transition-colors hover:text-foreground sm:py-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
 	return (
 		<nav aria-label="Breadcrumb" className="min-w-0 flex-1 text-sm">
 			<ol className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-				<li className="hidden shrink-0 sm:block">
-					<Link
-						to="/"
-						aria-current={pathname === "/" ? "page" : undefined}
-						className="rounded-sm py-3 text-muted-foreground transition-colors hover:text-foreground sm:py-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-					>
-						Koworker
-					</Link>
+				<li className={cn("min-w-0 max-w-48 shrink-0", !home && "hidden sm:block")}>
+					{home && (
+						<button
+							type="button"
+							onClick={openProjectDialog}
+							aria-label={`Selecionar projeto: ${projectLabel}`}
+							aria-haspopup="dialog"
+							className={projectClassName}
+						>
+							{projectLabel}
+						</button>
+					)}
+					{!home && (
+						<Link to="/" search={{}} title={projectLabel} className={projectClassName}>
+							{projectLabel}
+						</Link>
+					)}
 				</li>
-				{pathname === "/" && <li className="font-medium sm:hidden">Koworker</li>}
 				{tasks && <TaskBreadcrumbs />}
 				{!tasks && pathname !== "/" && <PageBreadcrumbs />}
 			</ol>

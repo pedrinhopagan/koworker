@@ -10,7 +10,7 @@ export function AgentWaitingBadge({ count, layout }: { count: number; layout: Ag
 
 	if (layout === "drawer") {
 		return (
-			<span className="ml-auto min-w-5 rounded bg-warning/20 px-1.5 text-center text-xs font-semibold text-warning">
+			<span className="ml-auto min-w-5 bg-warning/20 px-1.5 text-center text-xs font-semibold text-warning">
 				{count}
 			</span>
 		);
@@ -19,7 +19,7 @@ export function AgentWaitingBadge({ count, layout }: { count: number; layout: Ag
 	return (
 		<span
 			className={cn(
-				"absolute z-10 min-w-3 rounded-[3px] bg-warning/35 px-0.5 text-center font-semibold text-[8px] leading-[11px] text-warning",
+				"absolute z-10 min-w-3 bg-warning/35 px-0.5 text-center font-semibold text-[8px] leading-[11px] text-warning",
 				layout === "compact" ? "-top-1.5 -right-1.5" : "-top-2 -right-2",
 			)}
 		>

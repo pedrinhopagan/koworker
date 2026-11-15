@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ import type { TerminalWorkspaceActions } from "@/routes/_app/shells/-utils/use-t
 
 type NewSessionDialogProps = {
 	open: boolean;
-	actions: TerminalWorkspaceActions;
+	actions: Pick<TerminalWorkspaceActions, "startConversation" | "resumeConversation">;
 	onClose: () => void;
 	defaultCli?: InvokeCli;
 };
@@ -106,7 +107,7 @@ export function NewSessionDialog({
 				setLabel("");
 				setPrompt("");
 				onClose();
-				return navigate({ to: "/shells", search: { tab: `agent:${result.paneId}` } });
+				return navigate({ to: "/chat", search: { paneId: result.paneId } });
 			})
 			.catch(() => {})
 			.finally(() => setPending(false));
@@ -119,7 +120,7 @@ export function NewSessionDialog({
 				.resumeConversation({ projectId: activeProjectId, cli })
 				.then((result) => {
 					onClose();
-					return navigate({ to: "/shells", search: { tab: `agent:${result.paneId}` } });
+					return navigate({ to: "/chat", search: { paneId: result.paneId } });
 				})
 				.catch(() => {})
 				.finally(() => setPending(false));
@@ -133,8 +134,8 @@ export function NewSessionDialog({
 		<Dialog
 			open={open}
 			onClose={onClose}
-			title="Abrir conversa"
-			description="A conversa sempre nasce em um pane real do kw-terminal"
+			title="Abrir no kw-terminal"
+			description="Converse pelo app e pelo terminal do computador."
 			className="max-w-md bg-card text-card-foreground"
 			footer={
 				<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -162,6 +163,7 @@ export function NewSessionDialog({
 						disabled={!activeProjectId || pending}
 						className="h-12 w-full sm:h-8 sm:w-auto"
 					>
+						{pending && <Loader2 className="size-4 animate-spin" />}
 						Abrir nova conversa
 					</Button>
 				</div>

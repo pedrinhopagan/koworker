@@ -1,5 +1,5 @@
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
+import { AlertCircle, Check, ChevronDown, Loader2 } from "lucide-react";
 import * as React from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
@@ -12,20 +12,21 @@ import { Text } from "../typography";
 // ============================================================================
 
 const customSelectTriggerVariants = tv({
-	base: "flex items-center justify-between gap-2 min-w-0 whitespace-nowrap rounded-[var(--control-radius)] transition-colors outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+	base: "flex min-w-0 items-center justify-between gap-2 whitespace-nowrap outline-none transition-colors duration-150 focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive",
 	variants: {
 		variant: {
 			default:
-				"px-3 py-2 border border-input bg-card text-card-foreground hover:bg-muted hover:border-muted-foreground",
-			ghost: "hover:bg-accent hover:text-accent-foreground",
+				"border border-input bg-background px-3 text-foreground shadow-xs hover:bg-accent/50 focus-visible:border-ring data-[state=open]:border-ring dark:bg-input/30 dark:hover:bg-input/60",
+			ghost: "px-2 hover:bg-accent hover:text-accent-foreground data-[state=open]:bg-accent",
 			minimal: "",
 		},
 		size: {
-			sm: "h-8 text-xs",
-			md: "h-9 text-sm",
-			lg: "h-10 text-base",
+			sm: "h-7 text-xs",
+			md: "h-8 text-sm",
+			lg: "h-9 text-sm",
 		},
 	},
+	compoundVariants: [{ variant: "default", size: "sm", class: "px-2" }],
 	defaultVariants: {
 		variant: "default",
 		size: "md",
@@ -35,7 +36,7 @@ const customSelectTriggerVariants = tv({
 const customSelectContentVariants = tv({
 	base: [
 		// Keep content width stable and never exceed the available popper width.
-		"bg-popover text-popover-foreground border border-border p-1 shadow-xl z-50 overflow-hidden rounded-xl min-w-[var(--radix-select-trigger-width)] max-w-[var(--radix-popper-available-width)] flex flex-col",
+		"bg-popover text-popover-foreground border border-border p-1 shadow-xl z-50 overflow-hidden min-w-[var(--radix-select-trigger-width)] max-w-[var(--radix-popper-available-width)] flex flex-col",
 		"data-[state=open]:animate-in data-[state=closed]:animate-out",
 		"data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
 		"data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -46,11 +47,11 @@ const customSelectContentVariants = tv({
 
 const customSelectItemVariants = tv({
 	base: cn(
-		"outline-none cursor-pointer min-w-0",
-		"rounded-md px-2.5 py-1.5 text-sm",
+		"relative min-w-0 cursor-pointer outline-none",
+		"py-1.5 pr-8 pl-2.5 text-sm",
 		"bg-transparent text-foreground",
 		"data-[highlighted]:bg-accent data-[highlighted]:text-foreground",
-		"data-[state=checked]:bg-accent data-[state=checked]:text-foreground",
+		"data-[state=checked]:font-medium",
 		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 	),
 });
@@ -169,7 +170,7 @@ function CustomSelect<T extends { id: string }>({
 								className="min-w-0 flex-1 truncate text-left"
 							/>
 							<SelectPrimitive.Icon asChild>
-								<ChevronDown className="size-4 text-muted-foreground" />
+								<ChevronDown className="size-4 shrink-0 text-muted-foreground" />
 							</SelectPrimitive.Icon>
 						</>
 					)}
@@ -199,7 +200,7 @@ function CustomSelect<T extends { id: string }>({
 						style={contentStyle}
 					>
 						{(label || error) && (
-							<div className="px-3 py-2 border-b border-border">
+							<div className="border-b border-border px-2.5 py-2">
 								{label && <div className="text-xs text-muted-foreground font-medium">{label}</div>}
 								{error && <div className="mt-1 text-xs text-destructive">{error}</div>}
 							</div>
@@ -210,13 +211,9 @@ function CustomSelect<T extends { id: string }>({
 							style={contentStyle}
 						>
 							{loading ? (
-								<div className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground">
-									Carregando...
-								</div>
+								<div className="px-2.5 py-1.5 text-sm text-muted-foreground">Carregando...</div>
 							) : isEmpty ? (
-								<div className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground">
-									{emptyMessage}
-								</div>
+								<div className="px-2.5 py-1.5 text-sm text-muted-foreground">{emptyMessage}</div>
 							) : (
 								items.map((item) => (
 									<SelectPrimitive.Item
@@ -232,6 +229,9 @@ function CustomSelect<T extends { id: string }>({
 												{renderItem(item, value === item.id)}
 											</div>
 										</SelectPrimitive.ItemText>
+										<SelectPrimitive.ItemIndicator className="absolute top-1/2 right-2.5 flex -translate-y-1/2 items-center">
+											<Check className="size-3.5 text-primary" />
+										</SelectPrimitive.ItemIndicator>
 									</SelectPrimitive.Item>
 								))
 							)}

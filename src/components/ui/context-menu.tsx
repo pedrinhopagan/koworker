@@ -19,7 +19,7 @@ const ContextMenuSub = ContextMenuPrimitive.Sub;
 const ContextMenuRadioGroup = ContextMenuPrimitive.RadioGroup;
 
 const contextMenuSubTriggerVariants = tv({
-	base: "flex cursor-default select-none items-center gap-2 rounded-sm px-3 py-1.5 text-sm outline-none focus:bg-muted focus:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	base: "flex cursor-pointer select-none items-center gap-2 px-2.5 py-1.5 text-sm text-foreground outline-none data-[highlighted]:bg-accent data-[highlighted]:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 	variants: {
 		inset: {
 			true: "pl-8",
@@ -48,7 +48,7 @@ ContextMenuSubTrigger.displayName = ContextMenuPrimitive.SubTrigger.displayName;
 // irmão do menu pai, então precisa pintar por cima na faixa de sobreposição — senão o ponteiro
 // cruzando do trigger pro submenu atinge o menu pai e o submenu pisca abrindo/fechando.
 const contextMenuSubContentVariants = tv({
-	base: "z-[110] min-w-[8rem] overflow-hidden rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
+	base: "z-[110] min-w-[8rem] overflow-hidden border border-border bg-popover p-1 text-popover-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
 });
 
 // Portado pra mesma raiz de tema do ContextMenuContent: sem portal, o SubContent renderiza dentro
@@ -80,7 +80,7 @@ const ContextMenuSubContent = React.forwardRef<
 ContextMenuSubContent.displayName = ContextMenuPrimitive.SubContent.displayName;
 
 const contextMenuContentVariants = tv({
-	base: "z-[100] min-w-[160px] overflow-hidden rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
+	base: "z-[100] min-w-[160px] overflow-hidden border border-border bg-popover p-1 text-popover-foreground shadow-xl duration-[80ms] data-[state=open]:animate-in data-[state=open]:fade-in-0",
 });
 
 const ContextMenuContent = React.forwardRef<
@@ -109,7 +109,7 @@ const ContextMenuContent = React.forwardRef<
 ContextMenuContent.displayName = ContextMenuPrimitive.Content.displayName;
 
 const contextMenuItemVariants = tv({
-	base: "relative flex cursor-default select-none items-center gap-2 rounded-sm px-3 py-1.5 text-sm outline-none transition-colors focus:bg-muted focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	base: "relative flex cursor-pointer select-none items-center gap-2 px-2.5 py-1.5 text-sm text-foreground outline-none transition-colors data-[highlighted]:bg-accent data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 	variants: {
 		inset: {
 			true: "pl-8",
@@ -132,7 +132,7 @@ const ContextMenuItem = React.forwardRef<
 ContextMenuItem.displayName = ContextMenuPrimitive.Item.displayName;
 
 const contextMenuCheckboxItemVariants = tv({
-	base: "relative flex cursor-default select-none items-center gap-2 rounded-sm py-1.5 pr-3 pl-8 text-sm outline-none transition-colors focus:bg-muted focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	base: "relative flex cursor-pointer select-none items-center gap-2 py-1.5 pr-2.5 pl-8 text-sm text-foreground outline-none transition-colors data-[highlighted]:bg-accent data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 });
 
 const ContextMenuCheckboxItem = React.forwardRef<
@@ -147,7 +147,7 @@ const ContextMenuCheckboxItem = React.forwardRef<
 	>
 		<span className="absolute left-2 flex size-3.5 items-center justify-center">
 			<ContextMenuPrimitive.ItemIndicator>
-				<Check className="size-4" />
+				<Check className="size-3.5" />
 			</ContextMenuPrimitive.ItemIndicator>
 		</span>
 		{children}
@@ -156,7 +156,7 @@ const ContextMenuCheckboxItem = React.forwardRef<
 ContextMenuCheckboxItem.displayName = ContextMenuPrimitive.CheckboxItem.displayName;
 
 const contextMenuRadioItemVariants = tv({
-	base: "relative flex cursor-default select-none items-center gap-2 rounded-sm py-1.5 pr-3 pl-8 text-sm outline-none transition-colors focus:bg-muted focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	base: "relative flex cursor-pointer select-none items-center gap-2 py-1.5 pr-2.5 pl-8 text-sm text-foreground outline-none transition-colors data-[highlighted]:bg-accent data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 });
 
 const ContextMenuRadioItem = React.forwardRef<
@@ -179,7 +179,7 @@ const ContextMenuRadioItem = React.forwardRef<
 ContextMenuRadioItem.displayName = ContextMenuPrimitive.RadioItem.displayName;
 
 const contextMenuLabelVariants = tv({
-	base: "px-3 py-1.5 text-sm font-semibold text-foreground",
+	base: "px-2.5 py-2 text-xs font-medium text-muted-foreground",
 	variants: {
 		inset: {
 			true: "pl-8",

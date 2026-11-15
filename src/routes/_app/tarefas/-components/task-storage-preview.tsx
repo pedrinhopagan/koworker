@@ -2,12 +2,12 @@ import { AlertTriangle, ArrowRight, CheckCircle2, FileWarning, ShieldCheck } fro
 
 import type { RouterOutputs } from "@/client";
 import { Text, Title } from "@/components/typography";
-import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { Chip, type ChipVariant } from "@/components/ui/chip";
 
 type Plan = RouterOutputs["taskStorage"]["preview"];
 type PlanItem = Plan["items"][number];
 
-const kindPresentation: Record<PlanItem["kind"], { label: string; variant: BadgeVariant }> = {
+const kindPresentation: Record<PlanItem["kind"], { label: string; variant: ChipVariant }> = {
 	correct: { label: "Correto", variant: "success" },
 	flat_migratable: { label: "Pronto para migrar", variant: "secondary" },
 	nested_compatible: { label: "Compatível", variant: "secondary" },
@@ -51,7 +51,7 @@ export function TaskStoragePreview({ plan }: { plan: Plan }) {
 				))}
 			</div>
 
-			<div className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3">
+			<div className="flex items-start gap-3 border border-border bg-card px-4 py-3">
 				{canApply ? (
 					<ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
 				) : (
@@ -74,7 +74,7 @@ export function TaskStoragePreview({ plan }: { plan: Plan }) {
 					const presentation = kindPresentation[item.kind];
 					const size = item.source?.size ?? item.destination?.size;
 					return (
-						<div key={item.taskId} className="rounded-xl border border-border bg-card px-4 py-3">
+						<div key={item.taskId} className="border border-border bg-card px-4 py-3">
 							<div className="flex flex-wrap items-start justify-between gap-2">
 								<div className="min-w-0">
 									<Text className="truncate font-medium">{item.title}</Text>
@@ -83,7 +83,7 @@ export function TaskStoragePreview({ plan }: { plan: Plan }) {
 										{size !== undefined && ` · ${formatBytes(size)}`}
 									</Text>
 								</div>
-								<Badge variant={presentation.variant}>{presentation.label}</Badge>
+								<Chip variant={presentation.variant}>{presentation.label}</Chip>
 							</div>
 							{item.destinationPath && item.sourcePath !== item.destinationPath && (
 								<div className="mt-3 grid gap-1 text-xs text-muted-foreground sm:grid-cols-[1fr_auto_1fr] sm:items-center">

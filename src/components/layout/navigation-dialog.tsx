@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowUpDown, CornerDownLeft, Search } from "lucide-react";
 import { useEffect, useId, useState, type KeyboardEvent } from "react";
+import { create } from "zustand";
 
 import { sidebarNavGroups } from "@/components/layout/sidebar-nav-config";
 import { Text } from "@/components/typography";
@@ -15,7 +16,20 @@ function normalizePageLabel(label: string) {
 		.replaceAll(/\p{Diacritic}/gu, "");
 }
 
-export function NavigationDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export const useNavigationDialogStore = create<{
+	open: boolean;
+	setOpen: (open: boolean | ((open: boolean) => boolean)) => void;
+}>((set) => ({
+	open: false,
+	setOpen: (open) =>
+		set((state) => ({ open: typeof open === "function" ? open(state.open) : open })),
+}));
+
+export function NavigationDialog() {
+	const open = useNavigationDialogStore((state) => state.open);
+	const setOpen = useNavigationDialogStore((state) => state.setOpen);
+	const onClose = () => setOpen(false);
+
 	return (
 		<Dialog open={open} onClose={onClose} title="Ir para uma página" className="max-w-xl">
 			{open && <NavigationSearch onClose={onClose} />}
@@ -82,12 +96,7 @@ function NavigationSearch({ onClose }: { onClose: () => void }) {
 					className="h-11 pl-9"
 				/>
 			</div>
-			<div
-				id={listId}
-				role="listbox"
-				aria-label="Páginas"
-				className="max-h-80 overflow-y-auto rounded-lg"
-			>
+			<div id={listId} role="listbox" aria-label="Páginas" className="max-h-80 overflow-y-auto">
 				{pages.map((page, index) => (
 					<Link
 						key={page.path}
@@ -98,7 +107,7 @@ function NavigationSearch({ onClose }: { onClose: () => void }) {
 						onClick={onClose}
 						onPointerMove={() => setSelectedIndex(index)}
 						className={cn(
-							"flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
+							"flex min-h-11 items-center gap-3 px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
 							index === selectedIndex && "bg-accent",
 						)}
 					>

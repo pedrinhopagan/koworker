@@ -90,7 +90,7 @@ function ThreadComposerContent({
 		<div data-component="thread-composer" className="z-20 shrink-0 bg-background px-3 py-3 sm:px-5">
 			<div
 				className={cn(
-					"mx-auto w-full rounded-2xl border border-input bg-card p-3 shadow-sm",
+					"mx-auto w-full border border-input bg-card p-3 shadow-sm",
 					!edgeToEdge && "max-w-3xl",
 				)}
 			>
@@ -169,9 +169,10 @@ function ThreadComposerContent({
 										type="button"
 										aria-label="Enviar continuação"
 										data-slot="send"
+										onPointerDown={(event) => event.preventDefault()}
 										onClick={() => void submit()}
 										disabled={disabled || pending || !draft.text.trim()}
-										className="size-11 shrink-0 rounded-full sm:size-8 p-0"
+										className="size-11 shrink-0 sm:size-8 p-0"
 									>
 										{pending ? (
 											<Loader2 className="size-4 animate-spin" />

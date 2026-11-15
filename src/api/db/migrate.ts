@@ -614,6 +614,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS task_storage_runs_active_project_unique_idx
 	);
 	sqlite.exec("CREATE INDEX IF NOT EXISTS task_groups_project_id_idx ON task_groups (project_id)");
 	sqlite.exec(
+		"CREATE INDEX IF NOT EXISTS conversations_user_updated_idx ON conversations (user_id, updated_at)",
+	);
+	sqlite.exec(
+		"CREATE UNIQUE INDEX IF NOT EXISTS conversations_profile_thread_idx ON conversations (profile_id, thread_id) WHERE thread_id IS NOT NULL",
+	);
+	sqlite.exec(
+		"CREATE INDEX IF NOT EXISTS conversation_messages_created_idx ON conversation_messages (conversation_id, created_at)",
+	);
+	sqlite.exec(
 		"CREATE INDEX IF NOT EXISTS execution_runs_status_heartbeat_idx ON execution_runs (status, heartbeat_at)",
 	);
 

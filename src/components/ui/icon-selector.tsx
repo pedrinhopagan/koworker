@@ -145,7 +145,7 @@ export function IconSelector({
 										type="button"
 										onClick={() => handleSelect(iconName)}
 										className={cn(
-											"group flex flex-col items-center gap-2 rounded-md border border-transparent px-2 py-2 text-[11px] text-muted-foreground transition",
+											"group flex flex-col items-center gap-2 border border-transparent px-2 py-2 text-[11px] text-muted-foreground transition",
 											"hover:border-border hover:bg-muted/40 hover:text-foreground",
 											isSelected && "border-primary bg-primary/10 text-foreground",
 										)}

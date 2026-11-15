@@ -19,7 +19,8 @@ Padronizar ORPC, validação e regras de auth para o backend.
 
 - `router.projects.create` / `router.tasks.update`
 - `wsRouter.tasks` para o stream de eventos de task; os demais streams são `notifications`,
-  `navigate`, `flow`, `promptRun`, `agentSession` e `terminal`
+  `navigate`, `promptRun`, `conversation`, `conversations`, `conversationPane`, `agentRadar`, `agentRadarTranscript`,
+  `agentTerminal`, `terminalWorkspace`, `modelCatalog`, `shells` e `terminal`
 
 ## PORTÃO DE DISPOSITIVO
 
@@ -38,22 +39,25 @@ Padronizar ORPC, validação e regras de auth para o backend.
 - Execução vive em `execution_runs` (`kind`: `prompt | flow`; `status`: `running | done | failed | timeout | waiting_user | cancelled`).
 - A etapa do fluxo é inferida dos artefatos da pasta da task (`inferTaskStage`), não persistida.
 
-## SESSÃO DE AGENTE
+## CONVERSA NATIVA
 
-- `agentSessions.*` fala com um processo do CLI que fica de pé entre turnos; cada turno abre um
-  `execution_runs` com `session_id`. Os blocos da conversa vivem em `agent_events` e chegam ao vivo
-  pelo canal `agentSession`. Só o registry escreve no stdin do processo — protocolo e ciclo de vida
-  em `docs/SESSOES.md`.
-- A rota `/mcp/session/:sessionId` no `server.ts` é o servidor MCP que entrega a pergunta com opções
-  ao usuário. Só loopback: a porta é pública na VPS.
+- `conversations.*` autoriza cada conversa pelo `user_id`. O runtime em `helpers/conversations/`
+  mantém um Codex App Server por perfil e direciona eventos por `(profileId, threadId)`.
+- `conversation_messages` persiste o envio antes do RPC. `clientMessageId` vai como
+  `clientUserMessageId` e a confirmação vem de `userMessage.clientId`. A releitura do histórico e
+  as notificações entram na mesma fila para preservar a ordem do protocolo.
+- Pedidos nativos usam `requestId` mais `runtimeId`; a resposta espera `serverRequest/resolved`.
+- O boot limpa pedidos de processos encerrados e marca envios interrompidos como incertos.
+  A retomada usa `thread/resume`; a conferência explícita usa `thread/read`.
+- `cliHistory` pagina `thread/list` e filtra pelo diretório do projeto; `importCli` valida
+  `thread/read` e vincula a identidade nativa, preservando histórico e cwd. Uma conversa aberta
+  no radar reutiliza seu pane; o runtime impede a retomada simultânea pelo app.
+- `conversations.pane` e o stream `conversationPane` leem o Codex aberto por `thread/read`,
+  usando o CODEX_HOME do rollout. O stream confere mudanças enquanto houver leitor, envia apenas
+  snapshots diferentes e encerra a espera ao cancelar a assinatura.
 
-## CONVERSA DE EXECUÇÃO (chamada única)
+## HISTÓRICO E JOBS
 
-- Vale para o Codex e para todo run anterior às sessões.
-- Os turnos de uma conversa são runs distintos ligados por `parent_run_id` e agrupados por
-  `cli_session_id`. `prompt.thread` devolve a conversa inteira; `prompt.continue` abre o próximo turno
-  retomando a sessão do CLI (`--resume` no Claude, `codex exec resume`).
-- Os CLIs rodam em JSONL (`--output-format stream-json` no Claude, `--json` no Codex) e
-  `lib/agent-stream.ts` traduz cada linha em passos (`AgentStep`) com ferramenta, alvo e desfecho.
-- Os passos ficam em memória (`helpers/run-steps.ts`), não no banco: chegam ao vivo pelo canal
-  `promptRun` (`status: "step"`) e são reidratados por `prompt.runSteps` em cada reconexão.
+- `agentSessions.*` é somente leitura do executor anterior. Contrato em `docs/SESSOES.md`.
+- Jobs atuais usam `execution_runs` e `promptRun`; os passos são interpretados por
+  `lib/agent-stream.ts` e reidratados por `prompt.runSteps`.

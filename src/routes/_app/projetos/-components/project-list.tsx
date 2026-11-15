@@ -110,7 +110,7 @@ export function ProjectList({ projects, selectedId, loading }: ProjectListProps)
 					Carregando projetos...
 				</Text>
 			) : orderedItems.length === 0 ? null : (
-				<div className="pr-2 pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto md:[scrollbar-gutter:stable]">
+				<div className="max-h-80 overflow-y-auto overscroll-contain pr-2 pb-4 md:max-h-none md:min-h-0 md:flex-1 md:[scrollbar-gutter:stable]">
 					<SortableList
 						items={orderedItems}
 						onReorder={(items) => {

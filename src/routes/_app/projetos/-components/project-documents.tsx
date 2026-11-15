@@ -57,7 +57,7 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
 					</Text>
 				)}
 				{!docsQuery.isLoading && docs.length === 0 && (
-					<div className="rounded-lg border border-border bg-muted/15 px-4 py-5">
+					<div className="border border-border bg-muted/15 px-4 py-5">
 						<FileText className="size-5 text-muted-foreground" />
 						<Title as="div" size="sm" className="mt-3">
 							Nenhum documento-base

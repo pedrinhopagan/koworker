@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import {
-	DOC_MIME_BY_EXT,
+	ARTIFACT_MIME_BY_EXT,
 	EXT_BY_IMAGE_MIME,
 	IMAGE_MIME_BY_EXT,
 	MEDIAS_DIRNAME,
@@ -124,10 +124,6 @@ export function invalidateMediaFilesCache(dir: string): void {
 	mediaFilesCache.deletePrefix(mediaFilesCacheKey(dir));
 }
 
-// MIME de um nome de arquivo pela extensão dentro da whitelist do destino, ou null quando a extensão
-// não pertence a ele — o que também serve de filtro: `medias/` passa IMAGE_MIME_BY_EXT (só imagens)
-// e a pasta da tarefa passa DOC_MIME_BY_EXT (só HTML/PDF), então cada pasta só lista e só lê o seu
-// próprio tipo.
 function mimeForAsset(name: string, mimeByExt: Record<string, string>): string | null {
 	const dot = name.lastIndexOf(".");
 	if (dot < 0) return null;
@@ -405,20 +401,51 @@ export async function renameMediaFile(params: {
 
 // ---------- artefatos soltos na pasta da tarefa ----------
 
-// Artefatos "robustos" da pasta da tarefa: só HTML/PDF. É o que o mostruário considera artefato,
-// então a whitelist DOC_MIME_BY_EXT filtra tudo o mais.
-function decodeHtmlText(value: string): string {
-	const named = { amp: "&", apos: "'", gt: ">", lt: "<", quot: '"' } as const;
+export function decodeHtmlText(value: string): string {
+	const named: Record<string, string> = {
+		amp: "&",
+		apos: "'",
+		gt: ">",
+		lt: "<",
+		quot: '"',
+		nbsp: " ",
+		aacute: "á",
+		agrave: "à",
+		acirc: "â",
+		atilde: "ã",
+		auml: "ä",
+		eacute: "é",
+		egrave: "è",
+		ecirc: "ê",
+		euml: "ë",
+		iacute: "í",
+		igrave: "ì",
+		icirc: "î",
+		iuml: "ï",
+		oacute: "ó",
+		ograve: "ò",
+		ocirc: "ô",
+		otilde: "õ",
+		ouml: "ö",
+		uacute: "ú",
+		ugrave: "ù",
+		ucirc: "û",
+		uuml: "ü",
+		ccedil: "ç",
+	};
 
 	return value
 		.replaceAll(/&#(?:x([\da-f]+)|(\d+));/gi, (entity, hex, decimal) => {
 			const code = hex ? Number.parseInt(hex, 16) : Number(decimal);
 			return code <= 0x10ffff ? String.fromCodePoint(code) : entity;
 		})
-		.replaceAll(
-			/&(amp|apos|gt|lt|quot);/gi,
-			(_entity, name) => named[name.toLowerCase() as keyof typeof named],
-		)
+		.replaceAll(/&([a-z]+);/gi, (entity, name: string) => {
+			const decoded = named[name.toLowerCase()];
+			if (!decoded) {
+				return entity;
+			}
+			return name[0] === name[0].toUpperCase() ? decoded.toUpperCase() : decoded;
+		})
 		.replaceAll(/\s+/g, " ")
 		.trim();
 }
@@ -495,7 +522,7 @@ export async function listTaskArtifacts(params: {
 	folderPath: string;
 }): Promise<TaskArtifactMeta[]> {
 	const dir = join(params.projectRoute, params.folderPath);
-	const artifacts = await listAssetsIn(dir, DOC_MIME_BY_EXT);
+	const artifacts = await listAssetsIn(dir, ARTIFACT_MIME_BY_EXT);
 
 	return Promise.all(
 		artifacts.map(async (artifact) =>
@@ -509,14 +536,10 @@ export async function listTaskArtifacts(params: {
 	);
 }
 
-// Anexos da tarefa: qualquer arquivo da pasta que não seja `.md` (os `.md` são as abas de texto,
-// exibidas à parte). Diferente de listTaskArtifacts, não filtra por extensão — o MIME vem de
-// DOC_MIME_BY_EXT quando conhecido e cai em `application/octet-stream` no resto. Alimenta os cards
-// de anexo do getFull; o mostruário continua usando listTaskArtifacts (só HTML/PDF).
 export async function listTaskAttachments(params: {
 	projectRoute: string;
 	folderPath: string;
-}): Promise<AssetFileMeta[]> {
+}): Promise<TaskArtifactMeta[]> {
 	const dir = join(params.projectRoute, params.folderPath);
 
 	const names = (await readdir(dir, { withFileTypes: true }).catch(() => []))
@@ -527,9 +550,17 @@ export async function listTaskAttachments(params: {
 		names.map(async (name) => {
 			const dot = name.lastIndexOf(".");
 			const ext = dot < 0 ? "" : name.slice(dot).toLowerCase();
-			const mime = DOC_MIME_BY_EXT[ext] ?? "application/octet-stream";
+			const mime =
+				ARTIFACT_MIME_BY_EXT[ext] ?? IMAGE_MIME_BY_EXT[ext] ?? "application/octet-stream";
 			const stats = await stat(join(dir, name)).catch(() => null);
-			return { name, mime, size: stats?.size ?? 0, mtime: stats?.mtimeMs ?? 0 };
+			const artifact = { name, mime, size: stats?.size ?? 0, mtime: stats?.mtimeMs ?? 0 };
+
+			return Object.assign(artifact, {
+				metadata:
+					mime === "text/html" && stats
+						? await readCachedArtifactMetadata(join(dir, name), artifact).catch(() => null)
+						: null,
+			});
 		}),
 	);
 

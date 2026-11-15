@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
 
-import { isShellsPath, rootOf, useSplitViewStore } from "@/stores/split-view";
+import { isChatPath, rootOf, useSplitViewStore } from "@/stores/split-view";
 
 // Fixa uma rota da sidebar no painel da esquerda do split view. É o shift+clique na navegação:
 // entra (ou troca) o modo de tela dividida sem passar pelo dialog. Se a rota fixada é a mesma
@@ -13,9 +13,7 @@ export function usePinLeft() {
 	return function pinLeft(path: string) {
 		const leftRoot = rootOf(path);
 		const leftHref =
-			leftRoot === "/shells" && isShellsPath(location.pathname)
-				? `/shells${location.searchStr}`
-				: path;
+			leftRoot === "/chat" && isChatPath(location.pathname) ? `/chat${location.searchStr}` : path;
 
 		openSplit(leftHref);
 

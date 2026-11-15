@@ -207,7 +207,7 @@ export function useInvocation(params: {
 		})
 			.then((result) => {
 				usePromptBarStore.getState().clear();
-				return navigate({ to: "/shells", search: { tab: `agent:${result.paneId}` } });
+				return navigate({ to: "/chat", search: { paneId: result.paneId } });
 			})
 			.catch(() => toast.error("Não foi possível abrir a conversa"))
 			.finally(() => setInvoking(false));

@@ -37,14 +37,14 @@ export function SessionQuestion({
 	return (
 		<section
 			className={cn(
-				"min-w-0 rounded-xl border border-border/70 bg-card p-3 shadow-sm md:p-4",
+				"min-w-0 border border-border/70 bg-card p-3 shadow-sm md:p-4",
 				!answered && "border-primary/60 ring-1 ring-primary/15",
 			)}
 		>
 			<header className="flex flex-wrap items-center gap-2">
 				<span
 					className={cn(
-						"flex size-7 shrink-0 items-center justify-center rounded-full bg-muted",
+						"flex size-7 shrink-0 items-center justify-center bg-muted",
 						!answered && "border-primary text-primary",
 					)}
 				>

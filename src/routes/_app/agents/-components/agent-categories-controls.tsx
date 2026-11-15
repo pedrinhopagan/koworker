@@ -89,14 +89,12 @@ export function AgentCategoryHeader({
 			<button
 				type="button"
 				onClick={onToggleCollapse}
-				className="flex min-w-0 flex-1 items-center gap-2 text-left"
+				aria-expanded={!collapsed}
+				className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:min-h-0"
 			>
 				<ChevronIcon className="size-4 shrink-0 text-muted-foreground" />
 				{category ? (
-					<span
-						className="size-2.5 shrink-0 rounded-full"
-						style={{ backgroundColor: category.color }}
-					/>
+					<span className="size-2.5 shrink-0" style={{ backgroundColor: category.color }} />
 				) : null}
 				{editing && category ? null : (
 					<Text

@@ -3,22 +3,23 @@ import { basename, dirname, extname } from "node:path";
 
 import { ORPCError } from "@orpc/server";
 
+import { AUDIO_MIME_BY_EXT, IMAGE_MIME_BY_EXT, VIDEO_MIME_BY_EXT } from "@/constants/koworker";
 import { isPathInside } from "./path-containment";
 
 export const FILE_VIEW_TEXT_MAX_BYTES = 512 * 1024;
 const IMAGE_MAX_BYTES = 4 * 1024 * 1024;
 const BINARY_PROBE_BYTES = 8192;
 
-const IMAGE_TYPES: Record<string, string> = {
-	".png": "image/png",
-	".jpg": "image/jpeg",
-	".jpeg": "image/jpeg",
-	".gif": "image/gif",
-	".webp": "image/webp",
-	".svg": "image/svg+xml",
-};
-
 export type ViewableFile =
+	| {
+			kind: "media";
+			format: "video" | "audio";
+			mime: string;
+			name: string;
+			dir: string;
+			path: string;
+			size: number;
+	  }
 	| {
 			kind: "document";
 			format: "html" | "pdf";
@@ -70,7 +71,20 @@ export async function readViewableFile(path: string, roots: string[]): Promise<V
 			size: info.size,
 		};
 	}
-	const imageType = IMAGE_TYPES[extname(name).toLowerCase()];
+	const extension = extname(name).toLowerCase();
+	const mediaType = VIDEO_MIME_BY_EXT[extension] ?? AUDIO_MIME_BY_EXT[extension];
+	if (mediaType) {
+		return {
+			kind: "media",
+			format: mediaType.startsWith("video/") ? "video" : "audio",
+			mime: mediaType,
+			name,
+			dir,
+			path: target,
+			size: info.size,
+		};
+	}
+	const imageType = IMAGE_MIME_BY_EXT[extension];
 
 	if (imageType) {
 		if (info.size > IMAGE_MAX_BYTES) {

@@ -22,9 +22,9 @@ export function ProjectFormBasics() {
 	const hasRouteError = !!errors.mainRoute;
 
 	return (
-		<section className="rounded-lg border border-border bg-card/40 p-4">
+		<section className="border border-border bg-card/40 p-4">
 			<div className="flex items-center gap-3">
-				<div className="size-10 rounded-md bg-muted/50 flex items-center justify-center">
+				<div className="size-10 bg-muted/50 flex items-center justify-center">
 					<FolderOpen className="size-5 text-muted-foreground" />
 				</div>
 				<div>

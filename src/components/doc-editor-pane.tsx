@@ -47,6 +47,8 @@ type DocEditorPaneProps = {
 	};
 	beforeEditor?: ReactNode;
 	documentMaxWidth?: string;
+	fontSize?: string;
+	dense?: boolean;
 	emptyState?: string;
 	// Modo leitura é controlado pela página (que decide o que dimmer/esconder no entorno);
 	// aqui ele só amplia a fonte/largura e atende o Esc pra sair.
@@ -71,6 +73,8 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 			externalSave,
 			beforeEditor,
 			documentMaxWidth = "44rem",
+			fontSize = "1rem",
+			dense = false,
 			emptyState,
 			reading,
 			onExitReading,
@@ -197,7 +201,9 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 						"mx-auto flex w-full flex-1 flex-col gap-4 overflow-y-auto",
 						reading
 							? "max-w-4xl px-6 py-10 lg:max-w-5xl lg:px-10 2xl:max-w-6xl"
-							: "max-w-4xl px-4 pt-6 pb-6 lg:max-w-4xl lg:pt-6 lg:pr-6 lg:pl-4 xl:max-w-6xl",
+							: dense
+								? "max-w-4xl gap-3 px-4 pt-3 pb-6 lg:pr-6 lg:pl-4 xl:max-w-6xl"
+								: "max-w-4xl px-4 pt-6 pb-6 lg:max-w-4xl lg:pt-6 lg:pr-6 lg:pl-4 xl:max-w-6xl",
 					)}
 					style={reading ? { paddingBottom: "calc(2.5rem + var(--prompt-bar-h, 0px))" } : undefined}
 				>
@@ -214,7 +220,7 @@ export const DocEditorPane = forwardRef<DocEditorPaneHandle, DocEditorPaneProps>
 							key={fileName}
 							ref={editorRef}
 							initialContent={content}
-							fontSize={reading ? "1.25rem" : "1rem"}
+							fontSize={reading ? "1.25rem" : fontSize}
 							proseMaxWidth={reading ? undefined : documentMaxWidth}
 							initialAnchor={initialAnchor}
 							onAnchorChange={saveAnchor}

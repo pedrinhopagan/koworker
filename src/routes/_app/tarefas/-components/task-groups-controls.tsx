@@ -319,10 +319,7 @@ function FeatureContextMenu({
 			<ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
 			{/* Renomear mostra um input com autoFocus; sem isto o menu devolve o foco ao trigger ao
 			    fechar, o input perde foco e o onBlur cancela a edição num flash. */}
-			<ContextMenuContent
-				className="w-[200px] rounded-md"
-				onCloseAutoFocus={(e) => e.preventDefault()}
-			>
+			<ContextMenuContent className="w-[200px]" onCloseAutoFocus={(e) => e.preventDefault()}>
 				<ContextMenuLabel className="truncate px-2.5 py-2 text-xs font-medium text-muted-foreground">
 					{group.name}
 				</ContextMenuLabel>
@@ -345,7 +342,7 @@ function FeatureContextMenu({
 								>
 									<span
 										className={cn(
-											"size-4 rounded-full",
+											"size-4",
 											color.toLowerCase() === group.color.toLowerCase() &&
 												"ring-2 ring-foreground ring-offset-1 ring-offset-card",
 										)}
@@ -425,8 +422,9 @@ export function TaskGroupHeader({
 			<button
 				type="button"
 				onClick={onToggleCollapse}
-				className="flex size-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+				className="flex size-11 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:size-6"
 				aria-label={collapsed ? "Expandir feature" : "Recolher feature"}
+				aria-expanded={!collapsed}
 			>
 				<ChevronIcon className="size-4" />
 			</button>
@@ -455,7 +453,7 @@ export function TaskGroupHeader({
 					to="/tarefas/$taskId"
 					params={{ taskId: group.id }}
 					search={{ projectId: group.projectId }}
-					className="min-w-0 flex-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+					className="flex min-h-11 min-w-0 flex-1 items-center focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:min-h-0"
 				>
 					<TaskGroupLabel
 						name={group.name}
@@ -468,7 +466,8 @@ export function TaskGroupHeader({
 				<button
 					type="button"
 					onClick={onToggleCollapse}
-					className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+					className="flex min-h-11 min-w-0 flex-1 items-center text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:min-h-0"
+					aria-expanded={!collapsed}
 				>
 					<TaskGroupLabel count={count} className="min-w-0 flex-1 border-0 pb-0" />
 				</button>

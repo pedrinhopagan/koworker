@@ -17,9 +17,10 @@ import { StatusBar } from "@/components/layout/status-bar";
 import { TabBar } from "@/components/layout/tab-bar";
 import { GlobalPromptBar } from "@/components/prompt-bar/global-prompt-bar";
 import { useDivider } from "@/hooks/use-divider";
-import { useIsMobileViewport, usePrimaryColor, useProjectFocus, useUser } from "@/hooks";
+import { useIsMobileViewport, useProjectFocus, useUser } from "@/hooks";
 import {
 	clampSplitPaneWidth,
+	isChatPath,
 	isShellsPath,
 	SHELL_PANE_WIDTH_PROPERTY,
 	shellPaneWidthValue,
@@ -162,7 +163,7 @@ export function SplitPanes({ children }: AppShellProps) {
 					type="button"
 					onClick={close}
 					aria-label="Desafixar"
-					className="absolute top-2 left-1/2 z-20 flex size-6 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-chrome text-muted-foreground opacity-0 shadow-xs transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
+					className="absolute top-2 left-1/2 z-20 flex size-6 -translate-x-1/2 items-center justify-center border border-border bg-chrome text-muted-foreground opacity-0 shadow-xs transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100"
 				>
 					<X className="size-3.5" />
 				</button>
@@ -175,9 +176,11 @@ export function SplitPanes({ children }: AppShellProps) {
 
 export function AppShell({ children }: AppShellProps) {
 	useUser();
-	usePrimaryColor();
 	const { accent } = useProjectFocus();
 	const isMobile = useIsMobileViewport();
+	const inConversation = useRouterState({
+		select: (state) => state.location.pathname === "/chat",
+	});
 
 	const pinnedPath = useSplitViewStore((s) => s.path);
 	const inSession = useRouterState({
@@ -196,8 +199,8 @@ export function AppShell({ children }: AppShellProps) {
 	const compactTerminal = useIsMobileViewport("(max-width: 1023px)") && inSession;
 	const splitActive = !isMobile && !compactTerminal && !!pinnedPath;
 
-	const shellPinned = !!pinnedPath && isShellsPath(pinnedPath);
-	const hidePromptBar = inSession || shellPinned;
+	const shellPinned = !!pinnedPath && (isShellsPath(pinnedPath) || isChatPath(pinnedPath));
+	const hidePromptBar = inSession || shellPinned || inConversation;
 
 	const baseAccentStyle = {
 		"--project-accent-soft": "color-mix(in oklab, var(--primary) 12%, transparent)",
@@ -223,34 +226,46 @@ export function AppShell({ children }: AppShellProps) {
 		}
 	}
 
+	const showTabBar =
+		!(compactTerminal && inSessionDetail) && !(isMobile && (inFileViewer || inConversation));
+	const showStatusBar = !compactTerminal && !isMobile && !inConversation;
+
 	return (
 		<AppContextMenu>
 			<div
-				className="flex h-full min-h-0 flex-1 flex-row overflow-hidden bg-background text-foreground"
+				className="flex h-full min-h-0 flex-1 flex-row overflow-hidden bg-chrome text-foreground"
 				style={shellStyle}
 				onContextMenuCapture={handleContextMenuCapture}
 			>
 				{!compactTerminal && <AppSidebar />}
 
 				<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-					{!(compactTerminal && inSessionDetail) && !(isMobile && inFileViewer) && (
-						<TabBar compact={compactTerminal} />
-					)}
+					{showTabBar && <TabBar compact={compactTerminal} />}
 
-					<main
+					<div
+						data-component="app-panel"
 						className={cn(
-							"flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background",
-							splitActive ? "flex-row" : "flex-col",
+							"flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background md:mr-2 md:border md:border-border md:shadow-xs",
+							compactTerminal && "md:ml-2",
+							!showTabBar && "md:mt-2",
+							!showStatusBar && "md:mb-2",
 						)}
 					>
-						{splitActive ? <SplitPanes>{children}</SplitPanes> : children}
-					</main>
+						<main
+							className={cn(
+								"flex min-h-0 min-w-0 flex-1 overflow-hidden",
+								splitActive ? "flex-row" : "flex-col",
+							)}
+						>
+							{splitActive ? <SplitPanes>{children}</SplitPanes> : children}
+						</main>
 
-					{!isMobile && !hidePromptBar && <GlobalPromptBar />}
+						{!isMobile && !hidePromptBar && <GlobalPromptBar />}
+					</div>
 
-					{!compactTerminal && !isMobile && <StatusBar />}
+					{showStatusBar && <StatusBar />}
 
-					{isMobile && <MobileBottomNav />}
+					{isMobile && !inFileViewer && <MobileBottomNav />}
 				</div>
 
 				<GlobalProjectSelectDialog />

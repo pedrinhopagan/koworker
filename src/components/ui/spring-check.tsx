@@ -43,29 +43,31 @@ export function SpringCheck({
 			onKeyDown={handleKeyDown}
 			onClick={() => onCheckedChange(!checked)}
 			className={cn(
-				"relative grid size-4 shrink-0 cursor-pointer place-items-center overflow-hidden border border-input bg-transparent shadow-xs outline-none transition-[border-color,transform] duration-150 hover:border-primary/60 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-90 disabled:cursor-not-allowed disabled:opacity-50 aria-checked:border-primary motion-reduce:active:scale-100 dark:bg-input/30",
+				"group/check relative grid size-11 shrink-0 cursor-pointer place-items-center outline-none transition-transform duration-150 focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-90 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:active:scale-100 sm:size-4",
 				className,
 			)}
 		>
-			<motion.span
-				aria-hidden
-				className="absolute inset-0 bg-primary"
-				initial={false}
-				animate={{ scale: checked ? 1 : 0 }}
-				transition={transition}
-			/>
-			<svg
-				aria-hidden
-				viewBox="0 0 24 24"
-				className="relative size-3 fill-none stroke-primary-foreground stroke-[3] [stroke-linecap:round] [stroke-linejoin:round]"
-			>
-				<motion.path
-					d="M5 12.5l4.5 4.5L19 7.5"
+			<span className="relative grid size-4 place-items-center overflow-hidden border border-input bg-transparent shadow-xs transition-colors group-hover/check:border-primary/60 group-focus-visible/check:border-ring group-aria-checked/check:border-primary dark:bg-input/30">
+				<motion.span
+					aria-hidden
+					className="absolute inset-0 bg-primary"
 					initial={false}
-					animate={{ pathLength: checked ? 1 : 0, opacity: checked ? 1 : 0 }}
+					animate={{ scale: checked ? 1 : 0 }}
 					transition={transition}
 				/>
-			</svg>
+				<svg
+					aria-hidden
+					viewBox="0 0 24 24"
+					className="relative size-3 fill-none stroke-primary-foreground stroke-[3] [stroke-linecap:round] [stroke-linejoin:round]"
+				>
+					<motion.path
+						d="M5 12.5l4.5 4.5L19 7.5"
+						initial={false}
+						animate={{ pathLength: checked ? 1 : 0, opacity: checked ? 1 : 0 }}
+						transition={transition}
+					/>
+				</svg>
+			</span>
 		</button>
 	);
 }

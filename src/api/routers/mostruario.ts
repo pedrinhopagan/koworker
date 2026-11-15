@@ -3,15 +3,14 @@ import { dbProjects } from "../db/projects";
 import { dbTasks } from "../db/tasks";
 import { listTaskArtifacts, type TaskArtifactMeta } from "../helpers/koworker-assets";
 import { MostruarioListSchema } from "../schemas";
+import { prepareShowcaseSearch, searchShowcaseArtifact } from "../helpers/mostruario-search";
 import { mapTasks } from "../helpers/task-display";
 
 function latestArtifact(artifacts: TaskArtifactMeta[]): number {
 	return artifacts.reduce((max, artifact) => Math.max(max, artifact.mtime), 0);
 }
 
-// Tarefas de um projeto que têm .html/.pdf soltos na própria pasta — inclui as concluídas (o
-// mostruário é vitrine). Cada tarefa sai com o mesmo shape de tasks.getAll mais os artefatos.
-async function listProjectShowcase(project: { id: string; main_route: string }) {
+async function listProjectShowcase(project: { id: string; main_route: string }, query?: string) {
 	const rows = await dbTasks.listByProject({ projectId: project.id });
 
 	const withArtifacts = (
@@ -28,9 +27,29 @@ async function listProjectShowcase(project: { id: string; main_route: string }) 
 
 	const mapped = await mapTasks(withArtifacts.map(({ row }) => row));
 
-	return mapped.map((task, index) =>
-		Object.assign(task, { artifacts: withArtifacts[index].artifacts }),
+	const search = prepareShowcaseSearch(query ?? "");
+	const tasks = await Promise.all(
+		mapped.map(async (task, index) => {
+			const artifacts = await Promise.all(
+				withArtifacts[index].artifacts.map(async (artifact) => {
+					const match = query
+						? await searchShowcaseArtifact({
+								projectRoute: project.main_route,
+								folderPath: task.folderPath,
+								taskTitle: task.displayTitle,
+								artifact,
+								search,
+							})
+						: null;
+					return Object.assign(artifact, { match });
+				}),
+			);
+			const matches = artifacts.filter((artifact) => !query || artifact.match);
+			matches.sort((a, b) => (b.match?.score ?? 0) - (a.match?.score ?? 0));
+			return Object.assign(task, { artifacts: matches });
+		}),
 	);
+	return tasks.filter((task) => task.artifacts.length > 0);
 }
 
 export const mostruarioRouter = {
@@ -39,8 +58,16 @@ export const mostruarioRouter = {
 			? [await dbProjects.getById(input.projectId)].filter((project) => project !== null)
 			: await dbProjects.getAll();
 
-		const parts = await Promise.all(projects.map(listProjectShowcase));
+		const parts = await Promise.all(
+			projects.map((project) => listProjectShowcase(project, input.query)),
+		);
 
-		return parts.flat().sort((a, b) => latestArtifact(b.artifacts) - latestArtifact(a.artifacts));
+		return parts
+			.flat()
+			.sort(
+				(a, b) =>
+					(b.artifacts[0]?.match?.score ?? 0) - (a.artifacts[0]?.match?.score ?? 0) ||
+					latestArtifact(b.artifacts) - latestArtifact(a.artifacts),
+			);
 	}),
 };

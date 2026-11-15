@@ -3,7 +3,7 @@ import { ArrowLeft, FolderKanban, Menu, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
-import { NavigationDialog } from "@/components/layout/navigation-dialog";
+import { NavigationDialog, useNavigationDialogStore } from "@/components/layout/navigation-dialog";
 import { RoutePathButton } from "@/components/layout/route-path-button";
 import { tabs } from "@/components/layout/tab-nav-config";
 import { WorkspaceBreadcrumbs } from "@/components/layout/workspace-breadcrumbs";
@@ -21,7 +21,7 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 	const navigate = useNavigate();
 	const router = useRouter();
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
-	const [navigationOpen, setNavigationOpen] = useState(false);
+	const setNavigationOpen = useNavigationDialogStore((state) => state.setOpen);
 	const openProjectDialog = useProjectSelectDialogStore((state) => state.openDialog);
 	const toggleSidebar = useSidebarNavStore((state) => state.toggleMode);
 	const { selectedProject, loading } = useProjectFocus();
@@ -58,14 +58,14 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [navigate, toggleSidebar]);
+	}, [navigate, setNavigationOpen, toggleSidebar]);
 
 	return (
 		<>
 			<header
 				data-component="workspace-header"
 				className={cn(
-					"flex h-shell-bar shrink-0 items-center gap-2 border-b border-border bg-background px-3 select-none sm:px-4 [&_button]:border-0 [&_button]:shadow-none",
+					"flex h-shell-bar shrink-0 items-center gap-2 border-b border-border px-3 select-none sm:px-4 md:border-b-0 md:pr-3 md:pl-1 [&_button]:border-0 [&_button]:shadow-none",
 					isDesktop() && "desktop-drag-region",
 				)}
 			>
@@ -91,7 +91,7 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 						<ArrowLeft className="size-4" />
 					</Button>
 				</Tooltip>
-				<WorkspaceBreadcrumbs />
+				<WorkspaceBreadcrumbs projectLabel={projectLabel} />
 				<div className="hidden sm:block">
 					<RoutePathButton />
 				</div>
@@ -113,6 +113,7 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 						onClick={() => setNavigationOpen(true)}
 						aria-label="Buscar página"
 						aria-haspopup="dialog"
+						className={cn(!compact && "md:hidden")}
 					>
 						<Search className="size-4" />
 					</Button>
@@ -121,7 +122,7 @@ export function TabBar({ compact = false }: { compact?: boolean }) {
 				<WindowControls />
 			</header>
 			<MobileNavDrawer open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
-			<NavigationDialog open={navigationOpen} onClose={() => setNavigationOpen(false)} />
+			<NavigationDialog />
 		</>
 	);
 }

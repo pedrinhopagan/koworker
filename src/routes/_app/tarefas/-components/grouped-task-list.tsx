@@ -410,7 +410,7 @@ export function GroupedTaskList({
 						<div className="flex items-center gap-2">
 							{activeGroup && (
 								<span
-									className="size-2.5 shrink-0 rounded-full"
+									className="size-2.5 shrink-0"
 									style={{ backgroundColor: activeGroup.color }}
 								/>
 							)}
@@ -492,10 +492,7 @@ export function GroupedTaskListByProject({
 							aria-expanded={!collapsed}
 						>
 							<ProjectChevron className="size-4 text-muted-foreground" />
-							<span
-								className="size-2.5 shrink-0 rounded-full"
-								style={{ backgroundColor: project.color }}
-							/>
+							<span className="size-2.5 shrink-0" style={{ backgroundColor: project.color }} />
 							<Text size="sm" className="font-semibold">
 								{project.name}
 							</Text>

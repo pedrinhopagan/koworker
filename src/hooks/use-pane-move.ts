@@ -16,14 +16,16 @@ export function usePaneMove(tab: string | undefined) {
 	const clear = usePaneMoves((state) => state.clear);
 	const paneId = tab?.startsWith("agent:") ? tab.slice("agent:".length) : "";
 	const pending = !!tab && !!move && !move.to && paneId !== "";
-	const status = useQuery({
-		...orpc.agentRadar.switchStatus.queryOptions({ input: { paneId } }),
-		enabled: pending,
-		refetchInterval: pending ? HANDOFF_POLL_MS : false,
-	});
+	const { data } = useQuery(
+		orpc.agentRadar.switchStatus.queryOptions({
+			input: { paneId },
+			enabled: pending,
+			refetchInterval: pending ? HANDOFF_POLL_MS : false,
+		}),
+	);
 
 	useEffect(() => {
-		const job = status.data;
+		const job = data;
 		if (!tab || !pending || !job) {
 			return;
 		}
@@ -34,7 +36,7 @@ export function usePaneMove(tab: string | undefined) {
 			clear(tab);
 			toast.error(job.error ?? "Não foi possível migrar a conversa");
 		}
-	}, [clear, land, pending, status.data, tab]);
+	}, [clear, land, pending, data, tab]);
 
 	return move;
 }

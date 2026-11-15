@@ -5,10 +5,11 @@ import { AppShell } from "@/components/layout/app-shell";
 import { useNavigateEvents } from "@/hooks/use-navigate-events";
 import { useRouteProjectSync } from "@/hooks/use-route-project-sync";
 import { useTasksRealtime } from "@/hooks/use-tasks-realtime";
+import { useConversationsRealtime } from "@/hooks/use-conversations-realtime";
 import { useTerminalEvents } from "@/hooks/use-terminal-events";
 
 export const Route = createFileRoute("/_app")({
-	beforeLoad: async ({ context }) => {
+	beforeLoad: async ({ context, location }) => {
 		try {
 			const user = await context.queryClient.ensureQueryData({
 				...orpc.auth.me.queryOptions(),
@@ -26,10 +27,10 @@ export const Route = createFileRoute("/_app")({
 			// FORBIDDEN aqui é sempre o portão de dispositivo: a senha estava certa, o aparelho é que
 			// ainda não foi liberado no PC.
 			if (error instanceof ORPCError && error.code === "FORBIDDEN") {
-				throw redirect({ to: "/dispositivo" });
+				throw redirect({ to: "/dispositivo", search: { redirect: location.href } });
 			}
 
-			throw redirect({ to: "/login" });
+			throw redirect({ to: "/login", search: { redirect: location.href } });
 		}
 	},
 
@@ -50,6 +51,7 @@ function AppChrome() {
 	useRouteProjectSync();
 	useTerminalEvents();
 	useTasksRealtime();
+	useConversationsRealtime();
 	useNavigateEvents();
 
 	return (

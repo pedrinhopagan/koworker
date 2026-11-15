@@ -309,7 +309,7 @@ export function TaskTriagePanel(props: Props) {
 							<>
 								<span className="flex min-w-0 items-center gap-2">
 									<span
-										className="size-2 shrink-0 rounded-full"
+										className="size-2 shrink-0"
 										style={{ backgroundColor: selectedProject?.color ?? "#64748b" }}
 									/>
 									<span className="truncate">{selectedProject?.name ?? "Todos os projetos"}</span>
@@ -319,7 +319,7 @@ export function TaskTriagePanel(props: Props) {
 						)}
 						renderItem={(item) => (
 							<span className="flex items-center gap-2 px-3 py-2">
-								<span className="size-2 rounded-full" style={{ backgroundColor: item.color }} />
+								<span className="size-2" style={{ backgroundColor: item.color }} />
 								{item.name}
 							</span>
 						)}

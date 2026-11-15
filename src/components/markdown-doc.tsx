@@ -118,13 +118,36 @@ const createEditorTheme = (dark: boolean, fontSize: string, proseMaxWidth?: stri
 				borderLeftWidth: "2px",
 				boxShadow: "0 0 6px -1px var(--primary)",
 			},
-			// Seleção neutra derivada do foreground (não do --primary, que pode ser um preset verde):
-			// realce cinza legível, alinhado à regra global de ::selection.
 			"&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
-				backgroundColor: "color-mix(in oklab, var(--foreground) 22%, transparent)",
+				backgroundColor:
+					"var(--terminal-selection, color-mix(in oklab, var(--foreground) 22%, transparent))",
+			},
+			".cm-panels, .cm-tooltip": {
+				backgroundColor: "var(--popover)",
+				color: "var(--popover-foreground)",
+				borderColor: "var(--border)",
+			},
+			".cm-textfield": {
+				backgroundColor: "var(--background)",
+				color: "var(--foreground)",
+				borderColor: "var(--input)",
+			},
+			".cm-button": {
+				backgroundImage: "none",
+				backgroundColor: "var(--secondary)",
+				color: "var(--secondary-foreground)",
+				border: "1px solid var(--input)",
+				borderRadius: "0",
+			},
+			".cm-button:hover": { backgroundColor: "var(--accent)" },
+			".cm-selectionHandle-start::before, .cm-selectionHandle-end::before": {
+				borderRadius: "0",
 			},
 			".cm-scroller": { fontFamily: "inherit" },
-			".cm-placeholder": { color: "var(--muted-foreground)", fontStyle: "italic" },
+			".cm-placeholder": {
+				color: "var(--placeholder, var(--muted-foreground))",
+				fontStyle: "italic",
+			},
 		},
 		{ dark },
 	);

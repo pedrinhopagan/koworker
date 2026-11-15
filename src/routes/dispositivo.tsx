@@ -9,8 +9,10 @@ import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
+import { AuthRedirectSearchSchema } from "@/lib/auth-redirect";
 
 export const Route = createFileRoute("/dispositivo")({
+	validateSearch: AuthRedirectSearchSchema,
 	component: DispositivoPage,
 });
 
@@ -30,6 +32,7 @@ const COPY = {
 };
 
 function DispositivoPage() {
+	const { redirect } = Route.useSearch();
 	const navigate = useNavigate();
 	const { data } = useQuery({
 		...orpc.auth.session.queryOptions(),
@@ -45,16 +48,16 @@ function DispositivoPage() {
 		}
 
 		if (!data.user) {
-			void navigate({ to: "/login" });
+			void navigate({ to: "/login", search: { redirect } });
 
 			return;
 		}
 
 		if (status === "approved") {
 			reconnectRealtime();
-			void navigate({ to: "/" });
+			void navigate({ href: redirect ?? "/", replace: true });
 		}
-	}, [data, status, navigate]);
+	}, [data, status, navigate, redirect]);
 
 	return (
 		<PageShell title="Acesso do dispositivo" icon={MonitorSmartphone}>
@@ -76,7 +79,11 @@ function DispositivoPage() {
 							</div>
 						)}
 
-						<Button variant="outline" className="w-full" onClick={() => navigate({ to: "/login" })}>
+						<Button
+							variant="outline"
+							className="w-full"
+							onClick={() => navigate({ to: "/login", search: { redirect } })}
+						>
 							Entrar com outra conta
 						</Button>
 					</CardContent>

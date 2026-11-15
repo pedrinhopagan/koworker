@@ -1,4 +1,5 @@
 import { MemoryPublisher } from "@orpc/experimental-publisher/memory";
+import type { ConversationDetail } from "@/api/db/conversations";
 
 import type { TerminalCursor } from "@/api/helpers/agent-radar/pane-control";
 import type { ModelCatalog } from "@/api/schemas/agent-radar";
@@ -26,6 +27,8 @@ export type PromptRunEvent = {
 // estado (ferramenta que terminou, permissão respondida) — o `seq` de cada um é a identidade que o
 // front usa para juntar. `busy` é o agente trabalhando; `status` só aparece quando a sessão muda.
 type PubSubChannels = {
+	conversation: ConversationDetail;
+	conversations: { id: string };
 	// A central de agents publica o mapa inteiro a cada mudança: a lista é curta e o snapshot completo
 	// dispensa o cliente reconstruir estado a partir de deltas depois de uma reconexão. `focus` é o
 	// workspace/tab/pane na tela do kw-terminal, espelhado ao vivo pelos eventos *.focused.

@@ -17,6 +17,11 @@
 
 .mobile-bottom-nav-item[data-active="true"] {
 	background: var(--project-accent-muted);
+	color: var(--foreground);
+}
+
+.mobile-bottom-nav-item:active {
+	background: var(--project-accent-soft);
 }
 
 .mobile-bottom-nav-item svg[data-waiting="true"] {

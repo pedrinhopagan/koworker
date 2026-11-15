@@ -23,6 +23,29 @@ export const DOC_MIME_BY_EXT: Record<string, string> = {
 	".pdf": "application/pdf",
 };
 
+export const VIDEO_MIME_BY_EXT: Record<string, string> = {
+	".mp4": "video/mp4",
+	".webm": "video/webm",
+	".mov": "video/quicktime",
+	".m4v": "video/mp4",
+	".ogv": "video/ogg",
+};
+
+export const AUDIO_MIME_BY_EXT: Record<string, string> = {
+	".mp3": "audio/mpeg",
+	".wav": "audio/wav",
+	".ogg": "audio/ogg",
+	".m4a": "audio/mp4",
+	".flac": "audio/flac",
+	".aac": "audio/aac",
+};
+
+export const ARTIFACT_MIME_BY_EXT: Record<string, string> = {
+	...DOC_MIME_BY_EXT,
+	...VIDEO_MIME_BY_EXT,
+	...AUDIO_MIME_BY_EXT,
+};
+
 // Inverso de IMAGE_MIME_BY_EXT pra nomear um upload a partir do MIME que o navegador entrega
 // (clipboard não tem nome de arquivo). Extensões sinônimas (.jpg/.jpeg) ficam com a primeira.
 export const EXT_BY_IMAGE_MIME: Record<string, string> = {};

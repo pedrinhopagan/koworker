@@ -2,7 +2,7 @@ import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useThemeStore } from "@/stores/theme";
+import { supportsThemeMode, useThemeStore } from "@/stores/theme";
 
 type ThemeToggleProps = {
 	className?: string;
@@ -11,15 +11,19 @@ type ThemeToggleProps = {
 
 export function ThemeToggle({ className, iconClassName }: ThemeToggleProps) {
 	const theme = useThemeStore((state) => state.theme);
+	const palette = useThemeStore((state) => state.palette);
 	const toggleTheme = useThemeStore((state) => state.toggleTheme);
+	const darkOnly = !supportsThemeMode(palette, "light");
+	const toggleLabel = theme === "dark" ? "Usar tema claro" : "Usar tema escuro";
 
 	return (
-		<Tooltip label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"}>
+		<Tooltip label={darkOnly ? "Warm Earth possui somente aparência escura" : toggleLabel}>
 			<Button
 				variant="ghost-muted"
 				size="icon-sm"
 				type="button"
 				onClick={toggleTheme}
+				disabled={darkOnly}
 				aria-label="Trocar tema"
 				className={className}
 			>

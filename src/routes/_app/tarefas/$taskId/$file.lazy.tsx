@@ -795,10 +795,7 @@ function SortableFileTab({
 						{...(dndEnabled ? (listeners as React.HTMLAttributes<HTMLButtonElement>) : {})}
 					>
 						{level === undefined ? null : (
-							<span
-								className={cn("size-1.5 shrink-0 rounded-full", recencyLevelClass(level))}
-								aria-hidden
-							/>
+							<span className={cn("size-1.5 shrink-0", recencyLevelClass(level))} aria-hidden />
 						)}
 						<span className="truncate">{file.name}</span>
 					</button>

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Bot, Command, Gauge, Plus, SquareTerminal } from "lucide-react";
+import { Bot, Command, Plus, SquareTerminal } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { Text, Title } from "@/components/typography";
@@ -74,17 +74,12 @@ export function ProjectLaunchpad({ project, onReorder }: ProjectLaunchpadProps) 
 							<Plus className="size-3.5" /> Adicionar
 						</Link>
 					</Button>
-					<Button size="sm" asChild>
-						<Link to="/painel/$projetoId" params={{ projetoId: project.id }}>
-							<Gauge className="size-3.5" /> Painel
-						</Link>
-					</Button>
 				</div>
 			</div>
 
 			<div className="mt-4 space-y-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-2 lg:[scrollbar-gutter:stable]">
 				{terminalUnavailable && (
-					<div className="flex items-start gap-3 rounded-lg border border-dashed border-border bg-muted/15 px-3 py-2.5">
+					<div className="flex items-start gap-3 border border-dashed border-border bg-muted/15 px-3 py-2.5">
 						<SquareTerminal className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
 						<Text size="xs" tone="muted">
 							Terminal externo indisponível neste computador. Os atalhos abrem no kw-terminal, que
@@ -118,7 +113,7 @@ export function ProjectLaunchpad({ project, onReorder }: ProjectLaunchpadProps) 
 					</ShortcutGroup>
 				)}
 				{shortcutCount === 0 && (
-					<div className="rounded-lg border border-dashed border-border bg-muted/15 px-6 py-10 text-center">
+					<div className="border border-dashed border-border bg-muted/15 px-6 py-10 text-center">
 						<Command className="mx-auto size-6 text-muted-foreground" />
 						<Title as="div" size="sm" className="mt-3">
 							Launchpad vazio

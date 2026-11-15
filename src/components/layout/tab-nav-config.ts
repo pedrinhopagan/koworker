@@ -1,14 +1,13 @@
 export type TabPath =
 	| "/"
 	| "/projetos"
-	| "/painel"
 	| "/tarefas"
 	| "/mostruario"
 	| "/media"
 	| "/skills"
 	| "/vault"
 	| "/terminals"
-	| "/shells"
+	| "/chat"
 	| "/agents";
 export type Tab = { path: TabPath; label: string; altKey?: string };
 
@@ -16,8 +15,7 @@ export const tabs: Tab[] = [
 	{ path: "/", label: "Home", altKey: "1" },
 	{ path: "/projetos", label: "Projetos", altKey: "2" },
 	{ path: "/tarefas", label: "Tarefas", altKey: "3" },
-	{ path: "/shells", label: "Shells", altKey: "4" },
-	{ path: "/painel", label: "Painel", altKey: "5" },
+	{ path: "/chat", label: "Chat", altKey: "4" },
 	{ path: "/mostruario", label: "Mostruário", altKey: "6" },
 	{ path: "/media", label: "Mídia", altKey: "7" },
 	{ path: "/skills", label: "Skills", altKey: "8" },

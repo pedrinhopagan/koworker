@@ -5,9 +5,10 @@ import { AgentWaitingBadge, AgentWorkingPulse } from "@/components/layout/agent-
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { sidebarNavGroups, type SidebarNavRouteItem } from "@/components/layout/sidebar-nav-config";
 import { isTabActive } from "@/components/layout/tab-nav-config";
-import { useAgentRadarAttention } from "@/hooks/use-agent-radar";
+import { useChatAttention } from "@/hooks/use-chat-attention";
 
-const mobileRouteOrder = ["/", "/projetos", "/tarefas", "/shells", "/painel"];
+const mobileRouteOrder = ["/", "/projetos", "/tarefas", "/chat"];
+const mobileLabels: Record<string, string> = { "/": "Início", "/chat": "Chat" };
 const mobileRoutes = sidebarNavGroups
 	.flatMap((group) => group.items)
 	.filter(
@@ -21,50 +22,48 @@ const mobileRoutes = sidebarNavGroups
 export function MobileBottomNav() {
 	const { pathname } = useLocation();
 	const [menuOpen, setMenuOpen] = useState(false);
-	const radar = useAgentRadarAttention();
+	const attention = useChatAttention();
 	const routeIndex = mobileRoutes.findIndex((item) => isTabActive(pathname, item.path));
 	const activeIndex = menuOpen || routeIndex === -1 ? mobileRoutes.length : routeIndex;
-	const shellStatus = [
-		radar.waiting > 0 ? `${radar.waiting} esperando você` : "",
-		radar.working > 0 ? `${radar.working} trabalhando` : "",
-	]
-		.filter(Boolean)
-		.join(", ");
 
 	return (
 		<>
 			<nav
 				aria-label="Navegação principal"
-				className="mobile-bottom-nav grid h-16 shrink-0 grid-cols-6 border-t border-border bg-chrome"
+				className="mobile-bottom-nav grid h-16 shrink-0 grid-cols-5 border-t border-border bg-chrome"
 			>
 				{mobileRoutes.map((item, index) => {
 					const Icon = item.icon;
 					const active = activeIndex === index;
-					const isShells = item.path === "/shells";
+					const isChat = item.path === "/chat";
 
 					return (
 						<Link
 							key={item.path}
 							to={item.path}
-							aria-label={isShells && shellStatus ? `Shells: ${shellStatus}` : undefined}
+							aria-label={isChat && attention.label ? `Chat: ${attention.label}` : item.label}
 							aria-current={isTabActive(pathname, item.path) ? "page" : undefined}
 							data-active={active}
 							className="mobile-bottom-nav-item"
 						>
 							<span className="relative inline-flex">
-								<Icon aria-hidden data-waiting={isShells && radar.waiting > 0} className="size-5" />
-								{isShells && <AgentWaitingBadge count={radar.waiting} layout="compact" />}
+								<Icon
+									aria-hidden
+									data-waiting={isChat && attention.waiting > 0}
+									className="size-5"
+								/>
+								{isChat && <AgentWaitingBadge count={attention.waiting} layout="compact" />}
 							</span>
 							<span className="flex items-center gap-1 text-[11px] leading-4">
-								{item.path === "/" ? "Início" : item.label}
-								{isShells && <AgentWorkingPulse count={radar.working} layout="expanded" />}
+								{mobileLabels[item.path] ?? item.label}
+								{isChat && <AgentWorkingPulse count={attention.working} layout="expanded" />}
 							</span>
 						</Link>
 					);
 				})}
 				<button
 					type="button"
-					aria-label="Mais navegações"
+					aria-label="Abrir menu do app"
 					aria-expanded={menuOpen}
 					aria-haspopup="dialog"
 					data-active={activeIndex === mobileRoutes.length}

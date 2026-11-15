@@ -32,10 +32,10 @@ export function ProjectFormPreview({ mode }: ProjectFormPreviewProps) {
 
 	return (
 		<section className="space-y-4">
-			<div className="rounded-lg border border-border bg-card/40 p-4" style={highlightStyle}>
+			<div className="border border-border bg-card/40 p-4" style={highlightStyle}>
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
-						<span className="size-2 rounded-full" style={{ backgroundColor: accentColor }} />
+						<span className="size-2" style={{ backgroundColor: accentColor }} />
 						<Text size="xs" tone="muted" className="uppercase tracking-widest">
 							Preview do app
 						</Text>
@@ -46,7 +46,7 @@ export function ProjectFormPreview({ mode }: ProjectFormPreviewProps) {
 				</div>
 
 				<div className="mt-4 space-y-4">
-					<div className="rounded-md border border-border/70 bg-background/40 p-3">
+					<div className="border border-border/70 bg-background/40 p-3">
 						<Text size="xs" tone="muted" className="uppercase tracking-wide">
 							Tarefas (idle, IA trabalhando, concluída)
 						</Text>
@@ -72,13 +72,13 @@ export function ProjectFormPreview({ mode }: ProjectFormPreviewProps) {
 						</div>
 					</div>
 
-					<div className="rounded-md border border-border/70 bg-background/40 p-3">
+					<div className="border border-border/70 bg-background/40 p-3">
 						<Text size="sm" tone="muted" className="uppercase tracking-wide">
 							Card compacto
 						</Text>
-						<div className="mt-3 flex items-center gap-3 rounded-md border border-border/60 bg-muted/40 px-3 py-2">
+						<div className="mt-3 flex items-center gap-3 border border-border/60 bg-muted/40 px-3 py-2">
 							<div
-								className="size-8 rounded-md flex items-center justify-center"
+								className="size-8 flex items-center justify-center"
 								style={{ backgroundColor: `${accentColor}25` }}
 							>
 								<FolderKanban className="size-4" style={{ color: accentColor }} />
@@ -94,13 +94,13 @@ export function ProjectFormPreview({ mode }: ProjectFormPreviewProps) {
 						</div>
 					</div>
 
-					<div className="rounded-md border border-border/70 bg-background/40 p-3">
+					<div className="border border-border/70 bg-background/40 p-3">
 						<Text size="sm" tone="muted" className="uppercase tracking-wide">
 							Resumo do projeto
 						</Text>
 						<div className="mt-3 space-y-3">
 							<div className="flex items-center gap-2">
-								<span className="size-2 rounded-full" style={{ backgroundColor: accentColor }} />
+								<span className="size-2" style={{ backgroundColor: accentColor }} />
 								<Title size="sm" as="div">
 									{displayName}
 								</Title>
@@ -144,7 +144,7 @@ function PreviewTask({
 	return (
 		<div
 			className={cn(
-				"flex items-center justify-between rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs",
+				"flex items-center justify-between border border-border/60 bg-muted/30 px-3 py-2 text-xs",
 				"border-l-2",
 				statusStyles[status],
 			)}
@@ -155,7 +155,7 @@ function PreviewTask({
 			</Text>
 			<span
 				className={cn(
-					"rounded-sm px-2 py-0.5 text-[10px] uppercase tracking-wide",
+					"px-2 py-0.5 text-[10px] uppercase tracking-wide",
 					status === "working" && "bg-amber-500/20 text-amber-700 dark:text-amber-200",
 					status === "done" && "bg-emerald-500/20 text-emerald-700 dark:text-emerald-200",
 					status === "idle" && "bg-muted text-muted-foreground",
@@ -169,7 +169,7 @@ function PreviewTask({
 
 function StatusPill({ icon: Icon, label }: { icon: typeof Sparkles; label: string }) {
 	return (
-		<div className="flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+		<div className="flex items-center gap-2 border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
 			<Icon className="size-3" />
 			<span>{label}</span>
 		</div>

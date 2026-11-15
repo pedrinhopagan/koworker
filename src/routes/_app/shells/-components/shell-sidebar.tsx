@@ -145,7 +145,7 @@ export function ShellSidebar({
 						<section key={group.id} className={cn("mb-3 last:mb-0", mobile && "mb-4")}>
 							<div className="mb-1 flex min-w-0 items-center gap-2 px-3 py-1">
 								{project ? (
-									<ProjectLogo project={project} className="size-4 [&>img]:p-0.5" />
+									<ProjectLogo project={project} className="size-4" />
 								) : (
 									<FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
 								)}

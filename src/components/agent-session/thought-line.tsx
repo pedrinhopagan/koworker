@@ -73,7 +73,7 @@ export function ThoughtLine({
 				disabled={!toggle}
 				aria-expanded={toggle ? open : undefined}
 				onClick={() => setOpen((current) => !current)}
-				className="flex min-w-0 items-center gap-2 rounded-sm text-left enabled:cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+				className="flex min-w-0 items-center gap-2 text-left enabled:cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 			>
 				<StatusMark status={working ? "running" : turn.outcome} />
 				<Text as="span" size="xs" role="status" className="flex items-center gap-1.5 font-medium">
@@ -129,7 +129,7 @@ export function ThoughtLine({
 								>
 									<span className="grid size-3 shrink-0 place-items-center">
 										{active && (
-											<span className="size-1.5 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
+											<span className="size-1.5 animate-pulse bg-primary motion-reduce:animate-none" />
 										)}
 										{!active && step.status === "error" && (
 											<X className="size-3 text-destructive" />

@@ -16,9 +16,7 @@ export function TaskGroupLabel({
 		<div
 			className={cn("flex min-w-0 items-center gap-2 border-b border-border/60 pb-1", className)}
 		>
-			{color && (
-				<span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-			)}
+			{color && <span className="size-2.5 shrink-0" style={{ backgroundColor: color }} />}
 			<Text size="sm" className={cn("truncate font-medium", !name && "text-muted-foreground")}>
 				{name ?? "Sem feature"}
 			</Text>

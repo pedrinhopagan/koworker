@@ -129,7 +129,7 @@ export function taskMenuItems(
 							onSelect={() => actions.onMoveToFeature?.(target, null)}
 							className={cn("gap-2 px-3 py-2", !target.groupId && "font-medium")}
 						>
-							<span className="size-2 shrink-0 rounded-full bg-muted-foreground" />
+							<span className="size-2 shrink-0 bg-muted-foreground" />
 							<span className="min-w-0 flex-1 truncate">Sem feature</span>
 							{!target.groupId && <Check className="size-4 shrink-0 text-muted-foreground" />}
 						</ContextMenuItem>
@@ -142,10 +142,7 @@ export function taskMenuItems(
 									onSelect={() => actions.onMoveToFeature?.(target, feature.id)}
 									className={cn("gap-2 px-3 py-2", active && "font-medium")}
 								>
-									<span
-										className="size-2 shrink-0 rounded-full"
-										style={{ backgroundColor: feature.color }}
-									/>
+									<span className="size-2 shrink-0" style={{ backgroundColor: feature.color }} />
 									<span className="min-w-0 flex-1 truncate">{feature.name}</span>
 									{active && <Check className="size-4 shrink-0 text-muted-foreground" />}
 								</ContextMenuItem>
@@ -171,10 +168,7 @@ export function taskMenuItems(
 								onSelect={() => actions.onMoveToProject(target, project.id)}
 								className="gap-2 px-3 py-2"
 							>
-								<span
-									className="size-2 shrink-0 rounded-full"
-									style={{ backgroundColor: project.color }}
-								/>
+								<span className="size-2 shrink-0" style={{ backgroundColor: project.color }} />
 								<span className="min-w-0 flex-1 truncate">{project.name}</span>
 							</ContextMenuItem>
 						))

@@ -87,7 +87,7 @@ export function RoutesList({ routes, onUpdate, onDelete, onReorder, isDeleting }
 				/>
 			)}
 
-			<div className="mt-3 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+			<div className="mt-3 border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
 				As rotas aparecem como botões ao lado do Terminal quando o projeto está selecionado. Arraste
 				para reordenar.
 			</div>

@@ -3,14 +3,13 @@ import {
 	Archive,
 	Bot,
 	FolderKanban,
-	Gauge,
 	Home,
+	MessageSquare,
 	Image,
 	ListChecks,
 	Presentation,
 	Settings,
 	Sparkles,
-	SquareTerminal,
 } from "lucide-react";
 
 import { isTabActive } from "@/components/layout/tab-nav-config";
@@ -51,11 +50,13 @@ export const sidebarNavGroups: SidebarNavGroup[] = [
 			{ kind: "route", path: "/", label: "Home", icon: Home, altKey: "1" },
 			{ kind: "route", path: "/projetos", label: "Projetos", icon: FolderKanban, altKey: "2" },
 			{ kind: "route", path: "/tarefas", label: "Tarefas", icon: ListChecks, altKey: "3" },
-			{ kind: "route", path: "/shells", label: "Shells", icon: SquareTerminal, altKey: "4" },
-			{ kind: "route", path: "/painel", label: "Painel", icon: Gauge, altKey: "5" },
 			{ kind: "route", path: "/mostruario", label: "Mostruário", icon: Presentation, altKey: "6" },
 			{ kind: "route", path: "/media", label: "Mídia", icon: Image, altKey: "7" },
 		],
+	},
+	{
+		label: "Chat",
+		items: [{ kind: "route", path: "/chat", label: "Conversas", icon: MessageSquare, altKey: "4" }],
 	},
 	{
 		label: "Biblioteca",

@@ -34,7 +34,7 @@ export function applyAgentRadarTranscriptSource(
 }
 // A conversa que o CLI de um pane grava no disco. O lote marcado com `reset` é a conversa inteira
 // de novo (arquivo trocado, sessão nova): substituir é obrigatório, porque os `seq` recomeçaram.
-export function useAgentRadarTranscript(paneId: string) {
+export function useAgentRadarTranscript(paneId: string, enabled = true) {
 	const [events, setEvents] = useState<AgentSessionEvent[]>([]);
 	const [source, setSource] = useState<AgentTranscript | null>(null);
 	const [model, setModel] = useState<string | null>(null);
@@ -47,6 +47,9 @@ export function useAgentRadarTranscript(paneId: string) {
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	useEffect(() => {
+		if (!enabled) {
+			return;
+		}
 		setEvents([]);
 		setSource(null);
 		setModel(null);
@@ -128,7 +131,7 @@ export function useAgentRadarTranscript(paneId: string) {
 				timer.current = null;
 			}
 		};
-	}, [paneId]);
+	}, [paneId, enabled]);
 
 	return { events, source, model, effort, queued, missing, loading, connected };
 }

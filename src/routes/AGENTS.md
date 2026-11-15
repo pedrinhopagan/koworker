@@ -16,6 +16,12 @@ routes/
 │   ├── configuracoes.tsx
 │   ├── sistema.tsx
 │   ├── fontes.tsx
+│   ├── conversa.tsx       (redirect para /chat)
+│   ├── chat/
+│   │   ├── index.tsx
+│   │   ├── index.lazy.tsx
+│   │   ├── -components/
+│   │   └── -utils/
 │   ├── terminals/
 │   │   ├── index.tsx
 │   │   ├── $paneId/index.tsx
@@ -29,7 +35,7 @@ routes/
 │   │   └── -components/
 │   ├── arquivo/
 │   │   └── index.tsx           (leitor de arquivo citado: ?path=&line=)
-│   ├── radar/               (redirects legados para /shells)
+│   ├── radar/               (redirects legados para /chat)
 │   ├── executar/
 │   │   ├── index.tsx
 │   │   ├── $executionId/index.tsx
@@ -84,7 +90,7 @@ routes/
 - `/projetos/novo`
 - `/projetos/$projetoId`
 - `/projetos/$projetoId/docs/$`
-- `/executar` — redirect legado para `/shells`
+- `/executar`: redirect legado para `/chat`
 - `/executar/$executionId`
 - `/skills`
 - `/skills/$slug`
@@ -98,14 +104,24 @@ routes/
 - `/sistema`
 - `/configuracoes`
 - `/fontes`
-- `/terminals` — redirect legado para `/shells`
-- `/terminals/$paneId` — redirect legado para `/shells?tab=agent:<paneId>`
+- `/chat` cria conversa nativa do Codex; `/chat?id=<uuid>` retoma a conversa persistida.
+  A seção Chat reúne os indicadores de atividade e espera, incluindo sessões do terminal e conversas nativas. Shells e Painel ficam fora da navegação, das abas e dos atalhos de projeto; suas rotas antigas redirecionam para Chat ou Projetos. No mobile, a barra inferior acompanha o chat e se recolhe quando o teclado abre.
+  `/conversa` redireciona para `/chat` preservando `id` ou `paneId`.
+  A sidebar filtra históricos pelo projeto selecionado e importa threads do Codex por conta.
+  Agents abertos de todos os projetos ficam no topo; o histórico abaixo mostra as três conversas
+  mais recentes e expande até sair da rota. `/chat?paneId=<id>` abre a conversa ou
+  o terminal existente. Codex usa `thread/read` e o stream `conversationPane`, sem retomar o CLI;
+  a apresentação mantém a ordem dos itens nativos e recebe outras CLIs por adapter. Desktop usa sidebar; mobile usa páginas de lista, conversa e criação (`/chat?view=new`), com volta para a lista.
+- `/terminals`: redirect legado para `/chat`
+- `/terminals/$paneId`: redirect legado para `/chat?paneId=<paneId>`
 - `/terminals/history` — conversas antigas de Claude e Codex lidas do disco, filtradas por projeto, CLI e busca
 - `/terminals/history/$cli/$sessionId` — a conversa antiga em leitura, com retomada em pane novo
-- `/shells` — workspace único de terminais: shells PTY embutidos e conversas de agent do radar, agrupados por projeto na sidebar, com faixa de abas (`?tab=shell-3` ou `?tab=agent:<paneId>`)
-- `/shells/$shellId` — redirect (replace) para `/shells?tab=<id>`
+- `/shells`: redirect legado para `/chat`, preservando panes em `?tab=agent:<paneId>`
+- `/shells/$shellId`: redirect legado para `/chat`
+- `/painel`: redirect legado para `/projetos`
+- `/painel/$projetoId`: redirect legado para `/projetos/$projetoId`
 - `/arquivo?path=<absoluto>&line=<n>` — leitor de arquivo citado numa conversa (markdown renderizado ou código com linha destacada); só arquivos dentro de projeto cadastrado ou worktree de tarefa, é o destino dos links de arquivo quando o cliente não está na máquina do backend
-- Links legados `/radar` e `/radar/$paneId` redirecionam para `/shells` por `replace`.
+- Links legados `/radar` e `/radar/$paneId` redirecionam para `/chat` por `replace`, preservando o pane.
 
 ## LAYOUTS E GUARDA
 
@@ -125,7 +141,7 @@ Já divididas: `fontes`, `executar/`, `executar/$executionId/`, `projetos/$proje
 `vault/`, `vault/$fileName/`, `tarefas/$taskId/`, `tarefas/$taskId/$file`,
 `tarefas/$taskId/$file_/$canonicalFile`, `skills/$slug/`, `agents/$slug/`, `media/`,
 `media/$fileName/`, `mostruario/`, `terminals/history/`,
-`terminals/history/$cli/$sessionId/`, `shells/`, `arquivo/`.
+`terminals/history/$cli/$sessionId/`, `shells/`, `arquivo/`, `chat/`.
 
 ## REGRAS
 

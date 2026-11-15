@@ -18,6 +18,7 @@ import { CodeFileView } from "@/components/code-file-view";
 import { DocumentPreview, ScrollAwayChrome } from "@/components/document-preview";
 import { LinkCwdProvider } from "@/components/link-cwd";
 import { MarkdownView } from "@/components/markdown-view";
+import { MediaPreview } from "@/components/media-preview";
 import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,7 +68,7 @@ function FileViewerPage() {
 	const file = query.data ?? null;
 	const isMobile = useIsMobileViewport();
 	const [chromeHidden, setChromeHidden] = useState(false);
-	const [documentRevision, setDocumentRevision] = useState(0);
+	const [previewRevision, setPreviewRevision] = useState(0);
 	const chrome = useRef({ hidden: false, settleUntil: 0, top: 0 });
 	const name = file?.name ?? path.replace(/\/+$/, "").split("/").at(-1) ?? path;
 	const dir = file?.dir ?? path.slice(0, Math.max(0, path.length - name.length - 1));
@@ -77,7 +78,7 @@ function FileViewerPage() {
 			router.history.back();
 			return;
 		}
-		void navigate({ to: "/shells", search: {} });
+		void navigate({ to: "/chat", search: {} });
 	}
 
 	// No celular o conteúdo ganha a tela: rolar para baixo recolhe o cabeçalho, para cima devolve.
@@ -113,9 +114,9 @@ function FileViewerPage() {
 		}
 	}
 
-	async function reloadDocument() {
+	async function reloadFile() {
 		await query.refetch();
-		setDocumentRevision((revision) => revision + 1);
+		setPreviewRevision((revision) => revision + 1);
 	}
 
 	return (
@@ -145,15 +146,15 @@ function FileViewerPage() {
 							{dir}
 						</Text>
 					</div>
-					{file?.kind === "document" && (
+					{(file?.kind === "document" || file?.kind === "media") && (
 						<>
-							<Tooltip label="Recarregar documento">
+							<Tooltip label="Recarregar arquivo">
 								<Button
 									variant="ghost"
 									size="icon"
 									className="size-12 md:size-8"
-									aria-label="Recarregar documento"
-									onClick={() => void reloadDocument()}
+									aria-label="Recarregar arquivo"
+									onClick={() => void reloadFile()}
 								>
 									<RotateCw className="size-4" />
 								</Button>
@@ -213,11 +214,11 @@ function FileViewerPage() {
 			>
 				{file?.kind === "document" && (
 					<DocumentPreview
-						key={`${file.path}:${documentRevision}`}
+						key={`${file.path}:${previewRevision}`}
 						name={file.name}
 						format={file.format}
 						url={file.url}
-						revision={documentRevision}
+						revision={previewRevision}
 						onScroll={handleScroll}
 					/>
 				)}
@@ -238,6 +239,10 @@ function FileViewerPage() {
 
 				{file?.kind === "image" && (
 					<img src={file.dataUrl} alt={file.name} className="mx-auto max-w-full p-3" />
+				)}
+
+				{file?.kind === "media" && (
+					<MediaPreview key={`${file.path}:${previewRevision}`} file={file} />
 				)}
 
 				{file?.kind === "text" && MARKDOWN_FILE.test(file.name) && (

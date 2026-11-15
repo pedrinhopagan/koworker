@@ -39,10 +39,10 @@ function ProjetosPage() {
 				<ProjectsEmptyState />
 			) : (
 				<>
-					<div className="order-2 flex min-w-0 flex-col px-4 pb-4 md:order-none md:h-full md:min-h-0 md:overflow-hidden">
+					<div className="order-1 flex min-w-0 flex-col px-4 pb-4 md:order-none md:h-full md:min-h-0 md:overflow-hidden">
 						<ProjectList projects={data.projects} selectedId={selectedId} loading={loading} />
 					</div>
-					<div className="order-1 min-w-0 md:order-none md:h-full md:min-h-0 md:overflow-hidden">
+					<div className="order-2 min-w-0 md:order-none md:h-full md:min-h-0 md:overflow-hidden">
 						<ProjectSummary project={selectedProject} />
 					</div>
 				</>

@@ -25,7 +25,7 @@ export function HomeMasthead({ project }: { project: HomeProject }) {
 	return (
 		<section
 			aria-label="Resumo do projeto"
-			className="animate-stagger-fade-in overflow-hidden rounded-xl border border-border bg-card shadow-xs"
+			className="animate-stagger-fade-in overflow-hidden border border-border bg-card shadow-xs"
 		>
 			<div className="grid gap-8 p-6 sm:p-9 lg:grid-cols-12 lg:items-end">
 				<div className="min-w-0 lg:col-span-7">

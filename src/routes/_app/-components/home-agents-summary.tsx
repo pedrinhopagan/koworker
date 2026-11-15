@@ -49,7 +49,7 @@ export function HomeAgentsSummary({ projectId }: { projectId: string }) {
 					count={projectAgents.length}
 				>
 					<Link
-						to="/shells"
+						to="/chat"
 						className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
 					>
 						Abrir sala de agentes <ArrowUpRight className="size-3.5" />
