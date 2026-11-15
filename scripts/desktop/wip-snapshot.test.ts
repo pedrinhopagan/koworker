@@ -13,16 +13,14 @@ function git(args: string[], env?: Record<string, string>) {
 		stdin: "ignore",
 		stdout: "pipe",
 		stderr: "pipe",
-		env: env
-			? {
-					...process.env,
-					GIT_AUTHOR_NAME: "Teste",
-					GIT_AUTHOR_EMAIL: "teste@teste.local",
-					GIT_COMMITTER_NAME: "Teste",
-					GIT_COMMITTER_EMAIL: "teste@teste.local",
-					...env,
-				}
-			: process.env,
+		env: {
+			...process.env,
+			GIT_AUTHOR_NAME: "Teste",
+			GIT_AUTHOR_EMAIL: "teste@teste.local",
+			GIT_COMMITTER_NAME: "Teste",
+			GIT_COMMITTER_EMAIL: "teste@teste.local",
+			...env,
+		},
 	});
 
 	if (result.exitCode !== 0) {

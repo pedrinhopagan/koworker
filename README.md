@@ -19,7 +19,7 @@ Keep your code, context, and conversations in one place.
 
 <img src="docs/screenshots/tasks.png" alt="Koworker task workspace with a feature index, grouped tasks, and project navigation">
 
-<sub>Built with Koworker, managed in Koworker. Screenshots show the current Portuguese interface.</sub>
+<sub>Built with Koworker, managed in Koworker. Screenshots show the development workspace in Portuguese.</sub>
 
 </div>
 
@@ -65,7 +65,7 @@ cd koworker
 cp .env.example .env
 ```
 
-In `.env`, set `DATABASE_URL` to a local SQLite path, such as `db.sqlite`. Set a unique `JWT_SECRET`, `KOWORK_ADMIN_USER`, and `KOWORK_ADMIN_PASSWORD`.
+In `.env`, set `DATABASE_URL` to an absolute SQLite path on your computer. Set a long, random `JWT_SECRET` and choose `KOWORK_ADMIN_USER` and `KOWORK_ADMIN_PASSWORD`.
 
 ```bash
 bun run setup
@@ -75,6 +75,46 @@ bun dev
 Setup installs dependencies, prepares SQLite, creates the configured admin account, and builds the frontend, backend, and Electron shell.
 
 For the browser interface, use `bun run dev:web` and open [localhost:2841](http://localhost:2841). The same credentials apply.
+
+<details>
+<summary>Connect your agent with the kw skill</summary>
+
+Register your project in the app with its repository path. Then, from the Koworker clone, register the CLI:
+
+```bash
+bun link
+kw-cli version
+```
+
+Keep Bun's global binaries on your agent's `PATH`. Set `KOWORK_DATABASE_URL` to the same absolute path as the app's `DATABASE_URL`.
+
+Install the bundled [kw skill](static/skills/kw/SKILL.md) in your agent's skill directory. For the shared directory:
+
+```bash
+mkdir -p ~/.agents/skills
+cp -R static/skills/kw ~/.agents/skills/
+```
+
+Compare any existing `kw` skill before replacing it. Add this rule to your agent's global instructions, adjusting the path:
+
+```text
+For work in a project registered in Koworker, load and follow
+~/.agents/skills/kw/SKILL.md.
+```
+
+Start a new agent session in the registered project and ask:
+
+```text
+Use the kw skill to plan report exports for this project.
+```
+
+The agent creates tasks through `kw-cli` and saves plans, decisions, and results under the project's `.koworker/` folder. The app lets you read, edit, organize, and complete them.
+
+Each task has an `index.md` linking its deliverables. To resume later, ask your agent to read the task's existing files before continuing.
+
+Task content stays outside Git. Back up both `.koworker/` and the SQLite database.
+
+</details>
 
 ## Under the hood
 
