@@ -46,7 +46,7 @@ Read agent output as a conversation. Inspect tool activity, choose a model and r
 Skills turn your workflow into reusable instructions. Search names before descriptions and content, organize by category, and drop a skill into the library to import it.
 
 <p align="center">
-  <img src="docs/screenshots/skills.png" alt="Koworker skill library with search, categories, and cards for reusable agent instructions">
+  <img src="docs/screenshots/skills.png" alt="Koworker skill search with an exact name match first and description or content matches grouped below">
 </p>
 
 Open a skill to edit its instructions and supporting files. The compact toolbar leaves room for reading, shows where the skill is installed, and offers sharing options.
