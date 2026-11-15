@@ -1,4 +1,9 @@
+import { basename } from "node:path";
+
 const DOM_TEST_SUFFIX = ".dom.test.";
+const npmExecPath = process.env.npm_execpath;
+const bunExecutable =
+	npmExecPath && /^bun(?:\.exe)?$/u.test(basename(npmExecPath)) ? npmExecPath : process.execPath;
 
 const allTests = [...new Bun.Glob("**/*.{test,spec}.{ts,tsx}").scanSync({ cwd: process.cwd() })]
 	.filter((path) => !path.startsWith("node_modules/"))
@@ -8,7 +13,7 @@ const domTests = allTests.filter((path) => path.includes(DOM_TEST_SUFFIX));
 const nodeTests = allTests.filter((path) => !path.includes(DOM_TEST_SUFFIX));
 
 function run(args: string[], env?: Record<string, string>) {
-	const result = Bun.spawnSync([process.execPath, "test", ...args], {
+	const result = Bun.spawnSync([bunExecutable, "test", ...args], {
 		stdio: ["inherit", "inherit", "inherit"],
 		...(env ? { env: { ...process.env, ...env } } : {}),
 	});

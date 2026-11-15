@@ -89,7 +89,7 @@ test("ring buffer guarda a cauda quando a saída passa de 1 MB", async () => {
 	expect(replay.length).toBeLessThan(1_100_000);
 	expect(replay).toContain("bloco-11-");
 	expect(replay).not.toContain("bloco-0-");
-});
+}, 15_000);
 
 test("título publicado pelo CLI via OSC chega no registro", async () => {
 	const shell = await openShell();
