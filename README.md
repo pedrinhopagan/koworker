@@ -4,8 +4,8 @@
 
 # Koworker
 
-**A local workspace for projects, tasks, and AI coding agents.**<br>
-Keep your code, context, and conversations in one place.
+**Task control for building features with AI coding agents.**<br>
+Give every task its own context, so each agent session starts from what matters.
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-1d1f25?style=flat-square&logo=typescript&logoColor=white)
 ![Bun](https://img.shields.io/badge/Bun-1d1f25?style=flat-square&logo=bun&logoColor=white)
@@ -13,7 +13,7 @@ Keep your code, context, and conversations in one place.
 ![Electron](https://img.shields.io/badge/Electron-1d1f25?style=flat-square&logo=electron&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-1d1f25?style=flat-square&logo=sqlite&logoColor=white)
 
-[Run locally](#run-locally) · [Under the hood](#under-the-hood) · [Documentation](#documentation)
+[How it works](#how-it-works) · [Run locally](#run-locally) · [Connect your agent](#connect-your-agent) · [Under the hood](#under-the-hood) · [Documentation](#documentation)
 
 <br>
 
@@ -23,17 +23,33 @@ Keep your code, context, and conversations in one place.
 
 </div>
 
-## Highlights
+## Why Koworker
 
-- **One workspace per project.** Open coding CLIs, run project commands, and find context files from a single launchpad.
-- **Tasks backed by Markdown.** Plans, notes, and deliverables live in your project folder, readable by you and your agents.
-- **Conversations with context.** Chat with Codex, import CLI history, and follow terminal agents with their tools and results.
-- **A shared skill library.** Search by name or content, edit every skill file, and import instructions from Markdown, ZIP files, folders, or local paths.
-- **Local data.** SQLite stores the app state. Project files stay on disk; coding agents use their configured providers.
+Coding agents work best with focused context. A long chat history mixes old decisions, abandoned ideas, and unrelated work. Koworker splits a feature into tasks and gives each task a folder of Markdown files: the plan, the decisions, and the results. A new session reads that task and continues from there.
 
-## Follow the work
+- **Features and tasks.** Group tasks by feature, order them, and mark them done. Agents create tasks; you organize them.
+- **Context on disk.** Each task lives in `.koworker/tasks/<feature>/<task>/`, with an `index.md` linking its deliverables. You and your agents read and edit the same files.
+- **Built for agents.** The bundled `kw` skill and `kw-cli` let any coding CLI create tasks, write files, and close work without leaving the terminal.
+- **Worktree delivery.** Tasks can carry their branch, merge target, and pull request until they are merged.
+- **Local data.** SQLite stores the index. Task content stays in your project folder; agents use their own configured providers.
 
-Read agent output as a conversation. Inspect tool activity, choose a model and reasoning effort, and respond to questions or approvals.
+## How it works
+
+1. Register a project with its repository path.
+2. Ask your agent to plan a feature with the `kw` skill. It creates the tasks through `kw-cli` and writes the plan into each task folder.
+3. Work one task per session. The agent loads only that task's files, records decisions and results, and links them in `index.md`.
+4. Review, edit, reorder, and complete the tasks in the app. To resume later, point a new session at the same task.
+
+## Manage the rest of your agent tooling
+
+Koworker also keeps the tools around agent development in one place.
+
+- **Conversations.** Chat with Codex, follow agents running in the terminal with their tool calls and results, and reopen past Claude and Codex sessions.
+- **Skills.** Search, edit, categorize, import, and share the skill library your CLIs load.
+- **Agents.** Browse and edit agent definitions, with labels, icons, and categories.
+- **Showcase.** Browse the presentations, documents, and media agents generated inside tasks, grouped by task, and open them in one click.
+- **Project launchpad.** Open coding CLIs, run project commands, and reach context files from each project's page.
+- **Vault and media.** Edit loose notes and browse images saved with your tasks.
 
 <p align="center">
   <img src="docs/screenshots/conversation.png" alt="A real Codex conversation in Koworker, with expandable tool activity, project history, and message controls">
@@ -41,18 +57,20 @@ Read agent output as a conversation. Inspect tool activity, choose a model and r
   <sub>A conversation from Koworker's own development, continued inside the app.</sub>
 </p>
 
-## Keep instructions close
-
-Skills turn your workflow into reusable instructions. Search names before descriptions and content, organize by category, and drop a skill into the library to import it.
-
 <p align="center">
   <img src="docs/screenshots/skills.png" alt="Koworker skill search with an exact name match first and description or content matches grouped below">
 </p>
 
-Open a skill to edit its instructions and supporting files. The compact toolbar leaves room for reading, shows where the skill is installed, and offers sharing options.
+<p align="center">
+  <img src="docs/screenshots/skill-editor.png" alt="Koworker skill editor with supporting files, installation locations, and Markdown instructions">
+</p>
 
 <p align="center">
-  <img src="docs/screenshots/skill-editor.png" alt="Koworker skill editor with a compact toolbar, supporting files, installation locations, and Markdown instructions">
+  <img src="docs/screenshots/agents.png" alt="Agent profiles organized by category, with icons and descriptions">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/showcase.png" alt="HTML presentations generated by agents, grouped under their task in the showcase">
 </p>
 
 ## Run locally
@@ -76,8 +94,7 @@ Setup installs dependencies, prepares SQLite, creates the configured admin accou
 
 For the browser interface, use `bun run dev:web` and open [localhost:2841](http://localhost:2841). The same credentials apply.
 
-<details>
-<summary>Connect your agent with the kw skill</summary>
+## Connect your agent
 
 Register your project in the app with its repository path. Then, from the Koworker clone, register the CLI:
 
@@ -113,8 +130,6 @@ The agent creates tasks through `kw-cli` and saves plans, decisions, and results
 Each task has an `index.md` linking its deliverables. To resume later, ask your agent to read the task's existing files before continuing.
 
 Task content stays outside Git. Back up both `.koworker/` and the SQLite database.
-
-</details>
 
 ## Under the hood
 
