@@ -10,6 +10,7 @@ import { dbProjects } from "@/api/db/projects";
 import { dbSkillSourcePaths } from "@/api/db/skill-source-paths";
 import { koworkerDataDir } from "@/lib/app-paths";
 import { parseArgs } from "../args";
+import { backupExclusionArgs } from "../backup-policy";
 
 const dataDir = koworkerDataDir();
 const configPath = join(dataDir, "backup.json");
@@ -85,17 +86,19 @@ async function runBackupRun(): Promise<void> {
 		...new Set(candidates.filter((path) => existsSync(path))),
 	];
 
-	await runRestic(config, ["backup", "--tag", "kowork", ...paths]);
+	const exclusionArgs = await backupExclusionArgs(
+		[...new Set(candidates)].filter((path) => existsSync(path)),
+	);
+
+	await runRestic(config, ["backup", "--tag", "kowork", ...exclusionArgs, ...paths]);
 	await runRestic(config, [
 		"forget",
 		"--tag",
 		"kowork",
-		"--keep-daily",
-		"14",
-		"--keep-weekly",
-		"8",
-		"--keep-monthly",
-		"12",
+		"--group-by",
+		"",
+		"--keep-within",
+		"3d",
 		"--prune",
 	]);
 	await rm(stagingDir, { force: true, recursive: true });

@@ -8,6 +8,7 @@ import { writeDeployedRevision, type DeployedRevision } from "../../src/lib/depl
 import { KOWORK_PROD_PORT } from "../../src/lib/runtime-config";
 import { resolveHotDeployProfile } from "./hot-deploy-profile";
 import { installSharpVendor } from "./install-sharp-vendor";
+import { pruneDeploymentBackups } from "./prune-deployment-backups";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(scriptDir, "../..");
@@ -398,6 +399,8 @@ if (installedRevision) {
 for (const warning of warnings) {
 	console.warn(`⚠️  ${warning}`);
 }
+
+await pruneDeploymentBackups();
 
 console.log(
 	`\n✅ Deploy concluido (${installedRevision?.revision ?? "revisão desconhecida"}). Prod (frontend + backend) no ar em http://localhost:${KOWORK_PROD_PORT}`,

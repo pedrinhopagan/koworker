@@ -1,6 +1,7 @@
 import { access, cp, mkdir, rename } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { pruneDeploymentBackups } from "./prune-deployment-backups";
 
 const libvipsPackage = "@img/sharp-libvips-linux-x64";
 
@@ -38,4 +39,6 @@ export async function installSharpVendor(sourceRootDir: string) {
 		if (exists) await rename(backup, vendorDir);
 		throw error;
 	}
+
+	await pruneDeploymentBackups();
 }
