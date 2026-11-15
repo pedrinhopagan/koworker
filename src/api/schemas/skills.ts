@@ -8,6 +8,7 @@ const SkillSlugSchema = z
 
 export const SkillListSchema = z.object({
 	projectName: z.string().optional(),
+	withContent: z.boolean().optional(),
 });
 
 export const SkillCreateSchema = z.object({
@@ -116,6 +117,28 @@ export const SkillSettingsSchema = z.object({
 	categoryId: z.string().min(1).nullable().optional(),
 	quickInvoke: z.boolean().optional(),
 });
+
+export const SkillImportPreviewSchema = z.union([
+	z.object({ kind: z.literal("path"), path: z.string().trim().min(1) }),
+	z.object({ kind: z.literal("text"), content: z.string().min(1) }),
+	z.object({
+		kind: z.literal("files"),
+		files: z.array(z.file()).min(1),
+		paths: z.array(z.string()),
+	}),
+]);
+
+export const SkillImportCommitSchema = z.object({
+	token: z.string().min(1),
+	slug: SkillSlugSchema,
+	description: z.string().trim().min(1, "Informe uma descrição"),
+	categoryId: z.string().min(1),
+	replace: z.boolean(),
+});
+
+export const SkillImportTokenSchema = z.object({ token: z.string().min(1) });
+
+export const SkillImportSlugSchema = z.object({ slug: SkillSlugSchema });
 
 export type SkillCreateInput = z.infer<typeof SkillCreateSchema>;
 export type SkillUpdateInput = z.infer<typeof SkillUpdateSchema>;

@@ -69,7 +69,7 @@ export function SkillFileActionsButton(props: SkillFileActionsProps) {
 						variant="ghost"
 						size="icon-sm"
 						aria-label={`Ações de ${props.path}`}
-						className="size-7 shrink-0"
+						className="size-5 shrink-0 text-muted-foreground opacity-60 hover:opacity-100 sm:size-5"
 					>
 						<MoreVertical className="size-3.5" />
 					</Button>

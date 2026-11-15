@@ -727,3 +727,132 @@ test("instala arquivos auxiliares, exige intenção para substituir e preserva b
 	);
 	expect(await readFile(join(claude, "installed", "guide.txt"), "utf8")).toBe("guia atualizado");
 });
+
+describe("propagação de edição", () => {
+	test("atualiza cópias idênticas em qualquer root e preserva as divergentes", async () => {
+		const agents = await homeDir();
+		const custom = await homeDir();
+		const project = await homeDir();
+		const projectId = crypto.randomUUID();
+		projectIds.push(projectId);
+		await db
+			.insertInto("projects")
+			.values({
+				id: projectId,
+				name: `propaga-${projectId}`,
+				main_route: project,
+				color: "#000000",
+				display_order: 0,
+				hide_terminal: 0,
+				task_layout_version: 1,
+				created_at: Date.now(),
+			})
+			.execute();
+		await writeSkill(agents, "propaga", "igual", "corpo");
+		await writeSkill(custom, "propaga", "igual", "corpo");
+		await writeSkill(join(project, ".claude/skills"), "propaga", "igual", "corpo");
+		await writeSkill(join(project, ".codex/skills"), "propaga", "outra", "divergente");
+		await mkdir(join(agents, "propaga", "references"), { recursive: true });
+		await mkdir(join(custom, "propaga", "references"), { recursive: true });
+		await mkdir(join(project, ".claude/skills/propaga/references"), { recursive: true });
+		for (const dir of [agents, custom, join(project, ".claude/skills")]) {
+			await writeFile(join(dir, "propaga", "references", "guia.md"), "velho\n");
+		}
+		await addRow("agents", agents, "global", 1);
+		await addRow("claude-code", custom, "custom", 2);
+
+		const variant = (await getSkillFromFs("propaga"))?.variants.find((item) =>
+			item.path.startsWith(agents),
+		);
+		if (!variant) {
+			throw new Error("Variante não encontrada");
+		}
+		const saved = await updateSkillInFs({
+			slug: "propaga",
+			variantPath: variant.path,
+			description: "nova",
+			content: "corpo novo",
+			metadata: {},
+			expectedSkillHash: variant.skillHash,
+		});
+		expect(saved.updatedPaths).toHaveLength(3);
+		for (const dir of [custom, join(project, ".claude/skills")]) {
+			expect(await readFile(join(dir, "propaga", "SKILL.md"), "utf8")).toContain("corpo novo");
+		}
+		expect(await readFile(join(project, ".codex/skills/propaga/SKILL.md"), "utf8")).toContain(
+			"divergente",
+		);
+
+		const { hash } = await readSkillFileFromFs({
+			slug: "propaga",
+			variantPath: variant.path,
+			relativePath: "references/guia.md",
+		});
+		const written = await writeSkillFileInFs({
+			slug: "propaga",
+			variantPath: variant.path,
+			relativePath: "references/guia.md",
+			content: "novo\n",
+			expectedHash: hash,
+		});
+		expect(written.updatedPaths).toHaveLength(3);
+		expect(await readFile(join(project, ".claude/skills/propaga/references/guia.md"), "utf8")).toBe(
+			"novo\n",
+		);
+	});
+});
+
+describe("importação de skill", () => {
+	test("importa SKILL.md solto, texto exportado e zip, deduzindo slug e descrição", async () => {
+		const agents = await homeDir();
+		await addRow("agents", agents, "global", 1);
+		const { previewSkillImport, commitSkillImport } = await import("./skill-import");
+		const { zipDirectory } = await import("./zip");
+
+		const loose = await previewSkillImport({
+			kind: "files",
+			files: [new File(["# Revisar PR\r\n\r\nRevisa o pull request aberto.\r\n"], "pr.md")],
+			paths: ["pr.md"],
+		});
+		expect(loose.slug).toBe("pr");
+		expect(loose.description).toBe("Revisa o pull request aberto.");
+		expect(loose.hasFrontmatter).toBe(false);
+		await commitSkillImport({ ...loose, replace: false });
+		const installed = await readFile(join(agents, "pr", "SKILL.md"), "utf8");
+		expect(installed).toContain("name: pr");
+		expect(installed).toContain("# Revisar PR");
+
+		const source = await homeDir();
+		await writeSkill(source, "zipada", "Vem de um zip", "corpo");
+		await mkdir(join(source, "zipada", "scripts"), { recursive: true });
+		await writeFile(join(source, "zipada", "scripts", "run.sh"), "echo ok\n");
+		const zipPath = join(source, "zipada.zip");
+		await writeFile(zipPath, await zipDirectory(join(source, "zipada")));
+		const zipped = await previewSkillImport({ kind: "text", content: `file://${zipPath}` });
+		expect(zipped.slug).toBe("zipada");
+		expect(zipped.files.map((file) => file.path).sort()).toEqual(["SKILL.md", "scripts/run.sh"]);
+		await commitSkillImport({ ...zipped, slug: "zipada-copia", replace: false });
+		expect(await readFile(join(agents, "zipada-copia", "scripts", "run.sh"), "utf8")).toBe(
+			"echo ok\n",
+		);
+
+		const { exportSkillDirectoryText } = await import("./skill-directory");
+		const bundle = await exportSkillDirectoryText(join(source, "zipada"));
+		const fromText = await previewSkillImport({ kind: "text", content: bundle.content });
+		expect(fromText.slug).toBe("zipada");
+		expect(fromText.existing).toBe(false);
+		expect(fromText.files).toHaveLength(2);
+
+		const pointed = await previewSkillImport({
+			kind: "path",
+			path: join(source, "zipada", "SKILL.md"),
+		});
+		expect(pointed.files).toHaveLength(2);
+		const duplicate = await previewSkillImport({
+			kind: "path",
+			path: join(agents, "pr"),
+		});
+		expect(duplicate.existing).toBe(true);
+		await expect(commitSkillImport({ ...duplicate, replace: false })).rejects.toThrow("já existe");
+	});
+});

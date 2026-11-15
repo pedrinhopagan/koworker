@@ -1,8 +1,8 @@
 import { ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { parse, stringify } from "yaml";
 
-import { Text, Title } from "@/components/typography";
+import { Text } from "@/components/typography";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
@@ -340,7 +340,9 @@ export function SkillDocumentFrontmatter({
 	onDescriptionChange,
 	onDescriptionCommit,
 	onMetadataChange,
+	children,
 }: {
+	children?: ReactNode;
 	slug: string;
 	description: string;
 	metadata: Metadata;
@@ -396,27 +398,85 @@ export function SkillDocumentFrontmatter({
 		}
 	}
 
+	const explicitCount = Object.keys(metadata).length;
+
 	return (
-		<section
-			data-component="skill-document-frontmatter"
-			className="grid gap-4 border-b border-border pb-5"
-		>
-			<button
-				type="button"
-				data-slot="frontmatter-toggle"
-				onClick={() => setOpen((current) => !current)}
-				aria-expanded={open}
-				className="flex w-full items-center gap-2 py-2 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-			>
-				{open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-				<Title as="span" size="sm" className="flex-1">
+		<section data-component="skill-document-frontmatter" className="grid gap-2">
+			<label className="grid gap-1">
+				<span className="sr-only">Descrição</span>
+				<Textarea
+					data-slot="description-input"
+					value={description}
+					onChange={(event) => onDescriptionChange(event.target.value)}
+					onBlur={onDescriptionCommit}
+					rows={1}
+					placeholder="Descrição: quando a CLI deve usar esta skill"
+					className="-mx-2 min-h-0 w-[calc(100%+1rem)] resize-none border-transparent bg-transparent px-2 py-1 text-sm leading-relaxed text-muted-foreground shadow-none [field-sizing:content] hover:border-border focus-visible:border-ring focus-visible:bg-background focus-visible:text-foreground dark:bg-transparent dark:focus-visible:bg-input/30"
+				/>
+			</label>
+
+			<div className="flex flex-wrap items-center gap-2">
+				<label className="flex items-center gap-1.5">
+					<span className="text-[11px] text-muted-foreground">slug</span>
+					<Input
+						data-slot="slug-input"
+						value={slugDraft}
+						disabled={renaming}
+						onChange={(event) => {
+							cancelSlugCommit.current = false;
+							setSlugDraft(event.target.value);
+							setSlugError(undefined);
+						}}
+						onBlur={() => {
+							if (cancelSlugCommit.current) {
+								cancelSlugCommit.current = false;
+								return;
+							}
+							void commitSlug();
+						}}
+						onKeyDown={(event) => {
+							if (event.key === "Enter") {
+								event.preventDefault();
+								event.currentTarget.blur();
+							}
+							if (event.key === "Escape") {
+								event.preventDefault();
+								event.stopPropagation();
+								cancelSlugCommit.current = true;
+								setSlugDraft(slug);
+								setSlugError(undefined);
+								event.currentTarget.blur();
+							}
+						}}
+						aria-invalid={!!slugError}
+						style={{ width: `${Math.max(slugDraft.length, 4) + 3}ch` }}
+						className="h-6 max-w-64 px-1.5 font-mono text-xs"
+					/>
+				</label>
+				<button
+					type="button"
+					data-slot="frontmatter-toggle"
+					onClick={() => setOpen((current) => !current)}
+					aria-expanded={open}
+					className="flex h-6 items-center gap-1 border border-border px-2 text-xs text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+				>
+					{open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
 					Frontmatter
-				</Title>
-				<SaveStatus status={status} />
-			</button>
+					{explicitCount > 0 && <span className="tabular-nums opacity-70">· {explicitCount}</span>}
+				</button>
+				{children}
+				<span className="ml-auto">
+					<SaveStatus status={status} />
+				</span>
+			</div>
+			{slugError && (
+				<Text size="xs" tone="destructive" data-slot="slug-error">
+					{slugError}
+				</Text>
+			)}
 
 			{open && (
-				<div className="grid gap-3">
+				<div className="grid gap-3 border border-border p-3">
 					<div className="grid gap-3 sm:grid-cols-2">
 						{preferenceFields.map((field) => (
 							<MetadataControl
@@ -451,64 +511,6 @@ export function SkillDocumentFrontmatter({
 					)}
 				</div>
 			)}
-
-			<label className="grid gap-1.5">
-				<Text size="xs" tone="muted" className="font-medium uppercase tracking-wide">
-					Título
-				</Text>
-				<Input
-					data-slot="slug-input"
-					value={slugDraft}
-					disabled={renaming}
-					onChange={(event) => {
-						cancelSlugCommit.current = false;
-						setSlugDraft(event.target.value);
-						setSlugError(undefined);
-					}}
-					onBlur={() => {
-						if (cancelSlugCommit.current) {
-							cancelSlugCommit.current = false;
-							return;
-						}
-						void commitSlug();
-					}}
-					onKeyDown={(event) => {
-						if (event.key === "Enter") {
-							event.preventDefault();
-							event.currentTarget.blur();
-						}
-						if (event.key === "Escape") {
-							event.preventDefault();
-							event.stopPropagation();
-							cancelSlugCommit.current = true;
-							setSlugDraft(slug);
-							setSlugError(undefined);
-							event.currentTarget.blur();
-						}
-					}}
-					aria-invalid={!!slugError}
-					className="h-auto border-x-0 border-t-0 bg-transparent px-0 py-1 font-mono text-2xl font-semibold tracking-tight shadow-none"
-				/>
-				{slugError && (
-					<Text size="xs" tone="destructive" data-slot="slug-error">
-						{slugError}
-					</Text>
-				)}
-			</label>
-
-			<label className="grid gap-1.5">
-				<Text size="sm" className="font-medium">
-					Descrição
-				</Text>
-				<Textarea
-					data-slot="description-input"
-					value={description}
-					onChange={(event) => onDescriptionChange(event.target.value)}
-					onBlur={onDescriptionCommit}
-					rows={4}
-					className="min-h-24 resize-y"
-				/>
-			</label>
 		</section>
 	);
 }

@@ -63,3 +63,27 @@ export async function copyMarkdown(content: string): Promise<void> {
 	const ok = await copyToClipboard(content);
 	toast[ok ? "success" : "error"](ok ? "Conteúdo copiado" : "Falha ao copiar conteúdo");
 }
+
+export async function deliverFile(file: File): Promise<"shared" | "downloaded" | "cancelled"> {
+	const mobile = window.matchMedia("(pointer: coarse)").matches;
+	if (mobile && navigator.canShare?.({ files: [file] })) {
+		try {
+			await navigator.share({ files: [file], title: file.name });
+			return "shared";
+		} catch (error) {
+			if (error instanceof DOMException && error.name === "AbortError") {
+				return "cancelled";
+			}
+		}
+	}
+
+	const url = URL.createObjectURL(file);
+	const anchor = document.createElement("a");
+	anchor.href = url;
+	anchor.download = file.name;
+	document.body.append(anchor);
+	anchor.click();
+	anchor.remove();
+	setTimeout(() => URL.revokeObjectURL(url), 30_000);
+	return "downloaded";
+}

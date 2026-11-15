@@ -9,14 +9,12 @@ import {
 } from "@tanstack/react-router";
 import {
 	ArrowLeft,
-	Check,
 	ChevronDown,
 	Loader2,
 	MoreVertical,
 	PencilLine,
 	SlidersHorizontal,
 	Trash2,
-	TriangleAlert,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -31,12 +29,10 @@ import {
 } from "@/components/doc-mobile-actions-drawer";
 import { DocToolbar } from "@/components/doc-toolbar";
 import { TaskTitleInput } from "@/components/tasks/task-edit-controls";
-import { Text } from "@/components/typography";
+import { Text, Title } from "@/components/typography";
 import { Button } from "@/components/ui/button";
-import { Chip } from "@/components/ui/chip";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Dialog } from "@/components/ui/dialog";
-import { Tooltip } from "@/components/ui/tooltip";
 import { SKILL_TOOL_LABEL } from "@/constants/skills";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useSkillCategoriesQuery } from "@/hooks/use-skill-categories";
@@ -44,16 +40,23 @@ import { useSkillQuery } from "@/hooks/use-skills";
 import { copyToClipboard } from "@/lib/build-prompt";
 import { LucideIcon } from "@/lib/lucide-icon";
 import { errorMessage } from "@/lib/orpc-errors";
-import { openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
+import { deliverFile, openFolderInOs, shareFolderAsZip } from "@/lib/os-share";
 import { cn } from "@/lib/utils";
 import { docSessionKey } from "@/stores/doc-sessions";
 import { useReadingModeStore } from "@/stores/reading-mode";
-import type { SkillCategory, SkillDetail, SkillVariant, TaskSkill } from "@/types/skills";
+import type {
+	SkillCategory,
+	SkillDetail,
+	SkillLocation,
+	SkillVariant,
+	TaskSkill,
+} from "@/types/skills";
 import { SkillAppearanceDialog } from "../-components/skill-appearance-dialog";
-import { SkillCopyMenu } from "../-components/skill-copy-menu";
 import { SkillDocumentFrontmatter } from "../-components/skill-document-frontmatter";
 import { SkillFilesStrip } from "../-components/skill-files-strip";
 import { SkillHeaderActions } from "../-components/skill-header-actions";
+import { SkillLocations } from "../-components/skill-locations";
+import { SkillShareActionsStacked, SkillShareMenu } from "../-components/skill-share-menu";
 import { SkillStandardizeDialog } from "../-components/skill-standardize-dialog";
 import { getSkillConflictNature } from "../-utils/skill-page-actions";
 import { useSkillDocumentAutosave } from "../-utils/use-skill-document-autosave";
@@ -104,19 +107,11 @@ function SkillPage() {
 			content={skillQuery.content}
 			variants={skillQuery.variants}
 			missingTools={skillQuery.missingTools}
+			locations={skillQuery.locations}
 			projectName={projectName}
 		/>
 	);
 }
-
-// Variantes idênticas compartilham `group`; a cor do ponto distingue os grupos nas tabs.
-const GROUP_DOT = [
-	"bg-primary",
-	"bg-destructive",
-	"bg-amber-500",
-	"bg-emerald-500",
-	"bg-violet-500",
-];
 
 function scopeSuffix(scope: SkillVariant["scope"]): string {
 	if (scope === "project") return " · projeto";
@@ -163,10 +158,7 @@ function SkillCategorySelect({
 				renderTrigger={() => (
 					<>
 						<span className="flex min-w-0 items-center gap-1.5">
-							<span
-								className="size-2 shrink-0 rounded-full"
-								style={{ backgroundColor: selected.color }}
-							/>
+							<span className="size-2 shrink-0" style={{ backgroundColor: selected.color }} />
 							<span className="truncate text-xs">{selected.name}</span>
 						</span>
 						<ChevronDown className="size-3.5 shrink-0 opacity-50" />
@@ -174,10 +166,7 @@ function SkillCategorySelect({
 				)}
 				renderItem={(item, isSelected) => (
 					<div className={cn("flex w-full items-center gap-2", isSelected && "font-medium")}>
-						<span
-							className="size-2 shrink-0 rounded-full"
-							style={{ backgroundColor: item.color }}
-						/>
+						<span className="size-2 shrink-0" style={{ backgroundColor: item.color }} />
 						<span className="truncate">{item.name}</span>
 					</div>
 				)}
@@ -193,8 +182,10 @@ function SkillEditor({
 	content,
 	variants,
 	missingTools,
+	locations,
 	projectName,
 }: {
+	locations: SkillLocation[];
 	skill: TaskSkill;
 	content: string;
 	variants: SkillVariant[];
@@ -242,13 +233,6 @@ function SkillEditor({
 
 	const activeVariant =
 		variants.find((variant) => variant.path === activeVariantPath) ?? variants[0];
-	const hasConflict = new Set(variants.map((variant) => variant.contentHash)).size > 1;
-	const distinctVariants = variants.filter(
-		(variant, index) =>
-			variants.findIndex((candidate) => candidate.canonicalRoot === variant.canonicalRoot) ===
-			index,
-	);
-	const hasMultipleVariants = distinctVariants.length > 1;
 
 	const saveDocument = useCallback(
 		async (document: {
@@ -352,6 +336,13 @@ function SkillEditor({
 	async function copySkillZip() {
 		await flushPending();
 		await shareFolderAsZip(skillDir);
+	}
+
+	async function downloadSkillZip() {
+		await flushPending();
+		const file = await orpc.skills.exportZip.call(variantTarget);
+		const delivered = await deliverFile(file);
+		if (delivered === "downloaded") toast.success(`${file.name} baixado`);
 	}
 
 	const multiSource = skill.sources.length > 1;
@@ -480,233 +471,170 @@ function SkillEditor({
 		);
 	}
 
-	return (
-		<div className="relative flex h-full w-full flex-col">
-			{reading ? null : (
-				<>
-					<div className="w-full border-b border-border">
-						<div className="mx-auto flex h-10 w-full max-w-6xl items-center gap-2 px-2">
-							<button
-								type="button"
-								onClick={() => runAction(navigateBack())}
-								className="flex items-center px-2 text-muted-foreground transition-colors hover:text-foreground"
-								aria-label="Voltar para skills"
-							>
-								<ArrowLeft size={16} />
-							</button>
-							<div
-								className="flex size-6 shrink-0 items-center justify-center border"
-								style={{ borderColor: skill.color, color: skill.color }}
-							>
-								<LucideIcon name={skill.icon} className="size-3.5" />
-							</div>
-							{editingLabel ? (
-								<div className="min-w-0 flex-1">
-									<TaskTitleInput
-										initialValue={skill.label}
-										placeholder={skill.slug}
-										onSave={saveLabel}
-										onCancel={() => setEditingLabel(false)}
-									/>
-								</div>
-							) : (
-								<button
-									type="button"
-									onClick={() => setEditingLabel(true)}
-									className="group flex min-w-0 flex-1 items-center gap-1.5 text-left"
-									title="Renomear skill"
-								>
-									<Text size="sm" className="min-w-0 truncate font-display font-semibold">
-										{skill.label}
-									</Text>
-									<PencilLine className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-								</button>
-							)}
+	const shareHandlers = {
+		flush: flushPending,
+		onDownloadZip: downloadSkillZip,
+		onCopyZip: copySkillZip,
+		onCopySkill: () => copyFile("SKILL.md"),
+		onCopyText: copySkillText,
+		onCopyPath: () => copyPath(skillDir),
+		onOpenInOs: openSkillFolder,
+	};
 
-							<div className="flex shrink-0 items-center gap-1">
-								{skill.sources.map((source) => (
-									<Chip key={source.path} size="xs" variant="ghost">
-										{SKILL_TOOL_LABEL[source.tool]}
-										{scopeSuffix(source.scope)}
-									</Chip>
-								))}
-							</div>
-
-							{/* Principais inline (desktop): categoria, copiar e replicar. O resto vive no menu
-							    de ações. No mobile a linha inteira degrada para o drawer (padrão do vault). */}
-							<div className="hidden items-center gap-2 md:flex">
-								<SkillCategorySelect
-									categories={categoriesQuery.data ?? []}
-									categoryId={skill.categoryId}
-									onChange={changeCategory}
-									className="w-40"
-								/>
-								<SkillCopyMenu
-									onCopySkill={() => copyFile("SKILL.md")}
-									onCopyText={copySkillText}
-									onCopyZip={copySkillZip}
-									flush={flushPending}
-								/>
-								<SkillHeaderActions
-									onAppearance={() => setAppearanceOpen(true)}
-									onReading={() => setReading(true)}
-									onCollapse={() => paneRef.current?.collapseAll()}
-									onExpand={() => paneRef.current?.expandAll()}
-									onCopyPath={() => runAction(copyPath(`${skillDir}/SKILL.md`))}
-									onOpenInOs={() => runAction(openSkillFolder())}
-									onShareZip={() => runAction(copySkillZip())}
-									onDelete={() => setConfirmingDelete(true)}
-								/>
-							</div>
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon-sm"
-								onClick={() => setActionsOpen(true)}
-								aria-label="Ações da skill"
-								className="h-8 w-8 shrink-0 md:hidden"
-							>
-								<MoreVertical className="h-4 w-4" />
-							</Button>
-						</div>
+	const header = (
+		<div data-component="skill-header" className="grid gap-2 border-b border-border pb-3">
+			<div className="flex min-h-8 items-center gap-2">
+				<button
+					type="button"
+					onClick={() => runAction(navigateBack())}
+					className="-ml-1 flex size-7 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+					aria-label="Voltar para skills"
+					title="Voltar (Esc)"
+				>
+					<ArrowLeft size={16} />
+				</button>
+				<button
+					type="button"
+					onClick={() => setAppearanceOpen(true)}
+					className="flex size-7 shrink-0 items-center justify-center border transition-colors hover:bg-secondary/60"
+					style={{ borderColor: skill.color, color: skill.color }}
+					title="Aparência"
+				>
+					<LucideIcon name={skill.icon} className="size-4" />
+				</button>
+				{editingLabel ? (
+					<div className="min-w-0 flex-1">
+						<TaskTitleInput
+							initialValue={skill.label}
+							placeholder={skill.slug}
+							onSave={saveLabel}
+							onCancel={() => setEditingLabel(false)}
+						/>
 					</div>
+				) : (
+					<button
+						type="button"
+						onClick={() => setEditingLabel(true)}
+						className="group flex min-w-0 flex-1 items-center gap-1.5 text-left"
+						title="Renomear exibição"
+					>
+						<Title as="h1" size="md" className="min-w-0 truncate">
+							{skill.label}
+						</Title>
+						<PencilLine className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+					</button>
+				)}
+				<div className="hidden shrink-0 items-center gap-1.5 md:flex">
+					<SkillCategorySelect
+						categories={categoriesQuery.data ?? []}
+						categoryId={skill.categoryId}
+						onChange={changeCategory}
+						className="w-40"
+					/>
+					<SkillShareMenu {...shareHandlers} />
+					<SkillHeaderActions
+						onAppearance={() => setAppearanceOpen(true)}
+						onReading={() => setReading(true)}
+						onCollapse={() => paneRef.current?.collapseAll()}
+						onExpand={() => paneRef.current?.expandAll()}
+						onDelete={() => setConfirmingDelete(true)}
+					/>
+				</div>
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon-sm"
+					onClick={() => setActionsOpen(true)}
+					aria-label="Ações da skill"
+					className="shrink-0 md:hidden"
+				>
+					<MoreVertical className="h-4 w-4" />
+				</Button>
+			</div>
 
-					<DocMobileActionsDrawer open={actionsOpen} onClose={closeActions} title="Ações da skill">
-						<div className="px-5 py-2">
-							<Text size="xs" tone="muted" className="mb-1.5">
-								Categoria
-							</Text>
-							<SkillCategorySelect
-								categories={categoriesQuery.data ?? []}
-								categoryId={skill.categoryId}
-								onChange={changeCategory}
-								className="w-full"
-							/>
-						</div>
-						<DocSheetDivider />
-						<DocSheetActionButton
-							icon={<SlidersHorizontal className="size-[18px]" />}
-							label="Aparência"
-							onClick={() => {
-								setAppearanceOpen(true);
-								closeActions();
-							}}
-						/>
-						<DocSheetDivider />
-						<div className="flex justify-center px-5 py-2">
-							<SkillCopyMenu
-								onCopySkill={() => copyFile("SKILL.md")}
-								onCopyText={copySkillText}
-								onCopyZip={copySkillZip}
-								flush={flushPending}
-							/>
-						</div>
-						<DocSheetDivider />
-						<DocToolbar
-							onCollapse={() => paneRef.current?.collapseAll()}
-							onExpand={() => paneRef.current?.expandAll()}
-							onCopyPath={() => runAction(copyPath(`${skillDir}/SKILL.md`))}
-							onReading={() => setReading(true)}
-							share={{
-								onOpenInOs: () => runAction(openSkillFolder()),
-								onCopyZip: () => runAction(copySkillZip()),
-							}}
-							layout="stacked"
-							onAction={closeActions}
-						/>
-						<DocSheetDivider />
-						<DocSheetActionButton
-							icon={<Trash2 className="size-[18px]" />}
-							label="Excluir skill"
-							onClick={() => {
-								setConfirmingDelete(true);
-								closeActions();
-							}}
-							className="text-destructive"
-						/>
-					</DocMobileActionsDrawer>
-
-					{(hasMultipleVariants || missingTools.length > 0) && (
-						<div className="w-full border-b border-border">
-							<div className="mx-auto flex h-8 w-full max-w-6xl items-stretch">
-								<div
-									className="flex min-w-0 flex-1 items-stretch overflow-x-auto"
-									role={hasMultipleVariants ? "tablist" : undefined}
-									aria-label={hasMultipleVariants ? "Variantes da skill" : undefined}
-								>
-									{!hasMultipleVariants && (
-										<div className="flex min-w-0 items-center gap-1.5 px-3 text-xs text-muted-foreground">
-											<TriangleAlert className="size-3.5 shrink-0 text-amber-500" />
-											<span className="truncate">
-												Falta em {missingTools.map((tool) => SKILL_TOOL_LABEL[tool]).join(", ")}
-											</span>
-										</div>
-									)}
-									{hasMultipleVariants &&
-										distinctVariants.map((variant) => {
-											const isActive = variant.path === activeVariantPath;
-											return (
-												<button
-													key={variant.path}
-													type="button"
-													onClick={() => runAction(selectVariant(variant.path))}
-													className={cn(
-														"flex h-full shrink-0 items-center justify-center gap-1.5 border-l border-border px-3 text-xs transition-colors",
-														isActive
-															? "bg-secondary text-foreground"
-															: "text-muted-foreground hover:bg-secondary/50",
-													)}
-													title={variant.path}
-													role="tab"
-													aria-selected={isActive}
-												>
-													<span
-														className={cn(
-															"size-1.5 shrink-0 rounded-full",
-															GROUP_DOT[variant.group % GROUP_DOT.length],
-														)}
-														aria-hidden
-													/>
-													<span className="truncate">
-														{SKILL_TOOL_LABEL[variant.tool]}
-														{scopeSuffix(variant.scope)}
-													</span>
-												</button>
-											);
-										})}
-								</div>
-								<div className="flex shrink-0 items-stretch border-l border-border">
-									<button
-										type="button"
-										onClick={() => setConfirmingStandardize(true)}
-										disabled={standardizing}
-										className="flex items-center gap-1.5 px-3 text-xs text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground disabled:opacity-50"
-										aria-label="Tornar como principal"
-										title="Criar esta skill nas CLIs que ainda não a têm"
-									>
-										<Check size={14} />
-										<span className="hidden sm:inline">Tornar como principal</span>
-									</button>
-									{hasConflict && (
-										<Tooltip label={conflictNature ?? "Variantes divergem"} side="bottom">
-											<button
-												type="button"
-												aria-label={conflictNature ?? "Variantes divergem"}
-												className="flex h-full items-center px-2 text-amber-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-											>
-												<TriangleAlert className="size-3.5" />
-											</button>
-										</Tooltip>
-									)}
-								</div>
-							</div>
-						</div>
-					)}
-				</>
+			{isSkillFile && (
+				<SkillDocumentFrontmatter
+					slug={skill.slug}
+					description={autosave.document.description}
+					metadata={autosave.document.metadata}
+					status={autosave.status}
+					renaming={renaming}
+					onSlugCommit={renameSlug}
+					onDescriptionChange={(description) => autosave.schedule({ description })}
+					onDescriptionCommit={() => runAction(autosave.flush())}
+					onMetadataChange={(metadata) => autosave.schedule({ metadata }, true)}
+				>
+					<SkillLocations
+						variants={variants}
+						locations={locations}
+						activePath={activeVariantPath}
+						missingTools={missingTools}
+						standardizing={standardizing}
+						conflictNature={conflictNature}
+						onSelect={(path) => runAction(selectVariant(path))}
+						onStandardize={() => setConfirmingStandardize(true)}
+					/>
+				</SkillDocumentFrontmatter>
 			)}
 
-			{/* Mesma estrutura de tarefa/vault: overlay em tela cheia na leitura, `display:contents`
-			    fora dela. Keyado por variante + arquivo aberto pra remontar o editor a cada troca. */}
+			{(activeVariant.files.length > 1 || !isSkillFile) && (
+				<SkillFilesStrip
+					files={activeVariant.files}
+					activePath={activeFile}
+					onOpen={(file) => runAction(openFile(file.path))}
+					onCopyContent={(file) => runAction(copyFile(file.path))}
+					onCopyPath={(file) => runAction(copyPath(file.path))}
+					onOpenFolder={() => runAction(openSkillFolder())}
+				/>
+			)}
+		</div>
+	);
+
+	return (
+		<div className="relative flex h-full w-full flex-col">
+			<DocMobileActionsDrawer open={actionsOpen} onClose={closeActions} title="Ações da skill">
+				<div className="px-5 py-2">
+					<Text size="xs" tone="muted" className="mb-1.5">
+						Categoria
+					</Text>
+					<SkillCategorySelect
+						categories={categoriesQuery.data ?? []}
+						categoryId={skill.categoryId}
+						onChange={changeCategory}
+						className="w-full"
+					/>
+				</div>
+				<DocSheetDivider />
+				<SkillShareActionsStacked {...shareHandlers} onAction={closeActions} />
+				<DocSheetDivider />
+				<DocToolbar
+					onCollapse={() => paneRef.current?.collapseAll()}
+					onExpand={() => paneRef.current?.expandAll()}
+					onCopyPath={() => runAction(copyPath(`${skillDir}/${activeFile}`))}
+					onReading={() => setReading(true)}
+					layout="stacked"
+					onAction={closeActions}
+				/>
+				<DocSheetActionButton
+					icon={<SlidersHorizontal className="size-[18px]" />}
+					label="Aparência"
+					onClick={() => {
+						setAppearanceOpen(true);
+						closeActions();
+					}}
+				/>
+				<DocSheetDivider />
+				<DocSheetActionButton
+					icon={<Trash2 className="size-[18px]" />}
+					label="Excluir skill"
+					onClick={() => {
+						setConfirmingDelete(true);
+						closeActions();
+					}}
+					className="text-destructive"
+				/>
+			</DocMobileActionsDrawer>
+
 			<div className={reading ? "fixed inset-0 z-50 flex flex-col bg-background" : "contents"}>
 				<DocEditorPane
 					key={`${activeVariantPath}:${activeFile}`}
@@ -727,6 +655,8 @@ function SkillEditor({
 					folderPath={activeVariant?.dir ?? skill.primaryDir}
 					linkCwd={activeVariant?.dir ?? skill.primaryDir}
 					documentMaxWidth="52rem"
+					fontSize="0.9375rem"
+					dense
 					externalSave={
 						isSkillFile
 							? {
@@ -736,31 +666,7 @@ function SkillEditor({
 							: undefined
 					}
 					writeFile={isSkillFile ? undefined : ({ content }) => writeActiveFile(content)}
-					beforeEditor={
-						<>
-							<SkillFilesStrip
-								files={activeVariant.files}
-								activePath={activeFile}
-								onOpen={(file) => runAction(openFile(file.path))}
-								onCopyContent={(file) => runAction(copyFile(file.path))}
-								onCopyPath={(file) => runAction(copyPath(file.path))}
-								onOpenFolder={() => runAction(openSkillFolder())}
-							/>
-							{isSkillFile && (
-								<SkillDocumentFrontmatter
-									slug={skill.slug}
-									description={autosave.document.description}
-									metadata={autosave.document.metadata}
-									status={autosave.status}
-									renaming={renaming}
-									onSlugCommit={renameSlug}
-									onDescriptionChange={(description) => autosave.schedule({ description })}
-									onDescriptionCommit={() => runAction(autosave.flush())}
-									onMetadataChange={(metadata) => autosave.schedule({ metadata }, true)}
-								/>
-							)}
-						</>
-					}
+					beforeEditor={reading ? undefined : header}
 					onPasteFrontmatter={isSkillFile ? applyPastedFrontmatter : undefined}
 					reading={reading}
 					onExitReading={() => setReading(false)}
@@ -768,7 +674,7 @@ function SkillEditor({
 						isSkillFile ? void navigate({ to: "/skills" }) : runAction(openFile("SKILL.md"))
 					}
 				/>
-				{reading ? (
+				{reading && (
 					<Button
 						variant="outline"
 						size="sm"
@@ -779,7 +685,7 @@ function SkillEditor({
 						<X size={16} />
 						Sair da leitura
 					</Button>
-				) : null}
+				)}
 			</div>
 
 			<Dialog

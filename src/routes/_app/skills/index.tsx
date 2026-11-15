@@ -6,6 +6,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { useProjectFocus } from "@/hooks/use-project-focus";
 import { useSkillCategoriesQuery } from "@/hooks/use-skill-categories";
 import { useSkillsQuery } from "@/hooks/use-skills";
+import { SkillImportZone } from "./-components/skill-import";
 import { SkillsGrid } from "./-components/skills-grid";
 import { SkillsSyncAction } from "./-components/skills-sync-dialog";
 
@@ -20,7 +21,7 @@ export const Route = createFileRoute("/_app/skills/")({
 
 function SkillsPage() {
 	const { selectedProject } = useProjectFocus();
-	const skillsQuery = useSkillsQuery(selectedProject?.name);
+	const skillsQuery = useSkillsQuery(selectedProject?.name, { withContent: true });
 	const categoriesQuery = useSkillCategoriesQuery();
 	const navigate = Route.useNavigate();
 	const { searchQuery } = Route.useSearch();
@@ -28,27 +29,29 @@ function SkillsPage() {
 	return (
 		<PageShell
 			title="Skills"
-			description="Biblioteca compartilhada pelas CLIs, organizada por categoria"
+			description="Biblioteca compartilhada pelas CLIs. Arraste um SKILL.md, zip ou pasta para importar"
 			icon={Book}
 			actions={<SkillsSyncAction />}
 		>
-			<div className="h-full min-h-0 pb-4">
-				<SkillsGrid
-					skills={skillsQuery.taskSkills}
-					categories={categoriesQuery.data ?? []}
-					loading={skillsQuery.isLoading}
-					search={searchQuery ?? ""}
-					onSearchChange={(value) => {
-						void navigate({
-							search: (previous) => ({
-								...previous,
-								searchQuery: value.length > 0 ? value : undefined,
-							}),
-							replace: true,
-						});
-					}}
-				/>
-			</div>
+			<SkillImportZone>
+				<div className="h-full min-h-0 pb-4">
+					<SkillsGrid
+						skills={skillsQuery.taskSkills}
+						categories={categoriesQuery.data ?? []}
+						loading={skillsQuery.isLoading}
+						search={searchQuery ?? ""}
+						onSearchChange={(value) => {
+							void navigate({
+								search: (previous) => ({
+									...previous,
+									searchQuery: value.length > 0 ? value : undefined,
+								}),
+								replace: true,
+							});
+						}}
+					/>
+				</div>
+			</SkillImportZone>
 		</PageShell>
 	);
 }

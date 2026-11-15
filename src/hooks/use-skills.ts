@@ -29,6 +29,7 @@ function toTaskSkill(
 		slug: skill.slug,
 		label: skill.settings.label ?? skill.name,
 		description: skill.description,
+		content: "content" in skill ? skill.content : undefined,
 		findings: skill.findings,
 		icon: skill.settings.icon ?? metadataIcon ?? DEFAULT_SKILL_ICON,
 		color: skill.settings.color ?? metadataColor ?? categoryTone ?? DEFAULT_SKILL_COLOR,
@@ -51,9 +52,14 @@ function useCategoryColors() {
 	);
 }
 
-export function useSkillsQuery(projectName?: string, options?: { enabled?: boolean }) {
+export function useSkillsQuery(
+	projectName?: string,
+	options?: { enabled?: boolean; withContent?: boolean },
+) {
 	const query = useQuery({
-		...orpc.skills.list.queryOptions({ input: { projectName } }),
+		...orpc.skills.list.queryOptions({
+			input: options?.withContent ? { projectName, withContent: true } : { projectName },
+		}),
 		enabled: options?.enabled ?? true,
 	});
 	const categoryColors = useCategoryColors();
@@ -77,6 +83,7 @@ export function useSkillQuery(slug: string, projectName?: string, options?: { en
 	);
 	const variants = query.data?.variants ?? [];
 	const missingTools = query.data?.missingTools ?? [];
+	const locations = query.data?.locations ?? [];
 
 	return {
 		...query,
@@ -84,5 +91,6 @@ export function useSkillQuery(slug: string, projectName?: string, options?: { en
 		content: query.data?.content ?? "",
 		variants,
 		missingTools,
+		locations,
 	};
 }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { cleanup, render, userEvent, waitFor } from "../../../../../tests/web/testing-library";
-import { SkillCopyMenu } from "../-components/skill-copy-menu";
+import { SkillShareMenu } from "../-components/skill-share-menu";
 import { SkillStandardizeDialog } from "../-components/skill-standardize-dialog";
 import { getSkillConflictNature } from "../-utils/skill-page-actions";
 
@@ -27,7 +27,7 @@ function action(label: string) {
 }
 
 describe.serial("fluxo da rota de skill", () => {
-	test("menu de cópia espera o flush antes de ler a variante", async () => {
+	test("menu de compartilhar espera o flush antes de ler a variante", async () => {
 		let releaseFlush = () => {};
 		const events: string[] = [];
 		const flush = () =>
@@ -39,7 +39,7 @@ describe.serial("fluxo da rota de skill", () => {
 			});
 		render(
 			<div data-theme-root>
-				<SkillCopyMenu
+				<SkillShareMenu
 					flush={flush}
 					onCopySkill={() => {
 						events.push("read:SKILL.md");
@@ -47,12 +47,15 @@ describe.serial("fluxo da rota de skill", () => {
 					}}
 					onCopyText={() => Promise.resolve()}
 					onCopyZip={() => Promise.resolve()}
+					onDownloadZip={() => Promise.resolve()}
+					onCopyPath={() => Promise.resolve()}
+					onOpenInOs={() => Promise.resolve()}
 				/>
 			</div>,
 		);
 		const user = userEvent.setup();
 
-		await user.click(button("Copiar"));
+		await user.click(button("Compartilhar"));
 		await waitFor(() => expect(action("Copiar SKILL.md")).toBeInstanceOf(HTMLElement));
 		await user.click(action("Copiar SKILL.md"));
 		expect(events).toEqual([]);
@@ -60,11 +63,11 @@ describe.serial("fluxo da rota de skill", () => {
 		await waitFor(() => expect(events).toEqual(["flush", "read:SKILL.md"]));
 	});
 
-	test("menu de cópia bloqueia a leitura quando o flush falha", async () => {
+	test("menu de compartilhar bloqueia a leitura quando o flush falha", async () => {
 		let read = false;
 		render(
 			<div data-theme-root>
-				<SkillCopyMenu
+				<SkillShareMenu
 					flush={async () => {
 						await Promise.resolve();
 						throw new Error("save falhou");
@@ -75,12 +78,15 @@ describe.serial("fluxo da rota de skill", () => {
 					}}
 					onCopyText={() => Promise.resolve()}
 					onCopyZip={() => Promise.resolve()}
+					onDownloadZip={() => Promise.resolve()}
+					onCopyPath={() => Promise.resolve()}
+					onOpenInOs={() => Promise.resolve()}
 				/>
 			</div>,
 		);
 
 		const user = userEvent.setup();
-		await user.click(button("Copiar"));
+		await user.click(button("Compartilhar"));
 		await waitFor(() => expect(action("Copiar SKILL.md")).toBeInstanceOf(HTMLElement));
 		await user.click(action("Copiar SKILL.md"));
 		await new Promise((resolve) => {

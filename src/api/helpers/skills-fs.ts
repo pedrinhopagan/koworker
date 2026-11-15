@@ -26,6 +26,7 @@ import { dbSkillSettings } from "../db/skill-settings";
 import { dbSkillSourcePaths } from "../db/skill-source-paths";
 import { createDeleteBackup, SKILL_DELETE_BACKUP_ROOT } from "./delete-backup";
 import { expandTilde } from "./os-actions";
+import { zipDirectory } from "./zip";
 import {
 	exportSkillDirectoryText,
 	inspectSkillDirectory,
@@ -89,8 +90,19 @@ export type SkillFsRecord = {
 	primaryDir: string;
 };
 
+export type SkillLocation = {
+	tool: SkillTool;
+	scope: SkillScope;
+	dir: string;
+	path: string;
+	contentHash: string;
+	linked: boolean;
+	projectName: string | null;
+};
+
 export type SkillFsRecordDetailed = SkillFsRecord & {
 	variants: SkillVariant[];
+	locations: SkillLocation[];
 	missingTools: SkillTool[];
 };
 
@@ -196,6 +208,16 @@ async function buildRoots(projectName?: string): Promise<SkillRoot[]> {
 	return await deduplicateRoots(
 		projectName ? [...base, ...(await projectRoots(projectName))] : base,
 	);
+}
+
+async function buildEveryRoot() {
+	const sourceRoots = await sourcePathRoots();
+	const projects = await dbProjects.listRoots();
+	return await deduplicateRoots([
+		...sourceRoots,
+		KOWORKER_ROOT,
+		...projects.flatMap((project) => projectSkillRoots(project.main_route)),
+	]);
 }
 
 async function buildDeletableRoots() {
@@ -481,9 +503,26 @@ export async function getSkillFromFs(
 		};
 	});
 
+	const projects = await dbProjects.listRoots();
+	const everywhere = await loadSourcesForSlug(slug, await buildEveryRoot());
+	const locations = everywhere.map((source) => ({
+		tool: source.root.tool,
+		scope: source.root.scope,
+		dir: source.dir,
+		path: source.path,
+		contentHash: source.manifest.contentHash,
+		linked: source.manifest.entryType === "symlink",
+		projectName:
+			source.root.scope === "project"
+				? (projects.find((project) => source.dir.startsWith(`${project.main_route}/`))?.name ??
+					null)
+				: null,
+	}));
+
 	return {
 		...buildRecord(slug, loaded),
 		variants,
+		locations,
 		missingTools: [...new Set(missingSyncedRoots(slug, roots, loaded).map((root) => root.tool))],
 	};
 }
@@ -709,12 +748,65 @@ export async function updateSkillInFs(input: {
 		throw new Error("Não foi possível validar a skill salva");
 	}
 	const manifest = await inspectSkillDirectory(source.dir);
+	const updatedPaths = await propagateSkillEdit({
+		slug: input.slug,
+		source,
+		manifest,
+	});
 
 	return {
 		skillHash: skillContentHash(reread),
 		contentHash: manifest.contentHash,
 		files: manifest.files,
+		updatedPaths,
 	};
+}
+
+export async function propagateSkillEdit(input: {
+	slug: string;
+	source: LoadedSource;
+	manifest: SkillDirectoryManifest;
+}) {
+	const previousContentHash = input.source.manifest.contentHash;
+	const editedRoot = input.manifest.canonicalRoot;
+	const staticIdentity = await rootIdentity(KOWORKER_ROOT);
+	const everyRoot = await buildEveryRoot();
+	const identities = await Promise.all(everyRoot.map(rootIdentity));
+	const roots = everyRoot.filter(
+		(root, index) => identities[index] !== staticIdentity || input.source.root.tool === "koworker",
+	);
+	const copies = await loadSourcesForSlug(input.slug, roots);
+	const twins = new Map<string, LoadedSource>();
+	for (const copy of copies) {
+		const canonical = copy.manifest.canonicalRoot;
+		if (
+			canonical !== editedRoot &&
+			copy.manifest.contentHash === previousContentHash &&
+			!twins.has(canonical)
+		) {
+			twins.set(canonical, copy);
+		}
+	}
+
+	if (twins.size > 0) {
+		await replaceSkillDirectories(
+			[...twins.entries()].map(([canonical, twin]) => ({
+				sourceDir: editedRoot,
+				targetDir: canonical,
+				expectedContentHash: input.manifest.contentHash,
+				expectedTargetContentHash: twin.manifest.contentHash,
+			})),
+		).finally(invalidateSkillsFsCache);
+	}
+
+	const updatedRoots = new Set([editedRoot, ...twins.keys()]);
+	const updatedPaths = copies
+		.filter((copy) => updatedRoots.has(copy.manifest.canonicalRoot))
+		.map((copy) => copy.path);
+
+	return updatedPaths.includes(input.source.path)
+		? updatedPaths
+		: [input.source.path, ...updatedPaths];
 }
 
 export async function renameSkillInFs(input: {
@@ -727,18 +819,18 @@ export async function renameSkillInFs(input: {
 		return await getSkillFromFs(input.slug, input.projectName);
 	}
 
-	const roots = await buildRoots(input.projectName);
+	const roots = await buildEveryRoot();
 	const loaded = await loadDetailedSourcesForSlug(input.slug, roots);
 	if (loaded.length === 0) {
 		throw new Error("Skill não encontrada");
 	}
 	if (input.expectedVariants) {
-		const expected = new Map(
-			input.expectedVariants.map((variant) => [resolve(variant.path), variant.contentHash]),
+		const current = new Map(
+			loaded.map((source) => [resolve(source.path), source.manifest.contentHash]),
 		);
-		const stale =
-			expected.size !== loaded.length ||
-			loaded.some((source) => expected.get(resolve(source.path)) !== source.manifest.contentHash);
+		const stale = input.expectedVariants.some(
+			(variant) => current.get(resolve(variant.path)) !== variant.contentHash,
+		);
 		if (stale) {
 			throw new Error("A skill mudou desde a última leitura. Recarregue antes de renomear");
 		}
@@ -795,11 +887,12 @@ export async function renameSkillInFs(input: {
 			});
 		}
 
+		const renamedSources = await loadSourcesForSlug(input.newSlug, roots);
 		const renamed = await getSkillFromFs(input.newSlug, input.projectName);
 		if (
 			!renamed ||
-			renamed.variants.length !== moves.length ||
-			renamed.variants.some((variant) => variant.name !== input.newSlug)
+			renamedSources.length !== moves.length ||
+			renamedSources.some((source) => source.file.frontmatter.name !== input.newSlug)
 		) {
 			throw new Error("Não foi possível validar a skill renomeada");
 		}
@@ -863,8 +956,20 @@ export async function writeSkillFileInFs(input: {
 		expectedHash: input.expectedHash,
 	});
 	invalidateSkillsFsCache();
+	const manifest = await inspectSkillDirectory(source.dir);
+	const updatedPaths = await propagateSkillEdit({ slug: input.slug, source, manifest });
 
-	return written;
+	return { ...written, contentHash: manifest.contentHash, updatedPaths };
+}
+
+export async function exportSkillZipFromFs(input: {
+	slug: string;
+	projectName?: string;
+	variantPath: string;
+}) {
+	const source = await resolveKnownSkillVariant(input);
+	const bytes = await zipDirectory(source.dir);
+	return new File([new Uint8Array(bytes)], `${input.slug}.zip`, { type: "application/zip" });
 }
 
 export async function exportSkillTextFromFs(input: {

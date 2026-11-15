@@ -28,7 +28,7 @@ Keep your code, context, and conversations in one place.
 - **One workspace per project.** Open coding CLIs, run project commands, and find context files from a single launchpad.
 - **Tasks backed by Markdown.** Plans, notes, and deliverables live in your project folder, readable by you and your agents.
 - **Conversations with context.** Chat with Codex, import CLI history, and follow terminal agents with their tools and results.
-- **A shared skill library.** Browse, edit, and organize reusable instructions across coding CLIs.
+- **A shared skill library.** Search by name or content, edit every skill file, and import instructions from Markdown, ZIP files, folders, or local paths.
 - **Local data.** SQLite stores the app state. Project files stay on disk; coding agents use their configured providers.
 
 ## Follow the work
@@ -43,10 +43,16 @@ Read agent output as a conversation. Inspect tool activity, choose a model and r
 
 ## Keep instructions close
 
-Skills turn your workflow into reusable instructions. Group them by category and edit their files without leaving the workspace.
+Skills turn your workflow into reusable instructions. Search names before descriptions and content, organize by category, and drop a skill into the library to import it.
 
 <p align="center">
   <img src="docs/screenshots/skills.png" alt="Koworker skill library with search, categories, and cards for reusable agent instructions">
+</p>
+
+Open a skill to edit its instructions and supporting files. The compact toolbar leaves room for reading, shows where the skill is installed, and offers sharing options.
+
+<p align="center">
+  <img src="docs/screenshots/skill-editor.png" alt="Koworker skill editor with a compact toolbar, supporting files, installation locations, and Markdown instructions">
 </p>
 
 ## Run locally

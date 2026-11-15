@@ -5,6 +5,7 @@ export type SkillRecord = RouterOutputs["skills"]["list"][number];
 export type SkillSource = SkillRecord["sources"][number];
 export type SkillDetail = NonNullable<RouterOutputs["skills"]["get"]>;
 export type SkillVariant = SkillDetail["variants"][number];
+export type SkillLocation = SkillDetail["locations"][number];
 export type SkillSourcePath = RouterOutputs["skills"]["listPaths"][number];
 export type SkillCategory = RouterOutputs["skillCategories"]["list"][number];
 
@@ -13,6 +14,7 @@ export type TaskSkill = {
 	slug: string;
 	label: string;
 	description: string;
+	content?: string;
 	findings: PrinciplesFinding[];
 	icon: string;
 	color: string;

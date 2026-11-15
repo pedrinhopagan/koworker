@@ -132,7 +132,7 @@ function CategoryItem({
 }) {
 	return (
 		<DropdownMenuItem onSelect={onSelect}>
-			<span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+			<span className="size-2 shrink-0" style={{ backgroundColor: color }} />
 			<span className="min-w-0 flex-1 truncate">{name}</span>
 			{active && <Check />}
 		</DropdownMenuItem>

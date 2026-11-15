@@ -105,3 +105,47 @@ describe.serial("SkillFilesStrip", () => {
 		expect(document.querySelector('[role="menuitem"][data-disabled]')).not.toBeNull();
 	});
 });
+
+describe.serial("SkillFilesStrip com muitos arquivos", () => {
+	const many = [
+		{ path: "SKILL.md", size: 20, kind: "text" as const, hash: "skill" },
+		...Array.from({ length: 12 }, (_, index) => ({
+			path: `assets/components/item-${index}.html`,
+			size: 100,
+			kind: "text" as const,
+			hash: `item-${index}`,
+		})),
+	];
+
+	test("resume em SKILL.md, arquivo aberto e navegador filtrável", async () => {
+		const opened: string[] = [];
+		render(
+			<div data-theme-root>
+				<SkillFilesStrip
+					files={many}
+					activePath="assets/components/item-3.html"
+					onOpen={(file) => opened.push(file.path)}
+					onCopyContent={() => {}}
+					onCopyPath={() => {}}
+					onOpenFolder={() => {}}
+				/>
+			</div>,
+		);
+		expect(cards().map((card) => card.textContent)).toEqual([
+			expect.stringContaining("SKILL.md"),
+			expect.stringContaining("assets/components/item-3.html"),
+		]);
+
+		const user = userEvent.setup();
+		const trigger = document.querySelector('[data-slot="skill-files-browser"]') as HTMLElement;
+		expect(trigger.textContent).toContain("13 em 2 pastas");
+		await user.click(trigger);
+		const filter = await waitFor(() => {
+			const found = document.querySelector('input[placeholder="Filtrar arquivos"]');
+			if (!(found instanceof HTMLInputElement)) throw new Error("filtro ausente");
+			return found;
+		});
+		await user.type(filter, "item-11{Enter}");
+		expect(opened).toEqual(["assets/components/item-11.html"]);
+	});
+});

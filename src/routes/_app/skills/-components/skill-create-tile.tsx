@@ -11,16 +11,7 @@ import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { useSkillCategoriesQuery } from "@/hooks/use-skill-categories";
 import { Label } from "@/components/ui/label";
-
-function slugify(value: string): string {
-	return value
-		.normalize("NFD")
-		.replaceAll(/[̀-ͯ]/g, "")
-		.toLowerCase()
-		.trim()
-		.replaceAll(/[^a-z0-9]+/g, "-")
-		.replaceAll(/^-+|-+$/g, "");
-}
+import { slugifySkill } from "@/constants/skill-slug";
 
 // Corpo inicial gravado no SKILL.md: já no formato esperado, pronto pra editar no detalhe da skill.
 function starterContent(title: string): string {
@@ -55,7 +46,7 @@ export function SkillCreateTile() {
 		onError: (error: Error) => toast.error(`Erro ao criar skill: ${error.message}`),
 	});
 
-	const slug = slugify(title);
+	const slug = slugifySkill(title);
 	const canCreate = slug.length > 0 && !!categoryId && !createMutation.isPending;
 
 	const submit = () => {

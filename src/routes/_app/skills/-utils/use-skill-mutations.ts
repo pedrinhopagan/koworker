@@ -78,14 +78,17 @@ export function useSkillMutations() {
 					if (!current) {
 						return current;
 					}
+					const updated = new Set([input.variantPath, ...result.updatedPaths]);
 					const contentHashes = current.variants.map((variant) =>
-						variant.path === input.variantPath ? result.contentHash : variant.contentHash,
+						updated.has(variant.path) ? result.contentHash : variant.contentHash,
 					);
 					const groups = [...new Set(contentHashes)];
-					const updatedDir = current.variants.find(
-						(variant) => variant.path === input.variantPath,
-					)?.dir;
-					const primaryUpdated = current.primaryPath === input.variantPath;
+					const updatedDirs = new Set(
+						current.variants
+							.filter((variant) => updated.has(variant.path))
+							.map((variant) => variant.dir),
+					);
+					const primaryUpdated = updated.has(current.primaryPath);
 					const primaryVariant = current.variants.find(
 						(variant) => variant.path === current.primaryPath,
 					);
@@ -100,14 +103,20 @@ export function useSkillMutations() {
 						}),
 						conflict: groups.length > 1,
 						sources: current.sources.map((source) =>
-							source.path === updatedDir
+							updatedDirs.has(source.path)
 								? { ...source, hash: result.skillHash, contentHash: result.contentHash }
 								: source,
 						),
+						locations: current.locations.map((location) =>
+							updated.has(location.path)
+								? { ...location, contentHash: result.contentHash }
+								: location,
+						),
 						variants: current.variants.map((variant) => {
-							const contentHash =
-								variant.path === input.variantPath ? result.contentHash : variant.contentHash;
-							if (variant.path !== input.variantPath) {
+							const contentHash = updated.has(variant.path)
+								? result.contentHash
+								: variant.contentHash;
+							if (!updated.has(variant.path)) {
 								return { ...variant, group: groups.indexOf(contentHash) };
 							}
 							return {

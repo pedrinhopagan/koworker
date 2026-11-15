@@ -9,6 +9,7 @@ import {
 	deleteAllSkillInFs,
 	deleteSkillInFs,
 	exportSkillTextFromFs,
+	exportSkillZipFromFs,
 	getSkillFromFs,
 	listSkillsFromFs,
 	previewSkillStandardizationInFs,
@@ -21,10 +22,20 @@ import {
 } from "../helpers/skills-fs";
 import { applySkillSyncInFs, previewSkillSyncInFs } from "../helpers/skills-sync";
 import {
+	cancelSkillImport,
+	checkSkillImportSlug,
+	commitSkillImport,
+	previewSkillImport,
+} from "../helpers/skill-import";
+import {
 	SkillCreateSchema,
 	SkillDeleteAllSchema,
 	SkillDeleteSchema,
 	SkillGetSchema,
+	SkillImportCommitSchema,
+	SkillImportPreviewSchema,
+	SkillImportSlugSchema,
+	SkillImportTokenSchema,
 	SkillFileReadSchema,
 	SkillFileWriteSchema,
 	SkillListSchema,
@@ -65,6 +76,7 @@ export const skillsRouter = {
 				slug: record.slug,
 				name: record.name,
 				description: record.description,
+				content: input.withContent ? record.content : undefined,
 				metadata: record.metadata,
 				sources: record.sources,
 				conflict: record.conflict,
@@ -119,6 +131,28 @@ export const skillsRouter = {
 		return record;
 	}),
 
+	importPreview: protectedProcedure
+		.input(SkillImportPreviewSchema)
+		.handler(async ({ input }) => await previewSkillImport(input)),
+
+	importCheckSlug: protectedProcedure
+		.input(SkillImportSlugSchema)
+		.handler(async ({ input }) => await checkSkillImportSlug(input.slug)),
+
+	importCommit: protectedProcedure.input(SkillImportCommitSchema).handler(async ({ input }) => {
+		if (!(await dbSkillCategories.getById(input.categoryId))) {
+			throw new Error("Escolha uma categoria existente");
+		}
+		const result = await commitSkillImport(input);
+		await dbSkillSettings.upsert({ slug: result.slug, categoryId: input.categoryId });
+		return result;
+	}),
+
+	importCancel: protectedProcedure.input(SkillImportTokenSchema).handler(async ({ input }) => {
+		await cancelSkillImport(input.token);
+		return { success: true };
+	}),
+
 	update: protectedProcedure.input(SkillUpdateSchema).handler(async ({ input }) => {
 		return await updateSkillInFs(input);
 	}),
@@ -145,6 +179,10 @@ export const skillsRouter = {
 
 	writeFile: protectedProcedure.input(SkillFileWriteSchema).handler(async ({ input }) => {
 		return await writeSkillFileInFs(input);
+	}),
+
+	exportZip: protectedProcedure.input(SkillTextExportSchema).handler(async ({ input }) => {
+		return await exportSkillZipFromFs(input);
 	}),
 
 	exportText: protectedProcedure.input(SkillTextExportSchema).handler(async ({ input }) => {
